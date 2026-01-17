@@ -86,7 +86,7 @@ struct WatchlistView: View {
                 } else if !appState.watchlistItems.isEmpty {
                     ForEach(appState.watchlistItems) { item in
                         WatchlistPriceRow(item: item) {
-                            openURL("https://www.torn.com/imarket.php#/p=shop&step=shop&type=&searchname=\(item.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? item.name)")
+                            openURL("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
                         } onRemove: {
                             appState.removeFromWatchlist(item.id)
                         }
@@ -98,7 +98,7 @@ struct WatchlistView: View {
                 // Quick Market Links
                 HStack(spacing: 8) {
                     ActionButton(title: "Item Market", icon: "bag.fill", color: .blue) {
-                        openURL("https://www.torn.com/imarket.php")
+                        openURL("https://www.torn.com/page.php?sid=ItemMarket")
                     }
                     
                     ActionButton(title: "Points", icon: "star.fill", color: .orange) {
