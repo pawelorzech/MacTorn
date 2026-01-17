@@ -16,6 +16,8 @@
 		AAA00007 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10007 /* StatusView.swift */; };
 		AAA00008 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10008 /* ProgressBarView.swift */; };
 		AAA00009 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10009 /* NotificationManager.swift */; };
+		AAA00010 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10011 /* LaunchAtLoginManager.swift */; };
+		AAA00011 /* ShortcutsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10012 /* ShortcutsManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +31,8 @@
 		AAA10008 /* ProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBarView.swift; sourceTree = "<group>"; };
 		AAA10009 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		AAA10010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AAA10011 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
+		AAA10012 /* ShortcutsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsManager.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -112,6 +116,8 @@
 			isa = PBXGroup;
 			children = (
 				AAA10009 /* NotificationManager.swift */,
+				AAA10011 /* LaunchAtLoginManager.swift */,
+				AAA10012 /* ShortcutsManager.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -193,6 +199,8 @@
 				AAA00007 /* StatusView.swift in Sources */,
 				AAA00008 /* ProgressBarView.swift in Sources */,
 				AAA00009 /* NotificationManager.swift in Sources */,
+				AAA00010 /* LaunchAtLoginManager.swift in Sources */,
+				AAA00011 /* ShortcutsManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

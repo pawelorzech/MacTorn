@@ -9,7 +9,11 @@ struct ProgressBarView: View {
     
     private var progress: Double {
         guard maximum > 0 else { return 0 }
-        return Double(current) / Double(maximum)
+        return min(1.0, Double(current) / Double(maximum))
+    }
+    
+    private var isFull: Bool {
+        current >= maximum
     }
     
     var body: some View {
@@ -17,31 +21,47 @@ struct ProgressBarView: View {
             HStack {
                 Image(systemName: icon)
                     .foregroundColor(color)
-                    .font(.caption)
+                    .font(.caption.bold())
                 
                 Text(label)
                     .font(.caption.bold())
+                    .foregroundColor(.primary)
                 
                 Spacer()
                 
                 Text("\(current)/\(maximum)")
                     .font(.caption.monospacedDigit())
-                    .foregroundColor(.secondary)
+                    .foregroundColor(isFull ? color : .secondary)
+                    .fontWeight(isFull ? .bold : .regular)
             }
             
+            // Progress bar with visible styling
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    // Background
+                    // Background track
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(color.opacity(0.2))
+                        .fill(Color.gray.opacity(0.3))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(color.opacity(0.3), lineWidth: 1)
+                        )
                     
-                    // Foreground
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(color)
-                        .frame(width: geometry.size.width * progress)
+                    // Filled progress
+                    if progress > 0 {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(
+                                LinearGradient(
+                                    colors: [color, color.opacity(0.7)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(width: max(4, geometry.size.width * progress))
+                            .shadow(color: color.opacity(0.5), radius: 2, x: 0, y: 0)
+                    }
                 }
             }
-            .frame(height: 8)
+            .frame(height: 10)
         }
     }
 }
@@ -49,9 +69,11 @@ struct ProgressBarView: View {
 #Preview {
     VStack(spacing: 16) {
         ProgressBarView(label: "Energy", current: 75, maximum: 100, color: .green, icon: "bolt.fill")
-        ProgressBarView(label: "Nerve", current: 25, maximum: 50, color: .red, icon: "flame.fill")
-        ProgressBarView(label: "Happy", current: 1000, maximum: 1000, color: .yellow, icon: "face.smiling.fill")
+        ProgressBarView(label: "Nerve", current: 50, maximum: 50, color: .red, icon: "flame.fill")
+        ProgressBarView(label: "Happy", current: 500, maximum: 1000, color: .yellow, icon: "face.smiling.fill")
+        ProgressBarView(label: "Life", current: 0, maximum: 100, color: .pink, icon: "heart.fill")
     }
     .padding()
     .frame(width: 280)
+    .background(Color(NSColor.windowBackgroundColor))
 }

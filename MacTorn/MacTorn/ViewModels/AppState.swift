@@ -13,9 +13,14 @@ class AppState: ObservableObject {
     @Published var errorMsg: String?
     @Published var isLoading: Bool = false
     
+    // MARK: - Managers
+    let launchAtLogin = LaunchAtLoginManager()
+    let shortcutsManager = ShortcutsManager()
+    
     // MARK: - State Comparison
     private var previousBars: Bars?
     private var previousCooldowns: Cooldowns?
+    private var previousTravel: Travel?
     
     // MARK: - Timer
     private var timerCancellable: AnyCancellable?
@@ -88,6 +93,7 @@ class AppState: ObservableObject {
                         // Store for comparison
                         self.previousBars = decoded.bars
                         self.previousCooldowns = decoded.cooldowns
+                        self.previousTravel = decoded.travel
                     }
                 case 403, 404:
                     self.errorMsg = "Invalid API Key"
@@ -104,24 +110,25 @@ class AppState: ObservableObject {
     }
     
     private func checkNotifications(newData: TornResponse) {
-        guard let prev = previousBars, let current = newData.bars else { return }
-        
-        // Energy full notification
-        if prev.energy.current < prev.energy.maximum &&
-           current.energy.current >= current.energy.maximum {
-            NotificationManager.shared.send(
-                title: "Energy Full! ⚡️",
-                body: "Your energy bar is now full (\(current.energy.maximum)/\(current.energy.maximum))"
-            )
-        }
-        
-        // Nerve full notification
-        if prev.nerve.current < prev.nerve.maximum &&
-           current.nerve.current >= current.nerve.maximum {
-            NotificationManager.shared.send(
-                title: "Nerve Full! 💪",
-                body: "Your nerve bar is now full (\(current.nerve.maximum)/\(current.nerve.maximum))"
-            )
+        // Bar notifications
+        if let prev = previousBars, let current = newData.bars {
+            // Energy full notification
+            if prev.energy.current < prev.energy.maximum &&
+               current.energy.current >= current.energy.maximum {
+                NotificationManager.shared.send(
+                    title: "Energy Full! ⚡️",
+                    body: "Your energy bar is now full (\(current.energy.maximum)/\(current.energy.maximum))"
+                )
+            }
+            
+            // Nerve full notification
+            if prev.nerve.current < prev.nerve.maximum &&
+               current.nerve.current >= current.nerve.maximum {
+                NotificationManager.shared.send(
+                    title: "Nerve Full! 💪",
+                    body: "Your nerve bar is now full (\(current.nerve.maximum)/\(current.nerve.maximum))"
+                )
+            }
         }
         
         // Cooldown notifications
@@ -142,6 +149,17 @@ class AppState: ObservableObject {
                 NotificationManager.shared.send(
                     title: "Booster Ready! 🚀",
                     body: "Booster cooldown has ended"
+                )
+            }
+        }
+        
+        // Travel notifications
+        if let prevTravel = previousTravel, let currentTravel = newData.travel {
+            // Landed notification
+            if prevTravel.isTraveling && !currentTravel.isTraveling {
+                NotificationManager.shared.send(
+                    title: "Landed! ✈️",
+                    body: "You have arrived in \(currentTravel.destination)"
                 )
             }
         }
