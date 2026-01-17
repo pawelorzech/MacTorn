@@ -440,6 +440,75 @@ struct WatchlistItem: Codable, Identifiable {
     }
 }
 
+// MARK: - Update Manager
+struct GitHubRelease: Codable {
+    let tagName: String
+    let htmlUrl: String
+    let body: String
+    
+    enum CodingKeys: String, CodingKey {
+        case tagName = "tag_name"
+        case htmlUrl = "html_url"
+        case body
+    }
+}
+
+class UpdateManager {
+    static let shared = UpdateManager()
+    
+    // Configure your repository here
+    private let githubOwner = "pawelorzech"
+    private let githubRepo = "MacTorn"
+    
+    func checkForUpdates(currentVersion: String) async -> GitHubRelease? {
+        let urlString = "https://api.github.com/repos/\(githubOwner)/\(githubRepo)/releases/latest"
+        guard let url = URL(string: urlString) else { return nil }
+        
+        do {
+            let (data, response) = try await URLSession.shared.data(from: url)
+            
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                return nil
+            }
+            
+            let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
+            
+            // Compare versions
+            let versionString = release.tagName.replacingOccurrences(of: "v", with: "")
+            
+            if isVersion(versionString, greaterThan: currentVersion) {
+                return release
+            }
+            
+        } catch {
+            print("Update check failed: \(error)")
+        }
+        
+        return nil
+    }
+    
+    private func isVersion(_ newVersion: String, greaterThan currentVersion: String) -> Bool {
+        let newComponents = newVersion.split(separator: ".").compactMap { Int($0) }
+        let currentComponents = currentVersion.split(separator: ".").compactMap { Int($0) }
+        
+        let maxLength = max(newComponents.count, currentComponents.count)
+        
+        for i in 0..<maxLength {
+            let new = i < newComponents.count ? newComponents[i] : 0
+            let current = i < currentComponents.count ? currentComponents[i] : 0
+            
+            if new > current {
+                return true
+            } else if new < current {
+                return false
+            }
+        }
+        
+        return false
+    }
+}
+
 // MARK: - Error
 struct TornError: Codable {
     let code: Int

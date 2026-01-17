@@ -23,9 +23,13 @@ class AppState: ObservableObject {
     @Published var propertiesData: [PropertyInfo]?
     @Published var watchlistItems: [WatchlistItem] = []
     
+    // MARK: - Update State
+    @Published var updateAvailable: GitHubRelease?
+    
     // MARK: - Managers
     let launchAtLogin = LaunchAtLoginManager()
     let shortcutsManager = ShortcutsManager()
+    let updateManager = UpdateManager.shared
     
     // MARK: - State Comparison
     private var previousBars: Bars?
@@ -454,6 +458,19 @@ class AppState: ObservableObject {
                 
                 if let sound = NotificationSound(rawValue: rule.soundName) {
                     SoundManager.shared.play(sound)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Updates
+    func checkForAppUpdates() {
+        guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else { return }
+        
+        Task {
+            if let release = await updateManager.checkForUpdates(currentVersion: currentVersion) {
+                await MainActor.run {
+                    self.updateAvailable = release
                 }
             }
         }

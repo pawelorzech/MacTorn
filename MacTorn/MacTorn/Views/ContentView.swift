@@ -71,6 +71,7 @@ struct ContentView: View {
         }
         .task {
             await NotificationManager.shared.requestPermission()
+            appState.checkForAppUpdates()
         }
     }
     

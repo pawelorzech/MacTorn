@@ -114,14 +114,47 @@ struct SettingsView: View {
             .background(Color.purple.opacity(0.05))
             .cornerRadius(8)
             
-            // GitHub
-            HStack(spacing: 4) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
-                Link("View on GitHub",
-                     destination: URL(string: "https://github.com/pawelorzech/MacTorn")!)
-                    .font(.caption)
+            // Update Section
+            if let update = appState.updateAvailable {
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .foregroundColor(.green)
+                        Text("New version available: \(update.tagName)")
+                            .font(.caption.bold())
+                    }
+                    
+                    Button("Download Update") {
+                        if let url = URL(string: update.htmlUrl) {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity)
+                .background(Color.green.opacity(0.1))
+                .cornerRadius(8)
+            }
+
+            // GitHub & Version
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left.forwardslash.chevron.right")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                    Link("View on GitHub",
+                         destination: URL(string: "https://github.com/pawelorzech/MacTorn")!)
+                        .font(.caption)
+                }
+                
+                if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                    Text("v\(version)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .opacity(0.5)
+                }
             }
         }
         .padding()
