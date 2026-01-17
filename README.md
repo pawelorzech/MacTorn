@@ -7,7 +7,7 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 <p align="center">
-  <img src="app.png" alt="MacTorn Screenshot" width="600">
+  <img src="app.png?v=1.2" alt="MacTorn Screenshot" width="600">
 </p>
 
 ## Features
