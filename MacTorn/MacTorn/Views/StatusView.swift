@@ -14,6 +14,16 @@ struct StatusView: View {
                     errorSection(error)
                 }
                 
+                // Status badges (Hospital/Jail)
+                if let status = appState.data?.status {
+                    StatusBadgesView(status: status)
+                }
+                
+                // Chain status
+                if let chain = appState.data?.chain {
+                    ChainView(chain: chain)
+                }
+                
                 // Travel status
                 if let travel = appState.data?.travel, travel.isTraveling || travel.isAbroad {
                     travelSection(travel)
@@ -27,6 +37,16 @@ struct StatusView: View {
                 // Cooldowns
                 if let cooldowns = appState.data?.cooldowns {
                     cooldownsSection(cooldowns)
+                }
+                
+                // Messages badge
+                if appState.data?.unreadMessagesCount ?? 0 > 0 {
+                    messagesBadge
+                }
+                
+                // Events
+                if let events = appState.data?.recentEvents, !events.isEmpty {
+                    EventsView(events: events)
                 }
                 
                 // Quick Links
@@ -70,6 +90,27 @@ struct StatusView: View {
                 }
             }
         }
+    }
+    
+    // MARK: - Messages Badge
+    private var messagesBadge: some View {
+        Button {
+            if let url = URL(string: "https://www.torn.com/messages.php") {
+                NSWorkspace.shared.open(url)
+            }
+        } label: {
+            HStack {
+                Image(systemName: "envelope.fill")
+                    .foregroundColor(.blue)
+                Text("\(appState.data?.unreadMessagesCount ?? 0) unread messages")
+                    .font(.caption)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.blue.opacity(0.1))
+            .cornerRadius(6)
+        }
+        .buttonStyle(.plain)
     }
     
     // MARK: - Error
@@ -210,12 +251,6 @@ struct StatusView: View {
         }
         return String(format: "%d:%02d", minutes, secs)
     }
-    
-    private var timeFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter
-    }
 }
 
 // MARK: - Cooldown Item
@@ -239,9 +274,7 @@ struct CooldownItem: View {
     }
     
     private var formattedTime: String {
-        if seconds <= 0 {
-            return "Ready"
-        }
+        if seconds <= 0 { return "Ready" }
         let hours = seconds / 3600
         let minutes = (seconds % 3600) / 60
         let secs = seconds % 60
