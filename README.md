@@ -10,17 +10,43 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 
 ## Features
 
-- 📊 **Live Status Bars** - Energy, Nerve, Happy, Life with color-coded progress
-- ⏱️ **Cooldown Timers** - Drug, Medical, Booster countdowns with ready state
-- ✈️ **Travel Monitoring** - Destination tracking with arrival countdown and abroad state
-- 🔗 **Chain Timer** - Active chain counter with timeout warning + cooldown state
-- 🏥 **Hospital/Jail Status** - Countdown to release
-- 📨 **Unread Messages** - Inbox badge with one-click open
-- 🔔 **Events Feed** - Recent activity at a glance
-- 🔔 **Notifications** - Bars thresholds, cooldown ready, landing, chain expiring, and release
-- ⚡ **Quick Links** - Grid of customizable Torn shortcuts (8 defaults)
-- 🕒 **Refresh Control** - 15s/30s/60s/2m polling + manual refresh + last updated
-- 🚀 **Launch at Login** - Start automatically with macOS
+### 📊 Status Tab
+- Live Energy, Nerve, Happy, Life bars with color-coded progress
+- Cooldown timers (Drug, Medical, Booster)
+- Travel monitoring with arrival countdown
+- Chain timer with timeout warning
+- Hospital/Jail status badges
+- Unread messages badge
+- Events feed
+- 8 customizable quick links
+
+### 💰 Money Tab
+- Cash, Vault, Points, Tokens display
+- Quick actions: Send Money, Bazaar, Bank
+
+### ⚔️ Attacks Tab
+- Battle stats (Strength, Defense, Speed, Dexterity)
+- Recent attacks with W/L results
+- Quick actions: Attack, Hospital, Bounties
+
+### 🏢 Faction Tab
+- Faction info and chain status
+- War status display
+- Armory quick-use buttons
+
+### 📈 Watchlist Tab
+- Track item prices
+- Price change indicators
+- Add/remove items from watchlist
+
+### 🏠 Properties Tab
+- Property info and vault contents
+- Upkeep status and countdown
+
+### ⚙️ General
+- 🔔 Smart notifications for bars, cooldowns, landing, chain
+- 🕒 Configurable refresh intervals (15s/30s/60s/2m)
+- 🚀 Launch at Login
 
 ## Installation
 

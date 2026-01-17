@@ -22,6 +22,11 @@
 		AAA00013 /* StatusBadgesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10014 /* StatusBadgesView.swift */; };
 		AAA00014 /* EventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10015 /* EventsView.swift */; };
 		AAA00015 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10016 /* SoundManager.swift */; };
+		AAA00016 /* MoneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10017 /* MoneyView.swift */; };
+		AAA00017 /* AttacksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10018 /* AttacksView.swift */; };
+		AAA00018 /* FactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10019 /* FactionView.swift */; };
+		AAA00019 /* WatchlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10020 /* WatchlistView.swift */; };
+		AAA00020 /* PropertiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10021 /* PropertiesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +46,11 @@
 		AAA10014 /* StatusBadgesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgesView.swift; sourceTree = "<group>"; };
 		AAA10015 /* EventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsView.swift; sourceTree = "<group>"; };
 		AAA10016 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
+		AAA10017 /* MoneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyView.swift; sourceTree = "<group>"; };
+		AAA10018 /* AttacksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttacksView.swift; sourceTree = "<group>"; };
+		AAA10019 /* FactionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionView.swift; sourceTree = "<group>"; };
+		AAA10020 /* WatchlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistView.swift; sourceTree = "<group>"; };
+		AAA10021 /* PropertiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesView.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -107,6 +117,11 @@
 				AAA10002 /* ContentView.swift */,
 				AAA10006 /* SettingsView.swift */,
 				AAA10007 /* StatusView.swift */,
+				AAA10017 /* MoneyView.swift */,
+				AAA10018 /* AttacksView.swift */,
+				AAA10019 /* FactionView.swift */,
+				AAA10020 /* WatchlistView.swift */,
+				AAA10021 /* PropertiesView.swift */,
 				AAA30006 /* Components */,
 			);
 			path = Views;
@@ -217,6 +232,11 @@
 				AAA00013 /* StatusBadgesView.swift in Sources */,
 				AAA00014 /* EventsView.swift in Sources */,
 				AAA00015 /* SoundManager.swift in Sources */,
+				AAA00016 /* MoneyView.swift in Sources */,
+				AAA00017 /* AttacksView.swift in Sources */,
+				AAA00018 /* FactionView.swift in Sources */,
+				AAA00019 /* WatchlistView.swift in Sources */,
+				AAA00020 /* PropertiesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

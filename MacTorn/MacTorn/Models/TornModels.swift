@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 // MARK: - Root Response
 struct TornResponse: Codable {
@@ -188,6 +189,257 @@ struct TornMessage: Codable {
     let read: Int?
 }
 
+// MARK: - Money
+struct MoneyData: Codable {
+    let cash: Int
+    let vault: Int
+    let points: Int
+    let tokens: Int
+    let cayman: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case cash = "money_onhand"
+        case vault = "vault_amount"
+        case points
+        case tokens = "company_funds"
+        case cayman = "cayman_bank"
+    }
+    
+    init(cash: Int = 0, vault: Int = 0, points: Int = 0, tokens: Int = 0, cayman: Int = 0) {
+        self.cash = cash
+        self.vault = vault
+        self.points = points
+        self.tokens = tokens
+        self.cayman = cayman
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cash = (try? container.decode(Int.self, forKey: .cash)) ?? 0
+        vault = (try? container.decode(Int.self, forKey: .vault)) ?? 0
+        points = (try? container.decode(Int.self, forKey: .points)) ?? 0
+        tokens = (try? container.decode(Int.self, forKey: .tokens)) ?? 0
+        cayman = (try? container.decode(Int.self, forKey: .cayman)) ?? 0
+    }
+}
+
+// MARK: - Battle Stats
+struct BattleStats: Codable {
+    let strength: Int
+    let defense: Int
+    let speed: Int
+    let dexterity: Int
+    let total: Int
+    
+    init(strength: Int = 0, defense: Int = 0, speed: Int = 0, dexterity: Int = 0) {
+        self.strength = strength
+        self.defense = defense
+        self.speed = speed
+        self.dexterity = dexterity
+        self.total = strength + defense + speed + dexterity
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        strength = (try? container.decode(Int.self, forKey: .strength)) ?? 0
+        defense = (try? container.decode(Int.self, forKey: .defense)) ?? 0
+        speed = (try? container.decode(Int.self, forKey: .speed)) ?? 0
+        dexterity = (try? container.decode(Int.self, forKey: .dexterity)) ?? 0
+        total = (try? container.decode(Int.self, forKey: .total)) ?? (strength + defense + speed + dexterity)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case strength, defense, speed, dexterity, total
+    }
+}
+
+// MARK: - Attack Result
+struct AttackResult: Codable, Identifiable {
+    let code: String?
+    let timestampStarted: Int?
+    let timestampEnded: Int?
+    let opponentId: Int?
+    let opponentName: String?
+    let result: String?
+    let respect: Double?
+    
+    var id: String { code ?? UUID().uuidString }
+    
+    enum CodingKeys: String, CodingKey {
+        case code
+        case timestampStarted = "timestamp_started"
+        case timestampEnded = "timestamp_ended"
+        case opponentId = "defender_id"
+        case opponentName = "defender_name"
+        case result, respect
+    }
+    
+    var resultIcon: String {
+        switch result {
+        case "Attacked": return "checkmark.circle.fill"
+        case "Mugged": return "dollarsign.circle.fill"
+        case "Hospitalized": return "cross.circle.fill"
+        case "Lost": return "xmark.circle.fill"
+        case "Stalemate": return "equal.circle.fill"
+        default: return "questionmark.circle"
+        }
+    }
+    
+    var resultColor: Color {
+        switch result {
+        case "Attacked", "Mugged", "Hospitalized": return .green
+        case "Lost": return .red
+        case "Stalemate": return .orange
+        default: return .gray
+        }
+    }
+    
+    var timeAgo: String {
+        guard let ts = timestampEnded else { return "" }
+        let now = Int(Date().timeIntervalSince1970)
+        let diff = now - ts
+        if diff < 3600 { return "\(diff / 60)m" }
+        if diff < 86400 { return "\(diff / 3600)h" }
+        return "\(diff / 86400)d"
+    }
+}
+
+// MARK: - Faction Data
+struct FactionData: Codable {
+    let name: String
+    let factionId: Int
+    let respect: Int
+    let chain: FactionChain
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case factionId = "ID"
+        case respect
+        case chain
+    }
+    
+    init(name: String = "", factionId: Int = 0, respect: Int = 0, chain: FactionChain = FactionChain()) {
+        self.name = name
+        self.factionId = factionId
+        self.respect = respect
+        self.chain = chain
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = (try? container.decode(String.self, forKey: .name)) ?? ""
+        factionId = (try? container.decode(Int.self, forKey: .factionId)) ?? 0
+        respect = (try? container.decode(Int.self, forKey: .respect)) ?? 0
+        chain = (try? container.decode(FactionChain.self, forKey: .chain)) ?? FactionChain()
+    }
+}
+
+struct FactionChain: Codable {
+    let current: Int
+    let max: Int
+    let timeout: Int
+    let cooldown: Int
+    
+    init(current: Int = 0, max: Int = 0, timeout: Int = 0, cooldown: Int = 0) {
+        self.current = current
+        self.max = max
+        self.timeout = timeout
+        self.cooldown = cooldown
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        current = (try? container.decode(Int.self, forKey: .current)) ?? 0
+        max = (try? container.decode(Int.self, forKey: .max)) ?? 0
+        timeout = (try? container.decode(Int.self, forKey: .timeout)) ?? 0
+        cooldown = (try? container.decode(Int.self, forKey: .cooldown)) ?? 0
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case current, max, timeout, cooldown
+    }
+}
+
+// MARK: - Property Info
+struct PropertyInfo: Codable, Identifiable {
+    let id: Int
+    let propertyType: String
+    let vault: Int
+    let upkeep: Int
+    let rented: Bool
+    let daysUntilUpkeep: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "property_id"
+        case propertyType = "property"
+        case vault = "money"
+        case upkeep, rented
+        case daysUntilUpkeep = "days_left"
+    }
+    
+    init(id: Int = 0, propertyType: String = "", vault: Int = 0, upkeep: Int = 0, rented: Bool = false, daysUntilUpkeep: Int = 0) {
+        self.id = id
+        self.propertyType = propertyType
+        self.vault = vault
+        self.upkeep = upkeep
+        self.rented = rented
+        self.daysUntilUpkeep = daysUntilUpkeep
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(Int.self, forKey: .id)) ?? 0
+        propertyType = (try? container.decode(String.self, forKey: .propertyType)) ?? ""
+        vault = (try? container.decode(Int.self, forKey: .vault)) ?? 0
+        upkeep = (try? container.decode(Int.self, forKey: .upkeep)) ?? 0
+        rented = (try? container.decode(Bool.self, forKey: .rented)) ?? false
+        daysUntilUpkeep = (try? container.decode(Int.self, forKey: .daysUntilUpkeep)) ?? 0
+    }
+}
+
+// MARK: - Watchlist Item
+struct WatchlistItem: Codable, Identifiable {
+    let id: Int
+    let name: String
+    var lowestPrice: Int
+    var lowestPriceQuantity: Int
+    var secondLowestPrice: Int
+    var lastUpdated: Date?
+    var error: String?
+    
+    // Explicit memberwise initializer
+    init(id: Int, name: String, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int, lastUpdated: Date?, error: String?) {
+        self.id = id
+        self.name = name
+        self.lowestPrice = lowestPrice
+        self.lowestPriceQuantity = lowestPriceQuantity
+        self.secondLowestPrice = secondLowestPrice
+        self.lastUpdated = lastUpdated
+        self.error = error
+    }
+    
+    // Custom decoding to handle legacy data missing new fields
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        lowestPrice = try container.decodeIfPresent(Int.self, forKey: .lowestPrice) ?? 0
+        lowestPriceQuantity = try container.decodeIfPresent(Int.self, forKey: .lowestPriceQuantity) ?? 0
+        secondLowestPrice = try container.decodeIfPresent(Int.self, forKey: .secondLowestPrice) ?? 0
+        lastUpdated = try container.decodeIfPresent(Date.self, forKey: .lastUpdated)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+    }
+    
+    var priceDifference: Int {
+        guard secondLowestPrice > 0 && lowestPrice > 0 else { return 0 }
+        return secondLowestPrice - lowestPrice
+    }
+    
+    var isLoading: Bool {
+        lowestPrice == 0 && error == nil
+    }
+}
+
 // MARK: - Error
 struct TornError: Codable {
     let code: Int
@@ -197,10 +449,22 @@ struct TornError: Codable {
 // MARK: - API Configuration
 enum TornAPI {
     static let baseURL = "https://api.torn.com/user/"
-    static let selections = "basic,bars,cooldowns,travel,profile,events,messages"
+    static let factionURL = "https://api.torn.com/faction/"
+    static let marketURL = "https://api.torn.com/market/"
+    static let tornURL = "https://api.torn.com/torn/"
+    static let selections = "basic,bars,cooldowns,travel,profile,events,messages,money,battlestats,attacks,properties"
     
     static func url(for apiKey: String) -> URL? {
         URL(string: "\(baseURL)?selections=\(selections)&key=\(apiKey)")
+    }
+    
+    static func factionURL(for apiKey: String) -> URL? {
+        URL(string: "\(factionURL)?selections=basic,chain&key=\(apiKey)")
+    }
+    
+    static func marketURL(itemId: Int, apiKey: String) -> URL? {
+        // v2 endpoint for item market
+        URL(string: "https://api.torn.com/v2/market/\(itemId)?selections=itemmarket,bazaar&key=\(apiKey)")
     }
 }
 

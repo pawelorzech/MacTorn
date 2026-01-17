@@ -51,19 +51,18 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                         .frame(width: 20)
                     
-                    Picker("Refresh", selection: Binding(
-                        get: { appState.refreshInterval },
-                        set: { newValue in
-                            appState.refreshInterval = newValue
-                            appState.startPolling()
-                        }
-                    )) {
+                    Picker("Refresh", selection: $appState.refreshInterval) {
                         Text("15s").tag(15)
                         Text("30s").tag(30)
                         Text("60s").tag(60)
                         Text("2m").tag(120)
                     }
                     .pickerStyle(.segmented)
+                    .onChange(of: appState.refreshInterval) { _ in
+                        Task { @MainActor in
+                            appState.startPolling()
+                        }
+                    }
                 }
                 
                 // Launch at Login
