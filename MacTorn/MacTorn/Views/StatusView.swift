@@ -39,23 +39,35 @@ struct StatusView: View {
     
     // MARK: - Header
     private var headerSection: some View {
-        HStack {
-            Text("Torn Status")
-                .font(.headline)
-            
-            Spacer()
-            
-            if appState.isLoading {
-                ProgressView()
-                    .scaleEffect(0.6)
-            } else {
-                Button {
-                    appState.refreshNow()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                if let name = appState.data?.name, let id = appState.data?.playerId {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(name)
+                            .font(.headline)
+                        Text("[\(String(id))]")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text("Torn Status")
+                        .font(.headline)
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                if appState.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                } else {
+                    Button {
+                        appState.refreshNow()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.secondary)
+                }
             }
         }
     }

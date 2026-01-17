@@ -4,6 +4,9 @@ struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var inputKey: String = ""
     
+    // Developer ID for tip feature (bombel)
+    private let developerID = 2362436
+    
     var body: some View {
         VStack(spacing: 16) {
             // Header
@@ -52,10 +55,73 @@ struct SettingsView: View {
             }
             .toggleStyle(.switch)
             .padding(.horizontal)
+            
+            Divider()
+                .padding(.vertical, 4)
+            
+            // Tip Me section
+            tipMeSection
+            
+            // GitHub link
+            githubSection
         }
         .padding()
         .onAppear {
             inputKey = appState.apiKey
+        }
+    }
+    
+    // MARK: - Tip Me Section
+    private var tipMeSection: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Image(systemName: "gift.fill")
+                    .foregroundColor(.purple)
+                Text("Support the Developer")
+                    .font(.caption.bold())
+            }
+            
+            Text("Send me some Xanax or cash :)")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+            
+            Button {
+                openTornProfile()
+            } label: {
+                HStack {
+                    Image(systemName: "paperplane.fill")
+                    Text("Send Xanax to bombel")
+                }
+                .font(.caption)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 16)
+                .background(Color.purple.opacity(0.15))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding()
+        .background(Color.purple.opacity(0.05))
+        .cornerRadius(8)
+    }
+    
+    // MARK: - GitHub Section
+    private var githubSection: some View {
+        HStack {
+            Image(systemName: "chevron.left.forwardslash.chevron.right")
+                .foregroundColor(.gray)
+            Link("View Source on GitHub",
+                 destination: URL(string: "https://github.com/pawelorzech/MacTorn")!)
+                .font(.caption)
+        }
+    }
+    
+    // MARK: - Helpers
+    private func openTornProfile() {
+        let url = "https://www.torn.com/profiles.php?XID=\(developerID)"
+        if let url = URL(string: url) {
+            NSWorkspace.shared.open(url)
         }
     }
 }

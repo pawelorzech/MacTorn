@@ -2,6 +2,8 @@ import Foundation
 
 // MARK: - Root Response
 struct TornResponse: Codable {
+    let name: String?
+    let playerId: Int?
     let energy: Bar?
     let nerve: Bar?
     let life: Bar?
@@ -9,6 +11,13 @@ struct TornResponse: Codable {
     let cooldowns: Cooldowns?
     let travel: Travel?
     let error: TornError?
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case playerId = "player_id"
+        case energy, nerve, life, happy
+        case cooldowns, travel, error
+    }
     
     // Convenience computed property
     var bars: Bars? {
@@ -90,7 +99,7 @@ struct TornError: Codable {
 // MARK: - API Configuration
 enum TornAPI {
     static let baseURL = "https://api.torn.com/user/"
-    static let selections = "bars,cooldowns,travel"
+    static let selections = "basic,bars,cooldowns,travel"
     
     static func url(for apiKey: String) -> URL? {
         URL(string: "\(baseURL)?selections=\(selections)&key=\(apiKey)")
