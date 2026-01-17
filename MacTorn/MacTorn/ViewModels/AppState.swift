@@ -1,6 +1,9 @@
 import Foundation
 import Combine
 import SwiftUI
+import os.log
+
+private let logger = Logger(subsystem: "com.mactorn", category: "AppState")
 
 @MainActor
 class AppState: ObservableObject {
@@ -234,52 +237,95 @@ class AppState: ObservableObject {
     func fetchData() {
         guard !apiKey.isEmpty else {
             errorMsg = "API Key required"
+            logger.warning("Fetch aborted: API Key required")
             return
         }
-        
+
         guard let url = TornAPI.url(for: apiKey) else {
             errorMsg = "Invalid URL"
+            logger.error("Fetch aborted: Invalid URL")
             return
         }
-        
+
         isLoading = true
         errorMsg = nil
-        
+
+        logger.info("Starting data fetch...")
+
         Task {
+            let startTime = Date()
+
+            // Ensure minimum loading time for UX, then set isLoading = false
+            defer {
+                Task { @MainActor in
+                    let elapsed = Date().timeIntervalSince(startTime)
+                    if elapsed < 0.5 {
+                        try? await Task.sleep(nanoseconds: UInt64((0.5 - elapsed) * 1_000_000_000))
+                    }
+                    self.isLoading = false
+                }
+            }
+
             do {
                 let (data, response) = try await URLSession.shared.data(from: url)
-                
+
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw APIError.invalidResponse
                 }
-                
+
+                logger.info("HTTP response: \(httpResponse.statusCode)")
+
                 switch httpResponse.statusCode {
                 case 200:
+                    // Check for Torn API error in response (API returns 200 even on errors)
+                    if let tornError = checkForTornAPIError(data: data) {
+                        await MainActor.run {
+                            self.errorMsg = tornError
+                        }
+                        logger.error("Torn API error: \(tornError)")
+                        return
+                    }
+
                     // Parse on background thread
                     try await parseDataInBackground(data: data)
-                    
+
                     // Fetch faction data separately
                     await fetchFactionData()
-                    
+
+                    logger.info("Data fetch completed successfully")
+
                 case 403, 404:
                     await MainActor.run {
                         self.errorMsg = "Invalid API Key"
                         self.data = nil
-                        self.isLoading = false
                     }
+                    logger.error("HTTP \(httpResponse.statusCode): Invalid API Key")
                 default:
                     await MainActor.run {
                         self.errorMsg = "HTTP Error: \(httpResponse.statusCode)"
-                        self.isLoading = false
                     }
+                    logger.error("HTTP Error: \(httpResponse.statusCode)")
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMsg = error.localizedDescription
-                    self.isLoading = false
+                    self.errorMsg = "Network error: \(error.localizedDescription)"
                 }
+                logger.error("Network error: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Check if Torn API returned an error (API returns HTTP 200 even on errors like rate limiting)
+    private func checkForTornAPIError(data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let error = json["error"] as? [String: Any],
+              let errorMessage = error["error"] as? String else {
+            return nil
+        }
+
+        let errorCode = error["code"] as? Int ?? 0
+        logger.warning("Torn API error code \(errorCode): \(errorMessage)")
+        return "API Error: \(errorMessage)"
     }
     
     // Move parsing logic here and mark as non-isolated or detached
