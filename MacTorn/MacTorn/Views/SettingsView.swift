@@ -3,7 +3,6 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var inputKey: String = ""
-    @State private var showShortcutsEditor = false
     
     var body: some View {
         VStack(spacing: 16) {
@@ -53,127 +52,10 @@ struct SettingsView: View {
             }
             .toggleStyle(.switch)
             .padding(.horizontal)
-            
-            // Shortcuts Editor
-            Button {
-                showShortcutsEditor.toggle()
-            } label: {
-                Label("Edit Shortcuts", systemImage: "keyboard")
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(.accentColor)
-            
-            if showShortcutsEditor {
-                ShortcutsEditorView()
-                    .environmentObject(appState)
-            }
         }
         .padding()
         .onAppear {
             inputKey = appState.apiKey
-        }
-    }
-}
-
-// MARK: - Shortcuts Editor
-struct ShortcutsEditorView: View {
-    @EnvironmentObject var appState: AppState
-    @State private var editingShortcut: KeyboardShortcut?
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Quick Links")
-                    .font(.caption.bold())
-                
-                Spacer()
-                
-                Button("Reset") {
-                    appState.shortcutsManager.resetToDefaults()
-                }
-                .font(.caption2)
-                .buttonStyle(.plain)
-                .foregroundColor(.red)
-            }
-            
-            ForEach(appState.shortcutsManager.shortcuts) { shortcut in
-                ShortcutRowView(shortcut: shortcut) { updated in
-                    appState.shortcutsManager.updateShortcut(updated)
-                }
-            }
-        }
-        .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(8)
-    }
-}
-
-struct ShortcutRowView: View {
-    let shortcut: KeyboardShortcut
-    let onUpdate: (KeyboardShortcut) -> Void
-    
-    @State private var isEditing = false
-    @State private var editedName: String = ""
-    @State private var editedURL: String = ""
-    @State private var editedKey: String = ""
-    
-    var body: some View {
-        VStack(spacing: 4) {
-            HStack {
-                if isEditing {
-                    TextField("Name", text: $editedName)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.caption)
-                        .frame(width: 60)
-                    
-                    TextField("URL", text: $editedURL)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.caption2)
-                    
-                    TextField("Key", text: $editedKey)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.caption)
-                        .frame(width: 30)
-                    
-                    Button("Save") {
-                        var updated = shortcut
-                        updated.name = editedName
-                        updated.url = editedURL
-                        updated.keyEquivalent = editedKey
-                        onUpdate(updated)
-                        isEditing = false
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.borderedProminent)
-                } else {
-                    Text(shortcut.name)
-                        .font(.caption)
-                        .frame(width: 60, alignment: .leading)
-                    
-                    Text(shortcut.url)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    
-                    Spacer()
-                    
-                    Text("⌘⇧\(shortcut.keyEquivalent.uppercased())")
-                        .font(.caption2.monospaced())
-                        .foregroundColor(.secondary)
-                    
-                    Button {
-                        editedName = shortcut.name
-                        editedURL = shortcut.url
-                        editedKey = shortcut.keyEquivalent
-                        isEditing = true
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.caption2)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
         }
     }
 }

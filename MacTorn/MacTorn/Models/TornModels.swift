@@ -2,23 +2,44 @@ import Foundation
 
 // MARK: - Root Response
 struct TornResponse: Codable {
-    let bars: Bars?
+    let energy: Bar?
+    let nerve: Bar?
+    let life: Bar?
+    let happy: Bar?
     let cooldowns: Cooldowns?
     let travel: Travel?
     let error: TornError?
+    
+    // Convenience computed property
+    var bars: Bars? {
+        guard let energy = energy,
+              let nerve = nerve,
+              let life = life,
+              let happy = happy else { return nil }
+        return Bars(energy: energy, nerve: nerve, life: life, happy: happy)
+    }
 }
 
-// MARK: - Bars
+// MARK: - Bars (for internal use)
 struct Bar: Codable, Equatable {
     let current: Int
     let maximum: Int
-    let increment: Double
-    let interval: Int
-    let ticktime: Int
-    let fulltime: Int
+    let increment: Double?
+    let interval: Int?
+    let ticktime: Int?
+    let fulltime: Int?
+    
+    init(current: Int, maximum: Int, increment: Double? = nil, interval: Int? = nil, ticktime: Int? = nil, fulltime: Int? = nil) {
+        self.current = current
+        self.maximum = maximum
+        self.increment = increment
+        self.interval = interval
+        self.ticktime = ticktime
+        self.fulltime = fulltime
+    }
 }
 
-struct Bars: Codable, Equatable {
+struct Bars: Equatable {
     let energy: Bar
     let nerve: Bar
     let life: Bar
