@@ -120,30 +120,27 @@ class AppState: ObservableObject {
     private func fetchItemPrice(itemId: Int) async {
         guard !apiKey.isEmpty,
               let url = TornAPI.marketURL(itemId: itemId, apiKey: apiKey) else { return }
-        
-        // Debug
-        // print("Fetching price for item \(itemId): \(url.absoluteString)")
-        
+
+        logger.info("Fetching price for item \(itemId)")
+
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, response) = try await URLSession.shared.data(for: request)
+
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                // print("HTTP Error: \(httpResponse.statusCode)")
+                logger.error("Item \(itemId) HTTP Error: \(httpResponse.statusCode)")
                 await updateItemError(itemId: itemId, error: "HTTP \(httpResponse.statusCode)")
                 return
             }
             
-            // Debug JSON
-            // if let str = String(data: data, encoding: .utf8) {
-            //     print("Market JSON: \(str)")
-            // }
-            
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                
+
                 // Check if API returned error
                 if let error = json["error"] as? [String: Any], let errorText = error["error"] as? String {
-                     await updateItemError(itemId: itemId, error: errorText)
-                     return
+                    logger.warning("Item \(itemId) API error: \(errorText)")
+                    await updateItemError(itemId: itemId, error: errorText)
+                    return
                 }
                 
                 var allListings: [(price: Int, amount: Int)] = []
@@ -176,7 +173,7 @@ class AppState: ObservableObject {
                 }
                 
                 let sortedListings = allListings.sorted { $0.price < $1.price }
-                // print("Found \(sortedListings.count) listings for item \(itemId). Lowest: \(sortedListings.first?.price ?? 0)")
+                logger.debug("Item \(itemId): found \(sortedListings.count) listings, lowest: \(sortedListings.first?.price ?? 0)")
                 
                 await MainActor.run {
                     if let index = watchlistItems.firstIndex(where: { $0.id == itemId }) {
@@ -200,7 +197,7 @@ class AppState: ObservableObject {
                 }
             }
         } catch {
-            // print("Price fetch error: \(error)")
+            logger.error("Item \(itemId) price fetch error: \(error.localizedDescription)")
             await updateItemError(itemId: itemId, error: "Network Error")
         }
     }
@@ -250,7 +247,7 @@ class AppState: ObservableObject {
         isLoading = true
         errorMsg = nil
 
-        logger.info("Starting data fetch...")
+        logger.info("Starting data fetch from: \(url.absoluteString.prefix(80))...")
 
         Task {
             let startTime = Date()
@@ -267,7 +264,11 @@ class AppState: ObservableObject {
             }
 
             do {
-                let (data, response) = try await URLSession.shared.data(from: url)
+                // Create request with no-cache policy to ensure fresh data
+                var request = URLRequest(url: url)
+                request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+
+                let (data, response) = try await URLSession.shared.data(for: request)
 
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw APIError.invalidResponse
@@ -277,6 +278,11 @@ class AppState: ObservableObject {
 
                 switch httpResponse.statusCode {
                 case 200:
+                    // Log raw JSON for debugging (first 500 chars)
+                    if let jsonString = String(data: data, encoding: .utf8) {
+                        logger.info("Raw API response: \(jsonString.prefix(500))")
+                    }
+
                     // Check for Torn API error in response (API returns 200 even on errors)
                     if let tornError = checkForTornAPIError(data: data) {
                         await MainActor.run {
@@ -331,9 +337,9 @@ class AppState: ObservableObject {
     // Move parsing logic here and mark as non-isolated or detached
     private func parseDataInBackground(data: Data) async throws {
         // Run CPU-heavy parsing detached from MainActor
-        let result = await Task.detached(priority: .userInitiated) { () -> (TornResponse?, MoneyData?, BattleStats?, [AttackResult]?, [PropertyInfo]?) in
+        let result = await Task.detached(priority: .userInitiated) { () -> (TornResponse?, MoneyData?, BattleStats?, [AttackResult]?, [PropertyInfo]?, String?) in
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return (nil, nil, nil, nil, nil)
+                return (nil, nil, nil, nil, nil, "Failed to parse response")
             }
             
             // Attempt to decode TornResponse first
@@ -391,43 +397,76 @@ class AppState: ObservableObject {
                     )
                 }
             }
-            return (decodedTornResponse, moneyData, battleStats, attacksList, propertiesList)
+            // If we couldn't decode TornResponse, report error but continue with extended data
+            let parseError: String? = (decodedTornResponse == nil) ? "Failed to decode user data" : nil
+
+            return (decodedTornResponse, moneyData, battleStats, attacksList, propertiesList, parseError)
         }.value
-        
+
         await MainActor.run {
+            // Check for parse errors
+            if let parseError = result.5, result.0 == nil {
+                self.errorMsg = parseError
+                logger.error("Parse error: \(parseError)")
+                self.lastUpdated = Date() // Still update timestamp on error
+                return
+            }
+
             if let decoded = result.0 {
+                logger.info("Parsed data - Name: \(decoded.name ?? "nil"), Life: \(decoded.life?.current ?? -1)/\(decoded.life?.maximum ?? -1)")
+                logger.info("Status: \(decoded.status?.description ?? "nil"), State: \(decoded.status?.state ?? "nil")")
+                if let events = decoded.events {
+                    logger.info("Events count: \(events.count)")
+                }
+
                 self.checkNotifications(newData: decoded)
                 self.data = decoded
-                
+
                 self.previousBars = decoded.bars
                 self.previousCooldowns = decoded.cooldowns
                 self.previousTravel = decoded.travel
                 self.previousChain = decoded.chain
                 self.previousStatus = decoded.status
+            } else {
+                logger.warning("TornResponse decoded as nil but no parse error reported")
             }
-            
+
             if let m = result.1 { self.moneyData = m }
             if let b = result.2 { self.battleStats = b }
             if let a = result.3 { self.recentAttacks = a }
             if let p = result.4 { self.propertiesData = p }
-            
+
             self.lastUpdated = Date()
-            self.isLoading = false
             self.errorMsg = nil
+
+            // Force UI update by triggering objectWillChange
+            self.objectWillChange.send()
+            logger.info("UI update triggered, lastUpdated: \(self.lastUpdated?.description ?? "nil")")
         }
     }
     
     // MARK: - Fetch Faction Data
     private func fetchFactionData() async {
         guard let url = TornAPI.factionURL(for: apiKey) else { return }
-        
+
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, _) = try await URLSession.shared.data(for: request)
+
+            // Check for Torn API error
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = json["error"] as? [String: Any],
+               let errorMessage = error["error"] as? String {
+                logger.warning("Faction API error: \(errorMessage)")
+                return
+            }
+
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 let name = json["name"] as? String ?? ""
                 let factionId = json["ID"] as? Int ?? 0
                 let respect = json["respect"] as? Int ?? 0
-                
+
                 var chain = FactionChain()
                 if let chainDict = json["chain"] as? [String: Any] {
                     chain = FactionChain(
@@ -437,10 +476,12 @@ class AppState: ObservableObject {
                         cooldown: chainDict["cooldown"] as? Int ?? 0
                     )
                 }
-                
+
                 self.factionData = FactionData(name: name, factionId: factionId, respect: respect, chain: chain)
+                logger.info("Faction data fetched: \(name)")
             }
         } catch {
+            logger.warning("Faction fetch error (optional): \(error.localizedDescription)")
             // Faction data is optional, ignore errors
         }
     }
