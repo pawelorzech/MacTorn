@@ -131,7 +131,7 @@ struct StatusView: View {
             HStack {
                 Image(systemName: "airplane")
                     .foregroundColor(.blue)
-                Text(travel.isTraveling ? "Traveling to \(travel.destination)" : "In \(travel.destination)")
+                Text(travel.isTraveling ? "Traveling to \(travel.destination ?? "Unknown")" : "In \(travel.destination ?? "Unknown")")
                     .font(.caption.bold())
             }
             
@@ -140,7 +140,7 @@ struct StatusView: View {
                     Text("Arriving in:")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text(formatTime(travel.timeLeft))
+                    Text(formatTime(travel.timeLeft ?? 0))
                         .font(.caption.monospacedDigit())
                         .foregroundColor(.blue)
                 }

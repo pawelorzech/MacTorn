@@ -9,14 +9,15 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 ## Features
 
 - 📊 **Live Status Bars** - Energy, Nerve, Happy, Life with color-coded progress
-- ⏱️ **Cooldown Timers** - Drug, Medical, Booster countdowns
-- ✈️ **Travel Monitoring** - Destination tracking with arrival countdown
-- 🔗 **Chain Timer** - Active chain counter with timeout warning
+- ⏱️ **Cooldown Timers** - Drug, Medical, Booster countdowns with ready state
+- ✈️ **Travel Monitoring** - Destination tracking with arrival countdown and abroad state
+- 🔗 **Chain Timer** - Active chain counter with timeout warning + cooldown state
 - 🏥 **Hospital/Jail Status** - Countdown to release
-- 📨 **Unread Messages** - Quick access to inbox
+- 📨 **Unread Messages** - Inbox badge with one-click open
 - 🔔 **Events Feed** - Recent activity at a glance
-- 🔔 **Smart Notifications** - Custom threshold alerts with sound options
-- ⚡ **Quick Links** - 8 configurable shortcuts to Torn pages
+- 🔔 **Notifications** - Bars thresholds, cooldown ready, landing, chain expiring, and release
+- ⚡ **Quick Links** - Grid of customizable Torn shortcuts (8 defaults)
+- 🕒 **Refresh Control** - 15s/30s/60s/2m polling + manual refresh + last updated
 - 🚀 **Launch at Login** - Start automatically with macOS
 
 ## Installation
@@ -26,7 +27,7 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 3. Open MacTorn from Applications
 4. Enter your [Torn API Key](https://www.torn.com/preferences.php#tab=api)
 
-> **Note**: On first launch, macOS may show a security warning. Right-click the app and select "Open" to bypass.
+> **Note**: If you download an unsigned build, macOS Gatekeeper will block it. Right-click the app and select "Open", or go to System Settings → Privacy & Security → Open Anyway.
 
 ## Requirements
 
@@ -38,10 +39,8 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 ### Refresh Interval
 Choose polling frequency: 15s, 30s, 60s, or 120s
 
-### Notification Rules
-Customize when to receive alerts:
-- Energy/Nerve/Happy/Life at specific thresholds
-- Sound selection per notification type
+### Notifications
+MacTorn sends notifications for bar thresholds, cooldown ready, landing, chain expiring, and release. Notification defaults are stored locally.
 
 ### Quick Links
 8 preset shortcuts to common Torn pages (fully editable)

@@ -9,7 +9,7 @@ struct ChainView: View {
                 HStack {
                     Image(systemName: "link")
                         .foregroundColor(timeoutColor)
-                    Text("Chain: \(chain.current)/\(chain.maximum)")
+                    Text("Chain: \(chain.current ?? 0)/\(chain.maximum ?? 0)")
                         .font(.caption.bold())
                     
                     Spacer()

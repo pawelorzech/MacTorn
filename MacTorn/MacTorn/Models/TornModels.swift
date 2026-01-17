@@ -85,10 +85,10 @@ struct Cooldowns: Codable, Equatable {
 
 // MARK: - Travel
 struct Travel: Codable, Equatable {
-    let destination: String
-    let timestamp: Int
-    let departed: Int
-    let timeLeft: Int
+    let destination: String?
+    let timestamp: Int?
+    let departed: Int?
+    let timeLeft: Int?
     
     enum CodingKeys: String, CodingKey {
         case destination
@@ -98,25 +98,27 @@ struct Travel: Codable, Equatable {
     }
     
     var isAbroad: Bool {
-        destination != "Torn" && timeLeft == 0
+        guard let dest = destination, let time = timeLeft else { return false }
+        return dest != "Torn" && time == 0
     }
     
     var isTraveling: Bool {
-        timeLeft > 0
+        guard let time = timeLeft else { return false }
+        return time > 0
     }
     
     var arrivalDate: Date? {
-        guard isTraveling else { return nil }
-        return Date(timeIntervalSince1970: TimeInterval(timestamp))
+        guard isTraveling, let ts = timestamp else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(ts))
     }
 }
 
 // MARK: - Status (Hospital/Jail)
 struct Status: Codable, Equatable {
-    let description: String
+    let description: String?
     let details: String?
-    let state: String
-    let until: Int
+    let state: String?
+    let until: Int?
     
     var isInHospital: Bool {
         state == "Hospital"
@@ -127,31 +129,35 @@ struct Status: Codable, Equatable {
     }
     
     var isOkay: Bool {
-        state == "Okay"
+        state == "Okay" || state == nil
     }
     
     var timeRemaining: Int {
-        max(0, until - Int(Date().timeIntervalSince1970))
+        guard let until = until else { return 0 }
+        return max(0, until - Int(Date().timeIntervalSince1970))
     }
 }
 
 // MARK: - Chain
 struct Chain: Codable, Equatable {
-    let current: Int
-    let maximum: Int
-    let timeout: Int
-    let cooldown: Int
+    let current: Int?
+    let maximum: Int?
+    let timeout: Int?
+    let cooldown: Int?
     
     var isActive: Bool {
-        current > 0 && timeout > 0
+        guard let current = current, let timeout = timeout else { return false }
+        return current > 0 && timeout > 0
     }
     
     var isOnCooldown: Bool {
-        cooldown > 0
+        guard let cooldown = cooldown else { return false }
+        return cooldown > 0
     }
     
     var timeoutRemaining: Int {
-        max(0, timeout - Int(Date().timeIntervalSince1970))
+        guard let timeout = timeout else { return 0 }
+        return max(0, timeout - Int(Date().timeIntervalSince1970))
     }
 }
 
@@ -159,7 +165,7 @@ struct Chain: Codable, Equatable {
 struct TornEvent: Codable, Identifiable {
     let timestamp: Int
     let event: String
-    let seen: Int
+    let seen: Int?
     
     var id: Int { timestamp }
     
@@ -175,11 +181,11 @@ struct TornEvent: Codable, Identifiable {
 
 // MARK: - Messages
 struct TornMessage: Codable {
-    let name: String
-    let type: String
-    let title: String
-    let timestamp: Int
-    let read: Int
+    let name: String?
+    let type: String?
+    let title: String?
+    let timestamp: Int?
+    let read: Int?
 }
 
 // MARK: - Error
