@@ -10,14 +10,14 @@ class AppState: ObservableObject {
     // MARK: - Persisted
     @AppStorage("apiKey") var apiKey: String = ""
     @AppStorage("refreshInterval") var refreshInterval: Int = 30
-    
+
     // MARK: - Published State
     @Published var data: TornResponse?
     @Published var lastUpdated: Date?
     @Published var errorMsg: String?
     @Published var isLoading: Bool = false
     @Published var notificationRules: [NotificationRule] = []
-    
+
     // MARK: - New Data Sources
     @Published var moneyData: MoneyData?
     @Published var battleStats: BattleStats?
@@ -25,26 +25,30 @@ class AppState: ObservableObject {
     @Published var factionData: FactionData?
     @Published var propertiesData: [PropertyInfo]?
     @Published var watchlistItems: [WatchlistItem] = []
-    
+
     // MARK: - Update State
     @Published var updateAvailable: GitHubRelease?
-    
+
     // MARK: - Managers
     let launchAtLogin = LaunchAtLoginManager()
     let shortcutsManager = ShortcutsManager()
     let updateManager = UpdateManager.shared
-    
+
+    // MARK: - Networking (Dependency Injection for Testing)
+    private let session: NetworkSession
+
     // MARK: - State Comparison
     private var previousBars: Bars?
     private var previousCooldowns: Cooldowns?
     private var previousTravel: Travel?
     private var previousChain: Chain?
     private var previousStatus: Status?
-    
+
     // MARK: - Timer
     private var timerCancellable: AnyCancellable?
-    
-    init() {
+
+    init(session: NetworkSession = URLSession.shared) {
+        self.session = session
         loadNotificationRules()
         loadWatchlist()
         // Polling and permissions moved to onAppear in UI
@@ -126,7 +130,7 @@ class AppState: ObservableObject {
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
 
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
                 logger.error("Item \(itemId) HTTP Error: \(httpResponse.statusCode)")
@@ -268,7 +272,7 @@ class AppState: ObservableObject {
                 var request = URLRequest(url: url)
                 request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
 
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let (data, response) = try await session.data(for: request)
 
                 guard let httpResponse = response as? HTTPURLResponse else {
                     throw APIError.invalidResponse
@@ -452,7 +456,7 @@ class AppState: ObservableObject {
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-            let (data, _) = try await URLSession.shared.data(for: request)
+            let (data, _) = try await session.data(for: request)
 
             // Check for Torn API error
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

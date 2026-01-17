@@ -27,7 +27,40 @@
 		AAA00018 /* FactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10019 /* FactionView.swift */; };
 		AAA00019 /* WatchlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10020 /* WatchlistView.swift */; };
 		AAA00020 /* PropertiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10021 /* PropertiesView.swift */; };
+		AAA00021 /* NetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10022 /* NetworkSession.swift */; };
+/* Unit Tests */
+		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
+		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
+		BBB00003 /* TornAPIFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10003 /* TornAPIFixtures.swift */; };
+		BBB00004 /* BarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10004 /* BarTests.swift */; };
+		BBB00005 /* TravelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10005 /* TravelTests.swift */; };
+		BBB00006 /* StatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10006 /* StatusTests.swift */; };
+		BBB00007 /* ChainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10007 /* ChainTests.swift */; };
+		BBB00008 /* TornResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10008 /* TornResponseTests.swift */; };
+		BBB00009 /* WatchlistItemTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10009 /* WatchlistItemTests.swift */; };
+		BBB00010 /* MoneyDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10010 /* MoneyDataTests.swift */; };
+		BBB00011 /* AppStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10011 /* AppStateTests.swift */; };
+		BBB00012 /* AppStateWatchlistTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10012 /* AppStateWatchlistTests.swift */; };
+/* UI Tests */
+		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		BBB20001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAA00000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAA40000;
+			remoteInfo = MacTorn;
+		};
+		CCC20001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAA00000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AAA40000;
+			remoteInfo = MacTorn;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		AAA10001 /* MacTornApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornApp.swift; sourceTree = "<group>"; };
@@ -51,11 +84,43 @@
 		AAA10019 /* FactionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionView.swift; sourceTree = "<group>"; };
 		AAA10020 /* WatchlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistView.swift; sourceTree = "<group>"; };
 		AAA10021 /* PropertiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesView.swift; sourceTree = "<group>"; };
+		AAA10022 /* NetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSession.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* Unit Test Files */
+		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
+		BBB10002 /* TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHelpers.swift; sourceTree = "<group>"; };
+		BBB10003 /* TornAPIFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIFixtures.swift; sourceTree = "<group>"; };
+		BBB10004 /* BarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarTests.swift; sourceTree = "<group>"; };
+		BBB10005 /* TravelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelTests.swift; sourceTree = "<group>"; };
+		BBB10006 /* StatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusTests.swift; sourceTree = "<group>"; };
+		BBB10007 /* ChainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainTests.swift; sourceTree = "<group>"; };
+		BBB10008 /* TornResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornResponseTests.swift; sourceTree = "<group>"; };
+		BBB10009 /* WatchlistItemTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistItemTests.swift; sourceTree = "<group>"; };
+		BBB10010 /* MoneyDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyDataTests.swift; sourceTree = "<group>"; };
+		BBB10011 /* AppStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateTests.swift; sourceTree = "<group>"; };
+		BBB10012 /* AppStateWatchlistTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateWatchlistTests.swift; sourceTree = "<group>"; };
+		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* UI Test Files */
+		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
+		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		AAA20001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBB20000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CCC20000 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -69,6 +134,8 @@
 			isa = PBXGroup;
 			children = (
 				AAA30001 /* MacTorn */,
+				BBB30000 /* MacTornTests */,
+				CCC30000 /* MacTornUITests */,
 				AAA30002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -83,6 +150,7 @@
 				AAA30004 /* ViewModels */,
 				AAA30005 /* Views */,
 				AAA30007 /* Utilities */,
+				AAA30008 /* Networking */,
 			);
 			path = MacTorn;
 			sourceTree = "<group>";
@@ -91,6 +159,8 @@
 			isa = PBXGroup;
 			children = (
 				AAA10000 /* MacTorn.app */,
+				BBB10000 /* MacTornTests.xctest */,
+				CCC10000 /* MacTornUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -149,6 +219,75 @@
 			path = Utilities;
 			sourceTree = "<group>";
 		};
+		AAA30008 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				AAA10022 /* NetworkSession.swift */,
+			);
+			path = Networking;
+			sourceTree = "<group>";
+		};
+/* Unit Tests Groups */
+		BBB30000 /* MacTornTests */ = {
+			isa = PBXGroup;
+			children = (
+				BBB30001 /* Mocks */,
+				BBB30002 /* Fixtures */,
+				BBB30003 /* Models */,
+				BBB30004 /* ViewModels */,
+			);
+			path = MacTornTests;
+			sourceTree = "<group>";
+		};
+		BBB30001 /* Mocks */ = {
+			isa = PBXGroup;
+			children = (
+				BBB10001 /* MockNetworkSession.swift */,
+				BBB10002 /* TestHelpers.swift */,
+			);
+			path = Mocks;
+			sourceTree = "<group>";
+		};
+		BBB30002 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				BBB10003 /* TornAPIFixtures.swift */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		BBB30003 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				BBB10004 /* BarTests.swift */,
+				BBB10005 /* TravelTests.swift */,
+				BBB10006 /* StatusTests.swift */,
+				BBB10007 /* ChainTests.swift */,
+				BBB10008 /* TornResponseTests.swift */,
+				BBB10009 /* WatchlistItemTests.swift */,
+				BBB10010 /* MoneyDataTests.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		BBB30004 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				BBB10011 /* AppStateTests.swift */,
+				BBB10012 /* AppStateWatchlistTests.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+/* UI Tests Group */
+		CCC30000 /* MacTornUITests */ = {
+			isa = PBXGroup;
+			children = (
+				CCC10001 /* MacTornUITests.swift */,
+			);
+			path = MacTornUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -169,6 +308,42 @@
 			productReference = AAA10000 /* MacTorn.app */;
 			productType = "com.apple.product-type.application";
 		};
+		BBB40000 /* MacTornTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BBB60000 /* Build configuration list for PBXNativeTarget "MacTornTests" */;
+			buildPhases = (
+				BBB50000 /* Sources */,
+				BBB20000 /* Frameworks */,
+				BBB50001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BBB40001 /* PBXTargetDependency */,
+			);
+			name = MacTornTests;
+			productName = MacTornTests;
+			productReference = BBB10000 /* MacTornTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		CCC40000 /* MacTornUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CCC60000 /* Build configuration list for PBXNativeTarget "MacTornUITests" */;
+			buildPhases = (
+				CCC50000 /* Sources */,
+				CCC20000 /* Frameworks */,
+				CCC50001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				CCC40001 /* PBXTargetDependency */,
+			);
+			name = MacTornUITests;
+			productName = MacTornUITests;
+			productReference = CCC10000 /* MacTornUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -181,6 +356,14 @@
 				TargetAttributes = {
 					AAA40000 = {
 						CreatedOnToolsVersion = 15.0;
+					};
+					BBB40000 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = AAA40000;
+					};
+					CCC40000 = {
+						CreatedOnToolsVersion = 15.0;
+						TestTargetID = AAA40000;
 					};
 				};
 			};
@@ -198,6 +381,8 @@
 			projectRoot = "";
 			targets = (
 				AAA40000 /* MacTorn */,
+				BBB40000 /* MacTornTests */,
+				CCC40000 /* MacTornUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -208,6 +393,20 @@
 			buildActionMask = 2147483647;
 			files = (
 				AAA00003 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBB50001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CCC50001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,10 +436,51 @@
 				AAA00018 /* FactionView.swift in Sources */,
 				AAA00019 /* WatchlistView.swift in Sources */,
 				AAA00020 /* PropertiesView.swift in Sources */,
+				AAA00021 /* NetworkSession.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBB50000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BBB00001 /* MockNetworkSession.swift in Sources */,
+				BBB00002 /* TestHelpers.swift in Sources */,
+				BBB00003 /* TornAPIFixtures.swift in Sources */,
+				BBB00004 /* BarTests.swift in Sources */,
+				BBB00005 /* TravelTests.swift in Sources */,
+				BBB00006 /* StatusTests.swift in Sources */,
+				BBB00007 /* ChainTests.swift in Sources */,
+				BBB00008 /* TornResponseTests.swift in Sources */,
+				BBB00009 /* WatchlistItemTests.swift in Sources */,
+				BBB00010 /* MoneyDataTests.swift in Sources */,
+				BBB00011 /* AppStateTests.swift in Sources */,
+				BBB00012 /* AppStateWatchlistTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CCC50000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CCC00001 /* MacTornUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		BBB40001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAA40000 /* MacTorn */;
+			targetProxy = BBB20001 /* PBXContainerItemProxy */;
+		};
+		CCC40001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AAA40000 /* MacTorn */;
+			targetProxy = CCC20001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AAA70000 /* Debug */ = {
@@ -413,6 +653,78 @@
 			};
 			name = Release;
 		};
+/* Unit Test Configurations */
+		BBB70000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MacTorn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MacTorn";
+			};
+			name = Debug;
+		};
+		BBB70001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MacTorn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MacTorn";
+			};
+			name = Release;
+		};
+/* UI Test Configurations */
+		CCC70000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = MacTorn;
+			};
+			name = Debug;
+		};
+		CCC70001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = MacTorn;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -430,6 +742,24 @@
 			buildConfigurations = (
 				AAA70000 /* Debug */,
 				AAA70001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BBB60000 /* Build configuration list for PBXNativeTarget "MacTornTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BBB70000 /* Debug */,
+				BBB70001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CCC60000 /* Build configuration list for PBXNativeTarget "MacTornUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CCC70000 /* Debug */,
+				CCC70001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

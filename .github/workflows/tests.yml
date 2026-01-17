@@ -1,0 +1,103 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build and Test
+        run: |
+          xcodebuild test \
+            -project MacTorn/MacTorn.xcodeproj \
+            -scheme MacTorn \
+            -destination 'platform=macOS' \
+            -resultBundlePath TestResults \
+            -enableCodeCoverage YES \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty --color --report junit
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: TestResults
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: coverage-report
+          path: TestResults
+
+  ui-tests:
+    name: UI Tests
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
+      - name: Build and Run UI Tests
+        run: |
+          xcodebuild test \
+            -project MacTorn/MacTorn.xcodeproj \
+            -scheme MacTorn \
+            -destination 'platform=macOS' \
+            -only-testing:MacTornUITests \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            | xcpretty --color
+        continue-on-error: true
+
+  build:
+    name: Build Release
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+
+      - name: Build Release
+        run: |
+          xcodebuild build \
+            -project MacTorn/MacTorn.xcodeproj \
+            -scheme MacTorn \
+            -configuration Release \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Archive Build
+        run: |
+          xcodebuild archive \
+            -project MacTorn/MacTorn.xcodeproj \
+            -scheme MacTorn \
+            -destination 'platform=macOS' \
+            -archivePath build/MacTorn.xcarchive \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            || echo "Archive step optional"
