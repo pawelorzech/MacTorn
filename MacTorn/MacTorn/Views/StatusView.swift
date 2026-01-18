@@ -195,15 +195,21 @@ struct StatusView: View {
     private func cooldownsSection(_ cooldowns: Cooldowns) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Divider()
-            
+
             Text("Cooldowns")
                 .font(.caption.bold())
                 .foregroundColor(.secondary)
-            
+
             HStack(spacing: 16) {
-                CooldownItem(label: "Drug", seconds: cooldowns.drug, icon: "pills.fill")
-                CooldownItem(label: "Medical", seconds: cooldowns.medical, icon: "cross.case.fill")
-                CooldownItem(label: "Booster", seconds: cooldowns.booster, icon: "arrow.up.circle.fill")
+                if let fetchTime = appState.lastUpdated {
+                    LiveCooldownItem(label: "Drug", originalSeconds: cooldowns.drug, fetchTime: fetchTime, icon: "pills.fill")
+                    LiveCooldownItem(label: "Medical", originalSeconds: cooldowns.medical, fetchTime: fetchTime, icon: "cross.case.fill")
+                    LiveCooldownItem(label: "Booster", originalSeconds: cooldowns.booster, fetchTime: fetchTime, icon: "arrow.up.circle.fill")
+                } else {
+                    CooldownItem(label: "Drug", seconds: cooldowns.drug, icon: "pills.fill")
+                    CooldownItem(label: "Medical", seconds: cooldowns.medical, icon: "cross.case.fill")
+                    CooldownItem(label: "Booster", seconds: cooldowns.booster, icon: "arrow.up.circle.fill")
+                }
             }
         }
     }
@@ -260,13 +266,13 @@ struct CooldownItem: View {
     let label: String
     let seconds: Int
     let icon: String
-    
+
     var body: some View {
         VStack(spacing: 2) {
             Image(systemName: icon)
                 .font(.caption)
                 .foregroundColor(seconds > 0 ? .orange : .green)
-            
+
             Text(formattedTime)
                 .font(.caption2.monospacedDigit())
                 .foregroundColor(seconds > 0 ? .primary : .green)
@@ -274,8 +280,46 @@ struct CooldownItem: View {
         }
         .frame(maxWidth: .infinity)
     }
-    
+
     private var formattedTime: String {
+        if seconds <= 0 { return "Ready" }
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let secs = seconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+// MARK: - Live Cooldown Item
+struct LiveCooldownItem: View {
+    let label: String
+    let originalSeconds: Int
+    let fetchTime: Date
+    let icon: String
+
+    var body: some View {
+        TimelineView(.periodic(from: fetchTime, by: 1.0)) { context in
+            let elapsed = Int(context.date.timeIntervalSince(fetchTime))
+            let remaining = max(0, originalSeconds - elapsed)
+
+            VStack(spacing: 2) {
+                Image(systemName: icon)
+                    .font(.caption)
+                    .foregroundColor(remaining > 0 ? .orange : .green)
+
+                Text(formattedTime(remaining))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundColor(remaining > 0 ? .primary : .green)
+                    .fontWeight(remaining <= 0 ? .bold : .regular)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func formattedTime(_ seconds: Int) -> String {
         if seconds <= 0 { return "Ready" }
         let hours = seconds / 3600
         let minutes = (seconds % 3600) / 60
