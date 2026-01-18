@@ -3,11 +3,20 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @State private var inputKey: String = ""
-    
+    @State private var showCredits: Bool = false
+
     // Developer ID for tip feature (bombel)
     private let developerID = 2362436
-    
+
     var body: some View {
+        if showCredits {
+            CreditsView(showCredits: $showCredits)
+        } else {
+            settingsContent
+        }
+    }
+
+    private var settingsContent: some View {
         VStack(spacing: 20) {
             // Header
             Image(systemName: "bolt.circle.fill")
@@ -143,15 +152,31 @@ struct SettingsView: View {
 
             // GitHub & Version
             VStack(spacing: 4) {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left.forwardslash.chevron.right")
-                        .font(.caption2)
-                        .foregroundColor(.gray)
-                    Link("View on GitHub",
-                         destination: URL(string: "https://github.com/pawelorzech/MacTorn")!)
-                        .font(.caption)
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left.forwardslash.chevron.right")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                        Link("View on GitHub",
+                             destination: URL(string: "https://github.com/pawelorzech/MacTorn")!)
+                            .font(.caption)
+                    }
+
+                    Button {
+                        showCredits = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "heart.fill")
+                                .font(.caption2)
+                                .foregroundColor(.pink)
+                            Text("Credits")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
                 }
-                
+
                 if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                     Text("v\(version)")
                         .font(.caption2)
