@@ -63,8 +63,6 @@ struct CreditsView: View {
                 .padding(.horizontal)
             }
 
-            Spacer()
-
             // Back Button
             Button {
                 showCredits = false
@@ -79,7 +77,7 @@ struct CreditsView: View {
             .foregroundColor(.accentColor)
         }
         .padding()
-        .frame(width: 320)
+        .frame(width: 320, height: 480)
     }
 
     // MARK: - Developer Section
