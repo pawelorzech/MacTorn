@@ -3,23 +3,23 @@ import SwiftUI
 struct CreditsView: View {
     @Binding var showCredits: Bool
 
-    // MARK: - Contributors Data
-    // Format: (name: "Username", tornID: 123456)
-    // The tornID will automatically link to the Torn profile
+    // MARK: - Developer
+    private let developer = TornContributor(name: "bombel", tornID: 2362436)
 
+    // MARK: - Special Thanks
     private let specialThanks: [TornContributor] = [
-        // TODO: Add contributors here
-        // Example: TornContributor(name: "bombel", tornID: 2362436),
-        TornContributor(name: "Placeholder1", tornID: nil),
-        TornContributor(name: "Placeholder2", tornID: nil),
-        TornContributor(name: "Placeholder3", tornID: nil),
+        TornContributor(name: "kaszmir", tornID: 3913934),
+        TornContributor(name: "dylanwishop", tornID: 3918903),
+        TornContributor(name: "constanziagatta", tornID: 3961012),
     ]
 
-    private let testers: [TornContributor] = [
-        // TODO: Add testers here
-        TornContributor(name: "TesterPlaceholder1", tornID: nil),
-        TornContributor(name: "TesterPlaceholder2", tornID: nil),
-    ]
+    // MARK: - Faction
+    private let factionName = "The Masters"
+    private let factionID = 11559
+
+    // MARK: - Company
+    private let companyName = "Glory Holes Productions"
+    private let companyOwnerID = 2362436
 
     var body: some View {
         VStack(spacing: 16) {
@@ -37,39 +37,31 @@ struct CreditsView: View {
 
                 Text("Credits")
                     .font(.title2.bold())
-
-                Text("Thank you for your support!")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
 
             Divider()
 
             ScrollView {
-                VStack(spacing: 16) {
-                    // Special Thanks Section
-                    if !specialThanks.isEmpty {
-                        contributorSection(
-                            title: "Special Thanks",
-                            icon: "star.fill",
-                            iconColor: .yellow,
-                            contributors: specialThanks
-                        )
-                    }
+                VStack(spacing: 14) {
+                    // Developer Section
+                    developerSection
 
-                    // Testers Section
-                    if !testers.isEmpty {
-                        contributorSection(
-                            title: "Beta Testers",
-                            icon: "checkmark.seal.fill",
-                            iconColor: .green,
-                            contributors: testers
-                        )
-                    }
+                    // Special Thanks Section
+                    contributorSection(
+                        title: "Special Thanks",
+                        icon: "star.fill",
+                        iconColor: .yellow,
+                        contributors: specialThanks
+                    )
+
+                    // Faction Section
+                    factionSection
+
+                    // Company Section
+                    companySection
                 }
                 .padding(.horizontal)
             }
-            .frame(maxHeight: 200)
 
             Spacer()
 
@@ -90,7 +82,103 @@ struct CreditsView: View {
         .frame(width: 320)
     }
 
-    // MARK: - Section View
+    // MARK: - Developer Section
+    private var developerSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "hammer.fill")
+                    .foregroundColor(.orange)
+                Text("Created by")
+                    .font(.subheadline.bold())
+            }
+
+            Button {
+                openTornProfile(developer.tornID!)
+            } label: {
+                HStack {
+                    Text(developer.name)
+                        .font(.caption.bold())
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.accentColor)
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(8)
+        }
+    }
+
+    // MARK: - Faction Section
+    private var factionSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "shield.fill")
+                    .foregroundColor(.blue)
+                Text("Faction")
+                    .font(.subheadline.bold())
+            }
+
+            Button {
+                openFaction(factionID)
+            } label: {
+                HStack {
+                    Text(factionName)
+                        .font(.caption)
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.accentColor)
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+        }
+    }
+
+    // MARK: - Company Section
+    private var companySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "building.2.fill")
+                    .foregroundColor(.purple)
+                Text("Company")
+                    .font(.subheadline.bold())
+            }
+
+            Button {
+                openCompany(companyOwnerID)
+            } label: {
+                HStack {
+                    Text(companyName)
+                        .font(.caption)
+                    Spacer()
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.accentColor)
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(8)
+        }
+    }
+
+    // MARK: - Contributors Section
     @ViewBuilder
     private func contributorSection(
         title: String,
@@ -147,9 +235,23 @@ struct CreditsView: View {
         }
     }
 
-    // MARK: - Helper
+    // MARK: - URL Helpers
     private func openTornProfile(_ tornID: Int) {
         let urlString = "https://www.torn.com/profiles.php?XID=\(tornID)"
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func openFaction(_ factionID: Int) {
+        let urlString = "https://www.torn.com/factions.php?step=profile&ID=\(factionID)"
+        if let url = URL(string: urlString) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func openCompany(_ ownerID: Int) {
+        let urlString = "https://www.torn.com/joblist.php#/p=corpinfo&userID=\(ownerID)"
         if let url = URL(string: urlString) {
             NSWorkspace.shared.open(url)
         }
