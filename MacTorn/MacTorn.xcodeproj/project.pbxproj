@@ -29,6 +29,7 @@
 		AAA00020 /* PropertiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10021 /* PropertiesView.swift */; };
 		AAA00021 /* NetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10022 /* NetworkSession.swift */; };
 		AAA00022 /* TravelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10023 /* TravelView.swift */; };
+		AAA00023 /* CreditsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10024 /* CreditsView.swift */; };
 /* Unit Tests */
 		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
 		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
@@ -87,6 +88,7 @@
 		AAA10021 /* PropertiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesView.swift; sourceTree = "<group>"; };
 		AAA10022 /* NetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSession.swift; sourceTree = "<group>"; };
 		AAA10023 /* TravelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelView.swift; sourceTree = "<group>"; };
+		AAA10024 /* CreditsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditsView.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* Unit Test Files */
 		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
@@ -190,6 +192,7 @@
 				AAA10006 /* SettingsView.swift */,
 				AAA10007 /* StatusView.swift */,
 				AAA10023 /* TravelView.swift */,
+				AAA10024 /* CreditsView.swift */,
 				AAA10017 /* MoneyView.swift */,
 				AAA10018 /* AttacksView.swift */,
 				AAA10019 /* FactionView.swift */,
@@ -441,6 +444,7 @@
 				AAA00020 /* PropertiesView.swift in Sources */,
 				AAA00021 /* NetworkSession.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
+				AAA00023 /* CreditsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -74,6 +74,7 @@ struct FlyingStatusView: View {
         .padding()
         .background(Color.blue.opacity(0.1))
         .cornerRadius(12)
+        .transaction { $0.animation = nil }
     }
 }
 

@@ -136,7 +136,7 @@ struct StatusView: View {
                 Text(travel.isTraveling ? "Traveling to \(travel.destination ?? "Unknown")" : "In \(travel.destination ?? "Unknown")")
                     .font(.caption.bold())
             }
-            
+
             if travel.isTraveling {
                 HStack {
                     Text("Arriving in:")
@@ -152,6 +152,7 @@ struct StatusView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.blue.opacity(0.1))
         .cornerRadius(8)
+        .transaction { $0.animation = nil }
     }
     
     // MARK: - Bars

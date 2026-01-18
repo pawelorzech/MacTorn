@@ -21,15 +21,18 @@ struct MenuBarLabel: View {
 
     var body: some View {
         // Show airplane + flag + countdown when traveling
-        if let travel = appState.data?.travel,
-           travel.isTraveling {
-            let destination = travel.destination ?? "?"
-            let flag = flagForDestination(destination)
-            let time = formatShortTime(appState.travelSecondsRemaining)
-            Text("✈️\(flag)\(time)")
-        } else {
-            Image(systemName: menuBarIcon)
+        Group {
+            if let travel = appState.data?.travel,
+               travel.isTraveling {
+                let destination = travel.destination ?? "?"
+                let flag = flagForDestination(destination)
+                let time = formatShortTime(appState.travelSecondsRemaining)
+                Text("✈️\(flag)\(time)")
+            } else {
+                Image(systemName: menuBarIcon)
+            }
         }
+        .transaction { $0.animation = nil }
     }
 
     private var menuBarIcon: String {
