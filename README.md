@@ -63,6 +63,21 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 - macOS 13.0 (Ventura) or later
 - Torn API Key with access to: basic, bars, cooldowns, travel, profile, events, messages, market
 
+## API Data Usage
+
+In compliance with the [Torn API Terms of Service](https://www.torn.com/api.html), the following table shows which API selections MacTorn uses and why:
+
+| Selection | Purpose |
+|-----------|---------|
+| `basic` | Player name, ID, basic info |
+| `bars` | Energy, Nerve, Happy, Life bars |
+| `cooldowns` | Drug, Medical, Booster cooldowns |
+| `travel` | Travel status and destination |
+| `profile` | Battle stats, faction info |
+| `events` | Recent events feed |
+| `messages` | Unread message count |
+| `market` | Item watchlist prices |
+
 ## Configuration
 
 ### Refresh Interval
