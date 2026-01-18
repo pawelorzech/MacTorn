@@ -61,3 +61,10 @@ fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
 .DS_Store
+
+# Build output
+build/
+DerivedData/
+
+# Archive folder (old releases)
+archive/
