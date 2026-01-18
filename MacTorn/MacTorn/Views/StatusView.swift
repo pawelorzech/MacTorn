@@ -185,7 +185,7 @@ struct StatusView: View {
                 label: "Life",
                 current: bars.life.current,
                 maximum: bars.life.maximum,
-                color: .pink,
+                color: .blue,
                 icon: "heart.fill"
             )
         }

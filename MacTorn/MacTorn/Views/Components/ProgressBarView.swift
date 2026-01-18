@@ -71,7 +71,7 @@ struct ProgressBarView: View {
         ProgressBarView(label: "Energy", current: 75, maximum: 100, color: .green, icon: "bolt.fill")
         ProgressBarView(label: "Nerve", current: 50, maximum: 50, color: .red, icon: "flame.fill")
         ProgressBarView(label: "Happy", current: 500, maximum: 1000, color: .yellow, icon: "face.smiling.fill")
-        ProgressBarView(label: "Life", current: 0, maximum: 100, color: .pink, icon: "heart.fill")
+        ProgressBarView(label: "Life", current: 0, maximum: 100, color: .blue, icon: "heart.fill")
     }
     .padding()
     .frame(width: 280)

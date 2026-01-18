@@ -27,20 +27,23 @@ struct SettingsView: View {
             VStack(spacing: 8) {
                 SecureField("Torn API Key", text: $inputKey)
                     .textFieldStyle(.roundedBorder)
-                
+
                 Button("Save & Connect") {
                     appState.apiKey = inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
                     appState.refreshNow()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(inputKey.isEmpty)
-                
+
                 Link("Get API Key from Torn",
                      destination: URL(string: "https://www.torn.com/preferences.php#tab=api")!)
                     .font(.caption)
             }
             .padding(.horizontal)
-            
+
+            // API ToS Compliance
+            apiUsageDisclosure
+
             Divider()
             
             // Settings
@@ -164,6 +167,53 @@ struct SettingsView: View {
         }
     }
     
+    // MARK: - API Usage Disclosure
+    private var apiUsageDisclosure: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(apiSelections, id: \.selection) { item in
+                    HStack(alignment: .top) {
+                        Text(item.selection)
+                            .font(.caption.monospaced())
+                            .frame(width: 60, alignment: .leading)
+                            .foregroundColor(.accentColor)
+                        Text(item.purpose)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Divider()
+
+                Link("View Torn API Terms of Service",
+                     destination: URL(string: "https://www.torn.com/api.html")!)
+                    .font(.caption)
+            }
+            .padding(.top, 4)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "doc.text")
+                    .foregroundColor(.secondary)
+                Text("API Data Usage")
+                    .font(.caption.bold())
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    private var apiSelections: [(selection: String, purpose: String)] {
+        [
+            ("basic", "Player name, ID, basic info"),
+            ("bars", "Energy, Nerve, Happy, Life bars"),
+            ("cooldowns", "Drug, Medical, Booster cooldowns"),
+            ("travel", "Travel status and destination"),
+            ("profile", "Battle stats, faction info"),
+            ("events", "Recent events feed"),
+            ("messages", "Unread message count"),
+            ("market", "Item watchlist prices")
+        ]
+    }
+
     private func openTornProfile() {
         let url = "https://www.torn.com/profiles.php?XID=\(developerID)"
         if let url = URL(string: url) {
