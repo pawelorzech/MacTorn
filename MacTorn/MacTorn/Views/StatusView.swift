@@ -20,8 +20,8 @@ struct StatusView: View {
                 }
                 
                 // Chain status
-                if let chain = appState.data?.chain {
-                    ChainView(chain: chain)
+                if let chain = appState.data?.chain, let fetchTime = appState.lastUpdated {
+                    ChainView(chain: chain, fetchTime: fetchTime)
                 }
                 
                 // Travel status
@@ -142,7 +142,7 @@ struct StatusView: View {
                     Text("Arriving in:")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text(formatTime(travel.timeLeft ?? 0))
+                    Text(formatTime(appState.travelSecondsRemaining))
                         .font(.caption.monospacedDigit())
                         .foregroundColor(.blue)
                 }

@@ -17,6 +17,7 @@ class AppState: ObservableObject {
     @Published var errorMsg: String?
     @Published var isLoading: Bool = false
     @Published var notificationRules: [NotificationRule] = []
+    @Published var travelNotificationSettings: [TravelNotificationSetting] = []
 
     // MARK: - New Data Sources
     @Published var moneyData: MoneyData?
@@ -28,6 +29,13 @@ class AppState: ObservableObject {
 
     // MARK: - Update State
     @Published var updateAvailable: GitHubRelease?
+
+    // MARK: - Fetch Time (for live countdown calculations)
+    @Published var lastFetchTime: Date = Date()
+
+    // MARK: - Live Travel Countdown
+    @Published var travelSecondsRemaining: Int = 0
+    private var travelTimerCancellable: AnyCancellable?
 
     // MARK: - Managers
     let launchAtLogin = LaunchAtLoginManager()
@@ -50,6 +58,7 @@ class AppState: ObservableObject {
     init(session: NetworkSession = URLSession.shared) {
         self.session = session
         loadNotificationRules()
+        loadTravelNotificationSettings()
         loadWatchlist()
         // Polling and permissions moved to onAppear in UI
     }
@@ -77,7 +86,103 @@ class AppState: ObservableObject {
             saveNotificationRules()
         }
     }
-    
+
+    // MARK: - Travel Notification Settings
+    func loadTravelNotificationSettings() {
+        if let data = UserDefaults.standard.data(forKey: "travelNotificationSettings"),
+           let settings = try? JSONDecoder().decode([TravelNotificationSetting].self, from: data) {
+            travelNotificationSettings = settings
+        } else {
+            travelNotificationSettings = TravelNotificationSetting.defaults
+            saveTravelNotificationSettings()
+        }
+    }
+
+    func saveTravelNotificationSettings() {
+        if let data = try? JSONEncoder().encode(travelNotificationSettings) {
+            UserDefaults.standard.set(data, forKey: "travelNotificationSettings")
+        }
+    }
+
+    func updateTravelNotificationSetting(_ setting: TravelNotificationSetting) {
+        if let index = travelNotificationSettings.firstIndex(where: { $0.id == setting.id }) {
+            travelNotificationSettings[index] = setting
+            saveTravelNotificationSettings()
+            // Reschedule notifications if currently traveling
+            if let travel = data?.travel, travel.isTraveling {
+                scheduleTravelNotifications(for: travel)
+            }
+        }
+    }
+
+    func scheduleTravelNotifications(for travel: Travel) {
+        // Cancel any existing travel notifications first
+        NotificationManager.shared.cancelTravelNotifications()
+
+        guard let arrivalDate = travel.arrivalDate else { return }
+
+        for setting in travelNotificationSettings where setting.enabled {
+            let notificationDate = arrivalDate.addingTimeInterval(-Double(setting.secondsBefore))
+
+            // Only schedule if the notification time is in the future
+            if notificationDate > Date() {
+                let identifier = "\(setting.id)_alert"
+                let timeText: String
+                if setting.secondsBefore >= 60 {
+                    timeText = "\(setting.secondsBefore / 60) minute\(setting.secondsBefore >= 120 ? "s" : "")"
+                } else {
+                    timeText = "\(setting.secondsBefore) seconds"
+                }
+
+                NotificationManager.shared.scheduleNotification(
+                    title: "Landing Soon!",
+                    body: "You will arrive in \(travel.destination ?? "your destination") in \(timeText)",
+                    type: .travelApproaching,
+                    at: notificationDate,
+                    identifier: identifier
+                )
+            }
+        }
+    }
+
+    // MARK: - Live Travel Timer
+    func manageTravelTimer() {
+        if let travel = data?.travel, travel.isTraveling {
+            // Start or continue timer
+            updateTravelSecondsRemaining()
+            if travelTimerCancellable == nil {
+                startTravelTimer()
+            }
+        } else {
+            // Stop timer when not traveling
+            stopTravelTimer()
+        }
+    }
+
+    private func startTravelTimer() {
+        travelTimerCancellable?.cancel()
+
+        travelTimerCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.updateTravelSecondsRemaining()
+            }
+    }
+
+    private func stopTravelTimer() {
+        travelTimerCancellable?.cancel()
+        travelTimerCancellable = nil
+        travelSecondsRemaining = 0
+    }
+
+    private func updateTravelSecondsRemaining() {
+        guard let travel = data?.travel, travel.isTraveling else {
+            travelSecondsRemaining = 0
+            return
+        }
+        travelSecondsRemaining = travel.remainingSeconds(from: lastFetchTime)
+    }
+
     // MARK: - Watchlist
     func loadWatchlist() {
         if let data = UserDefaults.standard.data(forKey: "watchlist"),
@@ -379,8 +484,10 @@ class AppState: ObservableObject {
                         code: code,
                         timestampStarted: attackDict["timestamp_started"] as? Int,
                         timestampEnded: attackDict["timestamp_ended"] as? Int,
-                        opponentId: attackDict["defender_id"] as? Int,
-                        opponentName: attackDict["defender_name"] as? String,
+                        attackerId: attackDict["attacker_id"] as? Int,
+                        attackerName: attackDict["attacker_name"] as? String,
+                        defenderId: attackDict["defender_id"] as? Int,
+                        defenderName: attackDict["defender_name"] as? String,
                         result: attackDict["result"] as? String,
                         respect: attackDict["respect"] as? Double
                     )
@@ -441,7 +548,11 @@ class AppState: ObservableObject {
             if let p = result.4 { self.propertiesData = p }
 
             self.lastUpdated = Date()
+            self.lastFetchTime = Date()
             self.errorMsg = nil
+
+            // Manage travel timer after data is set
+            self.manageTravelTimer()
 
             // Force UI update by triggering objectWillChange
             self.objectWillChange.send()
@@ -512,9 +623,18 @@ class AppState: ObservableObject {
         }
         
         if let prevTravel = previousTravel, let currentTravel = newData.travel {
+            // Just landed
             if prevTravel.isTraveling && !currentTravel.isTraveling {
-                NotificationManager.shared.send(title: "Landed! ✈️", body: "You have arrived in \(currentTravel.destination ?? "destination")", type: .landed)
+                NotificationManager.shared.send(title: "Landed!", body: "You have arrived in \(currentTravel.destination ?? "destination")", type: .landed)
+                NotificationManager.shared.cancelTravelNotifications()
             }
+            // Just started traveling
+            if !prevTravel.isTraveling && currentTravel.isTraveling {
+                scheduleTravelNotifications(for: currentTravel)
+            }
+        } else if let currentTravel = newData.travel, currentTravel.isTraveling, previousTravel == nil {
+            // First data fetch while traveling
+            scheduleTravelNotifications(for: currentTravel)
         }
         
         if let chain = newData.chain, chain.isActive {

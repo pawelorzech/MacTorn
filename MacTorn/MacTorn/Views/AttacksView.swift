@@ -51,23 +51,38 @@ struct AttacksView: View {
                             .font(.caption.bold())
                     }
                     
-                    if let attacks = appState.recentAttacks, !attacks.isEmpty {
+                    if let attacks = appState.recentAttacks, !attacks.isEmpty,
+                       let userId = appState.data?.playerId {
                         ForEach(attacks.prefix(5)) { attack in
-                            HStack {
-                                Image(systemName: attack.resultIcon)
-                                    .foregroundColor(attack.resultColor)
-                                    .frame(width: 16)
-                                
-                                Text(attack.opponentName ?? "Unknown")
-                                    .font(.caption)
-                                    .lineLimit(1)
-                                
-                                Spacer()
-                                
-                                Text(attack.timeAgo)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+                            Button {
+                                if let opponentId = attack.opponentId(forUserId: userId),
+                                   let url = URL(string: "https://www.torn.com/profiles.php?XID=\(opponentId)") {
+                                    NSWorkspace.shared.open(url)
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: attack.resultIcon(forUserId: userId))
+                                        .foregroundColor(attack.resultColor(forUserId: userId))
+                                        .frame(width: 14)
+
+                                    Image(systemName: attack.wasAttacker(userId: userId) ? "arrow.right" : "arrow.left")
+                                        .font(.caption2)
+                                        .foregroundColor(attack.wasAttacker(userId: userId) ? .blue : .orange)
+                                        .frame(width: 12)
+
+                                    Text(attack.opponentName(forUserId: userId))
+                                        .font(.caption)
+                                        .lineLimit(1)
+
+                                    Spacer()
+
+                                    Text(attack.timeAgo)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
                         }
                     } else {
                         Text("No recent attacks")

@@ -90,28 +90,129 @@ struct Travel: Codable, Equatable {
     let timestamp: Int?
     let departed: Int?
     let timeLeft: Int?
-    
+
     enum CodingKeys: String, CodingKey {
         case destination
         case timestamp
         case departed
         case timeLeft = "time_left"
     }
-    
+
     var isAbroad: Bool {
         guard let dest = destination, let time = timeLeft else { return false }
         return dest != "Torn" && time == 0
     }
-    
+
     var isTraveling: Bool {
         guard let time = timeLeft else { return false }
         return time > 0
     }
-    
+
     var arrivalDate: Date? {
         guard isTraveling, let ts = timestamp else { return nil }
         return Date(timeIntervalSince1970: TimeInterval(ts))
     }
+
+    /// Calculate remaining seconds based on fetch time (for live countdown)
+    func remainingSeconds(from fetchTime: Date) -> Int {
+        guard let timeLeft = timeLeft, timeLeft > 0 else { return 0 }
+        let elapsed = Int(Date().timeIntervalSince(fetchTime))
+        return max(0, timeLeft - elapsed)
+    }
+
+    /// Calculate flight progress (0.0 to 1.0) based on fetch time
+    func flightProgress(from fetchTime: Date) -> Double {
+        guard let departed = departed, let timestamp = timestamp else { return 0 }
+        let totalDuration = timestamp - departed
+        guard totalDuration > 0 else { return 0 }
+        let remaining = remainingSeconds(from: fetchTime)
+        let elapsed = totalDuration - remaining
+        return min(1.0, max(0.0, Double(elapsed) / Double(totalDuration)))
+    }
+}
+
+// MARK: - Travel Destinations
+enum TornDestination: String, CaseIterable, Identifiable {
+    case mexico = "Mexico"
+    case caymanIslands = "Cayman Islands"
+    case canada = "Canada"
+    case hawaii = "Hawaii"
+    case unitedKingdom = "United Kingdom"
+    case argentina = "Argentina"
+    case switzerland = "Switzerland"
+    case japan = "Japan"
+    case china = "China"
+    case uae = "UAE"
+    case southAfrica = "South Africa"
+
+    var id: String { rawValue }
+
+    var flag: String {
+        switch self {
+        case .mexico: return "🇲🇽"
+        case .caymanIslands: return "🇰🇾"
+        case .canada: return "🇨🇦"
+        case .hawaii: return "🇺🇸"
+        case .unitedKingdom: return "🇬🇧"
+        case .argentina: return "🇦🇷"
+        case .switzerland: return "🇨🇭"
+        case .japan: return "🇯🇵"
+        case .china: return "🇨🇳"
+        case .uae: return "🇦🇪"
+        case .southAfrica: return "🇿🇦"
+        }
+    }
+
+    /// Approximate flight time in minutes
+    var flightTimeMinutes: Int {
+        switch self {
+        case .mexico: return 26
+        case .caymanIslands: return 35
+        case .canada: return 41
+        case .hawaii: return 134
+        case .unitedKingdom: return 159
+        case .argentina: return 167
+        case .switzerland: return 175
+        case .japan: return 225
+        case .china: return 242
+        case .uae: return 271
+        case .southAfrica: return 297
+        }
+    }
+
+    var flightTimeFormatted: String {
+        let hours = flightTimeMinutes / 60
+        let minutes = flightTimeMinutes % 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
+    }
+
+    var travelAgencyURL: URL {
+        URL(string: "https://www.torn.com/travelagency.php")!
+    }
+}
+
+// MARK: - Travel Notification Settings
+struct TravelNotificationSetting: Codable, Identifiable, Equatable {
+    let id: String
+    let secondsBefore: Int
+    var enabled: Bool
+
+    var displayName: String {
+        if secondsBefore >= 60 {
+            return "\(secondsBefore / 60) min before"
+        }
+        return "\(secondsBefore) sec before"
+    }
+
+    static let defaults: [TravelNotificationSetting] = [
+        TravelNotificationSetting(id: "travel_2min", secondsBefore: 120, enabled: false),
+        TravelNotificationSetting(id: "travel_1min", secondsBefore: 60, enabled: true),
+        TravelNotificationSetting(id: "travel_30sec", secondsBefore: 30, enabled: false),
+        TravelNotificationSetting(id: "travel_10sec", secondsBefore: 10, enabled: false)
+    ]
 }
 
 // MARK: - Status (Hospital/Jail)
@@ -258,39 +359,81 @@ struct AttackResult: Codable, Identifiable {
     let code: String?
     let timestampStarted: Int?
     let timestampEnded: Int?
-    let opponentId: Int?
-    let opponentName: String?
+    let attackerId: Int?
+    let attackerName: String?
+    let defenderId: Int?
+    let defenderName: String?
     let result: String?
     let respect: Double?
-    
+
     var id: String { code ?? UUID().uuidString }
-    
+
     enum CodingKeys: String, CodingKey {
         case code
         case timestampStarted = "timestamp_started"
         case timestampEnded = "timestamp_ended"
-        case opponentId = "defender_id"
-        case opponentName = "defender_name"
+        case attackerId = "attacker_id"
+        case attackerName = "attacker_name"
+        case defenderId = "defender_id"
+        case defenderName = "defender_name"
         case result, respect
     }
+
+    func opponentName(forUserId userId: Int) -> String {
+        let name: String?
+        if attackerId == userId {
+            name = defenderName
+        } else {
+            name = attackerName
+        }
+
+        if let name = name, !name.isEmpty {
+            return name
+        }
+        return "Someone"
+    }
+
+    func opponentId(forUserId userId: Int) -> Int? {
+        if attackerId == userId {
+            return defenderId
+        } else {
+            return attackerId
+        }
+    }
+
+    func wasAttacker(userId: Int) -> Bool {
+        return attackerId == userId
+    }
     
-    var resultIcon: String {
+    func resultIcon(forUserId userId: Int) -> String {
+        let userWasAttacker = wasAttacker(userId: userId)
         switch result {
-        case "Attacked": return "checkmark.circle.fill"
-        case "Mugged": return "dollarsign.circle.fill"
-        case "Hospitalized": return "cross.circle.fill"
-        case "Lost": return "xmark.circle.fill"
+        case "Attacked": return userWasAttacker ? "checkmark.circle.fill" : "xmark.circle.fill"
+        case "Mugged": return userWasAttacker ? "dollarsign.circle.fill" : "xmark.circle.fill"
+        case "Hospitalized": return userWasAttacker ? "cross.circle.fill" : "xmark.circle.fill"
+        case "Lost": return userWasAttacker ? "xmark.circle.fill" : "shield.checkered"
         case "Stalemate": return "equal.circle.fill"
+        case "Escape": return userWasAttacker ? "figure.run" : "shield.checkered"
+        case "Assist": return "person.2.fill"
         default: return "questionmark.circle"
         }
     }
-    
-    var resultColor: Color {
+
+    func resultColor(forUserId userId: Int) -> Color {
+        let userWasAttacker = wasAttacker(userId: userId)
         switch result {
-        case "Attacked", "Mugged", "Hospitalized": return .green
-        case "Lost": return .red
-        case "Stalemate": return .orange
-        default: return .gray
+        case "Attacked", "Mugged", "Hospitalized":
+            return userWasAttacker ? .green : .red
+        case "Lost":
+            return userWasAttacker ? .red : .green
+        case "Stalemate":
+            return .orange
+        case "Escape":
+            return userWasAttacker ? .orange : .green
+        case "Assist":
+            return .blue
+        default:
+            return .gray
         }
     }
     

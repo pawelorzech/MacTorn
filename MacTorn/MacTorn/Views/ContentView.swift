@@ -2,14 +2,16 @@ import SwiftUI
 
 enum AppTab: String, CaseIterable {
     case status = "Status"
+    case travel = "Travel"
     case money = "Money"
     case attacks = "Attacks"
     case faction = "Faction"
     case watchlist = "Watchlist"
-    
+
     var icon: String {
         switch self {
         case .status: return "chart.bar.fill"
+        case .travel: return "airplane"
         case .money: return "dollarsign.circle.fill"
         case .attacks: return "bolt.shield.fill"
         case .faction: return "person.3.fill"
@@ -122,6 +124,9 @@ struct ContentView: View {
         switch currentTab {
         case .status:
             StatusView()
+                .environmentObject(appState)
+        case .travel:
+            TravelView()
                 .environmentObject(appState)
         case .money:
             MoneyView()
