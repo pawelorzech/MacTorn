@@ -501,31 +501,31 @@ class AppState: ObservableObject {
         
         if let prevCD = previousCooldowns, let currentCD = newData.cooldowns {
             if prevCD.drug > 0 && currentCD.drug == 0 {
-                NotificationManager.shared.send(title: "Drug Ready! 💊", body: "Drug cooldown has ended")
+                NotificationManager.shared.send(title: "Drug Ready! 💊", body: "Drug cooldown has ended", type: .drugReady)
             }
             if prevCD.medical > 0 && currentCD.medical == 0 {
-                NotificationManager.shared.send(title: "Medical Ready! 🏥", body: "Medical cooldown has ended")
+                NotificationManager.shared.send(title: "Medical Ready! 🏥", body: "Medical cooldown has ended", type: .medicalReady)
             }
             if prevCD.booster > 0 && currentCD.booster == 0 {
-                NotificationManager.shared.send(title: "Booster Ready! 🚀", body: "Booster cooldown has ended")
+                NotificationManager.shared.send(title: "Booster Ready! 🚀", body: "Booster cooldown has ended", type: .boosterReady)
             }
         }
         
         if let prevTravel = previousTravel, let currentTravel = newData.travel {
             if prevTravel.isTraveling && !currentTravel.isTraveling {
-                NotificationManager.shared.send(title: "Landed! ✈️", body: "You have arrived in \(currentTravel.destination ?? "destination")")
+                NotificationManager.shared.send(title: "Landed! ✈️", body: "You have arrived in \(currentTravel.destination ?? "destination")", type: .landed)
             }
         }
         
         if let chain = newData.chain, chain.isActive {
             if chain.timeoutRemaining < 60 && chain.timeoutRemaining > 0 {
-                NotificationManager.shared.send(title: "Chain Expiring! ⚠️", body: "Chain timeout in \(chain.timeoutRemaining) seconds!")
+                NotificationManager.shared.send(title: "Chain Expiring! ⚠️", body: "Chain timeout in \(chain.timeoutRemaining) seconds!", type: .chainExpiring)
             }
         }
         
         if let prevStatus = previousStatus, let currentStatus = newData.status {
             if !prevStatus.isOkay && currentStatus.isOkay {
-                NotificationManager.shared.send(title: "Released! 🎉", body: "You are now free")
+                NotificationManager.shared.send(title: "Released! 🎉", body: "You are now free", type: .released)
             }
         }
     }
@@ -533,20 +533,29 @@ class AppState: ObservableObject {
     private func checkBarNotification(prevBar: Bar, currentBar: Bar, barType: NotificationRule.BarType) {
         let prevPct = prevBar.percentage
         let currentPct = currentBar.percentage
-        
+
         for rule in notificationRules where rule.enabled && rule.barType == barType {
             let threshold = Double(rule.threshold)
-            
+
             if prevPct < threshold && currentPct >= threshold {
                 let title: String
+                let notificationType: NotificationType
                 switch barType {
-                case .energy: title = "Energy \(rule.threshold)%! ⚡️"
-                case .nerve: title = "Nerve \(rule.threshold)%! 💪"
-                case .happy: title = "Happy \(rule.threshold)%! 😊"
-                case .life: title = "Life \(rule.threshold)%! ❤️"
+                case .energy:
+                    title = "Energy \(rule.threshold)%! ⚡️"
+                    notificationType = .energy
+                case .nerve:
+                    title = "Nerve \(rule.threshold)%! 💪"
+                    notificationType = .nerve
+                case .happy:
+                    title = "Happy \(rule.threshold)%! 😊"
+                    notificationType = .happy
+                case .life:
+                    title = "Life \(rule.threshold)%! ❤️"
+                    notificationType = .life
                 }
-                NotificationManager.shared.send(title: title, body: "\(barType.rawValue) is now at \(currentBar.current)/\(currentBar.maximum)")
-                
+                NotificationManager.shared.send(title: title, body: "\(barType.rawValue) is now at \(currentBar.current)/\(currentBar.maximum)", type: notificationType)
+
                 if let sound = NotificationSound(rawValue: rule.soundName) {
                     SoundManager.shared.play(sound)
                 }
