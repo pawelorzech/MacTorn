@@ -270,7 +270,7 @@ struct CooldownItem: View {
 
     var body: some View {
         VStack(spacing: 2) {
-            Image(systemName: icon)
+            Text(label)
                 .font(.caption)
                 .foregroundColor(seconds > 0 ? .orange : .green)
 
@@ -307,7 +307,7 @@ struct LiveCooldownItem: View {
             let remaining = max(0, originalSeconds - elapsed)
 
             VStack(spacing: 2) {
-                Image(systemName: icon)
+                Text(label)
                     .font(.caption)
                     .foregroundColor(remaining > 0 ? .orange : .green)
 
