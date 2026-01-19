@@ -604,6 +604,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				ARCHS = "arm64 x86_64";
 			};
 			name = Release;
 		};

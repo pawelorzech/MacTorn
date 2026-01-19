@@ -4,6 +4,7 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 
 ![macOS](https://img.shields.io/badge/macOS-13.0+-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
+![Universal](https://img.shields.io/badge/Universal-Intel%20%2B%20Apple%20Silicon-purple)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 <p align="center">
@@ -68,6 +69,7 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 ## Requirements
 
 - macOS 13.0 (Ventura) or later
+- **Universal Binary**: Supports both Intel (x86_64) and Apple Silicon (arm64) Macs
 - Torn API Key with access to: basic, bars, cooldowns, travel, profile, events, messages, market
 
 ## API Data Usage

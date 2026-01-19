@@ -57,13 +57,15 @@ build:
 		CODE_SIGN_IDENTITY="-" \
 		CODE_SIGNING_REQUIRED=NO
 
-# Build Release
+# Build Release (Universal Binary for Intel + Apple Silicon)
 release:
 	xcodebuild build \
 		-project MacTorn/MacTorn.xcodeproj \
 		-scheme MacTorn \
 		-configuration Release \
-		-destination 'platform=macOS' \
+		-destination 'generic/platform=macOS' \
+		ARCHS="arm64 x86_64" \
+		ONLY_ACTIVE_ARCH=NO \
 		CODE_SIGN_IDENTITY="-" \
 		CODE_SIGNING_REQUIRED=NO
 
