@@ -27,7 +27,7 @@ For detailed documentation, visit the [MacTorn Wiki](https://github.com/pawelorz
 - Hospital/Jail status badges
 - Unread messages badge
 - Events feed
-- 8 customizable quick links
+- 8 quick links
 
 ### ✈️ Travel Tab
 - **Live countdown timer** in menu bar during flight (✈️🇺🇸 5:32)
