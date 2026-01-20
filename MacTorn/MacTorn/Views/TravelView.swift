@@ -4,6 +4,7 @@ import AppKit
 // MARK: - Flying Status View (separate for proper live updates)
 struct FlyingStatusView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let destination: String
     let timestamp: Int
     let departed: Int
@@ -60,7 +61,7 @@ struct FlyingStatusView: View {
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.2))
+                            .fill(Color.gray.opacity(reduceTransparency ? 0.5 : 0.2))
                             .frame(height: 8)
 
                         RoundedRectangle(cornerRadius: 4)
@@ -72,7 +73,7 @@ struct FlyingStatusView: View {
             }
         }
         .padding()
-        .background(Color.blue.opacity(0.1))
+        .background(Color.blue.opacity(reduceTransparency ? 0.2 : 0.1))
         .cornerRadius(12)
         .transaction { $0.animation = nil }
     }
@@ -80,6 +81,7 @@ struct FlyingStatusView: View {
 
 struct TravelView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
         ScrollView {
@@ -164,7 +166,7 @@ struct TravelView: View {
             .buttonStyle(.plain)
         }
         .padding()
-        .background(Color.orange.opacity(0.1))
+        .background(Color.orange.opacity(reduceTransparency ? 0.2 : 0.1))
         .cornerRadius(12)
     }
 
@@ -183,7 +185,7 @@ struct TravelView: View {
             Spacer()
         }
         .padding()
-        .background(Color.green.opacity(0.1))
+        .background(Color.green.opacity(reduceTransparency ? 0.2 : 0.1))
         .cornerRadius(12)
     }
 
@@ -212,7 +214,7 @@ struct TravelView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(Color.accentColor.opacity(0.1))
+                    .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
                     .cornerRadius(8)
                 }
                 .buttonStyle(.plain)
@@ -248,7 +250,7 @@ struct TravelView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(Color.accentColor.opacity(0.1))
+            .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
             .cornerRadius(8)
         }
         .buttonStyle(.plain)
@@ -283,7 +285,7 @@ struct TravelView: View {
                 }
             }
             .padding()
-            .background(Color.secondary.opacity(0.1))
+            .background(Color.secondary.opacity(reduceTransparency ? 0.2 : 0.1))
             .cornerRadius(8)
         }
     }
@@ -312,7 +314,7 @@ struct TravelView: View {
                     .font(.caption)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.1))
+                    .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
                     .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
@@ -329,7 +331,7 @@ struct TravelView: View {
                     .font(.caption)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(0.1))
+                    .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
                     .cornerRadius(6)
                 }
                 .buttonStyle(.plain)

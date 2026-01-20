@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PropertiesView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     
     var body: some View {
         ScrollView {
@@ -58,6 +59,7 @@ struct PropertiesView: View {
 
 // MARK: - Property Card
 struct PropertyCard: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let property: PropertyInfo
     
     var body: some View {
@@ -72,7 +74,7 @@ struct PropertyCard: View {
                         .foregroundColor(.orange)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.2))
+                        .background(Color.orange.opacity(reduceTransparency ? 0.5 : 0.2))
                         .cornerRadius(4)
                 }
             }
@@ -112,7 +114,7 @@ struct PropertyCard: View {
             }
         }
         .padding()
-        .background(Color.brown.opacity(0.05))
+        .background(Color.brown.opacity(reduceTransparency ? 0.25 : 0.05))
         .cornerRadius(8)
     }
     

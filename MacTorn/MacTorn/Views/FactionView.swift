@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FactionView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     
     var body: some View {
         ScrollView {
@@ -33,7 +34,7 @@ struct FactionView: View {
                                     .foregroundColor(chainColor(faction.chain))
                             }
                             .padding(8)
-                            .background(chainColor(faction.chain).opacity(0.1))
+                            .background(chainColor(faction.chain).opacity(reduceTransparency ? 0.4 : 0.1))
                             .cornerRadius(6)
                         }
                         
@@ -58,9 +59,9 @@ struct FactionView: View {
                     }
                 }
                 .padding()
-                .background(Color.blue.opacity(0.05))
+                .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
-                
+
                 // Armory Quick Actions
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -85,9 +86,9 @@ struct FactionView: View {
                     }
                 }
                 .padding()
-                .background(Color.purple.opacity(0.05))
+                .background(Color.purple.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
-                
+
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Faction", icon: "person.3.fill", color: .blue) {
@@ -138,11 +139,12 @@ struct FactionView: View {
 
 // MARK: - Armory Button
 struct ArmoryButton: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let title: String
     let icon: String
     let color: Color
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             VStack(spacing: 2) {
@@ -153,7 +155,7 @@ struct ArmoryButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
-            .background(color.opacity(0.15))
+            .background(color.opacity(reduceTransparency ? 0.4 : 0.15))
             .foregroundColor(color)
             .cornerRadius(6)
         }

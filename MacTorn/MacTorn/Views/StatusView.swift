@@ -2,6 +2,7 @@ import SwiftUI
 
 struct StatusView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     
     var body: some View {
         ScrollView {
@@ -109,7 +110,7 @@ struct StatusView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.blue.opacity(0.1))
+            .background(Color.blue.opacity(reduceTransparency ? 0.2 : 0.1))
             .cornerRadius(6)
         }
         .buttonStyle(.plain)
@@ -150,7 +151,7 @@ struct StatusView: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.blue.opacity(0.1))
+        .background(Color.blue.opacity(reduceTransparency ? 0.2 : 0.1))
         .cornerRadius(8)
         .transaction { $0.animation = nil }
     }
@@ -240,7 +241,7 @@ struct StatusView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 4)
                             .padding(.horizontal, 6)
-                            .background(Color.accentColor.opacity(0.1))
+                            .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
                             .cornerRadius(4)
                     }
                     .buttonStyle(.plain)

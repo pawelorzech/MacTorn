@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MoneyView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     
     var body: some View {
         ScrollView {
@@ -72,9 +73,9 @@ struct MoneyView: View {
                     }
                 }
                 .padding()
-                .background(Color.green.opacity(0.05))
+                .background(Color.green.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
-                
+
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Send Money", icon: "paperplane.fill", color: .blue) {
@@ -112,11 +113,12 @@ struct MoneyView: View {
 
 // MARK: - Action Button Component
 struct ActionButton: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let title: String
     let icon: String
     let color: Color
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             VStack(spacing: 4) {
@@ -127,7 +129,7 @@ struct ActionButton: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(color.opacity(0.1))
+            .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
             .foregroundColor(color)
             .cornerRadius(8)
         }

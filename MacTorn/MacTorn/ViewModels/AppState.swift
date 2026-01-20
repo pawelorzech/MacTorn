@@ -5,11 +5,27 @@ import os.log
 
 private let logger = Logger(subsystem: "com.mactorn", category: "AppState")
 
+// MARK: - Appearance
+enum AppearanceMode: String, CaseIterable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 @MainActor
 class AppState: ObservableObject {
     // MARK: - Persisted
     @AppStorage("apiKey") var apiKey: String = ""
     @AppStorage("refreshInterval") var refreshInterval: Int = 30
+    @AppStorage("appearanceMode") var appearanceMode: String = AppearanceMode.system.rawValue
 
     // MARK: - Published State
     @Published var data: TornResponse?

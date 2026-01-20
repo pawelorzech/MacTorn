@@ -3,15 +3,36 @@ import SwiftUI
 @main
 struct MacTornApp: App {
     @StateObject private var appState = AppState()
+    @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
+    @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
 
     var body: some Scene {
         MenuBarExtra {
             ContentView()
                 .environmentObject(appState)
+                .environment(\.reduceTransparency, reduceTransparency)
+                .onAppear {
+                    updateAppearance()
+                }
+                .onChange(of: appearanceModeRaw) { _ in
+                    updateAppearance()
+                }
         } label: {
             MenuBarLabel(appState: appState)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private func updateAppearance() {
+        let mode = AppearanceMode(rawValue: appearanceModeRaw) ?? .system
+        switch mode {
+        case .system:
+            NSApp.appearance = nil
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
     }
 }
 

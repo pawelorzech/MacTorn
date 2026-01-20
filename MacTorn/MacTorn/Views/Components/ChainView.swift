@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ChainView: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let chain: Chain
     let fetchTime: Date
 
@@ -25,7 +26,7 @@ struct ChainView: View {
                     }
                 }
                 .padding(8)
-                .background(color.opacity(0.1))
+                .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
                 .cornerRadius(8)
             }
         } else if chain.isOnCooldown {

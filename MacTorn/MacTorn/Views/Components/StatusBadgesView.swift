@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct StatusBadgesView: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let status: Status
     
     var body: some View {
@@ -18,10 +19,10 @@ struct StatusBadgesView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.red.opacity(0.1))
+                    .background(Color.red.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                 }
-                
+
                 if status.isInJail {
                     HStack(spacing: 4) {
                         Image(systemName: "lock.fill")
@@ -34,7 +35,7 @@ struct StatusBadgesView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.orange.opacity(0.1))
+                    .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                 }
             }

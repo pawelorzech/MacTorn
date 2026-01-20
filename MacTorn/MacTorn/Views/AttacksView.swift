@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AttacksView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     
     var body: some View {
         ScrollView {
@@ -39,9 +40,9 @@ struct AttacksView: View {
                     }
                 }
                 .padding()
-                .background(Color.red.opacity(0.05))
+                .background(Color.red.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
-                
+
                 // Recent Attacks
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -91,9 +92,9 @@ struct AttacksView: View {
                     }
                 }
                 .padding()
-                .background(Color.orange.opacity(0.05))
+                .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
-                
+
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Attack", icon: "bolt.fill", color: .red) {
@@ -134,10 +135,11 @@ struct AttacksView: View {
 
 // MARK: - Stat Item
 struct StatItem: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let label: String
     let value: String
     let color: Color
-    
+
     var body: some View {
         VStack(spacing: 2) {
             Text(value)
@@ -149,7 +151,7 @@ struct StatItem: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 4)
-        .background(color.opacity(0.1))
+        .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
         .cornerRadius(4)
     }
 }

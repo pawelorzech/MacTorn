@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct CreditsView: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     @Binding var showCredits: Bool
 
     // MARK: - Developer
@@ -107,7 +108,7 @@ struct CreditsView: View {
             .foregroundColor(.accentColor)
             .padding(10)
             .frame(maxWidth: .infinity)
-            .background(Color.orange.opacity(0.1))
+            .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
         }
     }
@@ -139,7 +140,7 @@ struct CreditsView: View {
             .foregroundColor(.accentColor)
             .padding(10)
             .frame(maxWidth: .infinity)
-            .background(Color.secondary.opacity(0.1))
+            .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
         }
     }
@@ -171,7 +172,7 @@ struct CreditsView: View {
             .foregroundColor(.accentColor)
             .padding(10)
             .frame(maxWidth: .infinity)
-            .background(Color.secondary.opacity(0.1))
+            .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
         }
     }
@@ -199,7 +200,7 @@ struct CreditsView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity)
-            .background(Color.secondary.opacity(0.1))
+            .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
         }
     }

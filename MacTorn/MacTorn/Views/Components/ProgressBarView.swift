@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ProgressBarView: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let label: String
     let current: Int
     let maximum: Int
@@ -40,10 +41,10 @@ struct ProgressBarView: View {
                 ZStack(alignment: .leading) {
                     // Background track
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(Color.gray.opacity(reduceTransparency ? 0.5 : 0.3))
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
-                                .stroke(color.opacity(0.3), lineWidth: 1)
+                                .stroke(color.opacity(reduceTransparency ? 0.5 : 0.3), lineWidth: 1)
                         )
                     
                     // Filled progress
@@ -51,13 +52,13 @@ struct ProgressBarView: View {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(
                                 LinearGradient(
-                                    colors: [color, color.opacity(0.7)],
+                                    colors: [color, color.opacity(reduceTransparency ? 0.9 : 0.7)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
                             .frame(width: max(4, geometry.size.width * progress))
-                            .shadow(color: color.opacity(0.5), radius: 2, x: 0, y: 0)
+                            .shadow(color: color.opacity(reduceTransparency ? 0.7 : 0.5), radius: 2, x: 0, y: 0)
                     }
                 }
             }

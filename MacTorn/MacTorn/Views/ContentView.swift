@@ -22,6 +22,7 @@ enum AppTab: String, CaseIterable {
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     @State private var showSettings = false
     @State private var currentTab: AppTab = .status
     
@@ -55,8 +56,8 @@ struct ContentView: View {
             
             // Loading Overlay
             if appState.isLoading && appState.lastUpdated == nil {
-                Color.black.opacity(0.4)
-                    .background(.ultraThinMaterial)
+                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.4))
+                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
                 
                 VStack(spacing: 12) {
                     ProgressView()
@@ -106,7 +107,7 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 6)
-                    .background(currentTab == tab ? Color.accentColor.opacity(0.2) : Color.clear)
+                    .background(currentTab == tab ? Color.accentColor.opacity(reduceTransparency ? 0.3 : 0.2) : Color.clear)
                     .cornerRadius(6)
                     .contentShape(Rectangle()) // Make entire area clickable
                 }

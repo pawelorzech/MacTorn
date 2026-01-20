@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WatchlistView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.reduceTransparency) private var reduceTransparency
     @State private var showAddItem = false
     
     var body: some View {
@@ -56,7 +57,7 @@ struct WatchlistView: View {
                                         .lineLimit(1)
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 6)
-                                        .background(Color.green.opacity(0.1))
+                                        .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.1))
                                         .cornerRadius(4)
                                 }
                                 .buttonStyle(.plain)
@@ -64,10 +65,10 @@ struct WatchlistView: View {
                         }
                     }
                     .padding(8)
-                    .background(Color.gray.opacity(0.1))
+                    .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                 }
-                
+
                 // Watchlist Items with Prices
                 if appState.watchlistItems.isEmpty && !showAddItem {
                     VStack(spacing: 8) {
@@ -132,6 +133,7 @@ struct WatchlistView: View {
 
 // MARK: - Watchlist Price Row
 struct WatchlistPriceRow: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let item: WatchlistItem
     let onOpen: () -> Void
     let onRemove: () -> Void
@@ -200,10 +202,10 @@ struct WatchlistPriceRow: View {
             .buttonStyle(.plain)
         }
         .padding(8)
-        .background(Color.gray.opacity(0.1))
+        .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
         .cornerRadius(6)
     }
-    
+
     private func formatPrice(_ price: Int) -> String {
         if price >= 1_000_000 {
             return String(format: "$%.1fM", Double(price) / 1_000_000)

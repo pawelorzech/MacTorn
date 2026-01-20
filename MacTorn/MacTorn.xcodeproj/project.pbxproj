@@ -30,6 +30,7 @@
 		AAA00021 /* NetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10022 /* NetworkSession.swift */; };
 		AAA00022 /* TravelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10023 /* TravelView.swift */; };
 		AAA00023 /* CreditsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10024 /* CreditsView.swift */; };
+		AAA00024 /* TransparencyEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10025 /* TransparencyEnvironment.swift */; };
 /* Unit Tests */
 		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
 		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
@@ -89,6 +90,7 @@
 		AAA10022 /* NetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSession.swift; sourceTree = "<group>"; };
 		AAA10023 /* TravelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelView.swift; sourceTree = "<group>"; };
 		AAA10024 /* CreditsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditsView.swift; sourceTree = "<group>"; };
+		AAA10025 /* TransparencyEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransparencyEnvironment.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* Unit Test Files */
 		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 				AAA30005 /* Views */,
 				AAA30007 /* Utilities */,
 				AAA30008 /* Networking */,
+				AAA30009 /* Helpers */,
 			);
 			path = MacTorn;
 			sourceTree = "<group>";
@@ -231,6 +234,14 @@
 				AAA10022 /* NetworkSession.swift */,
 			);
 			path = Networking;
+			sourceTree = "<group>";
+		};
+		AAA30009 /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				AAA10025 /* TransparencyEnvironment.swift */,
+			);
+			path = Helpers;
 			sourceTree = "<group>";
 		};
 /* Unit Tests Groups */
@@ -445,6 +456,7 @@
 				AAA00021 /* NetworkSession.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
 				AAA00023 /* CreditsView.swift in Sources */,
+				AAA00024 /* TransparencyEnvironment.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -627,7 +639,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -654,7 +666,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -672,7 +684,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -690,7 +702,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -708,7 +720,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -725,7 +737,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 13.0;
-				MARKETING_VERSION = 1.4.3;
+				MARKETING_VERSION = 1.4.4;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

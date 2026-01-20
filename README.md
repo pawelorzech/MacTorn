@@ -8,7 +8,9 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 <p align="center">
-  <img src="app.png?v=1.2" alt="MacTorn Screenshot" width="600">
+  <img src="app_light_1.png" alt="MacTorn Light Mode" width="320">
+  &nbsp;&nbsp;
+  <img src="app_dark_1.png" alt="MacTorn Dark Mode" width="320">
 </p>
 
 ## Features
@@ -56,6 +58,14 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 - **🕒 Configurable Refresh**: Intervals (15s/30s/60s/2m).
 - **🚀 Launch at Login**: Start seamlessly with macOS.
 - **⚡️ Optimized Startup**: Non-blocking data fetching for instant UI responsiveness.
+
+## Accessibility
+
+MacTorn respects macOS accessibility settings:
+
+- **Reduce Transparency**: When enabled in System Settings → Accessibility → Display, the app uses solid backgrounds instead of translucent materials for better readability
+- **Light & Dark Mode**: Full support for both appearance modes with optimized contrast
+- **Color-coded indicators**: Status bars and badges use distinct colors that work well in both modes
 
 ## Installation
 

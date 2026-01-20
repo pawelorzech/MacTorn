@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
+    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
+    @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
     @State private var inputKey: String = ""
     @State private var showCredits: Bool = false
 
@@ -88,6 +90,30 @@ struct SettingsView: View {
                     ))
                     .toggleStyle(.switch)
                 }
+
+                // Appearance Mode
+                HStack {
+                    Image(systemName: "moon.circle")
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+
+                    Picker("Appearance", selection: $appearanceMode) {
+                        ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                            Text(mode.rawValue).tag(mode.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+
+                // Reduce Transparency (Accessibility)
+                HStack {
+                    Image(systemName: "eye")
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+                    Toggle("Reduce Transparency", isOn: $reduceTransparency)
+                        .toggleStyle(.switch)
+                }
             }
             .padding(.horizontal)
             
@@ -116,16 +142,16 @@ struct SettingsView: View {
                     .font(.caption)
                     .padding(.vertical, 6)
                     .padding(.horizontal, 12)
-                    .background(Color.purple.opacity(0.15))
+                    .background(Color.purple.opacity(reduceTransparency ? 0.4 : 0.15))
                     .cornerRadius(6)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.vertical, 8)
             .padding(.horizontal)
-            .background(Color.purple.opacity(0.05))
+            .background(Color.purple.opacity(reduceTransparency ? 0.25 : 0.05))
             .cornerRadius(8)
-            
+
             // Update Section
             if let update = appState.updateAvailable {
                 VStack(spacing: 8) {
@@ -146,7 +172,7 @@ struct SettingsView: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity)
-                .background(Color.green.opacity(0.1))
+                .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.1))
                 .cornerRadius(8)
             }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct EventsView: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
     let events: [TornEvent]
     
     var body: some View {
@@ -33,7 +34,7 @@ struct EventsView: View {
             }
         }
         .padding(8)
-        .background(Color.blue.opacity(0.05))
+        .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
         .cornerRadius(8)
     }
     
