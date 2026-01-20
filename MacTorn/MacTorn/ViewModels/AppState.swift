@@ -299,24 +299,12 @@ class AppState: ObservableObject {
                 
                 let sortedListings = allListings.sorted { $0.price < $1.price }
                 logger.debug("Item \(itemId): found \(sortedListings.count) listings, lowest: \(sortedListings.first?.price ?? 0)")
-                
-                await MainActor.run {
-                    if let index = watchlistItems.firstIndex(where: { $0.id == itemId }) {
-                         if let best = sortedListings.first {
-                            var item = watchlistItems[index]
-                            item.lowestPrice = best.price
-                            item.lowestPriceQuantity = best.amount
-                            item.secondLowestPrice = sortedListings.count > 1 ? sortedListings[1].price : 0
-                            item.lastUpdated = Date()
-                            item.error = nil
-                            watchlistItems[index] = item
-                         } else {
-                            var item = watchlistItems[index]
-                            item.error = "No listings"
-                            watchlistItems[index] = item
-                         }
-                        saveWatchlist()
-                    }
+
+                if let best = sortedListings.first {
+                    let secondPrice = sortedListings.count > 1 ? sortedListings[1].price : 0
+                    await updateItemPrice(itemId: itemId, lowestPrice: best.price, lowestPriceQuantity: best.amount, secondLowestPrice: secondPrice)
+                } else {
+                    await updateItemError(itemId: itemId, error: "No listings")
                 }
             }
         } catch {
@@ -325,6 +313,20 @@ class AppState: ObservableObject {
         }
     }
     
+    @MainActor
+    private func updateItemPrice(itemId: Int, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int) {
+        if let index = watchlistItems.firstIndex(where: { $0.id == itemId }) {
+            var item = watchlistItems[index]
+            item.lowestPrice = lowestPrice
+            item.lowestPriceQuantity = lowestPriceQuantity
+            item.secondLowestPrice = secondLowestPrice
+            item.lastUpdated = Date()
+            item.error = nil
+            watchlistItems[index] = item
+            saveWatchlist()
+        }
+    }
+
     @MainActor
     private func updateItemError(itemId: Int, error: String) {
         if let index = watchlistItems.firstIndex(where: { $0.id == itemId }) {
