@@ -13,6 +13,10 @@ A native macOS menu bar app for monitoring your **Torn** game status.
   <img src="app_dark_1.png" alt="MacTorn Dark Mode" width="320">
 </p>
 
+## Documentation
+
+For detailed documentation, visit the [MacTorn Wiki](https://github.com/pawelorzech/MacTorn/wiki).
+
 ## Features
 
 ### 📊 Status Tab
