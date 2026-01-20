@@ -303,19 +303,17 @@ class AppState: ObservableObject {
                 await MainActor.run {
                     if let index = watchlistItems.firstIndex(where: { $0.id == itemId }) {
                          if let best = sortedListings.first {
-                            watchlistItems[index].lowestPrice = best.price
-                            watchlistItems[index].lowestPriceQuantity = best.amount
-                            
-                            // Check for next distinct price or just next listing? usually user wants to know diff to next cheapest offer even if it's same price? 
-                            // Actually "second lowest price" usually implies the price of the *next available item*.
-                            // But usually users want to know price steps. 
-                            // Let's stick to simple logic: price of the 2nd listing in sorted list.
-                            watchlistItems[index].secondLowestPrice = sortedListings.count > 1 ? sortedListings[1].price : 0
-                            
-                            watchlistItems[index].lastUpdated = Date()
-                            watchlistItems[index].error = nil
+                            var item = watchlistItems[index]
+                            item.lowestPrice = best.price
+                            item.lowestPriceQuantity = best.amount
+                            item.secondLowestPrice = sortedListings.count > 1 ? sortedListings[1].price : 0
+                            item.lastUpdated = Date()
+                            item.error = nil
+                            watchlistItems[index] = item
                          } else {
-                            watchlistItems[index].error = "No listings"
+                            var item = watchlistItems[index]
+                            item.error = "No listings"
+                            watchlistItems[index] = item
                          }
                         saveWatchlist()
                     }
@@ -330,7 +328,9 @@ class AppState: ObservableObject {
     @MainActor
     private func updateItemError(itemId: Int, error: String) {
         if let index = watchlistItems.firstIndex(where: { $0.id == itemId }) {
-            watchlistItems[index].error = error
+            var item = watchlistItems[index]
+            item.error = error
+            watchlistItems[index] = item
             saveWatchlist()
         }
     }

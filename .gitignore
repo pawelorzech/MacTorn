@@ -68,3 +68,6 @@ DerivedData/
 
 # Archive folder (old releases)
 archive/
+
+# Claude Code
+CLAUDE.md
