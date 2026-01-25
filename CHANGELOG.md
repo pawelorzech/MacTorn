@@ -5,6 +5,12 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.6] - 2025-01-25
+
+### Fixed
+- Fixed incorrect "Released" notification triggering when landing from travel
+- "Released! 🎉 - You are now free" notification now only fires when released from Hospital or Jail, not when arriving from airplane travel
+
 ## [1.4.5] - 2025-01-25
 
 ### Fixed

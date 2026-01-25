@@ -662,7 +662,7 @@ class AppState: ObservableObject {
         }
         
         if let prevStatus = previousStatus, let currentStatus = newData.status {
-            if !prevStatus.isOkay && currentStatus.isOkay {
+            if (prevStatus.isInHospital || prevStatus.isInJail) && currentStatus.isOkay {
                 NotificationManager.shared.send(title: "Released! 🎉", body: "You are now free", type: .released)
             }
         }
