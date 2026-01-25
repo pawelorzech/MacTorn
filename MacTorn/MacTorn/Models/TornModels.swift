@@ -115,6 +115,13 @@ struct Travel: Codable, Equatable {
 
     /// Calculate remaining seconds based on fetch time (for live countdown)
     func remainingSeconds(from fetchTime: Date) -> Int {
+        // Primary: Use timestamp directly if available (more accurate)
+        if let timestamp = timestamp, timestamp > 0 {
+            let now = Int(Date().timeIntervalSince1970)
+            return max(0, timestamp - now)
+        }
+
+        // Fallback: Use timeLeft with fetchTime offset (backward compatibility)
         guard let timeLeft = timeLeft, timeLeft > 0 else { return 0 }
         let elapsed = Int(Date().timeIntervalSince(fetchTime))
         return max(0, timeLeft - elapsed)
