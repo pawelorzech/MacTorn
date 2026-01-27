@@ -46,6 +46,11 @@ class AppState: ObservableObject {
     // MARK: - Update State
     @Published var updateAvailable: GitHubRelease?
 
+    // MARK: - Feedback State
+    @Published var feedbackState: AppFeedbackState?
+    @Published var showFeedbackPrompt: Bool = false
+    static let feedbackThresholds: [TimeInterval] = [3600, 7 * 86400, 30 * 86400]
+
     // MARK: - Fetch Time (for live countdown calculations)
     @Published var lastFetchTime: Date = Date()
 
@@ -76,6 +81,7 @@ class AppState: ObservableObject {
         loadNotificationRules()
         loadTravelNotificationSettings()
         loadWatchlist()
+        loadFeedbackState()
         // Polling and permissions moved to onAppear in UI
     }
     
@@ -572,6 +578,9 @@ class AppState: ObservableObject {
             // Manage travel timer after data is set
             self.manageTravelTimer()
 
+            // Check if feedback prompt should be shown
+            self.checkFeedbackPrompt()
+
             // Force UI update by triggering objectWillChange
             self.objectWillChange.send()
             logger.info("UI update triggered, lastUpdated: \(self.lastUpdated?.description ?? "nil")")
@@ -704,7 +713,7 @@ class AppState: ObservableObject {
     // MARK: - Updates
     func checkForAppUpdates() {
         guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else { return }
-        
+
         Task {
             if let release = await updateManager.checkForUpdates(currentVersion: currentVersion) {
                 await MainActor.run {
@@ -712,6 +721,73 @@ class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - Feedback Prompt
+
+    func loadFeedbackState() {
+        if let data = UserDefaults.standard.data(forKey: "appFeedbackState"),
+           let state = try? JSONDecoder().decode(AppFeedbackState.self, from: data) {
+            feedbackState = state
+        } else {
+            feedbackState = AppFeedbackState(
+                firstLaunchDate: Date(),
+                hasResponded: false,
+                dismissCount: 0,
+                lastDismissedDate: nil
+            )
+            saveFeedbackState()
+        }
+    }
+
+    func saveFeedbackState() {
+        guard let state = feedbackState,
+              let data = try? JSONEncoder().encode(state) else { return }
+        UserDefaults.standard.set(data, forKey: "appFeedbackState")
+    }
+
+    func checkFeedbackPrompt() {
+        guard let state = feedbackState else { return }
+        guard !state.hasResponded else { return }
+        guard state.dismissCount < Self.feedbackThresholds.count else { return }
+
+        // 5-minute cooldown after last dismissal
+        if let lastDismissed = state.lastDismissedDate,
+           Date().timeIntervalSince(lastDismissed) < 300 {
+            return
+        }
+
+        let elapsed = Date().timeIntervalSince(state.firstLaunchDate)
+        let requiredTime = Self.feedbackThresholds[state.dismissCount]
+
+        if elapsed >= requiredTime {
+            showFeedbackPrompt = true
+        }
+    }
+
+    func feedbackRespondedPositive() {
+        feedbackState?.hasResponded = true
+        showFeedbackPrompt = false
+        saveFeedbackState()
+        if let url = URL(string: "https://www.torn.com/forums.php#/p=threads&f=67&t=16532308") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func feedbackRespondedNegative() {
+        feedbackState?.hasResponded = true
+        showFeedbackPrompt = false
+        saveFeedbackState()
+        if let url = URL(string: "mailto:pawel@orzech.lol?subject=MacTorn%20Feedback") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func feedbackDismissed() {
+        feedbackState?.dismissCount += 1
+        feedbackState?.lastDismissedDate = Date()
+        showFeedbackPrompt = false
+        saveFeedbackState()
     }
 }
 

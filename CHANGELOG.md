@@ -5,6 +5,15 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.7] - 2026-01-27
+
+### Added
+- In-app feedback prompt with smart timing (1 hour, 1 week, 1 month thresholds)
+- Positive feedback links to Torn forums thread
+- Negative feedback opens email for direct developer contact
+- 5-minute cooldown between prompt dismissals
+- Comprehensive test coverage for feedback logic
+
 ## [1.4.6] - 2025-01-25
 
 ### Fixed

@@ -734,6 +734,14 @@ enum NotificationSound: String, CaseIterable {
     }
 }
 
+// MARK: - App Feedback State
+struct AppFeedbackState: Codable {
+    var firstLaunchDate: Date
+    var hasResponded: Bool
+    var dismissCount: Int
+    var lastDismissedDate: Date?
+}
+
 // MARK: - Keyboard Shortcuts
 struct KeyboardShortcut: Identifiable, Codable, Equatable {
     let id: String

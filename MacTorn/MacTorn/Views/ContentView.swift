@@ -58,7 +58,7 @@ struct ContentView: View {
             if appState.isLoading && appState.lastUpdated == nil {
                 (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.4))
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
-                
+
                 VStack(spacing: 12) {
                     ProgressView()
                         .controlSize(.large)
@@ -66,6 +66,15 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+            }
+
+            // Feedback Prompt Overlay
+            if appState.showFeedbackPrompt {
+                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.3))
+                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+
+                FeedbackPromptView()
+                    .environmentObject(appState)
             }
         }
         .frame(width: 320)
