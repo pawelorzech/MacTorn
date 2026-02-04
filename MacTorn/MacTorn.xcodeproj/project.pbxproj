@@ -32,6 +32,7 @@
 		AAA00023 /* CreditsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10024 /* CreditsView.swift */; };
 		AAA00024 /* TransparencyEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10025 /* TransparencyEnvironment.swift */; };
 		AAA00025 /* FeedbackPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10026 /* FeedbackPromptView.swift */; };
+		AAA00026 /* BrowserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10027 /* BrowserManager.swift */; };
 /* Unit Tests */
 		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
 		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
@@ -94,6 +95,7 @@
 		AAA10024 /* CreditsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditsView.swift; sourceTree = "<group>"; };
 		AAA10025 /* TransparencyEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransparencyEnvironment.swift; sourceTree = "<group>"; };
 		AAA10026 /* FeedbackPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackPromptView.swift; sourceTree = "<group>"; };
+		AAA10027 /* BrowserManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserManager.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* Unit Test Files */
 		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
@@ -226,6 +228,7 @@
 			isa = PBXGroup;
 			children = (
 				AAA10009 /* NotificationManager.swift */,
+				AAA10027 /* BrowserManager.swift */,
 				AAA10011 /* LaunchAtLoginManager.swift */,
 				AAA10012 /* ShortcutsManager.swift */,
 				AAA10016 /* SoundManager.swift */,
@@ -464,6 +467,7 @@
 				AAA00023 /* CreditsView.swift in Sources */,
 				AAA00024 /* TransparencyEnvironment.swift in Sources */,
 				AAA00025 /* FeedbackPromptView.swift in Sources */,
+				AAA00026 /* BrowserManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
