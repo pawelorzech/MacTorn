@@ -5,6 +5,16 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-02-04
+
+### Added
+- Preferred browser support for opening Torn links (system default browser selection)
+- GitHub Actions integration with Claude Code for automated PR assistance and code review
+- BrowserManager utility for managing browser preferences across the app
+
+### Changed
+- Improved link handling to respect user's default browser choice
+
 ## [1.4.7] - 2026-01-27
 
 ### Added
