@@ -149,7 +149,7 @@ struct TravelView: View {
 
             Button {
                 if let url = URL(string: "https://www.torn.com/travelagency.php") {
-                    NSWorkspace.shared.open(url)
+                    BrowserManager.shared.open(url)
                 }
             } label: {
                 HStack {
@@ -204,7 +204,7 @@ struct TravelView: View {
                 // Show only return button when abroad
                 Button {
                     if let url = URL(string: "https://www.torn.com/travelagency.php") {
-                        NSWorkspace.shared.open(url)
+                        BrowserManager.shared.open(url)
                     }
                 } label: {
                     HStack {
@@ -234,7 +234,7 @@ struct TravelView: View {
 
     private func destinationButton(_ destination: TornDestination) -> some View {
         Button {
-            NSWorkspace.shared.open(destination.travelAgencyURL)
+            BrowserManager.shared.open(destination.travelAgencyURL)
         } label: {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
@@ -304,7 +304,7 @@ struct TravelView: View {
             HStack(spacing: 8) {
                 Button {
                     if let url = URL(string: "https://www.torn.com/travelagency.php") {
-                        NSWorkspace.shared.open(url)
+                        BrowserManager.shared.open(url)
                     }
                 } label: {
                     HStack {
@@ -321,7 +321,7 @@ struct TravelView: View {
 
                 Button {
                     if let url = URL(string: "https://www.torn.com/page.php?sid=ItemMarket") {
-                        NSWorkspace.shared.open(url)
+                        BrowserManager.shared.open(url)
                     }
                 } label: {
                     HStack {

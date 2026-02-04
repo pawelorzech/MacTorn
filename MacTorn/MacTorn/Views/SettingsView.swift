@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
+    @AppStorage("preferredBrowser") private var preferredBrowser: String = PreferredBrowser.system.rawValue
     @State private var inputKey: String = ""
     @State private var showCredits: Bool = false
 
@@ -106,6 +107,20 @@ struct SettingsView: View {
                     .labelsHidden()
                 }
 
+                // Preferred Browser
+                HStack {
+                    Image(systemName: "globe")
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+
+                    Picker("Preferred Browser", selection: $preferredBrowser) {
+                        ForEach(PreferredBrowser.allCases) { browser in
+                            Text(browser.rawValue).tag(browser.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
                 // Reduce Transparency (Accessibility)
                 HStack {
                     Image(systemName: "eye")
@@ -164,7 +179,7 @@ struct SettingsView: View {
                     
                     Button("Download Update") {
                         if let url = URL(string: update.htmlUrl) {
-                            NSWorkspace.shared.open(url)
+                            BrowserManager.shared.open(url)
                         }
                     }
                     .buttonStyle(.borderedProminent)
@@ -268,7 +283,7 @@ struct SettingsView: View {
     private func openTornProfile() {
         let url = "https://www.torn.com/profiles.php?XID=\(developerID)"
         if let url = URL(string: url) {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 }
