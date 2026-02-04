@@ -238,21 +238,21 @@ struct CreditsView: View {
     private func openTornProfile(_ tornID: Int) {
         let urlString = "https://www.torn.com/profiles.php?XID=\(tornID)"
         if let url = URL(string: urlString) {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 
     private func openFaction(_ factionID: Int) {
         let urlString = "https://www.torn.com/factions.php?step=profile&ID=\(factionID)"
         if let url = URL(string: urlString) {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 
     private func openCompany(_ ownerID: Int) {
         let urlString = "https://www.torn.com/joblist.php#/p=corpinfo&userID=\(ownerID)"
         if let url = URL(string: urlString) {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 }

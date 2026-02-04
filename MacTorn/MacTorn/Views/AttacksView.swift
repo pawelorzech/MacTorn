@@ -58,7 +58,7 @@ struct AttacksView: View {
                             Button {
                                 if let opponentId = attack.opponentId(forUserId: userId),
                                    let url = URL(string: "https://www.torn.com/profiles.php?XID=\(opponentId)") {
-                                    NSWorkspace.shared.open(url)
+                                    BrowserManager.shared.open(url)
                                 }
                             } label: {
                                 HStack(spacing: 6) {
@@ -128,7 +128,7 @@ struct AttacksView: View {
     
     private func openURL(_ urlString: String) {
         if let url = URL(string: urlString) {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 }

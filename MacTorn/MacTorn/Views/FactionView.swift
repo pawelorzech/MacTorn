@@ -132,7 +132,7 @@ struct FactionView: View {
     
     private func openURL(_ urlString: String) {
         if let url = URL(string: urlString) {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 }

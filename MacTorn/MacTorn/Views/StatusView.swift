@@ -99,7 +99,7 @@ struct StatusView: View {
     private var messagesBadge: some View {
         Button {
             if let url = URL(string: "https://www.torn.com/messages.php") {
-                NSWorkspace.shared.open(url)
+                BrowserManager.shared.open(url)
             }
         } label: {
             HStack {

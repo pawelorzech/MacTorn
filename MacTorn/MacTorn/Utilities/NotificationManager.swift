@@ -127,7 +127,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     ) {
         let categoryIdentifier = response.notification.request.content.categoryIdentifier
         if let type = NotificationType(rawValue: categoryIdentifier) {
-            NSWorkspace.shared.open(type.url)
+            BrowserManager.shared.open(type.url)
         }
         completionHandler()
     }

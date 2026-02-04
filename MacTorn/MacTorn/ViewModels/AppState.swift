@@ -770,7 +770,7 @@ class AppState: ObservableObject {
         showFeedbackPrompt = false
         saveFeedbackState()
         if let url = URL(string: "https://www.torn.com/forums.php#/p=threads&f=67&t=16532308") {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 
@@ -779,7 +779,7 @@ class AppState: ObservableObject {
         showFeedbackPrompt = false
         saveFeedbackState()
         if let url = URL(string: "mailto:pawel@orzech.lol?subject=MacTorn%20Feedback") {
-            NSWorkspace.shared.open(url)
+            BrowserManager.shared.open(url)
         }
     }
 
