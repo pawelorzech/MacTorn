@@ -16,6 +16,7 @@ A native macOS menu bar app for monitoring your **Torn** game status.
 ## Documentation
 
 For detailed documentation, visit the [MacTorn Wiki](https://github.com/pawelorzech/MacTorn/wiki).
+For community discussion and feedback, see the [Torn forums thread](https://www.torn.com/forums.php#/p=threads&f=67&t=16532308).
 
 ## Features
 
