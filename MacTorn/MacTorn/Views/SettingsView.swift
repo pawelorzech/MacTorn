@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("preferredBrowser") private var preferredBrowser: String = PreferredBrowser.system.rawValue
     @State private var inputKey: String = ""
     @State private var showCredits: Bool = false
+    @State private var availableBrowsers: [PreferredBrowser] = PreferredBrowser.availableBrowsers()
 
     // Developer ID for tip feature (bombel)
     private let developerID = 2362436
@@ -114,7 +115,7 @@ struct SettingsView: View {
                         .frame(width: 20)
 
                     Picker("Preferred Browser", selection: $preferredBrowser) {
-                        ForEach(PreferredBrowser.allCases) { browser in
+                        ForEach(availableBrowsers) { browser in
                             Text(browser.rawValue).tag(browser.rawValue)
                         }
                     }
@@ -230,6 +231,15 @@ struct SettingsView: View {
         .frame(width: 320)
         .onAppear {
             inputKey = appState.apiKey
+            refreshAvailableBrowsers()
+        }
+    }
+
+    private func refreshAvailableBrowsers() {
+        let browsers = PreferredBrowser.availableBrowsers()
+        availableBrowsers = browsers
+        if !browsers.contains(where: { $0.rawValue == preferredBrowser }) {
+            preferredBrowser = PreferredBrowser.system.rawValue
         }
     }
     
