@@ -91,7 +91,7 @@ struct ContentView: View {
     private var headerView: some View {
         HStack {
             if let lastUpdated = appState.lastUpdated {
-                Text("Updated: \(lastUpdated, formatter: timeFormatter)")
+                Text("Updated: \(lastUpdated, formatter: Self.timeFormatter)")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -177,9 +177,9 @@ struct ContentView: View {
         .padding(.bottom, 8)
     }
     
-    private var timeFormatter: DateFormatter {
+    private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter
-    }
+    }()
 }
