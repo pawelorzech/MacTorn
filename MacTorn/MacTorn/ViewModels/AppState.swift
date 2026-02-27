@@ -312,6 +312,9 @@ class AppState: ObservableObject {
                 } else {
                     await updateItemError(itemId: itemId, error: "No listings")
                 }
+            } else {
+                logger.error("Item \(itemId): failed to parse JSON response")
+                await updateItemError(itemId: itemId, error: "Parse Error")
             }
         } catch {
             logger.error("Item \(itemId) price fetch error: \(error.localizedDescription)")
