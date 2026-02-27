@@ -584,9 +584,7 @@ class AppState: ObservableObject {
             // Check if feedback prompt should be shown
             self.checkFeedbackPrompt()
 
-            // Force UI update by triggering objectWillChange
-            self.objectWillChange.send()
-            logger.info("UI update triggered, lastUpdated: \(self.lastUpdated?.description ?? "nil")")
+            logger.info("Data updated, lastUpdated: \(self.lastUpdated?.description ?? "nil")")
         }
     }
     

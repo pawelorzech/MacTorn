@@ -5,7 +5,7 @@ struct CreditsView: View {
     @Binding var showCredits: Bool
 
     // MARK: - Developer
-    private let developer = TornContributor(name: "bombel", tornID: 2362436)
+    private let developer = TornContributor(name: "bombel", tornID: TornConstants.developerID)
 
     // MARK: - Special Thanks
     private let specialThanks: [TornContributor] = [
@@ -92,7 +92,9 @@ struct CreditsView: View {
             }
 
             Button {
-                openTornProfile(developer.tornID!)
+                if let tornID = developer.tornID {
+                    openTornProfile(tornID)
+                }
             } label: {
                 HStack {
                     Text(developer.name)

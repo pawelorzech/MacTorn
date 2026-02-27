@@ -1,6 +1,11 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Constants
+enum TornConstants {
+    static let developerID = 2362436
+}
+
 // MARK: - Root Response
 struct TornResponse: Codable {
     let name: String?

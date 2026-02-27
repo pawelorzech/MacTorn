@@ -103,14 +103,8 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Cancel all travel-related notifications
     func cancelTravelNotifications() {
-        let identifiers = [
-            "travel_2min_alert",
-            "travel_1min_alert",
-            "travel_30sec_alert",
-            "travel_10sec_alert"
-        ]
+        let identifiers = TravelNotificationSetting.defaults.map { "\($0.id)_alert" }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
-        print("Cancelled travel notifications")
     }
 
     /// Cancel a specific notification by identifier

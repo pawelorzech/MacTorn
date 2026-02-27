@@ -9,8 +9,7 @@ struct SettingsView: View {
     @State private var showCredits: Bool = false
     @State private var availableBrowsers: [PreferredBrowser] = PreferredBrowser.availableBrowsers()
 
-    // Developer ID for tip feature (bombel)
-    private let developerID = 2362436
+    private let developerID = TornConstants.developerID
 
     var body: some View {
         if showCredits {
@@ -74,7 +73,7 @@ struct SettingsView: View {
                         Text("2m").tag(120)
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: appState.refreshInterval) { _ in
+                    .onChange(of: appState.refreshInterval) {
                         Task { @MainActor in
                             appState.startPolling()
                         }
