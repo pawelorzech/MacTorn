@@ -136,8 +136,8 @@ final class MacTornUITests: XCTestCase {
 // MARK: - UI Test Helpers
 
 extension XCUIElement {
-    /// Wait for element to exist with timeout
-    func waitForExistence(timeout: TimeInterval = 5) -> Bool {
+    /// Wait for element to appear within the given timeout
+    func waitForAppearance(timeout: TimeInterval = 5) -> Bool {
         return self.waitForExistence(timeout: timeout)
     }
 

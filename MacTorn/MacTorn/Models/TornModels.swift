@@ -373,7 +373,7 @@ struct AttackResult: Codable, Identifiable {
     let result: String?
     let respect: Double?
 
-    var id: String { code ?? UUID().uuidString }
+    let id: String
 
     enum CodingKeys: String, CodingKey {
         case code
@@ -384,6 +384,33 @@ struct AttackResult: Codable, Identifiable {
         case defenderId = "defender_id"
         case defenderName = "defender_name"
         case result, respect
+    }
+
+    init(code: String?, timestampStarted: Int?, timestampEnded: Int?, attackerId: Int?, attackerName: String?, defenderId: Int?, defenderName: String?, result: String?, respect: Double?) {
+        self.code = code
+        self.timestampStarted = timestampStarted
+        self.timestampEnded = timestampEnded
+        self.attackerId = attackerId
+        self.attackerName = attackerName
+        self.defenderId = defenderId
+        self.defenderName = defenderName
+        self.result = result
+        self.respect = respect
+        self.id = code ?? UUID().uuidString
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        code = try container.decodeIfPresent(String.self, forKey: .code)
+        timestampStarted = try container.decodeIfPresent(Int.self, forKey: .timestampStarted)
+        timestampEnded = try container.decodeIfPresent(Int.self, forKey: .timestampEnded)
+        attackerId = try container.decodeIfPresent(Int.self, forKey: .attackerId)
+        attackerName = try container.decodeIfPresent(String.self, forKey: .attackerName)
+        defenderId = try container.decodeIfPresent(Int.self, forKey: .defenderId)
+        defenderName = try container.decodeIfPresent(String.self, forKey: .defenderName)
+        result = try container.decodeIfPresent(String.self, forKey: .result)
+        respect = try container.decodeIfPresent(Double.self, forKey: .respect)
+        id = code ?? UUID().uuidString
     }
 
     func opponentName(forUserId userId: Int) -> String {
