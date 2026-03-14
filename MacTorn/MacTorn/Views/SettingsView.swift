@@ -5,6 +5,7 @@ struct SettingsView: View {
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
     @AppStorage("preferredBrowser") private var preferredBrowser: String = PreferredBrowser.system.rawValue
+    @AppStorage("boosterCooldownTarget") private var boosterCooldownTarget: String = "boosters"
     @State private var inputKey: String = ""
     @State private var showCredits: Bool = false
     @State private var availableBrowsers: [PreferredBrowser] = PreferredBrowser.availableBrowsers()
@@ -128,6 +129,19 @@ struct SettingsView: View {
                         .frame(width: 20)
                     Toggle("Reduce Transparency", isOn: $reduceTransparency)
                         .toggleStyle(.switch)
+                }
+
+                // Booster Cooldown Target
+                HStack {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+
+                    Picker("Booster cooldown link", selection: $boosterCooldownTarget) {
+                        Text("Boosters").tag("boosters")
+                        Text("Alcohol").tag("alcohol")
+                    }
+                    .pickerStyle(.segmented)
                 }
             }
             .padding(.horizontal)
