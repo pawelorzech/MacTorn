@@ -3,7 +3,8 @@ import SwiftUI
 struct StatusView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.reduceTransparency) private var reduceTransparency
-    
+    @AppStorage("boosterCooldownTarget") private var boosterCooldownTarget: String = "boosters"
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -195,7 +196,14 @@ struct StatusView: View {
     
     // MARK: - Cooldowns
     private func cooldownsSection(_ cooldowns: Cooldowns) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let drugURL = URL(string: "https://www.torn.com/item.php#drugs-items")
+        let medicalURL = URL(string: "https://www.torn.com/item.php#medical-items")
+        let boosterURL = boosterCooldownTarget == "alcohol"
+            ? URL(string: "https://www.torn.com/item.php#alcohol-items")
+            : URL(string: "https://www.torn.com/item.php#boosters-items")
+        let boosterLabel = boosterCooldownTarget == "alcohol" ? "Use Alcohol →" : "Use Booster →"
+
+        return VStack(alignment: .leading, spacing: 8) {
             Divider()
 
             Text("Cooldowns")
@@ -204,13 +212,13 @@ struct StatusView: View {
 
             HStack(spacing: 16) {
                 if let fetchTime = appState.lastUpdated {
-                    LiveCooldownItem(label: "Drug", originalSeconds: cooldowns.drug, fetchTime: fetchTime, icon: "pills.fill")
-                    LiveCooldownItem(label: "Medical", originalSeconds: cooldowns.medical, fetchTime: fetchTime, icon: "cross.case.fill")
-                    LiveCooldownItem(label: "Booster", originalSeconds: cooldowns.booster, fetchTime: fetchTime, icon: "arrow.up.circle.fill")
+                    LiveCooldownItem(label: "Drug", originalSeconds: cooldowns.drug, fetchTime: fetchTime, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
+                    LiveCooldownItem(label: "Medical", originalSeconds: cooldowns.medical, fetchTime: fetchTime, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
+                    LiveCooldownItem(label: "Booster", originalSeconds: cooldowns.booster, fetchTime: fetchTime, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel)
                 } else {
-                    CooldownItem(label: "Drug", seconds: cooldowns.drug, icon: "pills.fill")
-                    CooldownItem(label: "Medical", seconds: cooldowns.medical, icon: "cross.case.fill")
-                    CooldownItem(label: "Booster", seconds: cooldowns.booster, icon: "arrow.up.circle.fill")
+                    CooldownItem(label: "Drug", seconds: cooldowns.drug, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
+                    CooldownItem(label: "Medical", seconds: cooldowns.medical, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
+                    CooldownItem(label: "Booster", seconds: cooldowns.booster, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel)
                 }
             }
         }
@@ -268,19 +276,58 @@ struct CooldownItem: View {
     let label: String
     let seconds: Int
     let icon: String
+    var actionURL: URL? = nil
+    var actionLabel: String? = nil
+
+    @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
+        if seconds <= 0, let url = actionURL {
+            Button {
+                BrowserManager.shared.open(url)
+            } label: {
+                cellContent(remaining: seconds)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Use \(label)")
+            .accessibilityHint("Opens Torn items page in browser")
+        } else {
+            cellContent(remaining: seconds)
+        }
+    }
+
+    private func cellContent(remaining: Int) -> some View {
         VStack(spacing: 2) {
             Text(label)
                 .font(.caption)
-                .foregroundColor(seconds > 0 ? .orange : .green)
+                .foregroundColor(remaining > 0 ? .orange : .green)
 
             Text(formattedTime)
                 .font(.caption2.monospacedDigit())
-                .foregroundColor(seconds > 0 ? .primary : .green)
-                .fontWeight(seconds <= 0 ? .bold : .regular)
+                .foregroundColor(remaining > 0 ? .primary : .green)
+                .fontWeight(remaining <= 0 ? .bold : .regular)
+
+            if remaining <= 0, let actionLabel {
+                Text(actionLabel)
+                    .font(.caption2)
+                    .foregroundColor(.green)
+                    .opacity(0.7)
+            }
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, remaining <= 0 && actionURL != nil ? 4 : 0)
+        .background(
+            remaining <= 0 && actionURL != nil
+                ? Color.green.opacity(reduceTransparency ? 0.25 : 0.12)
+                : Color.clear
+        )
+        .overlay {
+            if remaining <= 0 && actionURL != nil {
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.green.opacity(reduceTransparency ? 0.4 : 0.25))
+            }
+        }
+        .cornerRadius(6)
     }
 
     private var formattedTime: String {
@@ -301,24 +348,63 @@ struct LiveCooldownItem: View {
     let originalSeconds: Int
     let fetchTime: Date
     let icon: String
+    var actionURL: URL? = nil
+    var actionLabel: String? = nil
+
+    @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
         TimelineView(.periodic(from: fetchTime, by: 1.0)) { context in
             let elapsed = Int(context.date.timeIntervalSince(fetchTime))
             let remaining = max(0, originalSeconds - elapsed)
 
-            VStack(spacing: 2) {
-                Text(label)
-                    .font(.caption)
-                    .foregroundColor(remaining > 0 ? .orange : .green)
-
-                Text(formattedTime(remaining))
-                    .font(.caption2.monospacedDigit())
-                    .foregroundColor(remaining > 0 ? .primary : .green)
-                    .fontWeight(remaining <= 0 ? .bold : .regular)
+            if remaining <= 0, let url = actionURL {
+                Button {
+                    BrowserManager.shared.open(url)
+                } label: {
+                    cellContent(remaining: remaining)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Use \(label)")
+                .accessibilityHint("Opens Torn items page in browser")
+            } else {
+                cellContent(remaining: remaining)
             }
-            .frame(maxWidth: .infinity)
         }
+    }
+
+    private func cellContent(remaining: Int) -> some View {
+        VStack(spacing: 2) {
+            Text(label)
+                .font(.caption)
+                .foregroundColor(remaining > 0 ? .orange : .green)
+
+            Text(formattedTime(remaining))
+                .font(.caption2.monospacedDigit())
+                .foregroundColor(remaining > 0 ? .primary : .green)
+                .fontWeight(remaining <= 0 ? .bold : .regular)
+
+            if remaining <= 0, let actionLabel {
+                Text(actionLabel)
+                    .font(.caption2)
+                    .foregroundColor(.green)
+                    .opacity(0.7)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, remaining <= 0 && actionURL != nil ? 4 : 0)
+        .background(
+            remaining <= 0 && actionURL != nil
+                ? Color.green.opacity(reduceTransparency ? 0.25 : 0.12)
+                : Color.clear
+        )
+        .overlay {
+            if remaining <= 0 && actionURL != nil {
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color.green.opacity(reduceTransparency ? 0.4 : 0.25))
+            }
+        }
+        .cornerRadius(6)
     }
 
     private func formattedTime(_ seconds: Int) -> String {
