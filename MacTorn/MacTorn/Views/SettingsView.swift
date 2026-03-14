@@ -73,7 +73,7 @@ struct SettingsView: View {
                         Text("2m").tag(120)
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: appState.refreshInterval) {
+                    .onChange(of: appState.refreshInterval) { _ in
                         Task { @MainActor in
                             appState.startPolling()
                         }
@@ -231,6 +231,16 @@ struct SettingsView: View {
         .onAppear {
             inputKey = appState.apiKey
             refreshAvailableBrowsers()
+        }
+        .alert("Launch at Login Error", isPresented: Binding(
+            get: { appState.launchAtLogin.errorMessage != nil },
+            set: { if !$0 { appState.launchAtLogin.errorMessage = nil } }
+        )) {
+            Button("OK") {
+                appState.launchAtLogin.errorMessage = nil
+            }
+        } message: {
+            Text(appState.launchAtLogin.errorMessage ?? "An unknown error occurred.")
         }
     }
 

@@ -14,7 +14,7 @@ struct MacTornApp: App {
                 .onAppear {
                     updateAppearance()
                 }
-                .onChange(of: appearanceModeRaw) {
+                .onChange(of: appearanceModeRaw) { _ in
                     updateAppearance()
                 }
         } label: {
@@ -79,21 +79,7 @@ struct MenuBarLabel: View {
     }
 
     private func flagForDestination(_ destination: String) -> String {
-        switch destination.lowercased() {
-        case "mexico": return "🇲🇽"
-        case "cayman islands": return "🇰🇾"
-        case "canada": return "🇨🇦"
-        case "hawaii": return "🇺🇸"
-        case "united kingdom": return "🇬🇧"
-        case "argentina": return "🇦🇷"
-        case "switzerland": return "🇨🇭"
-        case "japan": return "🇯🇵"
-        case "china": return "🇨🇳"
-        case "uae": return "🇦🇪"
-        case "south africa": return "🇿🇦"
-        case "torn": return "🇺🇸"
-        default: return "🌍"
-        }
+        TornDestination.flag(for: destination)
     }
 
     private func formatShortTime(_ seconds: Int) -> String {

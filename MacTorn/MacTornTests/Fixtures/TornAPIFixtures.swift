@@ -201,7 +201,7 @@ enum TornAPIFixtures {
         "money_onhand": 1000000,
         "vault_amount": 50000000,
         "points": 5000,
-        "company_funds": 100,
+        "donator": 100,
         "cayman_bank": 100000000
     ]
 

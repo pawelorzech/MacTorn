@@ -73,7 +73,7 @@ final class MoneyDataTests: XCTestCase {
             "money_onhand": 999999999999,
             "vault_amount": 9999999999999,
             "points": 100000,
-            "company_funds": 50000,
+            "donator": 50000,
             "cayman_bank": 99999999999999
         ]
         let data = try JSONSerialization.data(withJSONObject: json)

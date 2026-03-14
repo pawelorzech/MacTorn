@@ -1,6 +1,9 @@
 import Foundation
 import UserNotifications
 import AppKit
+import os.log
+
+private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "NotificationManager")
 
 enum NotificationType: String {
     case drugReady
@@ -48,10 +51,10 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .sound, .badge])
             if granted {
-                print("Notification permission granted")
+                logger.info("Notification permission granted")
             }
         } catch {
-            print("Notification permission error: \(error)")
+            logger.error("Notification permission error: \(error.localizedDescription)")
         }
     }
     
@@ -70,7 +73,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Notification error: \(error)")
+                logger.error("Notification error: \(error.localizedDescription)")
             }
         }
     }
@@ -94,9 +97,9 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Scheduled notification error: \(error)")
+                logger.error("Scheduled notification error: \(error.localizedDescription)")
             } else {
-                print("Scheduled notification '\(identifier)' for \(date)")
+                logger.info("Scheduled notification '\(identifier)' for \(date)")
             }
         }
     }

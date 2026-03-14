@@ -1,9 +1,13 @@
 import Foundation
 import SwiftUI
+import os.log
+
+private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "TornModels")
 
 // MARK: - Constants
 enum TornConstants {
     static let developerID = 2362436
+    static let logSubsystem = "com.mactorn"
 }
 
 // MARK: - Root Response
@@ -204,6 +208,14 @@ enum TornDestination: String, CaseIterable, Identifiable {
     var travelAgencyURL: URL {
         URL(string: "https://www.torn.com/travelagency.php")!
     }
+
+    /// Look up flag emoji for a destination string, including non-enum values like "Torn"
+    static func flag(for destination: String) -> String {
+        if let known = TornDestination(rawValue: destination) {
+            return known.flag
+        }
+        return destination.lowercased() == "torn" ? "🇺🇸" : "🌍"
+    }
 }
 
 // MARK: - Travel Notification Settings
@@ -314,7 +326,7 @@ struct MoneyData: Codable {
         case cash = "money_onhand"
         case vault = "vault_amount"
         case points
-        case tokens = "company_funds"
+        case tokens = "donator"
         case cayman = "cayman_bank"
     }
     
@@ -664,7 +676,7 @@ class UpdateManager {
             }
             
         } catch {
-            print("Update check failed: \(error)")
+            logger.warning("Update check failed: \(error.localizedDescription)")
         }
         
         return nil

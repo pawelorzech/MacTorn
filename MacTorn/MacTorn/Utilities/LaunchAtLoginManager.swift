@@ -1,10 +1,14 @@
 import Foundation
 import ServiceManagement
+import os.log
+
+private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "LaunchAtLoginManager")
 
 @MainActor
 class LaunchAtLoginManager: ObservableObject {
     @Published var isEnabled: Bool = false
-    
+    @Published var errorMessage: String?
+
     private let service = SMAppService.mainApp
     
     init() {
@@ -22,9 +26,11 @@ class LaunchAtLoginManager: ObservableObject {
             } else {
                 try service.register()
             }
+            errorMessage = nil
             updateStatus()
         } catch {
-            print("Launch at Login error: \(error)")
+            logger.error("Launch at Login error: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
         }
     }
 }
