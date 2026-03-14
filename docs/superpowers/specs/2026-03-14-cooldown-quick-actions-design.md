@@ -8,17 +8,22 @@ When a cooldown (drug, medical, booster) reaches 0 ("Ready"), the cooldown cell 
 
 ### Cooldown Cells (`LiveCooldownItem` / `CooldownItem`)
 
-When `remaining == 0` and an `actionURL` is provided:
+Both views gain new optional parameters: `actionURL: URL?` and `actionLabel: String?`. The existing `icon` parameter remains unused (no change). Both views add `@Environment(\.reduceTransparency) private var reduceTransparency` to read the accessibility setting, consistent with how other views in the project access it.
 
-- **Background**: `Color.green.opacity(0.12)` fill
-- **Border**: `Color.green.opacity(0.25)`, `cornerRadius(6)`
-- **Action label**: Below "Ready" text, a subtle hint in `.caption2` font at `opacity(0.7)`:
+When `remaining == 0` and `actionURL` is provided:
+
+- **Background**: `Color.green.opacity(reduceTransparency ? 0.25 : 0.12)` fill
+- **Border**: `Color.green.opacity(reduceTransparency ? 0.4 : 0.25)`, `cornerRadius(6)`
+- **Action label**: Below "Ready" text, the `actionLabel` rendered in `.caption2` font at `opacity(0.7)`. The label includes a trailing arrow for visual display:
   - Drug: "Use Drug →"
   - Medical: "Use Medical →"
   - Booster: "Use Booster →" or "Use Alcohol →" (depending on setting)
-- **Behavior**: Entire cell is a `Button` that calls `BrowserManager.shared.open(url)`
+- **Behavior**: Entire cell wrapped in a `Button` with `.buttonStyle(.plain)` that calls `BrowserManager.shared.open(url)`
+- **Accessibility**: `.accessibilityLabel("Use \(label)")` (without the arrow) and `.accessibilityHint("Opens Torn items page in browser")`
 
 When cooldown > 0 or no `actionURL`: no visual or behavioral change from current implementation.
+
+`CooldownItem` (the non-live fallback used when `appState.lastUpdated` is nil) receives the same `actionURL`/`actionLabel` parameters and renders the button treatment identically when `seconds == 0`.
 
 ### Target URLs
 
@@ -36,13 +41,16 @@ New option in `SettingsView`: **"Booster cooldown link"**
 - `Picker` with two choices: "Boosters" (default), "Alcohol"
 - Stored in `@AppStorage("boosterCooldownTarget")` as `String` — value `"boosters"` or `"alcohol"`
 - Placed after the existing Reduce Transparency toggle in the settings layout
+- Uses an icon following the existing HStack icon pattern (e.g., `"arrow.up.circle.fill"`)
+- Always visible (does not depend on cooldown state or API connection)
 
 ## Data Flow
 
-- `LiveCooldownItem` and `CooldownItem` gain a new optional parameter: `actionURL: URL?`
-- `cooldownsSection` in `StatusView` constructs the URLs:
-  - Drug and Medical: static URLs
-  - Booster: reads `@AppStorage("boosterCooldownTarget")` to determine which URL to use
+- Add `@AppStorage("boosterCooldownTarget") private var boosterCooldownTarget: String = "boosters"` as a property on `StatusView`
+- `cooldownsSection` in `StatusView` constructs the URLs and labels:
+  - Drug and Medical: static URLs and labels
+  - Booster: reads `boosterCooldownTarget` to determine which URL and label to use
+- `LiveCooldownItem` and `CooldownItem` receive `actionURL` and `actionLabel` as parameters — they don't read settings themselves
 - URL opening is delegated to `BrowserManager.shared.open()` (respects preferred browser setting)
 
 ## Scope — What Does NOT Change
@@ -51,7 +59,7 @@ New option in `SettingsView`: **"Booster cooldown link"**
 - `AppState` logic — no modifications (feature is view-layer only)
 - Quick Links section — unchanged
 - Cooldown behavior when timer > 0 — unchanged
-- `CooldownItem` fallback (no `fetchTime`) renders action button using same logic based on `seconds == 0`
+- The `icon` parameter on cooldown views — remains accepted but unused
 
 ## Visual Reference
 
