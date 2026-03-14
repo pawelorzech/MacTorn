@@ -5,6 +5,13 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-03-14
+
+### Added
+- Cooldown quick action buttons: when a cooldown reaches Ready, the cell becomes a clickable button that opens the corresponding Torn Items page (drugs, medical, boosters/alcohol)
+- New "Booster cooldown link" setting to choose between Boosters and Alcohol item page
+- Accessibility support for cooldown action buttons (VoiceOver labels and hints)
+
 ## [1.5.1] - 2026-02-04
 
 ### Added

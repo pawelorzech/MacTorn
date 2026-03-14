@@ -22,7 +22,7 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 
 ### 📊 Status Tab
 - Live Energy, Nerve, Happy, Life bars with color-coded progress
-- Cooldown timers (Drug, Medical, Booster)
+- Cooldown timers (Drug, Medical, Booster) with quick action buttons when ready
 - Travel monitoring with arrival countdown
 - Chain timer with timeout warning
 - Hospital/Jail status badges
