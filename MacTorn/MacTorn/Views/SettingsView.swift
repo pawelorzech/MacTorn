@@ -74,7 +74,7 @@ struct SettingsView: View {
                         Text("2m").tag(120)
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: appState.refreshInterval) { _ in
+                    .onChange(of: appState.refreshInterval) { _, _ in
                         Task { @MainActor in
                             appState.startPolling()
                         }

@@ -14,7 +14,7 @@ struct MacTornApp: App {
                 .onAppear {
                     updateAppearance()
                 }
-                .onChange(of: appearanceModeRaw) { _ in
+                .onChange(of: appearanceModeRaw) { _, _ in
                     updateAppearance()
                 }
         } label: {

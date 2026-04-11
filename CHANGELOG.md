@@ -5,6 +5,25 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-04-11
+
+### Added
+- Bazaar price alerts — set price thresholds on watchlist items, get notified when price drops below
+- Organized Crime timer — live countdown for active OCs in Faction tab with ready notification
+- Net worth dashboard — enhanced Money tab showing cash, properties, and stock holdings breakdown
+- TRI Hub quick link — one-click access to hub.tri.ovh from Quick Links
+
+### Changed
+- Money tab now shows comprehensive net worth with properties and stocks sections
+- Faction API now fetches organized crime data
+- User API now fetches stock holdings data
+- Updated deployment target to macOS 14.0 (macOS 13 no longer receives security updates)
+
+### Fixed
+- Fixed deprecated onChange(of:) API usage for macOS 14+
+- Fixed redundant await on @MainActor calls
+- Fixed NetworkMonitor.shared nonisolated default parameter (Swift 6 preparation)
+
 ## [1.6.0] - 2026-03-14
 
 ### Added
