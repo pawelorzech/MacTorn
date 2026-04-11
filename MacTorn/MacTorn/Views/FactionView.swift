@@ -62,6 +62,25 @@ struct FactionView: View {
                 .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
 
+                // OC Status
+                if !appState.organizedCrimes.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "briefcase.fill")
+                                .foregroundColor(.orange)
+                            Text("Organized Crimes")
+                                .font(.caption.bold())
+                        }
+
+                        ForEach(appState.organizedCrimes) { crime in
+                            OCStatusRow(crime: crime, fetchTime: appState.lastUpdated ?? Date())
+                        }
+                    }
+                    .padding()
+                    .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
+                    .cornerRadius(8)
+                }
+
                 // Armory Quick Actions
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -134,6 +153,74 @@ struct FactionView: View {
         if let url = URL(string: urlString) {
             BrowserManager.shared.open(url)
         }
+    }
+}
+
+// MARK: - OC Status Row
+struct OCStatusRow: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
+    let crime: OrganizedCrime
+    let fetchTime: Date
+
+    var body: some View {
+        TimelineView(.periodic(from: fetchTime, by: 1.0)) { context in
+            let elapsed = Int(context.date.timeIntervalSince(fetchTime))
+            let remaining = max(0, crime.timeLeft - elapsed)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(crime.crimeName)
+                        .font(.caption.bold())
+                    Spacer()
+                    if remaining <= 0 && crime.initiated {
+                        Text("READY")
+                            .font(.caption2.bold())
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.green)
+                            .cornerRadius(4)
+                    } else if remaining > 0 {
+                        Text(formatTime(remaining))
+                            .font(.caption.monospacedDigit())
+                            .foregroundColor(.orange)
+                    } else {
+                        Text("Waiting")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                HStack {
+                    if let planner = crime.plannerName {
+                        Text("By: \(planner)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    Text("\(crime.participants.count) members")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(8)
+            .background(
+                remaining <= 0 && crime.initiated
+                    ? Color.green.opacity(reduceTransparency ? 0.25 : 0.12)
+                    : Color.orange.opacity(reduceTransparency ? 0.2 : 0.08)
+            )
+            .cornerRadius(6)
+        }
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+        let secs = seconds % 60
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
