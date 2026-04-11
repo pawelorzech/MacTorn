@@ -852,6 +852,14 @@ enum TornAPI {
         // v2 endpoint for item market
         URL(string: "https://api.torn.com/v2/market/\(itemId)?selections=itemmarket,bazaar&key=\(apiKey)")
     }
+
+    static func forumThreadURL(threadId: Int, apiKey: String) -> URL? {
+        URL(string: "https://api.torn.com/v2/forum/\(threadId)/thread?key=\(apiKey)")
+    }
+
+    static func forumCategoryThreadsURL(categoryId: Int, apiKey: String) -> URL? {
+        URL(string: "https://api.torn.com/v2/forum/\(categoryId)/threads?key=\(apiKey)")
+    }
 }
 
 // MARK: - Notification Settings
@@ -907,6 +915,78 @@ struct AppFeedbackState: Codable {
     var hasResponded: Bool
     var dismissCount: Int
     var lastDismissedDate: Date?
+}
+
+// MARK: - Forum Watch
+struct WatchedThread: Codable, Identifiable {
+    let id: Int
+    var title: String
+    var notificationsEnabled: Bool
+    var lastKnownPostCount: Int
+    var lastChecked: Date?
+    var error: String?
+    var isFactionThread: Bool
+
+    init(id: Int, title: String, notificationsEnabled: Bool = true, lastKnownPostCount: Int = 0, lastChecked: Date? = nil, error: String? = nil, isFactionThread: Bool = false) {
+        self.id = id
+        self.title = title
+        self.notificationsEnabled = notificationsEnabled
+        self.lastKnownPostCount = lastKnownPostCount
+        self.lastChecked = lastChecked
+        self.error = error
+        self.isFactionThread = isFactionThread
+    }
+
+}
+
+struct ForumWatchConfig: Codable {
+    var factionForumAutoMonitor: Bool
+    var factionForumCategoryId: Int?
+    var pollingIntervalSeconds: Int
+    var knownFactionThreadIds: Set<Int>
+
+    init(factionForumAutoMonitor: Bool = false, factionForumCategoryId: Int? = nil, pollingIntervalSeconds: Int = 180, knownFactionThreadIds: Set<Int> = []) {
+        self.factionForumAutoMonitor = factionForumAutoMonitor
+        self.factionForumCategoryId = factionForumCategoryId
+        self.pollingIntervalSeconds = pollingIntervalSeconds
+        self.knownFactionThreadIds = knownFactionThreadIds
+    }
+}
+
+struct ForumThreadResponse: Codable {
+    let id: Int
+    let title: String
+    let posts: Int
+    let lastPostTime: Int?
+    let isLocked: Bool?
+    let author: ForumAuthor?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, posts
+        case lastPostTime = "last_post_time"
+        case isLocked = "is_locked"
+        case author
+    }
+}
+
+struct ForumAuthor: Codable {
+    let id: Int
+    let username: String
+}
+
+struct ForumThreadSummary: Codable {
+    let id: Int
+    let title: String
+    let posts: Int
+    let author: ForumAuthor?
+    let firstPostTime: Int?
+    let lastPostTime: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, posts, author
+        case firstPostTime = "first_post_time"
+        case lastPostTime = "last_post_time"
+    }
 }
 
 // MARK: - Keyboard Shortcuts

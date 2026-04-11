@@ -7,6 +7,7 @@ enum AppTab: String, CaseIterable {
     case attacks = "Attacks"
     case faction = "Faction"
     case watchlist = "Watchlist"
+    case forums = "Forums"
 
     var icon: String {
         switch self {
@@ -16,6 +17,7 @@ enum AppTab: String, CaseIterable {
         case .attacks: return "bolt.shield.fill"
         case .faction: return "person.3.fill"
         case .watchlist: return "chart.line.uptrend.xyaxis"
+        case .forums: return "bubble.left.and.bubble.right.fill"
         }
     }
 }
@@ -80,6 +82,7 @@ struct ContentView: View {
         .frame(width: 320)
         .onAppear {
             appState.startPolling()
+            appState.startForumPolling()
         }
         .task {
             await NotificationManager.shared.requestPermission()
@@ -149,6 +152,9 @@ struct ContentView: View {
                 .environmentObject(appState)
         case .watchlist:
             WatchlistView()
+                .environmentObject(appState)
+        case .forums:
+            ForumWatchView()
                 .environmentObject(appState)
         }
     }

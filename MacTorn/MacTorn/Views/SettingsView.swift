@@ -152,6 +152,27 @@ struct SettingsView: View {
                     Toggle("Private Island (return icon)", isOn: $privateIsland)
                         .toggleStyle(.switch)
                 }
+
+                // Forum Polling Interval
+                HStack {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .foregroundColor(.secondary)
+                        .frame(width: 20)
+
+                    Picker("Forum check", selection: Binding(
+                        get: { appState.forumWatchConfig.pollingIntervalSeconds },
+                        set: { newValue in
+                            appState.forumWatchConfig.pollingIntervalSeconds = newValue
+                            appState.saveForumWatch()
+                            appState.startForumPolling()
+                        }
+                    )) {
+                        Text("2m").tag(120)
+                        Text("3m").tag(180)
+                        Text("5m").tag(300)
+                    }
+                    .pickerStyle(.segmented)
+                }
             }
             .padding(.horizontal)
             
@@ -318,7 +339,8 @@ struct SettingsView: View {
             ("profile", "Battle stats, faction info"),
             ("events", "Recent events feed"),
             ("messages", "Unread message count"),
-            ("market", "Item watchlist prices")
+            ("market", "Item watchlist prices"),
+            ("forum", "Forum thread monitoring")
         ]
     }
 

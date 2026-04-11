@@ -34,6 +34,7 @@
 		AAA00025 /* FeedbackPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10026 /* FeedbackPromptView.swift */; };
 		AAA00026 /* BrowserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10027 /* BrowserManager.swift */; };
 		AAA00028 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10028 /* NetworkMonitor.swift */; };
+		AAA00029 /* ForumWatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10029 /* ForumWatchView.swift */; };
 /* Unit Tests */
 		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
 		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
@@ -51,6 +52,8 @@
 		BBB00014 /* WatchlistPriceAlertTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10014 /* WatchlistPriceAlertTests.swift */; };
 		BBB00015 /* OrganizedCrimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10015 /* OrganizedCrimeTests.swift */; };
 		BBB00016 /* StockHoldingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10016 /* StockHoldingTests.swift */; };
+		BBB00017 /* WatchedThreadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10017 /* WatchedThreadTests.swift */; };
+		BBB00018 /* AppStateForumWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10018 /* AppStateForumWatchTests.swift */; };
 /* UI Tests */
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
 /* End PBXBuildFile section */
@@ -101,6 +104,7 @@
 		AAA10026 /* FeedbackPromptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackPromptView.swift; sourceTree = "<group>"; };
 		AAA10027 /* BrowserManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserManager.swift; sourceTree = "<group>"; };
 		AAA10028 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		AAA10029 /* ForumWatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchView.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* Unit Test Files */
 		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
@@ -119,6 +123,8 @@
 		BBB10014 /* WatchlistPriceAlertTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistPriceAlertTests.swift; sourceTree = "<group>"; };
 		BBB10015 /* OrganizedCrimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizedCrimeTests.swift; sourceTree = "<group>"; };
 		BBB10016 /* StockHoldingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockHoldingTests.swift; sourceTree = "<group>"; };
+		BBB10017 /* WatchedThreadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedThreadTests.swift; sourceTree = "<group>"; };
+		BBB10018 /* AppStateForumWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateForumWatchTests.swift; sourceTree = "<group>"; };
 		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* UI Test Files */
 		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
@@ -214,6 +220,7 @@
 				AAA10018 /* AttacksView.swift */,
 				AAA10019 /* FactionView.swift */,
 				AAA10020 /* WatchlistView.swift */,
+				AAA10029 /* ForumWatchView.swift */,
 				AAA10021 /* PropertiesView.swift */,
 				AAA30006 /* Components */,
 			);
@@ -303,6 +310,7 @@
 				BBB10014 /* WatchlistPriceAlertTests.swift */,
 				BBB10015 /* OrganizedCrimeTests.swift */,
 				BBB10016 /* StockHoldingTests.swift */,
+				BBB10017 /* WatchedThreadTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -313,6 +321,7 @@
 				BBB10011 /* AppStateTests.swift */,
 				BBB10012 /* AppStateWatchlistTests.swift */,
 				BBB10013 /* AppStateFeedbackTests.swift */,
+				BBB10018 /* AppStateForumWatchTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -481,6 +490,7 @@
 				AAA00025 /* FeedbackPromptView.swift in Sources */,
 				AAA00026 /* BrowserManager.swift in Sources */,
 				AAA00028 /* NetworkMonitor.swift in Sources */,
+				AAA00029 /* ForumWatchView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -504,6 +514,8 @@
 				BBB00011 /* AppStateTests.swift in Sources */,
 				BBB00012 /* AppStateWatchlistTests.swift in Sources */,
 				BBB00013 /* AppStateFeedbackTests.swift in Sources */,
+				BBB00017 /* WatchedThreadTests.swift in Sources */,
+				BBB00018 /* AppStateForumWatchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -667,7 +679,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.7.1;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -694,7 +706,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.7.1;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -712,7 +724,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.1;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -730,7 +742,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.1;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -748,7 +760,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.1;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -765,7 +777,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.7.1;
+				MARKETING_VERSION = 1.8.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

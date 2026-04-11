@@ -282,6 +282,59 @@ enum TornAPIFixtures {
 
     // MARK: - Helper Methods
 
+    // MARK: - Forum Fixtures
+
+    static let forumThreadSuccess: [String: Any] = [
+        "thread": [
+            "id": 12345,
+            "title": "Test Forum Thread",
+            "posts": 42,
+            "last_post_time": 1700000000,
+            "is_locked": false,
+            "author": [
+                "id": 123456,
+                "username": "TestPlayer"
+            ]
+        ]
+    ]
+
+    static let forumThreadUpdated: [String: Any] = [
+        "thread": [
+            "id": 12345,
+            "title": "Test Forum Thread",
+            "posts": 45,
+            "last_post_time": 1700001000,
+            "is_locked": false,
+            "author": [
+                "id": 123456,
+                "username": "TestPlayer"
+            ]
+        ]
+    ]
+
+    static let forumCategoryThreads: [String: Any] = [
+        "threads": [
+            [
+                "id": 100,
+                "title": "Faction Thread 1",
+                "posts": 10,
+                "first_post_time": 1699990000,
+                "last_post_time": 1700000000,
+                "author": ["id": 111, "username": "FactionMember1"]
+            ],
+            [
+                "id": 200,
+                "title": "Faction Thread 2",
+                "posts": 5,
+                "first_post_time": 1699995000,
+                "last_post_time": 1699999000,
+                "author": ["id": 222, "username": "FactionMember2"]
+            ]
+        ]
+    ]
+
+    // MARK: - Helpers
+
     static func toData(_ json: [String: Any]) throws -> Data {
         return try JSONSerialization.data(withJSONObject: json)
     }

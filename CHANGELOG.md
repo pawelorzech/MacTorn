@@ -5,6 +5,16 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-04-12
+
+### Added
+- Forum Watch tab — track Torn forum threads for new posts directly from the menu bar
+- Add threads by pasting forum URL or thread ID
+- Per-thread notification toggle (on = alerts, off = bookmark/shortcut only)
+- Faction forum auto-monitoring — toggle to detect and notify about new faction forum threads
+- Separate forum polling interval (2m / 3m / 5m), independent of main data refresh
+- Click any watched thread to open it in your browser
+
 ## [1.7.1] - 2026-04-12
 
 ### Changed

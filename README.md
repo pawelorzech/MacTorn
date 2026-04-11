@@ -62,6 +62,13 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 - Price change indicators
 - Add/remove items from watchlist
 
+### 💬 Forum Watch Tab
+- Watch specific forum threads for new posts
+- Add threads by URL or thread ID
+- Per-thread notification toggle (alerts or bookmark-only mode)
+- Faction forum auto-monitoring with new thread alerts
+- Configurable polling interval (2m / 3m / 5m)
+
 ### ⚙️ General
 - **🔄 Update Checker**: Automatically notifies you when a new version is available on GitHub.
 - **🔔 Smart Notifications**: Alerts for bar thresholds, cooldown ready, landing, chain expiring.

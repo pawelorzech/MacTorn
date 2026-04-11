@@ -19,6 +19,8 @@ enum NotificationType: String {
     case travelApproaching
     case priceAlert
     case ocReady
+    case forumNewPosts
+    case factionNewThread
 
     var url: URL {
         switch self {
@@ -40,6 +42,8 @@ enum NotificationType: String {
             return URL(string: "https://www.torn.com/page.php?sid=ItemMarket")!
         case .ocReady:
             return URL(string: "https://www.torn.com/factions.php?step=your#/tab=crimes")!
+        case .forumNewPosts, .factionNewThread:
+            return URL(string: "https://www.torn.com/forums.php")!
         }
     }
 }
@@ -64,12 +68,15 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
     
-    func send(title: String, body: String, type: NotificationType) {
+    func send(title: String, body: String, type: NotificationType, customURL: URL? = nil) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
         content.categoryIdentifier = type.rawValue
+        if let customURL = customURL {
+            content.userInfo["customURL"] = customURL.absoluteString
+        }
 
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
@@ -128,8 +135,11 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
-        let categoryIdentifier = response.notification.request.content.categoryIdentifier
-        if let type = NotificationType(rawValue: categoryIdentifier) {
+        let content = response.notification.request.content
+        if let customURLString = content.userInfo["customURL"] as? String,
+           let customURL = URL(string: customURLString) {
+            BrowserManager.shared.open(customURL)
+        } else if let type = NotificationType(rawValue: content.categoryIdentifier) {
             BrowserManager.shared.open(type.url)
         }
         completionHandler()

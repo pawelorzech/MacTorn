@@ -44,6 +44,8 @@ class AppState: ObservableObject {
     @Published var stocksData: [StockHolding] = []
     @Published var watchlistItems: [WatchlistItem] = []
     @Published var organizedCrimes: [OrganizedCrime] = []
+    @Published var watchedThreads: [WatchedThread] = []
+    @Published var forumWatchConfig: ForumWatchConfig = ForumWatchConfig()
 
     // MARK: - Update State
     @Published var updateAvailable: GitHubRelease?
@@ -80,9 +82,11 @@ class AppState: ObservableObject {
     // MARK: - Task Handles (for deduplication)
     private var fetchTask: Task<Void, Never>?
     private var watchlistTask: Task<Void, Never>?
+    private var forumFetchTask: Task<Void, Never>?
 
     // MARK: - Timer
     private var timerCancellable: AnyCancellable?
+    private var forumTimerCancellable: AnyCancellable?
 
     init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil) {
         self.session = session
@@ -90,6 +94,7 @@ class AppState: ObservableObject {
         loadNotificationRules()
         loadTravelNotificationSettings()
         loadWatchlist()
+        loadForumWatch()
         loadFeedbackState()
         // Polling and permissions moved to onAppear in UI
     }
@@ -378,6 +383,290 @@ class AppState: ObservableObject {
         }
     }
     
+    // MARK: - Forum Watch
+    func loadForumWatch() {
+        if let data = UserDefaults.standard.data(forKey: "forumWatchedThreads"),
+           let threads = try? JSONDecoder().decode([WatchedThread].self, from: data) {
+            watchedThreads = threads
+        }
+        if let data = UserDefaults.standard.data(forKey: "forumWatchConfig"),
+           let config = try? JSONDecoder().decode(ForumWatchConfig.self, from: data) {
+            forumWatchConfig = config
+        }
+    }
+
+    func saveForumWatch() {
+        if let data = try? JSONEncoder().encode(watchedThreads) {
+            UserDefaults.standard.set(data, forKey: "forumWatchedThreads")
+        }
+        if let data = try? JSONEncoder().encode(forumWatchConfig) {
+            UserDefaults.standard.set(data, forKey: "forumWatchConfig")
+        }
+    }
+
+    func parseThreadInput(_ input: String) -> Int? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Try bare integer
+        if let id = Int(trimmed) {
+            return id
+        }
+        // Try URL pattern: forums.php...t=12345
+        if let range = trimmed.range(of: #"[?&#]t=(\d+)"#, options: .regularExpression) {
+            let match = trimmed[range]
+            let digits = match.drop(while: { !$0.isNumber })
+            return Int(digits)
+        }
+        return nil
+    }
+
+    func addWatchedThread(input: String) {
+        guard let threadId = parseThreadInput(input) else { return }
+        guard !watchedThreads.contains(where: { $0.id == threadId }) else { return }
+
+        let thread = WatchedThread(id: threadId, title: "Loading...", lastKnownPostCount: 0)
+        watchedThreads.append(thread)
+        saveForumWatch()
+
+        Task {
+            await fetchForumThreadMetadata(threadId: threadId)
+        }
+    }
+
+    func removeWatchedThread(_ threadId: Int) {
+        watchedThreads.removeAll { $0.id == threadId }
+        saveForumWatch()
+    }
+
+    func toggleThreadNotifications(_ threadId: Int) {
+        if let index = watchedThreads.firstIndex(where: { $0.id == threadId }) {
+            watchedThreads[index].notificationsEnabled.toggle()
+            saveForumWatch()
+        }
+    }
+
+    func markThreadAsRead(_ threadId: Int) {
+        if let index = watchedThreads.firstIndex(where: { $0.id == threadId }) {
+            // We don't know the "current" post count from here, so the view should pass it
+            // or we just flag it. The fetchForumUpdates will set the correct count next poll.
+            watchedThreads[index].error = nil
+            saveForumWatch()
+        }
+    }
+
+    func startForumPolling() {
+        forumTimerCancellable?.cancel()
+        guard !apiKey.isEmpty else { return }
+
+        // Initial fetch
+        refreshForumWatch()
+
+        forumTimerCancellable = Timer.publish(every: Double(forumWatchConfig.pollingIntervalSeconds), on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.refreshForumWatch()
+            }
+    }
+
+    func stopForumPolling() {
+        forumTimerCancellable?.cancel()
+        forumTimerCancellable = nil
+    }
+
+    func refreshForumWatch() {
+        forumFetchTask?.cancel()
+        forumFetchTask = Task {
+            await fetchForumUpdates()
+        }
+    }
+
+    private func fetchForumUpdates() async {
+        guard connectivity.isConnected, !apiKey.isEmpty else { return }
+
+        // Fetch all watched threads in parallel
+        await withTaskGroup(of: Void.self) { group in
+            for thread in watchedThreads {
+                group.addTask { await self.checkThreadForUpdates(threadId: thread.id) }
+            }
+        }
+
+        // Check faction forum if auto-monitor is on
+        if forumWatchConfig.factionForumAutoMonitor {
+            await fetchFactionForumUpdates()
+        }
+
+        saveForumWatch()
+    }
+
+    private func checkThreadForUpdates(threadId: Int) async {
+        guard let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: apiKey) else { return }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return }
+
+            // v2 API wraps the thread in a top-level object
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                // Check for API error
+                if let error = json["error"] as? [String: Any], let errorText = error["error"] as? String {
+                    await updateThreadError(threadId: threadId, error: errorText)
+                    return
+                }
+
+                // Parse thread data - v2 may return directly or nested
+                let threadData: [String: Any]? = json["thread"] as? [String: Any] ?? json
+                guard let threadInfo = threadData else { return }
+
+                let title = threadInfo["title"] as? String ?? "Unknown"
+                let currentPostCount = threadInfo["posts"] as? Int ?? 0
+
+                await MainActor.run {
+                    if let index = self.watchedThreads.firstIndex(where: { $0.id == threadId }) {
+                        let previousCount = self.watchedThreads[index].lastKnownPostCount
+                        self.watchedThreads[index].title = title
+                        self.watchedThreads[index].lastChecked = Date()
+                        self.watchedThreads[index].error = nil
+
+                        if previousCount > 0 && currentPostCount > previousCount {
+                            let newPosts = currentPostCount - previousCount
+                            if self.watchedThreads[index].notificationsEnabled {
+                                let threadURL = URL(string: "https://www.torn.com/forums.php#/p=threads&t=\(threadId)")
+                                NotificationManager.shared.send(
+                                    title: "Forum: \(title)",
+                                    body: "\(newPosts) new post\(newPosts == 1 ? "" : "s")",
+                                    type: .forumNewPosts,
+                                    customURL: threadURL
+                                )
+                            }
+                        }
+                        self.watchedThreads[index].lastKnownPostCount = currentPostCount
+                    }
+                }
+            }
+        } catch {
+            if Task.isCancelled { return }
+            await updateThreadError(threadId: threadId, error: "Network Error")
+        }
+    }
+
+    @MainActor
+    private func updateThreadError(threadId: Int, error: String) {
+        if let index = watchedThreads.firstIndex(where: { $0.id == threadId }) {
+            watchedThreads[index].error = error
+        }
+    }
+
+    private func fetchForumThreadMetadata(threadId: Int) async {
+        guard let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: apiKey) else { return }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                await updateThreadError(threadId: threadId, error: "HTTP Error")
+                return
+            }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let error = json["error"] as? [String: Any], let errorText = error["error"] as? String {
+                    await updateThreadError(threadId: threadId, error: errorText)
+                    return
+                }
+
+                let threadData: [String: Any]? = json["thread"] as? [String: Any] ?? json
+                guard let threadInfo = threadData else { return }
+
+                let title = threadInfo["title"] as? String ?? "Unknown"
+                let postCount = threadInfo["posts"] as? Int ?? 0
+
+                await MainActor.run {
+                    if let index = self.watchedThreads.firstIndex(where: { $0.id == threadId }) {
+                        self.watchedThreads[index].title = title
+                        self.watchedThreads[index].lastKnownPostCount = postCount
+                        self.watchedThreads[index].lastChecked = Date()
+                        self.watchedThreads[index].error = nil
+                    }
+                }
+            }
+        } catch {
+            if Task.isCancelled { return }
+            await updateThreadError(threadId: threadId, error: "Network Error")
+        }
+
+        saveForumWatch()
+    }
+
+    private func fetchFactionForumUpdates() async {
+        // Discover faction forum category ID if needed
+        if forumWatchConfig.factionForumCategoryId == nil {
+            if let factionId = factionData?.factionId, factionId > 0 {
+                forumWatchConfig.factionForumCategoryId = factionId
+            } else {
+                return
+            }
+        }
+
+        guard let categoryId = forumWatchConfig.factionForumCategoryId,
+              let url = TornAPI.forumCategoryThreadsURL(categoryId: categoryId, apiKey: apiKey) else { return }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if json["error"] != nil { return }
+
+                var threadList: [[String: Any]] = []
+                if let threads = json["threads"] as? [[String: Any]] {
+                    threadList = threads
+                }
+
+                let currentIds = Set(threadList.compactMap { $0["id"] as? Int })
+
+                await MainActor.run {
+                    if self.forumWatchConfig.knownFactionThreadIds.isEmpty {
+                        // First run: populate known IDs without notifications
+                        self.forumWatchConfig.knownFactionThreadIds = currentIds
+                    } else {
+                        let newThreadIds = currentIds.subtracting(self.forumWatchConfig.knownFactionThreadIds)
+                        for threadId in newThreadIds {
+                            if let threadInfo = threadList.first(where: { ($0["id"] as? Int) == threadId }) {
+                                let title = threadInfo["title"] as? String ?? "New Thread"
+
+                                // Notify about new faction thread
+                                let threadURL = URL(string: "https://www.torn.com/forums.php#/p=threads&t=\(threadId)")
+                                NotificationManager.shared.send(
+                                    title: "Faction Forum",
+                                    body: "New thread: \(title)",
+                                    type: .factionNewThread,
+                                    customURL: threadURL
+                                )
+
+                                // Auto-add to watched threads if not already there
+                                if !self.watchedThreads.contains(where: { $0.id == threadId }) {
+                                    let postCount = threadInfo["posts"] as? Int ?? 0
+                                    let thread = WatchedThread(id: threadId, title: title, notificationsEnabled: true, lastKnownPostCount: postCount, lastChecked: Date(), isFactionThread: true)
+                                    self.watchedThreads.append(thread)
+                                }
+                            }
+                        }
+                        self.forumWatchConfig.knownFactionThreadIds = currentIds
+                    }
+                }
+            }
+        } catch {
+            if Task.isCancelled { return }
+            logger.error("Faction forum fetch error: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Polling
     func startPolling() {
         timerCancellable?.cancel()
