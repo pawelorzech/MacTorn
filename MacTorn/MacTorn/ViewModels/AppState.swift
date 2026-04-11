@@ -42,6 +42,7 @@ class AppState: ObservableObject {
     @Published var factionData: FactionData?
     @Published var propertiesData: [PropertyInfo]?
     @Published var watchlistItems: [WatchlistItem] = []
+    @Published var organizedCrimes: [OrganizedCrime] = []
 
     // MARK: - Update State
     @Published var updateAvailable: GitHubRelease?
@@ -73,6 +74,7 @@ class AppState: ObservableObject {
     private var previousTravel: Travel?
     private var previousChain: Chain?
     private var previousStatus: Status?
+    private var previousOCReady: Set<Int> = []
 
     // MARK: - Task Handles (for deduplication)
     private var fetchTask: Task<Void, Never>?
@@ -640,6 +642,30 @@ class AppState: ObservableObject {
                         cooldown: chainDict["cooldown"] as? Int ?? 0
                     )
                 }
+
+                // Parse Organized Crimes
+                var crimes: [OrganizedCrime] = []
+                if let crimesDict = json["crimes"] as? [String: [String: Any]] {
+                    for (_, crimeData) in crimesDict {
+                        if let crimeJSON = try? JSONSerialization.data(withJSONObject: crimeData),
+                           let crime = try? JSONDecoder().decode(OrganizedCrime.self, from: crimeJSON) {
+                            crimes.append(crime)
+                        }
+                    }
+                }
+                self.organizedCrimes = crimes.sorted { $0.timeReady < $1.timeReady }
+
+                // Check for OC ready notifications
+                for crime in crimes where crime.isReady {
+                    if !previousOCReady.contains(crime.crimeId) {
+                        NotificationManager.shared.send(
+                            title: "OC Ready! 💼",
+                            body: "\(crime.crimeName) is ready to initiate",
+                            type: .ocReady
+                        )
+                    }
+                }
+                previousOCReady = Set(crimes.filter { $0.isReady }.map { $0.crimeId })
 
                 self.factionData = FactionData(name: name, factionId: factionId, respect: respect, chain: chain)
                 logger.info("Faction data fetched: \(name)")

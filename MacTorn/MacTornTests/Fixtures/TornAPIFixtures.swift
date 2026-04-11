@@ -228,6 +228,36 @@ enum TornAPIFixtures {
         "bazaar": []
     ]
 
+    // MARK: - Faction with OC
+
+    static let factionWithOC: [String: Any] = [
+        "name": "The Masters",
+        "ID": 11559,
+        "respect": 500000,
+        "chain": [
+            "current": 0,
+            "max": 100,
+            "timeout": 0,
+            "cooldown": 0
+        ],
+        "crimes": [
+            "1": [
+                "crime_id": 8,
+                "crime_name": "Planned Robbery",
+                "participants": [
+                    ["description": "Driver", "state": "Okay"],
+                    ["description": "Lookout", "state": "Okay"]
+                ],
+                "time_started": Int(Date().timeIntervalSince1970) - 3600,
+                "time_ready": Int(Date().timeIntervalSince1970) + 3600,
+                "time_left": 3600,
+                "initiated": false,
+                "planner_id": 12345,
+                "planner_name": "TestPlayer"
+            ]
+        ]
+    ]
+
     // MARK: - Helper Methods
 
     static func toData(_ json: [String: Any]) throws -> Data {

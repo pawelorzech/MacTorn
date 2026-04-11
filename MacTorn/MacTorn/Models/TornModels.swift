@@ -554,6 +554,59 @@ struct FactionChain: Codable {
     }
 }
 
+// MARK: - Organized Crime
+struct OrganizedCrime: Codable, Identifiable {
+    let crimeId: Int
+    let crimeName: String
+    let participants: [OCParticipant]
+    let timeStarted: Int
+    let timeReady: Int
+    let timeLeft: Int
+    let initiated: Bool
+    let plannerId: Int?
+    let plannerName: String?
+
+    var id: Int { crimeId }
+
+    enum CodingKeys: String, CodingKey {
+        case crimeId = "crime_id"
+        case crimeName = "crime_name"
+        case participants
+        case timeStarted = "time_started"
+        case timeReady = "time_ready"
+        case timeLeft = "time_left"
+        case initiated
+        case plannerId = "planner_id"
+        case plannerName = "planner_name"
+    }
+
+    init(crimeId: Int, crimeName: String, participants: [OCParticipant], timeStarted: Int, timeReady: Int, timeLeft: Int, initiated: Bool, plannerId: Int?, plannerName: String?) {
+        self.crimeId = crimeId
+        self.crimeName = crimeName
+        self.participants = participants
+        self.timeStarted = timeStarted
+        self.timeReady = timeReady
+        self.timeLeft = timeLeft
+        self.initiated = initiated
+        self.plannerId = plannerId
+        self.plannerName = plannerName
+    }
+
+    var isReady: Bool {
+        timeLeft <= 0 && initiated
+    }
+
+    var readyDate: Date? {
+        guard timeReady > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(timeReady))
+    }
+}
+
+struct OCParticipant: Codable {
+    let description: String?
+    let state: String?
+}
+
 // MARK: - Property Info
 struct PropertyInfo: Codable, Identifiable {
     let id: Int
@@ -737,7 +790,7 @@ enum TornAPI {
     }
     
     static func factionURL(for apiKey: String) -> URL? {
-        URL(string: "\(factionURL)?selections=basic,chain&key=\(apiKey)")
+        URL(string: "\(factionURL)?selections=basic,chain,crimes&key=\(apiKey)")
     }
     
     static func marketURL(itemId: Int, apiKey: String) -> URL? {
