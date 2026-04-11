@@ -90,6 +90,12 @@ struct WatchlistView: View {
                             openURL("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
                         } onRemove: {
                             appState.removeFromWatchlist(item.id)
+                        } onSetThreshold: { threshold in
+                            if let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) {
+                                appState.watchlistItems[index].priceThreshold = threshold
+                                appState.watchlistItems[index].lastAlertedPrice = nil
+                                appState.saveWatchlist()
+                            }
                         }
                     }
                 }
@@ -137,69 +143,131 @@ struct WatchlistPriceRow: View {
     let item: WatchlistItem
     let onOpen: () -> Void
     let onRemove: () -> Void
-    
+    let onSetThreshold: (Int?) -> Void
+
+    @State private var showThresholdPopover = false
+    @State private var thresholdText = ""
+
     var body: some View {
-        HStack {
-            // Item name & open button
-            Button(action: onOpen) {
-                HStack(spacing: 4) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.blue)
-                        .font(.caption2)
-                    Text(item.name)
-                        .font(.caption.bold())
-                }
-            }
-            .buttonStyle(.plain)
-            
-            Spacer()
-            
-            // Price info
-            if let error = item.error {
-                 HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
-                        .font(.caption2)
-                    Text(error)
-                        .font(.caption2)
-                        .foregroundColor(.red)
-                }
-            } else if item.isLoading {
-                ProgressView()
-                    .scaleEffect(0.6)
-            } else {
-                VStack(alignment: .trailing, spacing: 1) {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                // Item name & open button
+                Button(action: onOpen) {
                     HStack(spacing: 4) {
-                        Text(formatPrice(item.lowestPrice))
-                            .font(.caption.monospacedDigit().bold())
-                            .foregroundColor(.green)
-                        
-                        if item.lowestPriceQuantity > 1 {
-                            Text("x\(item.lowestPriceQuantity)")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    if item.priceDifference > 0 {
-                        HStack(spacing: 2) {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 8))
-                            Text("+\(formatPrice(item.priceDifference))")
-                                .font(.caption2.monospacedDigit())
-                        }
-                        .foregroundColor(.orange)
+                        Image(systemName: "magnifyingglass")
+                            .foregroundColor(.blue)
+                            .font(.caption2)
+                        Text(item.name)
+                            .font(.caption.bold())
                     }
                 }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                // Price info
+                if let error = item.error {
+                     HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                            .font(.caption2)
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
+                } else if item.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                } else {
+                    VStack(alignment: .trailing, spacing: 1) {
+                        HStack(spacing: 4) {
+                            Text(formatPrice(item.lowestPrice))
+                                .font(.caption.monospacedDigit().bold())
+                                .foregroundColor(.green)
+
+                            if item.lowestPriceQuantity > 1 {
+                                Text("x\(item.lowestPriceQuantity)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        if item.priceDifference > 0 {
+                            HStack(spacing: 2) {
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 8))
+                                Text("+\(formatPrice(item.priceDifference))")
+                                    .font(.caption2.monospacedDigit())
+                            }
+                            .foregroundColor(.orange)
+                        }
+                    }
+                }
+
+                // Bell button for price threshold
+                Button {
+                    thresholdText = item.priceThreshold.map { String($0) } ?? ""
+                    showThresholdPopover = true
+                } label: {
+                    Image(systemName: item.priceThreshold != nil ? "bell.fill" : "bell")
+                        .foregroundColor(item.priceThreshold != nil ? .yellow : .gray)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showThresholdPopover) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Alert when below:")
+                            .font(.caption.bold())
+
+                        TextField("Price", text: $thresholdText)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 120)
+                            .onSubmit {
+                                let value = Int(thresholdText)
+                                onSetThreshold(value)
+                                showThresholdPopover = false
+                            }
+
+                        HStack(spacing: 8) {
+                            Button("Clear") {
+                                onSetThreshold(nil)
+                                showThresholdPopover = false
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+
+                            Button("Set") {
+                                let value = Int(thresholdText)
+                                onSetThreshold(value)
+                                showThresholdPopover = false
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.blue)
+                        }
+                    }
+                    .padding(12)
+                }
+
+                // Remove button
+                Button(action: onRemove) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.gray)
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
             }
-            
-            // Remove button
-            Button(action: onRemove) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.gray)
-                    .font(.caption)
+
+            // Threshold indicator
+            if let threshold = item.priceThreshold {
+                HStack(spacing: 4) {
+                    Image(systemName: "bell.fill")
+                        .font(.caption2)
+                        .foregroundColor(.yellow)
+                    Text("Alert below \(formatPrice(threshold))")
+                        .font(.caption2)
+                        .foregroundColor(.yellow)
+                }
             }
-            .buttonStyle(.plain)
         }
         .padding(8)
         .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
