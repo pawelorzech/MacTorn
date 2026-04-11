@@ -5,6 +5,13 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2026-04-12
+
+### Fixed
+- Fixed faction forum monitoring using wrong category ID (was using faction ID instead of discovering the actual forum category)
+- Faction forum category is now discovered by matching faction name against forum categories API
+- Toggling faction monitor off now resets cached data for clean rediscovery
+
 ## [1.8.0] - 2026-04-12
 
 ### Added

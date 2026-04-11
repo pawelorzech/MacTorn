@@ -600,14 +600,42 @@ class AppState: ObservableObject {
         saveForumWatch()
     }
 
+    private func discoverFactionForumCategoryId() async -> Int? {
+        guard let factionName = factionData?.name, !factionName.isEmpty,
+              let url = TornAPI.forumCategoriesURL(apiKey: apiKey) else { return nil }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
+
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let categories = json["categories"] as? [[String: Any]] {
+                // Look for a category matching the faction name
+                for category in categories {
+                    if let title = category["title"] as? String,
+                       let id = category["id"] as? Int,
+                       title.lowercased() == factionName.lowercased() {
+                        logger.info("Discovered faction forum category ID: \(id) for '\(factionName)'")
+                        return id
+                    }
+                }
+                logger.warning("Could not find forum category for faction '\(factionName)'")
+            }
+        } catch {
+            logger.error("Forum categories fetch error: \(error.localizedDescription)")
+        }
+        return nil
+    }
+
     private func fetchFactionForumUpdates() async {
         // Discover faction forum category ID if needed
         if forumWatchConfig.factionForumCategoryId == nil {
-            if let factionId = factionData?.factionId, factionId > 0 {
-                forumWatchConfig.factionForumCategoryId = factionId
-            } else {
-                return
-            }
+            guard let categoryId = await discoverFactionForumCategoryId() else { return }
+            forumWatchConfig.factionForumCategoryId = categoryId
+            saveForumWatch()
         }
 
         guard let categoryId = forumWatchConfig.factionForumCategoryId,

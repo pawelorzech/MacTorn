@@ -75,6 +75,11 @@ struct ForumWatchView: View {
                             get: { appState.forumWatchConfig.factionForumAutoMonitor },
                             set: { newValue in
                                 appState.forumWatchConfig.factionForumAutoMonitor = newValue
+                                if !newValue {
+                                    // Reset cached data so it rediscovers on next enable
+                                    appState.forumWatchConfig.factionForumCategoryId = nil
+                                    appState.forumWatchConfig.knownFactionThreadIds = []
+                                }
                                 appState.saveForumWatch()
                                 if newValue {
                                     appState.refreshForumWatch()

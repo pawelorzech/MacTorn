@@ -860,6 +860,10 @@ enum TornAPI {
     static func forumCategoryThreadsURL(categoryId: Int, apiKey: String) -> URL? {
         URL(string: "https://api.torn.com/v2/forum/\(categoryId)/threads?key=\(apiKey)")
     }
+
+    static func forumCategoriesURL(apiKey: String) -> URL? {
+        URL(string: "https://api.torn.com/v2/forum/categories?key=\(apiKey)")
+    }
 }
 
 // MARK: - Notification Settings
