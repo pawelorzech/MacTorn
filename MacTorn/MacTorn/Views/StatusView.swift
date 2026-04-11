@@ -254,6 +254,28 @@ struct StatusView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                // TRI Hub link
+                Button {
+                    if let url = URL(string: "https://hub.tri.ovh") {
+                        BrowserManager.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 2) {
+                        Image(systemName: "globe")
+                            .font(.system(size: 8))
+                        Text("TRI Hub")
+                            .font(.caption2)
+                    }
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 6)
+                    .background(Color.purple.opacity(reduceTransparency ? 0.3 : 0.15))
+                    .foregroundColor(.purple)
+                    .cornerRadius(4)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
