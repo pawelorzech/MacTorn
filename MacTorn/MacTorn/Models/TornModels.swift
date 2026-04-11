@@ -214,7 +214,11 @@ enum TornDestination: String, CaseIterable, Identifiable {
         if let known = TornDestination(rawValue: destination) {
             return known.flag
         }
-        return destination.lowercased() == "torn" ? "🇺🇸" : "🌍"
+        if destination.lowercased() == "torn" {
+            let hasPrivateIsland = UserDefaults.standard.bool(forKey: "privateIsland")
+            return hasPrivateIsland ? "🏝️" : "🏠"
+        }
+        return "🌍"
     }
 }
 

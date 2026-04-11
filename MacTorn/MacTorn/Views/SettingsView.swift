@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
     @AppStorage("preferredBrowser") private var preferredBrowser: String = PreferredBrowser.system.rawValue
     @AppStorage("boosterCooldownTarget") private var boosterCooldownTarget: String = "boosters"
+    @AppStorage("privateIsland") private var privateIsland: Bool = false
     @State private var inputKey: String = ""
     @State private var showCredits: Bool = false
     @State private var availableBrowsers: [PreferredBrowser] = PreferredBrowser.availableBrowsers()
@@ -142,6 +143,14 @@ struct SettingsView: View {
                         Text("Alcohol").tag("alcohol")
                     }
                     .pickerStyle(.segmented)
+                }
+
+                // Private Island
+                HStack {
+                    Text("🏝️")
+                        .frame(width: 20)
+                    Toggle("Private Island (return icon)", isOn: $privateIsland)
+                        .toggleStyle(.switch)
                 }
             }
             .padding(.horizontal)

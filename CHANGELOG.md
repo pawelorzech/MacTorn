@@ -5,6 +5,14 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.1] - 2026-04-12
+
+### Changed
+- Return flight now shows 🏠 (home) instead of 🇺🇸 in menu bar when flying back to Torn
+
+### Added
+- Private Island setting — players with a private island can set 🏝️ as their return icon instead of 🏠
+
 ## [1.7.0] - 2026-04-11
 
 ### Added

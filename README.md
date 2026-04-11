@@ -31,7 +31,7 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 - 8 quick links
 
 ### ✈️ Travel Tab
-- **Live countdown timer** in menu bar during flight (✈️🇺🇸 5:32)
+- **Live countdown timer** in menu bar during flight (✈️🏠 5:32)
 - Flight status with progress bar
 - Quick travel destination picker (all 11 Torn destinations)
 - Pre-arrival notifications (configurable: 2min, 1min, 30sec, 10sec)
