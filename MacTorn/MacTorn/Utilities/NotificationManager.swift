@@ -17,6 +17,8 @@ enum NotificationType: String {
     case happy
     case life
     case travelApproaching
+    case priceAlert
+    case ocReady
 
     var url: URL {
         switch self {
@@ -34,6 +36,10 @@ enum NotificationType: String {
             return URL(string: "https://www.torn.com/crimes.php")!
         case .life:
             return URL(string: "https://www.torn.com/hospitalview.php")!
+        case .priceAlert:
+            return URL(string: "https://www.torn.com/page.php?sid=ItemMarket")!
+        case .ocReady:
+            return URL(string: "https://www.torn.com/factions.php?step=your#/tab=crimes")!
         }
     }
 }

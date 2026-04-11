@@ -212,4 +212,94 @@ final class AppStateWatchlistTests: XCTestCase {
         // No requests should be made
         XCTAssertTrue(mockSession.requestedURLs.isEmpty)
     }
+
+    // MARK: - Price Alert Tests
+
+    func testPriceAlert_triggeredWhenBelowThreshold() async throws {
+        appState.apiKey = "valid_key"
+        // marketItemSuccess fixture returns lowest price of 950 (from bazaar)
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
+
+        // Add item with threshold of 1000 — fixture price 950 is below threshold
+        appState.watchlistItems = [
+            WatchlistItem(
+                id: 123,
+                name: "Xanax",
+                lowestPrice: 0,
+                lowestPriceQuantity: 0,
+                secondLowestPrice: 0,
+                lastUpdated: nil,
+                error: nil,
+                priceThreshold: 1000,
+                lastAlertedPrice: nil
+            )
+        ]
+
+        appState.refreshWatchlistPrices()
+
+        // Wait for price fetch to complete
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let item = appState.watchlistItems.first
+        XCTAssertNotNil(item)
+        XCTAssertEqual(item?.lowestPrice, 950)
+        // lastAlertedPrice should be set because price (950) < threshold (1000)
+        XCTAssertEqual(item?.lastAlertedPrice, 950)
+    }
+
+    func testPriceAlert_notTriggeredWhenAboveThreshold() async throws {
+        appState.apiKey = "valid_key"
+        // marketItemSuccess fixture returns lowest price of 950
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
+
+        // Add item with threshold of 100 — fixture price 950 is above threshold
+        appState.watchlistItems = [
+            WatchlistItem(
+                id: 123,
+                name: "Xanax",
+                lowestPrice: 0,
+                lowestPriceQuantity: 0,
+                secondLowestPrice: 0,
+                lastUpdated: nil,
+                error: nil,
+                priceThreshold: 100,
+                lastAlertedPrice: nil
+            )
+        ]
+
+        appState.refreshWatchlistPrices()
+
+        // Wait for price fetch to complete
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let item = appState.watchlistItems.first
+        XCTAssertNotNil(item)
+        XCTAssertEqual(item?.lowestPrice, 950)
+        // lastAlertedPrice should remain nil because price (950) > threshold (100)
+        XCTAssertNil(item?.lastAlertedPrice)
+    }
+
+    func testPriceThreshold_persistedWithWatchlist() throws {
+        let original = WatchlistItem(
+            id: 789,
+            name: "Speed",
+            lowestPrice: 500,
+            lowestPriceQuantity: 2,
+            secondLowestPrice: 550,
+            lastUpdated: nil,
+            error: nil,
+            priceThreshold: 600,
+            lastAlertedPrice: 520
+        )
+        appState.watchlistItems = [original]
+        appState.saveWatchlist()
+
+        let newAppState = AppState(session: mockSession)
+        newAppState.loadWatchlist()
+
+        let loaded = newAppState.watchlistItems.first
+        XCTAssertNotNil(loaded)
+        XCTAssertEqual(loaded?.priceThreshold, 600)
+        XCTAssertEqual(loaded?.lastAlertedPrice, 520)
+    }
 }

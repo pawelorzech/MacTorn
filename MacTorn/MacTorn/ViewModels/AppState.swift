@@ -81,9 +81,9 @@ class AppState: ObservableObject {
     // MARK: - Timer
     private var timerCancellable: AnyCancellable?
 
-    init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity = NetworkMonitor.shared) {
+    init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil) {
         self.session = session
-        self.connectivity = connectivity
+        self.connectivity = connectivity ?? NetworkMonitor.shared
         loadNotificationRules()
         loadTravelNotificationSettings()
         loadWatchlist()
@@ -272,7 +272,7 @@ class AppState: ObservableObject {
 
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
                 logger.error("Item \(itemId) HTTP Error: \(httpResponse.statusCode)")
-                await updateItemError(itemId: itemId, error: "HTTP \(httpResponse.statusCode)", save: save)
+                updateItemError(itemId: itemId, error: "HTTP \(httpResponse.statusCode)", save: save)
                 return
             }
 
@@ -281,7 +281,7 @@ class AppState: ObservableObject {
                 // Check if API returned error
                 if let error = json["error"] as? [String: Any], let errorText = error["error"] as? String {
                     logger.warning("Item \(itemId) API error: \(errorText)")
-                    await updateItemError(itemId: itemId, error: errorText, save: save)
+                    updateItemError(itemId: itemId, error: errorText, save: save)
                     return
                 }
 
@@ -319,18 +319,18 @@ class AppState: ObservableObject {
 
                 if let best = sortedListings.first {
                     let secondPrice = sortedListings.count > 1 ? sortedListings[1].price : 0
-                    await updateItemPrice(itemId: itemId, lowestPrice: best.price, lowestPriceQuantity: best.amount, secondLowestPrice: secondPrice, save: save)
+                    updateItemPrice(itemId: itemId, lowestPrice: best.price, lowestPriceQuantity: best.amount, secondLowestPrice: secondPrice, save: save)
                 } else {
-                    await updateItemError(itemId: itemId, error: "No listings", save: save)
+                    updateItemError(itemId: itemId, error: "No listings", save: save)
                 }
             } else {
                 logger.error("Item \(itemId): failed to parse JSON response")
-                await updateItemError(itemId: itemId, error: "Parse Error", save: save)
+                updateItemError(itemId: itemId, error: "Parse Error", save: save)
             }
         } catch {
             if Task.isCancelled { return }
             logger.error("Item \(itemId) price fetch error: \(error.localizedDescription)")
-            await updateItemError(itemId: itemId, error: "Network Error", save: save)
+            updateItemError(itemId: itemId, error: "Network Error", save: save)
         }
     }
     
@@ -344,8 +344,25 @@ class AppState: ObservableObject {
             item.lastUpdated = Date()
             item.error = nil
             watchlistItems[index] = item
+            if watchlistItems[index].shouldFirePriceAlert {
+                let priceString = formatAlertPrice(lowestPrice)
+                NotificationManager.shared.send(
+                    title: "Price Alert: \(item.name)",
+                    body: "Lowest price dropped to \(priceString)",
+                    type: .priceAlert
+                )
+                watchlistItems[index].lastAlertedPrice = lowestPrice
+            }
             if save { saveWatchlist() }
         }
+    }
+
+    private func formatAlertPrice(_ price: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "$"
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: price)) ?? "$\(price)"
     }
 
     @MainActor
