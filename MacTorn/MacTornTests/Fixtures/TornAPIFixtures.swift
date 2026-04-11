@@ -258,6 +258,28 @@ enum TornAPIFixtures {
         ]
     ]
 
+    // MARK: - Stocks
+
+    static let stocksData: [String: Any] = [
+        "stocks": [
+            "1": [
+                "stock_id": 1,
+                "total_shares": 10000,
+                "transactions": [
+                    ["shares": 5000, "bought_price": 500, "time_bought": 1700000000],
+                    ["shares": 5000, "bought_price": 600, "time_bought": 1700100000]
+                ]
+            ],
+            "2": [
+                "stock_id": 25,
+                "total_shares": 500,
+                "transactions": [
+                    ["shares": 500, "bought_price": 1000, "time_bought": 1700200000]
+                ]
+            ]
+        ]
+    ]
+
     // MARK: - Helper Methods
 
     static func toData(_ json: [String: Any]) throws -> Data {

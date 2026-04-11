@@ -41,6 +41,7 @@ class AppState: ObservableObject {
     @Published var recentAttacks: [AttackResult]?
     @Published var factionData: FactionData?
     @Published var propertiesData: [PropertyInfo]?
+    @Published var stocksData: [StockHolding] = []
     @Published var watchlistItems: [WatchlistItem] = []
     @Published var organizedCrimes: [OrganizedCrime] = []
 
@@ -491,15 +492,15 @@ class AppState: ObservableObject {
     // Move parsing logic here and mark as non-isolated or detached
     private func parseDataInBackground(data: Data) async throws {
         // Run CPU-heavy parsing detached from MainActor
-        let result = await Task.detached(priority: .userInitiated) { () -> (TornResponse?, MoneyData?, BattleStats?, [AttackResult]?, [PropertyInfo]?, String?) in
+        let result = await Task.detached(priority: .userInitiated) { () -> (TornResponse?, MoneyData?, BattleStats?, [AttackResult]?, [PropertyInfo]?, [StockHolding], String?) in
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return (nil, nil, nil, nil, nil, "Failed to parse response")
+                return (nil, nil, nil, nil, nil, [], "Failed to parse response")
             }
 
             // Check for Torn API error (API returns HTTP 200 even on errors like rate limiting)
             if let apiError = json["error"] as? [String: Any],
                let errorMessage = apiError["error"] as? String {
-                return (nil, nil, nil, nil, nil, "API Error: \(errorMessage)")
+                return (nil, nil, nil, nil, nil, [], "API Error: \(errorMessage)")
             }
 
             // Attempt to decode TornResponse first
@@ -559,15 +560,26 @@ class AppState: ObservableObject {
                     )
                 }
             }
+            // Stocks
+            var stocksList: [StockHolding] = []
+            if let stocks = json["stocks"] as? [String: [String: Any]] {
+                for (_, stockData) in stocks {
+                    if let stockJSON = try? JSONSerialization.data(withJSONObject: stockData),
+                       let stock = try? JSONDecoder().decode(StockHolding.self, from: stockJSON) {
+                        stocksList.append(stock)
+                    }
+                }
+            }
+
             // If we couldn't decode TornResponse, report error but continue with extended data
             let parseError: String? = (decodedTornResponse == nil) ? "Failed to decode user data" : nil
 
-            return (decodedTornResponse, moneyData, battleStats, attacksList, propertiesList, parseError)
+            return (decodedTornResponse, moneyData, battleStats, attacksList, propertiesList, stocksList, parseError)
         }.value
 
         await MainActor.run {
             // Check for parse errors
-            if let parseError = result.5, result.0 == nil {
+            if let parseError = result.6, result.0 == nil {
                 self.errorMsg = parseError
                 logger.error("Data error: \(parseError)")
                 self.lastUpdated = Date() // Still update timestamp on error
@@ -597,6 +609,7 @@ class AppState: ObservableObject {
             if let b = result.2 { self.battleStats = b }
             if let a = result.3 { self.recentAttacks = a }
             if let p = result.4 { self.propertiesData = p }
+            self.stocksData = result.5
 
             self.lastUpdated = Date()
             self.lastFetchTime = Date()

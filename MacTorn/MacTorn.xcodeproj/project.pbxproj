@@ -50,6 +50,7 @@
 		BBB00013 /* AppStateFeedbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10013 /* AppStateFeedbackTests.swift */; };
 		BBB00014 /* WatchlistPriceAlertTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10014 /* WatchlistPriceAlertTests.swift */; };
 		BBB00015 /* OrganizedCrimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10015 /* OrganizedCrimeTests.swift */; };
+		BBB00016 /* StockHoldingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10016 /* StockHoldingTests.swift */; };
 /* UI Tests */
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
 /* End PBXBuildFile section */
@@ -117,6 +118,7 @@
 		BBB10013 /* AppStateFeedbackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateFeedbackTests.swift; sourceTree = "<group>"; };
 		BBB10014 /* WatchlistPriceAlertTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistPriceAlertTests.swift; sourceTree = "<group>"; };
 		BBB10015 /* OrganizedCrimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrganizedCrimeTests.swift; sourceTree = "<group>"; };
+		BBB10016 /* StockHoldingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockHoldingTests.swift; sourceTree = "<group>"; };
 		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* UI Test Files */
 		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
@@ -300,6 +302,7 @@
 				BBB10010 /* MoneyDataTests.swift */,
 				BBB10014 /* WatchlistPriceAlertTests.swift */,
 				BBB10015 /* OrganizedCrimeTests.swift */,
+				BBB10016 /* StockHoldingTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -497,6 +500,7 @@
 				BBB00010 /* MoneyDataTests.swift in Sources */,
 				BBB00014 /* WatchlistPriceAlertTests.swift in Sources */,
 				BBB00015 /* OrganizedCrimeTests.swift in Sources */,
+				BBB00016 /* StockHoldingTests.swift in Sources */,
 				BBB00011 /* AppStateTests.swift in Sources */,
 				BBB00012 /* AppStateWatchlistTests.swift in Sources */,
 				BBB00013 /* AppStateFeedbackTests.swift in Sources */,

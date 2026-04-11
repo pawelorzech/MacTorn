@@ -644,6 +644,57 @@ struct PropertyInfo: Codable, Identifiable {
     }
 }
 
+// MARK: - Stock Holdings
+struct StockHolding: Codable, Identifiable {
+    let stockId: Int
+    let totalShares: Int
+    let transactions: [StockTransaction]?
+
+    var id: Int { stockId }
+
+    enum CodingKeys: String, CodingKey {
+        case stockId = "stock_id"
+        case totalShares = "total_shares"
+        case transactions
+    }
+
+    init(stockId: Int, totalShares: Int, transactions: [StockTransaction]?) {
+        self.stockId = stockId
+        self.totalShares = totalShares
+        self.transactions = transactions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        stockId = (try? container.decode(Int.self, forKey: .stockId)) ?? 0
+        totalShares = (try? container.decode(Int.self, forKey: .totalShares)) ?? 0
+        transactions = try? container.decode([StockTransaction].self, forKey: .transactions)
+    }
+
+    var totalCostBasis: Int {
+        guard let txns = transactions else { return 0 }
+        return txns.reduce(0) { $0 + ($1.shares * $1.boughtPrice) }
+    }
+}
+
+struct StockTransaction: Codable {
+    let shares: Int
+    let boughtPrice: Int
+    let timeBought: Int
+
+    enum CodingKeys: String, CodingKey {
+        case shares
+        case boughtPrice = "bought_price"
+        case timeBought = "time_bought"
+    }
+
+    init(shares: Int, boughtPrice: Int, timeBought: Int) {
+        self.shares = shares
+        self.boughtPrice = boughtPrice
+        self.timeBought = timeBought
+    }
+}
+
 // MARK: - Watchlist Item
 struct WatchlistItem: Codable, Identifiable {
     let id: Int
@@ -783,7 +834,7 @@ enum TornAPI {
     static let factionURL = "https://api.torn.com/faction/"
     static let marketURL = "https://api.torn.com/market/"
     static let tornURL = "https://api.torn.com/torn/"
-    static let selections = "basic,bars,cooldowns,travel,profile,events,messages,money,battlestats,attacks,properties"
+    static let selections = "basic,bars,cooldowns,travel,profile,events,messages,money,battlestats,attacks,properties,stocks"
     
     static func url(for apiKey: String) -> URL? {
         URL(string: "\(baseURL)?selections=\(selections)&key=\(apiKey)")
