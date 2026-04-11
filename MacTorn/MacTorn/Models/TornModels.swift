@@ -600,9 +600,11 @@ struct WatchlistItem: Codable, Identifiable {
     var secondLowestPrice: Int
     var lastUpdated: Date?
     var error: String?
-    
+    var priceThreshold: Int?
+    var lastAlertedPrice: Int?
+
     // Explicit memberwise initializer
-    init(id: Int, name: String, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int, lastUpdated: Date?, error: String?) {
+    init(id: Int, name: String, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int, lastUpdated: Date?, error: String?, priceThreshold: Int? = nil, lastAlertedPrice: Int? = nil) {
         self.id = id
         self.name = name
         self.lowestPrice = lowestPrice
@@ -610,8 +612,10 @@ struct WatchlistItem: Codable, Identifiable {
         self.secondLowestPrice = secondLowestPrice
         self.lastUpdated = lastUpdated
         self.error = error
+        self.priceThreshold = priceThreshold
+        self.lastAlertedPrice = lastAlertedPrice
     }
-    
+
     // Custom decoding to handle legacy data missing new fields
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -622,15 +626,26 @@ struct WatchlistItem: Codable, Identifiable {
         secondLowestPrice = try container.decodeIfPresent(Int.self, forKey: .secondLowestPrice) ?? 0
         lastUpdated = try container.decodeIfPresent(Date.self, forKey: .lastUpdated)
         error = try container.decodeIfPresent(String.self, forKey: .error)
+        priceThreshold = try container.decodeIfPresent(Int.self, forKey: .priceThreshold)
+        lastAlertedPrice = try container.decodeIfPresent(Int.self, forKey: .lastAlertedPrice)
     }
-    
+
     var priceDifference: Int {
         guard secondLowestPrice > 0 && lowestPrice > 0 else { return 0 }
         return secondLowestPrice - lowestPrice
     }
-    
+
     var isLoading: Bool {
         lowestPrice == 0 && error == nil
+    }
+
+    var shouldFirePriceAlert: Bool {
+        guard let threshold = priceThreshold, lowestPrice > 0 else { return false }
+        guard lowestPrice <= threshold else { return false }
+        if let lastAlerter = lastAlertedPrice {
+            return lowestPrice < lastAlerter
+        }
+        return true
     }
 }
 
