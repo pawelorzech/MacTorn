@@ -2,7 +2,7 @@
 
 A native macOS menu bar app for monitoring your **Torn** game status.
 
-![macOS](https://img.shields.io/badge/macOS-13.0+-blue)
+![macOS](https://img.shields.io/badge/macOS-14.0+-blue)
 ![Swift](https://img.shields.io/badge/Swift-5.0-orange)
 ![Universal](https://img.shields.io/badge/Universal-Intel%20%2B%20Apple%20Silicon-purple)
 ![License](https://img.shields.io/badge/License-MIT-green)
@@ -37,8 +37,11 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 - Pre-arrival notifications (configurable: 2min, 1min, 30sec, 10sec)
 - Country flags for all destinations
 
-### 💰 Money Tab
-- Cash, Vault, Points, Tokens display
+### 💰 Money / Net Worth Tab
+- **Net worth dashboard**: Cash, Vault, Cayman, Properties, Stocks at a glance
+- Property vault breakdown (per-property)
+- Stock holdings with cost basis
+- Total tracked net worth
 - Quick actions: Send Money, Bazaar, Bank
 
 ### ⚔️ Attacks Tab
@@ -48,11 +51,13 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 
 ### 🏢 Faction Tab
 - Faction info and chain status
+- **Organized Crime timer** with live countdown and READY notifications
 - War status display
 - Armory quick-use buttons
 
 ### 📈 Watchlist Tab
 - Track item prices (Latest API v2 support)
+- **Price alerts**: Set a threshold and get notified when price drops below it
 - Displays lowest market price AND quantity (e.g., `$4.2M x12`)
 - Price change indicators
 - Add/remove items from watchlist
@@ -83,7 +88,7 @@ MacTorn respects macOS accessibility settings:
 
 ## Requirements
 
-- macOS 13.0 (Ventura) or later
+- macOS 14.0 (Sonoma) or later
 - **Universal Binary**: Supports both Intel (x86_64) and Apple Silicon (arm64) Macs
 - Torn API Key with access to: basic, bars, cooldowns, travel, profile, events, messages, market
 
@@ -100,7 +105,12 @@ In compliance with the [Torn API Terms of Service](https://www.torn.com/api.html
 | `profile` | Battle stats, faction info |
 | `events` | Recent events feed |
 | `messages` | Unread message count |
+| `money` | Cash, vault, points, tokens |
+| `stocks` | Stock holdings and transactions |
+| `properties` | Property vaults and upkeep |
+| `attacks` | Recent attack results |
 | `market` | Item watchlist prices |
+| `faction` | Faction info, chain, organized crimes |
 
 ## Configuration
 
