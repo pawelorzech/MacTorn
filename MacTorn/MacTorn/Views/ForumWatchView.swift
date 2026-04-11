@@ -65,33 +65,16 @@ struct ForumWatchView: View {
                     .cornerRadius(6)
                 }
 
-                // Faction Forum Toggle
+                // Faction Forum Hint
                 if appState.factionData != nil {
-                    HStack {
-                        Image(systemName: "person.3.fill")
-                            .foregroundColor(.orange)
-                            .font(.caption)
-                        Toggle("Monitor faction forum", isOn: Binding(
-                            get: { appState.forumWatchConfig.factionForumAutoMonitor },
-                            set: { newValue in
-                                appState.forumWatchConfig.factionForumAutoMonitor = newValue
-                                if !newValue {
-                                    // Reset cached data so it rediscovers on next enable
-                                    appState.forumWatchConfig.factionForumCategoryId = nil
-                                    appState.forumWatchConfig.knownFactionThreadIds = []
-                                }
-                                appState.saveForumWatch()
-                                if newValue {
-                                    appState.refreshForumWatch()
-                                }
-                            }
-                        ))
-                        .toggleStyle(.switch)
-                        .font(.caption)
+                    HStack(spacing: 4) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.secondary)
+                            .font(.caption2)
+                        Text("Paste faction forum thread URLs above to watch them")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
-                    .padding(8)
-                    .background(Color.orange.opacity(reduceTransparency ? 0.3 : 0.08))
-                    .cornerRadius(6)
                 }
 
                 // Thread List
@@ -137,7 +120,7 @@ struct ForumWatchView: View {
 
                     if appState.factionData != nil {
                         ActionButton(title: "Faction Forum", icon: "person.3.fill", color: .orange) {
-                            openURL("https://www.torn.com/forums.php#/p=threads&f=\(appState.forumWatchConfig.factionForumCategoryId ?? 0)")
+                            openURL("https://www.torn.com/forums.php#/p=forums&f=999&b=1&a=\(appState.factionData?.factionId ?? 0)")
                         }
                     }
                 }

@@ -5,6 +5,13 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.2] - 2026-04-12
+
+### Changed
+- Removed faction forum auto-monitoring (Torn API does not expose private faction forum threads)
+- Faction forum threads can still be watched by pasting their URL/ID manually
+- Fixed "Faction Forum" quick link to correctly open the user's faction forum page
+
 ## [1.8.1] - 2026-04-12
 
 ### Fixed

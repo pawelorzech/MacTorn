@@ -63,10 +63,9 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 - Add/remove items from watchlist
 
 ### 💬 Forum Watch Tab
-- Watch specific forum threads for new posts
+- Watch specific forum threads for new posts (including faction forum threads)
 - Add threads by URL or thread ID
 - Per-thread notification toggle (alerts or bookmark-only mode)
-- Faction forum auto-monitoring with new thread alerts
 - Configurable polling interval (2m / 3m / 5m)
 
 ### ⚙️ General

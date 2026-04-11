@@ -489,11 +489,6 @@ class AppState: ObservableObject {
             }
         }
 
-        // Check faction forum if auto-monitor is on
-        if forumWatchConfig.factionForumAutoMonitor {
-            await fetchFactionForumUpdates()
-        }
-
         saveForumWatch()
     }
 
@@ -598,101 +593,6 @@ class AppState: ObservableObject {
         }
 
         saveForumWatch()
-    }
-
-    private func discoverFactionForumCategoryId() async -> Int? {
-        guard let factionName = factionData?.name, !factionName.isEmpty,
-              let url = TornAPI.forumCategoriesURL(apiKey: apiKey) else { return nil }
-
-        do {
-            var request = URLRequest(url: url)
-            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-            let (data, response) = try await session.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return nil }
-
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let categories = json["categories"] as? [[String: Any]] {
-                // Look for a category matching the faction name
-                for category in categories {
-                    if let title = category["title"] as? String,
-                       let id = category["id"] as? Int,
-                       title.lowercased() == factionName.lowercased() {
-                        logger.info("Discovered faction forum category ID: \(id) for '\(factionName)'")
-                        return id
-                    }
-                }
-                logger.warning("Could not find forum category for faction '\(factionName)'")
-            }
-        } catch {
-            logger.error("Forum categories fetch error: \(error.localizedDescription)")
-        }
-        return nil
-    }
-
-    private func fetchFactionForumUpdates() async {
-        // Discover faction forum category ID if needed
-        if forumWatchConfig.factionForumCategoryId == nil {
-            guard let categoryId = await discoverFactionForumCategoryId() else { return }
-            forumWatchConfig.factionForumCategoryId = categoryId
-            saveForumWatch()
-        }
-
-        guard let categoryId = forumWatchConfig.factionForumCategoryId,
-              let url = TornAPI.forumCategoryThreadsURL(categoryId: categoryId, apiKey: apiKey) else { return }
-
-        do {
-            var request = URLRequest(url: url)
-            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-            let (data, response) = try await session.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else { return }
-
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if json["error"] != nil { return }
-
-                var threadList: [[String: Any]] = []
-                if let threads = json["threads"] as? [[String: Any]] {
-                    threadList = threads
-                }
-
-                let currentIds = Set(threadList.compactMap { $0["id"] as? Int })
-
-                await MainActor.run {
-                    if self.forumWatchConfig.knownFactionThreadIds.isEmpty {
-                        // First run: populate known IDs without notifications
-                        self.forumWatchConfig.knownFactionThreadIds = currentIds
-                    } else {
-                        let newThreadIds = currentIds.subtracting(self.forumWatchConfig.knownFactionThreadIds)
-                        for threadId in newThreadIds {
-                            if let threadInfo = threadList.first(where: { ($0["id"] as? Int) == threadId }) {
-                                let title = threadInfo["title"] as? String ?? "New Thread"
-
-                                // Notify about new faction thread
-                                let threadURL = URL(string: "https://www.torn.com/forums.php#/p=threads&t=\(threadId)")
-                                NotificationManager.shared.send(
-                                    title: "Faction Forum",
-                                    body: "New thread: \(title)",
-                                    type: .factionNewThread,
-                                    customURL: threadURL
-                                )
-
-                                // Auto-add to watched threads if not already there
-                                if !self.watchedThreads.contains(where: { $0.id == threadId }) {
-                                    let postCount = threadInfo["posts"] as? Int ?? 0
-                                    let thread = WatchedThread(id: threadId, title: title, notificationsEnabled: true, lastKnownPostCount: postCount, lastChecked: Date(), isFactionThread: true)
-                                    self.watchedThreads.append(thread)
-                                }
-                            }
-                        }
-                        self.forumWatchConfig.knownFactionThreadIds = currentIds
-                    }
-                }
-            }
-        } catch {
-            if Task.isCancelled { return }
-            logger.error("Faction forum fetch error: \(error.localizedDescription)")
-        }
     }
 
     // MARK: - Polling
