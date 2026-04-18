@@ -5,6 +5,12 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.4] - 2026-04-18
+
+### Fixed
+- **Stocks metadata parsing failed silently** — `torn/?selections=stocks` returns extra fields (`director`, `forecast`, `demand`, `benefit`, etc.) that broke the strict `Decodable` decoder. Replaced with `JSONSerialization`-based parser that tolerates unknown fields and reports the specific failure mode (network error vs API error vs missing key) to the log.
+- **Property "Upkeep" was misleading** — Torn API's `upkeep` field is "money owed for upkeep" (accrued debt), not the upkeep rate. Relabeled to "Owed" in the Money tab and "Upkeep due" in the Properties tab, only shown when > 0.
+
 ## [1.8.3] - 2026-04-18
 
 ### Fixed

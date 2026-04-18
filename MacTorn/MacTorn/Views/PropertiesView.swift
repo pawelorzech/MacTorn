@@ -93,13 +93,15 @@ struct PropertyCard: View {
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("Upkeep")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text(formatMoney(property.upkeep))
-                        .font(.caption.bold().monospacedDigit())
-                        .foregroundColor(.red)
+                if property.upkeep > 0 {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Upkeep due")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(formatMoney(property.upkeep))
+                            .font(.caption.bold().monospacedDigit())
+                            .foregroundColor(.orange)
+                    }
                 }
             }
 

@@ -1,39 +1,71 @@
 import XCTest
+import os.log
 @testable import MacTorn
 
 final class StockMetadataTests: XCTestCase {
 
+    private let logger = Logger(subsystem: "com.mactorn.tests", category: "StockMetadataTests")
+
     // Real torn/?selections=stocks shape: dict keyed by stock_id, each entry has
-    // name, acronym, current_price, total_shares, market_cap, etc.
-    func testTornStocksResponse_decodesDictKeyedByStockId() throws {
+    // name, acronym, current_price, plus extra fields (director, market_cap, benefit, etc.)
+    // that the parser must tolerate without failing.
+    func testParseStocksMetadata_extractsDictKeyedByStockId() throws {
         let json: [String: Any] = [
             "stocks": [
                 "1": [
+                    "stock_id": 1,
                     "name": "Torn City Stock Exchange",
                     "acronym": "TCSE",
+                    "director": "Bruce Hunter",
                     "current_price": 1234.56,
                     "total_shares": 100_000_000,
-                    "market_cap": 123_456_000_000
+                    "market_cap": 123_456_000_000,
+                    "forecast": "Average",
+                    "demand": "Low",
+                    "benefit": ["requirement": 1000, "description": "..."]
                 ],
                 "16": [
+                    "stock_id": 16,
                     "name": "Sym-Sym Pharmaceuticals",
                     "acronym": "SYS",
-                    "current_price": 805.32,
-                    "total_shares": 5_000_000,
-                    "market_cap": 4_026_600_000
+                    "current_price": 805.32
                 ]
             ]
         ]
-
         let data = try JSONSerialization.data(withJSONObject: json)
-        let response = try JSONDecoder().decode(TornStocksResponse.self, from: data)
 
-        XCTAssertEqual(response.stocks.count, 2)
-        XCTAssertEqual(response.stocks[1]?.acronym, "TCSE")
-        XCTAssertEqual(response.stocks[1]?.name, "Torn City Stock Exchange")
-        XCTAssertEqual(response.stocks[1]?.currentPrice ?? 0, 1234.56, accuracy: 0.001)
-        XCTAssertEqual(response.stocks[16]?.acronym, "SYS")
-        XCTAssertEqual(response.stocks[16]?.id, 16)
+        let result = AppState.parseStocksMetadata(from: data, logger: logger)
+
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[1]?.acronym, "TCSE")
+        XCTAssertEqual(result[1]?.name, "Torn City Stock Exchange")
+        XCTAssertEqual(result[1]?.currentPrice ?? 0, 1234.56, accuracy: 0.001)
+        XCTAssertEqual(result[16]?.acronym, "SYS")
+        XCTAssertEqual(result[16]?.id, 16)
+    }
+
+    func testParseStocksMetadata_returnsEmptyOnTornAPIError() throws {
+        let json: [String: Any] = [
+            "error": ["code": 7, "error": "Incorrect ID-entity relation"]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+
+        let result = AppState.parseStocksMetadata(from: data, logger: logger)
+
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    func testParseStocksMetadata_handlesIntegerCurrentPrice() throws {
+        let json: [String: Any] = [
+            "stocks": [
+                "5": ["name": "X", "acronym": "X", "current_price": 100]  // Int, not Double
+            ]
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+
+        let result = AppState.parseStocksMetadata(from: data, logger: logger)
+
+        XCTAssertEqual(result[5]?.currentPrice ?? 0, 100, accuracy: 0.001)
     }
 
     func testStockHolding_marketValue_usesCurrentPriceFromMetadata() {

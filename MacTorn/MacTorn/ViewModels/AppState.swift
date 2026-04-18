@@ -119,20 +119,51 @@ class AppState: ObservableObject {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             let (data, _) = try await session.data(for: request)
-            let decoded = try JSONDecoder().decode(TornStocksResponse.self, from: data)
-            guard !decoded.stocks.isEmpty else {
-                logger.warning("torn/stocks returned empty stocks dict")
-                return
-            }
+            let parsed = AppState.parseStocksMetadata(from: data, logger: logger)
+            guard !parsed.isEmpty else { return }
             await MainActor.run {
-                self.stocksMetadata = decoded.stocks
-                if let encoded = try? JSONEncoder().encode(decoded.stocks) {
+                self.stocksMetadata = parsed
+                if let encoded = try? JSONEncoder().encode(parsed) {
                     UserDefaults.standard.set(encoded, forKey: Self.stocksMetadataCacheKey)
                 }
+                logger.info("Stocks metadata loaded: \(parsed.count) stocks")
             }
         } catch {
             logger.error("Failed to fetch stocks metadata: \(error.localizedDescription)")
         }
+    }
+
+    /// Parses the `torn/?selections=stocks` response using JSONSerialization (resilient to extra fields).
+    /// Exposed as a static func so tests can drive it without a network round-trip.
+    nonisolated static func parseStocksMetadata(from data: Data, logger: Logger) -> [Int: StockMetadata] {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            logger.error("Stocks metadata: failed to parse JSON")
+            return [:]
+        }
+        if let apiError = json["error"] as? [String: Any], let msg = apiError["error"] as? String {
+            logger.error("Stocks metadata API error: \(msg)")
+            return [:]
+        }
+        guard let stocksDict = json["stocks"] as? [String: [String: Any]] else {
+            logger.warning("Stocks metadata: no 'stocks' key in response")
+            return [:]
+        }
+        var result: [Int: StockMetadata] = [:]
+        for (key, stockData) in stocksDict {
+            guard let id = Int(key) else { continue }
+            let name = stockData["name"] as? String ?? ""
+            let acronym = stockData["acronym"] as? String ?? ""
+            let price: Double
+            if let n = stockData["current_price"] as? NSNumber {
+                price = n.doubleValue
+            } else if let s = stockData["current_price"] as? String, let d = Double(s) {
+                price = d
+            } else {
+                price = 0
+            }
+            result[id] = StockMetadata(id: id, name: name, acronym: acronym, currentPrice: price)
+        }
+        return result
     }
     
     // MARK: - Notification Rules

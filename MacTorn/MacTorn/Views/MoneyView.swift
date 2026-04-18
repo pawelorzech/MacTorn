@@ -113,9 +113,9 @@ struct MoneyView: View {
                                 }
                                 Spacer()
                                 if property.upkeep > 0 {
-                                    Text("Upkeep \(formatMoney(property.upkeep))")
+                                    Text("Owed \(formatMoney(property.upkeep))")
                                         .font(.caption2.monospacedDigit())
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(.orange)
                                 }
                                 Text(formatMoney(property.marketprice))
                                     .font(.caption2.monospacedDigit())

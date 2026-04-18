@@ -747,35 +747,9 @@ struct StockMetadata: Codable, Identifiable, Equatable {
     }
 }
 
-// Top-level wrapper for `torn/?selections=stocks` response.
-struct TornStocksResponse: Decodable {
-    let stocks: [Int: StockMetadata]
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: DynamicKey.self)
-        guard let stocksKey = DynamicKey(stringValue: "stocks"),
-              let nested = try? container.nestedContainer(keyedBy: DynamicKey.self, forKey: stocksKey) else {
-            stocks = [:]
-            return
-        }
-        var result: [Int: StockMetadata] = [:]
-        for key in nested.allKeys {
-            guard let id = Int(key.stringValue) else { continue }
-            if let meta = try? nested.decode(StockMetadata.self, forKey: key) {
-                // API returns metadata without stock_id when keyed by id; rebuild with id from key.
-                result[id] = StockMetadata(id: id, name: meta.name, acronym: meta.acronym, currentPrice: meta.currentPrice)
-            }
-        }
-        stocks = result
-    }
-
-    private struct DynamicKey: CodingKey {
-        var stringValue: String
-        var intValue: Int? { Int(stringValue) }
-        init?(stringValue: String) { self.stringValue = stringValue }
-        init?(intValue: Int) { self.stringValue = String(intValue) }
-    }
-}
+// Note: parsing of `torn/?selections=stocks` is done via JSONSerialization in
+// `AppState.parseStocksMetadata(from:logger:)` to be resilient to extra/changing
+// fields in the live API response.
 
 struct StockTransaction: Codable {
     let shares: Int

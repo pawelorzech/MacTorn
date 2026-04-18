@@ -72,3 +72,4 @@ archive/
 # Claude Code
 CLAUDE.md
 .superpowers/
+firebase-debug.log
