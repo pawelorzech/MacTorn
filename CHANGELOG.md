@@ -5,7 +5,15 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.4] - 2026-04-18
+## [1.8.5] - 2026-04-18
+
+### Fixed
+- **Stocks metadata never loaded** — `startPolling()` fired before `apiKey` was hydrated from `@AppStorage`, the once-per-session flag flipped, and `fetchStocksMetadata` short-circuited forever. Replaced the flag with an idempotent check (`stocksMetadata.isEmpty && !apiKey.isEmpty`) that retries every poll tick until it succeeds.
+- **Property "Upkeep" was misleading (round 2)** — verified against the real Torn API: `upkeep` is a per-day RATE that only applies when you currently reside in the property, not a debt. For properties owned but not lived in (`status: "Owned by them"`), the user pays $0 even though the field returns $100,000. Removed `upkeep` and `staff_cost` from the UI entirely; surface `status` instead.
+
+### Changed
+- Property cards now show `status` (e.g., "Owned by them") + `marketprice` + `cost` + happy bonus. "Rented" badge clarified as "Rented out" since it means rented to another player.
+
 
 ### Fixed
 - **Stocks metadata parsing failed silently** — `torn/?selections=stocks` returns extra fields (`director`, `forecast`, `demand`, `benefit`, etc.) that broke the strict `Decodable` decoder. Replaced with `JSONSerialization`-based parser that tolerates unknown fields and reports the specific failure mode (network error vs API error vs missing key) to the log.

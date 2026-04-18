@@ -69,7 +69,7 @@ struct PropertyCard: View {
                     .font(.caption.bold())
                 Spacer()
                 if property.rented {
-                    Text("Rented")
+                    Text("Rented out")
                         .font(.caption2)
                         .foregroundColor(.orange)
                         .padding(.horizontal, 6)
@@ -78,9 +78,15 @@ struct PropertyCard: View {
                         .cornerRadius(4)
                 }
             }
-            
+
+            if !property.status.isEmpty {
+                Text(property.status)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
             Divider()
-            
+
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Market")
@@ -93,28 +99,27 @@ struct PropertyCard: View {
 
                 Spacer()
 
-                if property.upkeep > 0 {
+                if property.cost > 0 {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Upkeep due")
+                        Text("Cost")
                             .font(.caption2)
                             .foregroundColor(.secondary)
-                        Text(formatMoney(property.upkeep))
+                        Text(formatMoney(property.cost))
                             .font(.caption.bold().monospacedDigit())
-                            .foregroundColor(.orange)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
 
-            if property.cost > 0 {
+            if property.happy > 0 {
                 HStack {
-                    Text("Cost")
+                    Image(systemName: "face.smiling")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                    Text("\(property.happy) happy")
+                        .font(.caption2)
                     Spacer()
-                    Text(formatMoney(property.cost))
-                        .font(.caption2.monospacedDigit())
-                        .foregroundColor(.secondary)
                 }
+                .foregroundColor(.secondary)
             }
 
             if let days = property.rentDaysLeft, days > 0 {

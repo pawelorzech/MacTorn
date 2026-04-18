@@ -3,27 +3,33 @@ import XCTest
 
 final class PropertyInfoTests: XCTestCase {
 
-    // Real Torn API shape for user/?selections=properties — each property has
-    // cost, marketprice, upkeep, and rented (null OR object with days_left).
-    // The previous decoder mapped a non-existent `money` field, so vault was always 0.
-    func testPropertyInfo_decodesCostMarketpriceUpkeep() throws {
+    // Real Torn API shape for user/?selections=properties (verified 2026-04-18 against
+    // bombel's Private Island). `status` indicates residency, `cost`/`marketprice` are
+    // unconditional, `rented` is null OR an object with days_left when rented OUT to
+    // another player. We deliberately ignore `upkeep`/`staff_cost` because they're
+    // per-day rates only paid when residing — too easy to mistake for current debt.
+    func testPropertyInfo_decodesStatusCostMarketpriceHappy() throws {
         let json: [String: Any] = [
-            "property_id": 12345,
+            "property_id": 5678137,
             "property": "Private Island",
-            "cost": 100_000_000,
-            "marketprice": 250_000_000,
-            "upkeep": 1_500_000,
+            "status": "Owned by them",
+            "cost": 500_000_000,
+            "marketprice": 1_057_788_000,
+            "happy": 4525,
+            "upkeep": 100_000,        // present in API; we deliberately don't surface it
+            "staff_cost": 252_500,
             "rented": NSNull()
         ]
 
         let data = try JSONSerialization.data(withJSONObject: json)
         let property = try JSONDecoder().decode(PropertyInfo.self, from: data)
 
-        XCTAssertEqual(property.id, 12345)
+        XCTAssertEqual(property.id, 5678137)
         XCTAssertEqual(property.propertyType, "Private Island")
-        XCTAssertEqual(property.cost, 100_000_000)
-        XCTAssertEqual(property.marketprice, 250_000_000)
-        XCTAssertEqual(property.upkeep, 1_500_000)
+        XCTAssertEqual(property.status, "Owned by them")
+        XCTAssertEqual(property.cost, 500_000_000)
+        XCTAssertEqual(property.marketprice, 1_057_788_000)
+        XCTAssertEqual(property.happy, 4525)
         XCTAssertFalse(property.rented)
         XCTAssertNil(property.rentDaysLeft)
     }
@@ -60,7 +66,8 @@ final class PropertyInfoTests: XCTestCase {
 
         XCTAssertEqual(property.cost, 0)
         XCTAssertEqual(property.marketprice, 0)
-        XCTAssertEqual(property.upkeep, 0)
+        XCTAssertEqual(property.happy, 0)
+        XCTAssertEqual(property.status, "")
         XCTAssertFalse(property.rented)
     }
 }

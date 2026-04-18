@@ -103,7 +103,7 @@ struct MoneyView: View {
                                     .font(.caption2)
                                     .foregroundColor(.primary)
                                 if property.rented {
-                                    Text("Rented" + (property.rentDaysLeft.map { " \($0)d" } ?? ""))
+                                    Text("Rented out" + (property.rentDaysLeft.map { " \($0)d" } ?? ""))
                                         .font(.caption2)
                                         .foregroundColor(.orange)
                                         .padding(.horizontal, 4)
@@ -112,11 +112,6 @@ struct MoneyView: View {
                                         .cornerRadius(3)
                                 }
                                 Spacer()
-                                if property.upkeep > 0 {
-                                    Text("Owed \(formatMoney(property.upkeep))")
-                                        .font(.caption2.monospacedDigit())
-                                        .foregroundColor(.orange)
-                                }
                                 Text(formatMoney(property.marketprice))
                                     .font(.caption2.monospacedDigit())
                                     .foregroundColor(.primary)

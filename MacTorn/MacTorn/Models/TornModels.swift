@@ -612,21 +612,33 @@ struct OCParticipant: Codable {
 }
 
 // MARK: - Property Info
+//
+// Field semantics (verified against real Torn API on 2026-04-18):
+// - `cost`: purchase price you paid
+// - `marketprice`: current resale value (use for net worth)
+// - `status`: residency context. Examples: "Owned by them" (you own it but live elsewhere),
+//   "Rented from {user}", "Owned by you and rented to {user}". Empty/missing for default state.
+// - `upkeep` / `staffCost`: per-day RATES that ONLY apply when you currently reside in
+//   the property. We deliberately do NOT show these — labeling them is too easy to mistake
+//   for current debt or unconditional cost.
+// - `rented`: object|null in API. Non-null means RENTED OUT to another player.
 struct PropertyInfo: Codable, Identifiable {
     let id: Int
     let propertyType: String
+    let status: String
     let cost: Int
     let marketprice: Int
-    let upkeep: Int
+    let happy: Int
     let rented: Bool
     let rentDaysLeft: Int?
 
     enum CodingKeys: String, CodingKey {
         case id = "property_id"
         case propertyType = "property"
+        case status
         case cost
         case marketprice
-        case upkeep
+        case happy
         case rented
     }
 
@@ -635,12 +647,13 @@ struct PropertyInfo: Codable, Identifiable {
         enum CodingKeys: String, CodingKey { case daysLeft = "days_left" }
     }
 
-    init(id: Int = 0, propertyType: String = "", cost: Int = 0, marketprice: Int = 0, upkeep: Int = 0, rented: Bool = false, rentDaysLeft: Int? = nil) {
+    init(id: Int = 0, propertyType: String = "", status: String = "", cost: Int = 0, marketprice: Int = 0, happy: Int = 0, rented: Bool = false, rentDaysLeft: Int? = nil) {
         self.id = id
         self.propertyType = propertyType
+        self.status = status
         self.cost = cost
         self.marketprice = marketprice
-        self.upkeep = upkeep
+        self.happy = happy
         self.rented = rented
         self.rentDaysLeft = rentDaysLeft
     }
@@ -649,10 +662,10 @@ struct PropertyInfo: Codable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decode(Int.self, forKey: .id)) ?? 0
         propertyType = (try? container.decode(String.self, forKey: .propertyType)) ?? ""
+        status = (try? container.decode(String.self, forKey: .status)) ?? ""
         cost = (try? container.decode(Int.self, forKey: .cost)) ?? 0
         marketprice = (try? container.decode(Int.self, forKey: .marketprice)) ?? 0
-        upkeep = (try? container.decode(Int.self, forKey: .upkeep)) ?? 0
-        // Torn API: `rented` is null when not rented out, object {user_id, days_left, cost_per_day} when rented.
+        happy = (try? container.decode(Int.self, forKey: .happy)) ?? 0
         if let rentedInfo = try? container.decode(RentedInfo.self, forKey: .rented) {
             rented = true
             rentDaysLeft = rentedInfo.daysLeft

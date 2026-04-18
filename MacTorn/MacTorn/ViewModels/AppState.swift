@@ -90,7 +90,6 @@ class AppState: ObservableObject {
     private var forumTimerCancellable: AnyCancellable?
 
     private static let stocksMetadataCacheKey = "stocksMetadataCache"
-    private var stocksMetadataFetchedThisSession = false
 
     init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil) {
         self.session = session
@@ -666,15 +665,20 @@ class AppState: ObservableObject {
     func startPolling() {
         timerCancellable?.cancel()
         fetchData()
-        if !stocksMetadataFetchedThisSession {
-            stocksMetadataFetchedThisSession = true
-            Task { await self.fetchStocksMetadata() }
-        }
+        // Idempotent: only fetch if we don't already have metadata. This survives the
+        // "startPolling fires before apiKey loaded" race because we'll retry next tick.
+        triggerStocksMetadataFetchIfNeeded()
         timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.fetchData()
+                self?.triggerStocksMetadataFetchIfNeeded()
             }
+    }
+
+    private func triggerStocksMetadataFetchIfNeeded() {
+        guard stocksMetadata.isEmpty, !apiKey.isEmpty else { return }
+        Task { await self.fetchStocksMetadata() }
     }
     
     func stopPolling() {
@@ -835,6 +839,8 @@ class AppState: ObservableObject {
             }
             
             // Properties — Torn API: `rented` is null OR {user_id, days_left, cost_per_day}
+            // `status` indicates residency ("Owned by them" = owned, not residing).
+            // `upkeep`/`staff_cost` are per-day rates that only apply when residing — we don't surface them.
             var propertiesList: [PropertyInfo]?
             if let properties = json["properties"] as? [String: [String: Any]] {
                 propertiesList = properties.values.compactMap { propDict -> PropertyInfo? in
@@ -842,9 +848,10 @@ class AppState: ObservableObject {
                     return PropertyInfo(
                         id: propDict["property_id"] as? Int ?? 0,
                         propertyType: propDict["property"] as? String ?? "",
+                        status: propDict["status"] as? String ?? "",
                         cost: propDict["cost"] as? Int ?? 0,
                         marketprice: propDict["marketprice"] as? Int ?? 0,
-                        upkeep: propDict["upkeep"] as? Int ?? 0,
+                        happy: propDict["happy"] as? Int ?? 0,
                         rented: rentedDict != nil,
                         rentDaysLeft: rentedDict?["days_left"] as? Int
                     )
