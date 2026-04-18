@@ -83,16 +83,16 @@ struct PropertyCard: View {
             
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Vault")
+                    Text("Market")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text(formatMoney(property.vault))
+                    Text(formatMoney(property.marketprice))
                         .font(.caption.bold().monospacedDigit())
                         .foregroundColor(.green)
                 }
-                
+
                 Spacer()
-                
+
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Upkeep")
                         .font(.caption2)
@@ -102,15 +102,27 @@ struct PropertyCard: View {
                         .foregroundColor(.red)
                 }
             }
-            
-            if property.daysUntilUpkeep > 0 {
+
+            if property.cost > 0 {
+                HStack {
+                    Text("Cost")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(formatMoney(property.cost))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if let days = property.rentDaysLeft, days > 0 {
                 HStack {
                     Image(systemName: "clock")
                         .font(.caption2)
-                    Text("Due in \(property.daysUntilUpkeep) days")
+                    Text("Rent ends in \(days) days")
                         .font(.caption2)
                 }
-                .foregroundColor(property.daysUntilUpkeep <= 3 ? .orange : .secondary)
+                .foregroundColor(days <= 3 ? .orange : .secondary)
             }
         }
         .padding()

@@ -5,6 +5,19 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.3] - 2026-04-18
+
+### Fixed
+- **Stocks $0 cost basis** — `transactions` field comes back from Torn API as a dict keyed by transaction_id, not an array. The decoder silently swallowed the type mismatch via `try?` and returned $0 for every holding. Now decodes both shapes.
+- **Properties section empty** — code mapped to a non-existent `money` field. Replaced with real Torn API fields: `cost`, `marketprice`, `upkeep`, and `rented` (with days remaining).
+
+### Added
+- **Stock names + market value** — fetches `torn/?selections=stocks` once per session and caches to UserDefaults. Each stock now shows its acronym + name and current market value (`shares × current_price`) instead of "Stock #N" with $0.
+- **Property cost / upkeep / rent badge** — each property card now shows market price, weekly upkeep, purchase cost, and a "Rented Nd" badge when applicable.
+
+### Internal
+- `feedbackResponded*` now no-ops under XCTest so test runs don't open mail/forum.
+
 ## [1.8.2] - 2026-04-12
 
 ### Changed

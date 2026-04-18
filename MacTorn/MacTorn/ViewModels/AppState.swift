@@ -42,6 +42,7 @@ class AppState: ObservableObject {
     @Published var factionData: FactionData?
     @Published var propertiesData: [PropertyInfo]?
     @Published var stocksData: [StockHolding] = []
+    @Published var stocksMetadata: [Int: StockMetadata] = [:]
     @Published var watchlistItems: [WatchlistItem] = []
     @Published var organizedCrimes: [OrganizedCrime] = []
     @Published var watchedThreads: [WatchedThread] = []
@@ -88,6 +89,9 @@ class AppState: ObservableObject {
     private var timerCancellable: AnyCancellable?
     private var forumTimerCancellable: AnyCancellable?
 
+    private static let stocksMetadataCacheKey = "stocksMetadataCache"
+    private var stocksMetadataFetchedThisSession = false
+
     init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil) {
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
@@ -96,7 +100,39 @@ class AppState: ObservableObject {
         loadWatchlist()
         loadForumWatch()
         loadFeedbackState()
+        loadStocksMetadataFromCache()
         // Polling and permissions moved to onAppear in UI
+    }
+
+    // MARK: - Stocks Metadata (global lookup from torn/?selections=stocks)
+    func loadStocksMetadataFromCache() {
+        guard let data = UserDefaults.standard.data(forKey: Self.stocksMetadataCacheKey),
+              let cached = try? JSONDecoder().decode([Int: StockMetadata].self, from: data) else {
+            return
+        }
+        stocksMetadata = cached
+    }
+
+    func fetchStocksMetadata() async {
+        guard !apiKey.isEmpty, let url = TornAPI.tornStocksURL(for: apiKey) else { return }
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, _) = try await session.data(for: request)
+            let decoded = try JSONDecoder().decode(TornStocksResponse.self, from: data)
+            guard !decoded.stocks.isEmpty else {
+                logger.warning("torn/stocks returned empty stocks dict")
+                return
+            }
+            await MainActor.run {
+                self.stocksMetadata = decoded.stocks
+                if let encoded = try? JSONEncoder().encode(decoded.stocks) {
+                    UserDefaults.standard.set(encoded, forKey: Self.stocksMetadataCacheKey)
+                }
+            }
+        } catch {
+            logger.error("Failed to fetch stocks metadata: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Notification Rules
@@ -599,6 +635,10 @@ class AppState: ObservableObject {
     func startPolling() {
         timerCancellable?.cancel()
         fetchData()
+        if !stocksMetadataFetchedThisSession {
+            stocksMetadataFetchedThisSession = true
+            Task { await self.fetchStocksMetadata() }
+        }
         timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -763,17 +803,19 @@ class AppState: ObservableObject {
                 }.sorted(by: { ($0.timestampEnded ?? 0) > ($1.timestampEnded ?? 0) })
             }
             
-            // Properties
+            // Properties — Torn API: `rented` is null OR {user_id, days_left, cost_per_day}
             var propertiesList: [PropertyInfo]?
             if let properties = json["properties"] as? [String: [String: Any]] {
                 propertiesList = properties.values.compactMap { propDict -> PropertyInfo? in
+                    let rentedDict = propDict["rented"] as? [String: Any]
                     return PropertyInfo(
                         id: propDict["property_id"] as? Int ?? 0,
                         propertyType: propDict["property"] as? String ?? "",
-                        vault: propDict["money"] as? Int ?? 0,
+                        cost: propDict["cost"] as? Int ?? 0,
+                        marketprice: propDict["marketprice"] as? Int ?? 0,
                         upkeep: propDict["upkeep"] as? Int ?? 0,
-                        rented: propDict["rented"] as? Bool ?? false,
-                        daysUntilUpkeep: propDict["days_left"] as? Int ?? 0
+                        rented: rentedDict != nil,
+                        rentDaysLeft: rentedDict?["days_left"] as? Int
                     )
                 }
             }
@@ -1043,10 +1085,16 @@ class AppState: ObservableObject {
         }
     }
 
+    private static var isRunningUnderXCTest: Bool {
+        NSClassFromString("XCTestCase") != nil
+    }
+
     func feedbackRespondedPositive() {
         feedbackState?.hasResponded = true
         showFeedbackPrompt = false
         saveFeedbackState()
+        // Guard prevents tests from spamming the user's browser/mail client.
+        guard !Self.isRunningUnderXCTest else { return }
         if let url = URL(string: "https://www.torn.com/forums.php#/p=threads&f=67&t=16532308") {
             BrowserManager.shared.open(url)
         }
@@ -1056,6 +1104,7 @@ class AppState: ObservableObject {
         feedbackState?.hasResponded = true
         showFeedbackPrompt = false
         saveFeedbackState()
+        guard !Self.isRunningUnderXCTest else { return }
         if let url = URL(string: "mailto:pawel@orzech.lol?subject=MacTorn%20Feedback") {
             BrowserManager.shared.open(url)
         }

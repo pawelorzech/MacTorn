@@ -615,36 +615,51 @@ struct OCParticipant: Codable {
 struct PropertyInfo: Codable, Identifiable {
     let id: Int
     let propertyType: String
-    let vault: Int
+    let cost: Int
+    let marketprice: Int
     let upkeep: Int
     let rented: Bool
-    let daysUntilUpkeep: Int
-    
+    let rentDaysLeft: Int?
+
     enum CodingKeys: String, CodingKey {
         case id = "property_id"
         case propertyType = "property"
-        case vault = "money"
-        case upkeep, rented
-        case daysUntilUpkeep = "days_left"
+        case cost
+        case marketprice
+        case upkeep
+        case rented
     }
-    
-    init(id: Int = 0, propertyType: String = "", vault: Int = 0, upkeep: Int = 0, rented: Bool = false, daysUntilUpkeep: Int = 0) {
+
+    private struct RentedInfo: Codable {
+        let daysLeft: Int?
+        enum CodingKeys: String, CodingKey { case daysLeft = "days_left" }
+    }
+
+    init(id: Int = 0, propertyType: String = "", cost: Int = 0, marketprice: Int = 0, upkeep: Int = 0, rented: Bool = false, rentDaysLeft: Int? = nil) {
         self.id = id
         self.propertyType = propertyType
-        self.vault = vault
+        self.cost = cost
+        self.marketprice = marketprice
         self.upkeep = upkeep
         self.rented = rented
-        self.daysUntilUpkeep = daysUntilUpkeep
+        self.rentDaysLeft = rentDaysLeft
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = (try? container.decode(Int.self, forKey: .id)) ?? 0
         propertyType = (try? container.decode(String.self, forKey: .propertyType)) ?? ""
-        vault = (try? container.decode(Int.self, forKey: .vault)) ?? 0
+        cost = (try? container.decode(Int.self, forKey: .cost)) ?? 0
+        marketprice = (try? container.decode(Int.self, forKey: .marketprice)) ?? 0
         upkeep = (try? container.decode(Int.self, forKey: .upkeep)) ?? 0
-        rented = (try? container.decode(Bool.self, forKey: .rented)) ?? false
-        daysUntilUpkeep = (try? container.decode(Int.self, forKey: .daysUntilUpkeep)) ?? 0
+        // Torn API: `rented` is null when not rented out, object {user_id, days_left, cost_per_day} when rented.
+        if let rentedInfo = try? container.decode(RentedInfo.self, forKey: .rented) {
+            rented = true
+            rentDaysLeft = rentedInfo.daysLeft
+        } else {
+            rented = false
+            rentDaysLeft = nil
+        }
     }
 }
 
@@ -672,12 +687,93 @@ struct StockHolding: Codable, Identifiable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         stockId = (try? container.decode(Int.self, forKey: .stockId)) ?? 0
         totalShares = (try? container.decode(Int.self, forKey: .totalShares)) ?? 0
-        transactions = try? container.decode([StockTransaction].self, forKey: .transactions)
+        // Torn API returns `transactions` as a dict keyed by transaction_id.
+        // Try dict first, fall back to array for forward compatibility.
+        if let dict = try? container.decode([String: StockTransaction].self, forKey: .transactions) {
+            transactions = Array(dict.values)
+        } else if let array = try? container.decode([StockTransaction].self, forKey: .transactions) {
+            transactions = array
+        } else {
+            transactions = nil
+        }
     }
 
     var totalCostBasis: Int {
         guard let txns = transactions else { return 0 }
         return txns.reduce(0) { $0 + ($1.shares * $1.boughtPrice) }
+    }
+
+    func marketValue(using metadata: [Int: StockMetadata]) -> Int {
+        guard let meta = metadata[stockId] else { return 0 }
+        return Int(Double(totalShares) * meta.currentPrice)
+    }
+}
+
+// MARK: - Stock Metadata (global lookup from torn/?selections=stocks)
+struct StockMetadata: Codable, Identifiable, Equatable {
+    let id: Int
+    let name: String
+    let acronym: String
+    let currentPrice: Double
+
+    enum CodingKeys: String, CodingKey {
+        case stockId = "stock_id"
+        case name
+        case acronym
+        case currentPrice = "current_price"
+    }
+
+    init(id: Int, name: String, acronym: String, currentPrice: Double) {
+        self.id = id
+        self.name = name
+        self.acronym = acronym
+        self.currentPrice = currentPrice
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(Int.self, forKey: .stockId)) ?? 0
+        name = (try? container.decode(String.self, forKey: .name)) ?? ""
+        acronym = (try? container.decode(String.self, forKey: .acronym)) ?? ""
+        currentPrice = (try? container.decode(Double.self, forKey: .currentPrice)) ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .stockId)
+        try container.encode(name, forKey: .name)
+        try container.encode(acronym, forKey: .acronym)
+        try container.encode(currentPrice, forKey: .currentPrice)
+    }
+}
+
+// Top-level wrapper for `torn/?selections=stocks` response.
+struct TornStocksResponse: Decodable {
+    let stocks: [Int: StockMetadata]
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: DynamicKey.self)
+        guard let stocksKey = DynamicKey(stringValue: "stocks"),
+              let nested = try? container.nestedContainer(keyedBy: DynamicKey.self, forKey: stocksKey) else {
+            stocks = [:]
+            return
+        }
+        var result: [Int: StockMetadata] = [:]
+        for key in nested.allKeys {
+            guard let id = Int(key.stringValue) else { continue }
+            if let meta = try? nested.decode(StockMetadata.self, forKey: key) {
+                // API returns metadata without stock_id when keyed by id; rebuild with id from key.
+                result[id] = StockMetadata(id: id, name: meta.name, acronym: meta.acronym, currentPrice: meta.currentPrice)
+            }
+        }
+        stocks = result
+    }
+
+    private struct DynamicKey: CodingKey {
+        var stringValue: String
+        var intValue: Int? { Int(stringValue) }
+        init?(stringValue: String) { self.stringValue = stringValue }
+        init?(intValue: Int) { self.stringValue = String(intValue) }
     }
 }
 
@@ -851,6 +947,10 @@ enum TornAPI {
     static func marketURL(itemId: Int, apiKey: String) -> URL? {
         // v2 endpoint for item market
         URL(string: "https://api.torn.com/v2/market/\(itemId)?selections=itemmarket,bazaar&key=\(apiKey)")
+    }
+
+    static func tornStocksURL(for apiKey: String) -> URL? {
+        URL(string: "\(tornURL)?selections=stocks&key=\(apiKey)")
     }
 
     static func forumThreadURL(threadId: Int, apiKey: String) -> URL? {

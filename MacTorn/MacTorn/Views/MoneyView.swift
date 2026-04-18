@@ -84,7 +84,7 @@ struct MoneyView: View {
 
                 // MARK: - Properties Section
                 if let properties = appState.propertiesData, !properties.isEmpty {
-                    let totalPropertyVault = properties.reduce(0) { $0 + $1.vault }
+                    let totalMarketPrice = properties.reduce(0) { $0 + $1.marketprice }
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Image(systemName: "house.fill")
@@ -92,20 +92,34 @@ struct MoneyView: View {
                             Text("Properties")
                                 .font(.caption.bold())
                             Spacer()
-                            Text("Vault Total: \(formatMoney(totalPropertyVault))")
+                            Text("Market: \(formatMoney(totalMarketPrice))")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
 
                         ForEach(properties) { property in
-                            HStack {
+                            HStack(spacing: 6) {
                                 Text(property.propertyType)
                                     .font(.caption2)
                                     .foregroundColor(.primary)
+                                if property.rented {
+                                    Text("Rented" + (property.rentDaysLeft.map { " \($0)d" } ?? ""))
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 1)
+                                        .background(Color.orange.opacity(reduceTransparency ? 0.5 : 0.2))
+                                        .cornerRadius(3)
+                                }
                                 Spacer()
-                                Text(formatMoney(property.vault))
+                                if property.upkeep > 0 {
+                                    Text("Upkeep \(formatMoney(property.upkeep))")
+                                        .font(.caption2.monospacedDigit())
+                                        .foregroundColor(.secondary)
+                                }
+                                Text(formatMoney(property.marketprice))
                                     .font(.caption2.monospacedDigit())
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(.primary)
                             }
                         }
                     }
@@ -116,6 +130,9 @@ struct MoneyView: View {
 
                 // MARK: - Stocks Section
                 if !appState.stocksData.isEmpty {
+                    let totalMarketValue = appState.stocksData.reduce(0) { sum, stock in
+                        sum + stock.marketValue(using: appState.stocksMetadata)
+                    }
                     let totalCostBasis = appState.stocksData.reduce(0) { $0 + $1.totalCostBasis }
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -124,30 +141,48 @@ struct MoneyView: View {
                             Text("Stocks")
                                 .font(.caption.bold())
                             Spacer()
-                            Text("Cost Basis: \(formatMoney(totalCostBasis))")
+                            Text("Market: \(formatMoney(totalMarketValue))")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
 
                         ForEach(appState.stocksData) { stock in
-                            HStack {
-                                Text("Stock #\(stock.stockId)")
-                                    .font(.caption2)
-                                    .foregroundColor(.primary)
+                            let meta = appState.stocksMetadata[stock.stockId]
+                            HStack(spacing: 6) {
+                                if let meta = meta {
+                                    Text(meta.acronym)
+                                        .font(.caption2.bold())
+                                        .foregroundColor(.primary)
+                                    Text(meta.name)
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("Stock #\(stock.stockId)")
+                                        .font(.caption2)
+                                        .foregroundColor(.primary)
+                                }
                                 Spacer()
-                                Text("\(stock.totalShares) shares")
+                                Text("\(stock.totalShares.formatted())")
                                     .font(.caption2.monospacedDigit())
                                     .foregroundColor(.secondary)
-                                Text(formatMoney(stock.totalCostBasis))
+                                Text(formatMoney(stock.marketValue(using: appState.stocksMetadata)))
+                                    .font(.caption2.monospacedDigit())
+                                    .foregroundColor(.primary)
+                            }
+                        }
+
+                        if totalCostBasis > 0 {
+                            HStack {
+                                Text("Cost basis")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text(formatMoney(totalCostBasis))
                                     .font(.caption2.monospacedDigit())
                                     .foregroundColor(.secondary)
                             }
                         }
-
-                        Text("Cost basis shown (market prices require separate API)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .italic()
                     }
                     .padding()
                     .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.08))
@@ -156,9 +191,11 @@ struct MoneyView: View {
 
                 // MARK: - Total Tracked
                 if let money = appState.moneyData {
-                    let propertyVaultTotal = appState.propertiesData?.reduce(0) { $0 + $1.vault } ?? 0
-                    let stocksCostBasis = appState.stocksData.reduce(0) { $0 + $1.totalCostBasis }
-                    let totalTracked = money.cash + money.vault + money.cayman + propertyVaultTotal + stocksCostBasis
+                    let propertyMarketTotal = appState.propertiesData?.reduce(0) { $0 + $1.marketprice } ?? 0
+                    let stocksMarketTotal = appState.stocksData.reduce(0) { sum, stock in
+                        sum + stock.marketValue(using: appState.stocksMetadata)
+                    }
+                    let totalTracked = money.cash + money.vault + money.cayman + propertyMarketTotal + stocksMarketTotal
 
                     HStack {
                         Image(systemName: "sum")

@@ -3,7 +3,30 @@ import XCTest
 
 final class StockHoldingTests: XCTestCase {
 
-    func testStockHolding_decodesFromJSON() throws {
+    // Real Torn API shape: transactions is a dict keyed by transaction_id, NOT an array.
+    // Previously the decoder accepted only arrays, silently swallowed the failure via try?,
+    // and totalCostBasis returned $0 for every holding in production.
+    func testStockHolding_decodesTransactionsAsDictKeyedByTxnId() throws {
+        let json: [String: Any] = [
+            "stock_id": 1,
+            "total_shares": 10000,
+            "transactions": [
+                "1234": ["shares": 5000, "bought_price": 500, "time_bought": 1700000000],
+                "1235": ["shares": 5000, "bought_price": 600, "time_bought": 1700100000]
+            ]
+        ]
+
+        let data = try JSONSerialization.data(withJSONObject: json)
+        let stock = try JSONDecoder().decode(StockHolding.self, from: data)
+
+        XCTAssertEqual(stock.stockId, 1)
+        XCTAssertEqual(stock.totalShares, 10000)
+        XCTAssertEqual(stock.transactions?.count, 2)
+        XCTAssertEqual(stock.totalCostBasis, 5_500_000)
+    }
+
+    // Defensive fallback: if Torn ever returns an array, we still decode it.
+    func testStockHolding_decodesTransactionsAsArrayFallback() throws {
         let json: [String: Any] = [
             "stock_id": 1,
             "total_shares": 10000,
@@ -16,9 +39,8 @@ final class StockHoldingTests: XCTestCase {
         let data = try JSONSerialization.data(withJSONObject: json)
         let stock = try JSONDecoder().decode(StockHolding.self, from: data)
 
-        XCTAssertEqual(stock.stockId, 1)
-        XCTAssertEqual(stock.totalShares, 10000)
         XCTAssertEqual(stock.transactions?.count, 2)
+        XCTAssertEqual(stock.totalCostBasis, 5_500_000)
     }
 
     func testStockHolding_totalCostBasis() {

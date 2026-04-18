@@ -260,21 +260,23 @@ enum TornAPIFixtures {
 
     // MARK: - Stocks
 
+    // Real Torn API shape: outer `stocks` is a dict keyed by stock_id,
+    // and inner `transactions` is a dict keyed by transaction_id.
     static let stocksData: [String: Any] = [
         "stocks": [
             "1": [
                 "stock_id": 1,
                 "total_shares": 10000,
                 "transactions": [
-                    ["shares": 5000, "bought_price": 500, "time_bought": 1700000000],
-                    ["shares": 5000, "bought_price": 600, "time_bought": 1700100000]
+                    "1234": ["shares": 5000, "bought_price": 500, "time_bought": 1700000000],
+                    "1235": ["shares": 5000, "bought_price": 600, "time_bought": 1700100000]
                 ]
             ],
             "2": [
                 "stock_id": 25,
                 "total_shares": 500,
                 "transactions": [
-                    ["shares": 500, "bought_price": 1000, "time_bought": 1700200000]
+                    "2001": ["shares": 500, "bought_price": 1000, "time_bought": 1700200000]
                 ]
             ]
         ]

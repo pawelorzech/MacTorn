@@ -54,6 +54,9 @@
 		BBB00016 /* StockHoldingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10016 /* StockHoldingTests.swift */; };
 		BBB00017 /* WatchedThreadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10017 /* WatchedThreadTests.swift */; };
 		BBB00018 /* AppStateForumWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10018 /* AppStateForumWatchTests.swift */; };
+		BBB00019 /* PropertyInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10019 /* PropertyInfoTests.swift */; };
+		BBB00020 /* StockMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10020 /* StockMetadataTests.swift */; };
+		BBB00021 /* AppStateStocksMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10021 /* AppStateStocksMetadataTests.swift */; };
 /* UI Tests */
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
 /* End PBXBuildFile section */
@@ -125,6 +128,9 @@
 		BBB10016 /* StockHoldingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockHoldingTests.swift; sourceTree = "<group>"; };
 		BBB10017 /* WatchedThreadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedThreadTests.swift; sourceTree = "<group>"; };
 		BBB10018 /* AppStateForumWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateForumWatchTests.swift; sourceTree = "<group>"; };
+		BBB10019 /* PropertyInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyInfoTests.swift; sourceTree = "<group>"; };
+		BBB10020 /* StockMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockMetadataTests.swift; sourceTree = "<group>"; };
+		BBB10021 /* AppStateStocksMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStocksMetadataTests.swift; sourceTree = "<group>"; };
 		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* UI Test Files */
 		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
@@ -311,6 +317,8 @@
 				BBB10015 /* OrganizedCrimeTests.swift */,
 				BBB10016 /* StockHoldingTests.swift */,
 				BBB10017 /* WatchedThreadTests.swift */,
+				BBB10019 /* PropertyInfoTests.swift */,
+				BBB10020 /* StockMetadataTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -322,6 +330,7 @@
 				BBB10012 /* AppStateWatchlistTests.swift */,
 				BBB10013 /* AppStateFeedbackTests.swift */,
 				BBB10018 /* AppStateForumWatchTests.swift */,
+				BBB10021 /* AppStateStocksMetadataTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -516,6 +525,9 @@
 				BBB00013 /* AppStateFeedbackTests.swift in Sources */,
 				BBB00017 /* WatchedThreadTests.swift in Sources */,
 				BBB00018 /* AppStateForumWatchTests.swift in Sources */,
+				BBB00019 /* PropertyInfoTests.swift in Sources */,
+				BBB00020 /* StockMetadataTests.swift in Sources */,
+				BBB00021 /* AppStateStocksMetadataTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -679,7 +691,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.8.2;
+				MARKETING_VERSION = 1.8.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -706,7 +718,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.8.2;
+				MARKETING_VERSION = 1.8.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -724,7 +736,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.2;
+				MARKETING_VERSION = 1.8.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -742,7 +754,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.2;
+				MARKETING_VERSION = 1.8.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -760,7 +772,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.2;
+				MARKETING_VERSION = 1.8.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -777,7 +789,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.2;
+				MARKETING_VERSION = 1.8.3;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
