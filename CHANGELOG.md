@@ -5,6 +5,21 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.6] - 2026-04-26
+
+### Added
+- **Dynamic menu bar status text** — the menu bar label now adapts to player state instead of always showing a static icon:
+  - **Traveling** → ✈️ + country flag + remaining travel time *(unchanged)*
+  - **Hospitalized abroad** → 🏥 + country flag + hospital countdown
+  - **Hospitalized in Torn** → 🏥 + hospital countdown
+  - **Jailed in Torn** → 🚓 + jail countdown
+  - **Idle with active cooldowns** → soonest-expiring cooldown with type emoji: 💊 Drug, 🧪 Booster, 🩹 Medical
+  - **Idle, no cooldowns** → falls back to the existing `bolt`/`bolt.fill`/`globe`/error icon
+- Live 1-second countdown extended from travel-only to all of the above states; computed from server timestamps where available (`travel.timestamp`, `status.until`) and adjusted against the last fetch time for relative cooldown values.
+
+### Changed
+- `MenuBarLabel` is now a thin renderer over a centralized `MenuBarDisplay` enum on `AppState`, replacing the inline travel-only conditional. Priority order: traveling > hospital (abroad/home) > jail > soonest cooldown > fallback icon.
+
 ## [1.8.5] - 2026-04-18
 
 ### Fixed

@@ -257,4 +257,113 @@ final class AppStateTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(mockSession.requestedURLs.count, 1)
         XCTAssertNotNil(appState.data)
     }
+
+    // MARK: - Menu Bar Display Tests
+
+    /// Helper: build a fixture from `validFullResponse` with a custom travel/status/cooldowns slice.
+    private func fixture(
+        travel: [String: Any]? = nil,
+        status: [String: Any]? = nil,
+        cooldowns: [String: Any]? = nil
+    ) -> [String: Any] {
+        var json = TornAPIFixtures.validFullResponse
+        if let travel = travel { json["travel"] = travel }
+        if let status = status { json["status"] = status }
+        if let cooldowns = cooldowns { json["cooldowns"] = cooldowns }
+        return json
+    }
+
+    private func fetch(_ json: [String: Any]) async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: json)
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+    }
+
+    func testMenuBarDisplay_traveling() async throws {
+        try await fetch(fixture(travel: TornAPIFixtures.travelTraveling))
+
+        guard case .traveling(let flag, let seconds) = appState.menuBarDisplay else {
+            return XCTFail("Expected .traveling, got \(appState.menuBarDisplay)")
+        }
+        XCTAssertEqual(flag, "🇯🇵")
+        XCTAssertGreaterThan(seconds, 0)
+        XCTAssertLessThanOrEqual(seconds, 600)
+    }
+
+    func testMenuBarDisplay_hospitalAbroad() async throws {
+        let abroad: [String: Any] = [
+            "destination": "Mexico", "timestamp": 0, "departed": 0, "time_left": 0
+        ]
+        let hospital: [String: Any] = [
+            "description": "In hospital", "details": "", "state": "Hospital",
+            "until": Int(Date().timeIntervalSince1970) + 600
+        ]
+        try await fetch(fixture(travel: abroad, status: hospital))
+
+        guard case .hospitalAbroad(let flag, let seconds) = appState.menuBarDisplay else {
+            return XCTFail("Expected .hospitalAbroad, got \(appState.menuBarDisplay)")
+        }
+        XCTAssertEqual(flag, "🇲🇽")
+        XCTAssertGreaterThan(seconds, 500)
+        XCTAssertLessThanOrEqual(seconds, 600)
+    }
+
+    func testMenuBarDisplay_hospitalAtHome() async throws {
+        let hospital: [String: Any] = [
+            "description": "In hospital", "details": "", "state": "Hospital",
+            "until": Int(Date().timeIntervalSince1970) + 300
+        ]
+        try await fetch(fixture(status: hospital))
+
+        guard case .hospitalAtHome(let seconds) = appState.menuBarDisplay else {
+            return XCTFail("Expected .hospitalAtHome, got \(appState.menuBarDisplay)")
+        }
+        XCTAssertGreaterThan(seconds, 200)
+        XCTAssertLessThanOrEqual(seconds, 300)
+    }
+
+    func testMenuBarDisplay_jail() async throws {
+        let jail: [String: Any] = [
+            "description": "In jail", "details": "", "state": "Jail",
+            "until": Int(Date().timeIntervalSince1970) + 450
+        ]
+        try await fetch(fixture(status: jail))
+
+        guard case .jail(let seconds) = appState.menuBarDisplay else {
+            return XCTFail("Expected .jail, got \(appState.menuBarDisplay)")
+        }
+        XCTAssertGreaterThan(seconds, 350)
+        XCTAssertLessThanOrEqual(seconds, 450)
+    }
+
+    func testMenuBarDisplay_idleSoonestCooldown() async throws {
+        // Medical (60s) is soonest — drug 300, booster 1200
+        try await fetch(fixture(cooldowns: ["drug": 300, "booster": 1200, "medical": 60]))
+
+        guard case .cooldown(let emoji, let seconds) = appState.menuBarDisplay else {
+            return XCTFail("Expected .cooldown, got \(appState.menuBarDisplay)")
+        }
+        XCTAssertEqual(emoji, "🩹") // medical
+        XCTAssertGreaterThan(seconds, 50)
+        XCTAssertLessThanOrEqual(seconds, 60)
+    }
+
+    func testMenuBarDisplay_idleNoCooldowns_fallsBack() async throws {
+        try await fetch(TornAPIFixtures.validFullResponse) // all cooldowns 0, status Okay, in Torn
+
+        XCTAssertEqual(appState.menuBarDisplay, .fallbackIcon)
+    }
+
+    func testMenuBarDisplay_travelingBeatsHospital() async throws {
+        // Player is traveling; even with hospital status, travel takes priority.
+        let hospital: [String: Any] = [
+            "description": "In hospital", "details": "", "state": "Hospital",
+            "until": Int(Date().timeIntervalSince1970) + 600
+        ]
+        try await fetch(fixture(travel: TornAPIFixtures.travelTraveling, status: hospital))
+
+        if case .traveling = appState.menuBarDisplay { /* ok */ }
+        else { XCTFail("Expected .traveling to win, got \(appState.menuBarDisplay)") }
+    }
 }

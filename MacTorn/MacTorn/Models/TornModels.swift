@@ -93,6 +93,40 @@ struct Cooldowns: Codable, Equatable {
     let booster: Int
 }
 
+enum CooldownKind: CaseIterable {
+    case drug, booster, medical
+
+    var emoji: String {
+        switch self {
+        case .drug:    return "💊"
+        case .booster: return "🧪"
+        case .medical: return "🩹"
+        }
+    }
+}
+
+extension Cooldowns {
+    /// Cooldown values from the API are relative seconds, so we adjust against the fetch time
+    /// to keep the live countdown accurate between polls.
+    func remainingSeconds(_ kind: CooldownKind, from fetchTime: Date) -> Int {
+        let initial: Int
+        switch kind {
+        case .drug:    initial = drug
+        case .booster: initial = booster
+        case .medical: initial = medical
+        }
+        let elapsed = Int(Date().timeIntervalSince(fetchTime))
+        return max(0, initial - elapsed)
+    }
+
+    func soonestActive(from fetchTime: Date) -> (kind: CooldownKind, seconds: Int)? {
+        CooldownKind.allCases
+            .map { (kind: $0, seconds: remainingSeconds($0, from: fetchTime)) }
+            .filter { $0.seconds > 0 }
+            .min { $0.seconds < $1.seconds }
+    }
+}
+
 // MARK: - Travel
 struct Travel: Codable, Equatable {
     let destination: String?
@@ -1094,4 +1128,17 @@ struct KeyboardShortcut: Identifiable, Codable, Equatable {
         KeyboardShortcut(id: "hospital", name: "Hospital", url: "https://www.torn.com/hospitalview.php", keyEquivalent: "o", modifiers: ["command", "shift"]),
         KeyboardShortcut(id: "faction", name: "Faction", url: "https://www.torn.com/factions.php", keyEquivalent: "f", modifiers: ["command", "shift"])
     ]
+}
+
+// MARK: - Menu Bar Display
+
+/// What the menu bar label should render at any given moment.
+/// Priority: traveling > hospital > jail > soonest cooldown > fallback icon.
+enum MenuBarDisplay: Equatable {
+    case traveling(flag: String, seconds: Int)
+    case hospitalAbroad(flag: String, seconds: Int)
+    case hospitalAtHome(seconds: Int)
+    case jail(seconds: Int)
+    case cooldown(emoji: String, seconds: Int)
+    case fallbackIcon
 }

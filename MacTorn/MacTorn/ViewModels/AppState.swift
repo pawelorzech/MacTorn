@@ -61,7 +61,8 @@ class AppState: ObservableObject {
 
     // MARK: - Live Travel Countdown
     @Published var travelSecondsRemaining: Int = 0
-    private var travelTimerCancellable: AnyCancellable?
+    @Published var menuBarDisplay: MenuBarDisplay = .fallbackIcon
+    private var liveTimerCancellable: AnyCancellable?
 
     // MARK: - Managers
     let launchAtLogin = LaunchAtLoginManager()
@@ -247,34 +248,46 @@ class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Live Travel Timer
-    func manageTravelTimer() {
-        if let travel = data?.travel, travel.isTraveling {
-            // Start or continue timer
-            updateTravelSecondsRemaining()
-            if travelTimerCancellable == nil {
-                startTravelTimer()
+    // MARK: - Live Timer (drives travel countdown + menu bar display)
+    func manageLiveTimer() {
+        tick()
+        if shouldRunLiveTimer {
+            if liveTimerCancellable == nil {
+                startLiveTimer()
             }
         } else {
-            // Stop timer when not traveling
-            stopTravelTimer()
+            stopLiveTimer()
         }
     }
 
-    private func startTravelTimer() {
-        travelTimerCancellable?.cancel()
+    private var shouldRunLiveTimer: Bool {
+        guard let data = data else { return false }
+        if let travel = data.travel, travel.isTraveling { return true }
+        if let status = data.status, status.isInHospital || status.isInJail { return true }
+        if let cd = data.cooldowns, cd.soonestActive(from: lastFetchTime) != nil { return true }
+        return false
+    }
 
-        travelTimerCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
+    private func startLiveTimer() {
+        liveTimerCancellable?.cancel()
+
+        liveTimerCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                self?.updateTravelSecondsRemaining()
+                self?.tick()
             }
     }
 
-    private func stopTravelTimer() {
-        travelTimerCancellable?.cancel()
-        travelTimerCancellable = nil
+    private func stopLiveTimer() {
+        liveTimerCancellable?.cancel()
+        liveTimerCancellable = nil
         travelSecondsRemaining = 0
+        menuBarDisplay = computeMenuBarDisplay()
+    }
+
+    private func tick() {
+        updateTravelSecondsRemaining()
+        menuBarDisplay = computeMenuBarDisplay()
     }
 
     private func updateTravelSecondsRemaining() {
@@ -283,6 +296,35 @@ class AppState: ObservableObject {
             return
         }
         travelSecondsRemaining = travel.remainingSeconds(from: lastFetchTime)
+    }
+
+    private func computeMenuBarDisplay() -> MenuBarDisplay {
+        guard let data = data else { return .fallbackIcon }
+
+        if let travel = data.travel, travel.isTraveling {
+            let flag = TornDestination.flag(for: travel.destination ?? "?")
+            return .traveling(flag: flag, seconds: travel.remainingSeconds(from: lastFetchTime))
+        }
+
+        if let status = data.status, status.isInHospital {
+            let secs = status.timeRemaining
+            if let travel = data.travel, travel.isAbroad {
+                let flag = TornDestination.flag(for: travel.destination ?? "?")
+                return .hospitalAbroad(flag: flag, seconds: secs)
+            }
+            return .hospitalAtHome(seconds: secs)
+        }
+
+        if let status = data.status, status.isInJail {
+            return .jail(seconds: status.timeRemaining)
+        }
+
+        if let cd = data.cooldowns,
+           let soonest = cd.soonestActive(from: lastFetchTime) {
+            return .cooldown(emoji: soonest.kind.emoji, seconds: soonest.seconds)
+        }
+
+        return .fallbackIcon
     }
 
     // MARK: - Watchlist
@@ -912,8 +954,8 @@ class AppState: ObservableObject {
             self.lastFetchTime = Date()
             self.errorMsg = nil
 
-            // Manage travel timer after data is set
-            self.manageTravelTimer()
+            // Manage live timer (travel + hospital + jail + cooldowns) after data is set
+            self.manageLiveTimer()
 
             // Check if feedback prompt should be shown
             self.checkFeedbackPrompt()

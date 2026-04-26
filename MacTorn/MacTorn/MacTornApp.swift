@@ -41,15 +41,19 @@ struct MenuBarLabel: View {
     @ObservedObject var appState: AppState
 
     var body: some View {
-        // Show airplane + flag + countdown when traveling
         Group {
-            if let travel = appState.data?.travel,
-               travel.isTraveling {
-                let destination = travel.destination ?? "?"
-                let flag = flagForDestination(destination)
-                let time = formatShortTime(appState.travelSecondsRemaining)
-                Text("✈️\(flag)\(time)")
-            } else {
+            switch appState.menuBarDisplay {
+            case .traveling(let flag, let seconds):
+                Text("✈️\(flag)\(formatShortTime(seconds))")
+            case .hospitalAbroad(let flag, let seconds):
+                Text("🏥\(flag)\(formatShortTime(seconds))")
+            case .hospitalAtHome(let seconds):
+                Text("🏥\(formatShortTime(seconds))")
+            case .jail(let seconds):
+                Text("🚓\(formatShortTime(seconds))")
+            case .cooldown(let emoji, let seconds):
+                Text("\(emoji)\(formatShortTime(seconds))")
+            case .fallbackIcon:
                 Image(systemName: menuBarIcon)
             }
         }
