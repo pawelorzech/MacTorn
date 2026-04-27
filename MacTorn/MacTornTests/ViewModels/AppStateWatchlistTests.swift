@@ -302,4 +302,26 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertEqual(loaded?.priceThreshold, 600)
         XCTAssertEqual(loaded?.lastAlertedPrice, 520)
     }
+
+    // MARK: - Input Validation (F-07)
+
+    func testAddToWatchlist_rejectsZeroAndNegativeIds() {
+        appState.addToWatchlist(itemId: 0, name: "Bad")
+        appState.addToWatchlist(itemId: -1, name: "Bad")
+        XCTAssertEqual(appState.watchlistItems.count, 0)
+    }
+
+    func testAddToWatchlist_rejectsImplausiblyLargeIds() {
+        appState.addToWatchlist(itemId: 999_999_999, name: "Bad")
+        XCTAssertEqual(appState.watchlistItems.count, 0)
+    }
+
+    func testAddToWatchlist_trimsAndCapsName() {
+        let longName = "  " + String(repeating: "x", count: 200) + "  "
+        appState.addToWatchlist(itemId: 123, name: longName)
+        let stored = appState.watchlistItems.first?.name ?? ""
+        XCTAssertLessThanOrEqual(stored.count, 64)
+        XCTAssertFalse(stored.hasPrefix(" "), "leading whitespace not trimmed")
+        XCTAssertFalse(stored.hasSuffix(" "), "trailing whitespace not trimmed")
+    }
 }

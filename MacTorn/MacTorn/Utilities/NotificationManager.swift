@@ -51,11 +51,26 @@ enum NotificationType: String {
 class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
 
+    /// Sanitize text that originated from the Torn API before it lands in
+    /// `UNNotificationContent.title`/`.body`. Strips control characters and caps
+    /// length so a compromised or MITM'd response can't spoof multi-line / oversized
+    /// notifications. `notificationBodyMaxLength` is small on purpose — banners only
+    /// surface ~120 chars anyway.
+    static let notificationTitleMaxLength = 80
+    static let notificationBodyMaxLength = 200
+
+    static func sanitize(_ text: String, maxLength: Int) -> String {
+        let stripped = text.unicodeScalars
+            .filter { !CharacterSet.controlCharacters.contains($0) }
+            .map(Character.init)
+        return String(String(stripped).prefix(maxLength))
+    }
+
     private override init() {
         super.init()
         UNUserNotificationCenter.current().delegate = self
     }
-    
+
     func requestPermission() async {
         do {
             let granted = try await UNUserNotificationCenter.current()
@@ -67,11 +82,11 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             logger.error("Notification permission error: \(error.localizedDescription)")
         }
     }
-    
+
     func send(title: String, body: String, type: NotificationType, customURL: URL? = nil) {
         let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
+        content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
+        content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
         content.sound = .default
         content.categoryIdentifier = type.rawValue
         if let customURL = customURL {
@@ -94,8 +109,8 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     /// Schedule a notification for a specific date
     func scheduleNotification(title: String, body: String, type: NotificationType, at date: Date, identifier: String) {
         let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
+        content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
+        content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
         content.sound = .default
         content.categoryIdentifier = type.rawValue
 

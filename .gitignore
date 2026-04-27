@@ -73,3 +73,21 @@ archive/
 CLAUDE.md
 .superpowers/
 firebase-debug.log
+
+# Secrets and signing material — must never be committed
+*.p12
+*.cer
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+.env
+.env.*
+!.env.example
+
+# Build/release artifacts that shouldn't live in git
+*.xcarchive
+*.zip
+*.dmg
+*.pkg
+ExportOptions.plist

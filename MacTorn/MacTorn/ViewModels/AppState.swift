@@ -1,9 +1,93 @@
 import Foundation
 import Combine
+import Security
 import SwiftUI
 import os.log
 
 private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "AppState")
+
+// MARK: - KeychainStore (F-01: replaces @AppStorage for the Torn API key)
+
+/// Minimal generic-password Keychain wrapper for the single Torn API key.
+/// Lives here as a file-private enum to avoid touching the .pbxproj — the surface
+/// is so small (one item) that a separate file would be over-architected.
+///
+/// Storage attributes:
+/// - `kSecClassGenericPassword` (one item, scoped to this app)
+/// - `kSecAttrAccessibleAfterFirstUnlock` (available across reboots once the user
+///    has logged in once; matches a menu-bar app's expected runtime)
+///
+/// Test isolation: when running under XCTest we use a `.tests` service name so
+/// the test suite cannot read or overwrite a real production API key.
+enum KeychainStore {
+    static let account = "apiKey"
+
+    static var service: String {
+        // Under XCTest, xcodebuild may spawn multiple parallel xctest worker processes.
+        // They share the user's login keychain, so a fixed test-service name causes
+        // races: one worker's `set` overwrites another's mid-test. PID-suffix isolates
+        // them. Orphan entries are bounded (tearDown deletes them).
+        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
+            return "com.mactorn.app.tests.\(ProcessInfo.processInfo.processIdentifier)"
+        }
+        return "com.mactorn.app"
+    }
+
+    static func get() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        guard status == errSecSuccess,
+              let data = item as? Data,
+              let str = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return str
+    }
+
+    static func set(_ value: String) {
+        guard !value.isEmpty else {
+            delete()
+            return
+        }
+        guard let data = value.data(using: .utf8) else { return }
+        let baseQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        let updateAttrs: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+        ]
+        let updateStatus = SecItemUpdate(baseQuery as CFDictionary, updateAttrs as CFDictionary)
+        if updateStatus == errSecItemNotFound {
+            var addQuery = baseQuery
+            addQuery.merge(updateAttrs) { _, new in new }
+            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            if addStatus != errSecSuccess {
+                logger.error("KeychainStore add failed: OSStatus \(addStatus)")
+            }
+        } else if updateStatus != errSecSuccess {
+            logger.error("KeychainStore update failed: OSStatus \(updateStatus)")
+        }
+    }
+
+    static func delete() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
 
 // MARK: - Appearance
 enum AppearanceMode: String, CaseIterable {
@@ -23,7 +107,18 @@ enum AppearanceMode: String, CaseIterable {
 @MainActor
 class AppState: ObservableObject {
     // MARK: - Persisted
-    @AppStorage("apiKey") var apiKey: String = ""
+    /// Torn API key. Stored in the macOS Keychain (see `KeychainStore` above).
+    /// Was previously `@AppStorage("apiKey")` which writes plaintext to
+    /// `~/Library/Preferences/com.mactorn.app.plist` — an unprivileged read.
+    @Published var apiKey: String = "" {
+        didSet {
+            // Skip the redundant write that the migration assignment in init would
+            // otherwise trigger, and avoid Keychain churn on no-op assignments from
+            // SwiftUI's binding lifecycle.
+            guard apiKey != oldValue else { return }
+            KeychainStore.set(apiKey)
+        }
+    }
     @AppStorage("refreshInterval") var refreshInterval: Int = 30
     @AppStorage("appearanceMode") var appearanceMode: String = AppearanceMode.system.rawValue
 
@@ -95,6 +190,17 @@ class AppState: ObservableObject {
     init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil) {
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
+
+        // F-01 migration: lift any pre-existing plaintext key out of UserDefaults
+        // into the Keychain on first launch of the new build, then clear the
+        // UserDefaults entry. Safe to run every launch (idempotent).
+        if let legacy = UserDefaults.standard.string(forKey: "apiKey"), !legacy.isEmpty {
+            KeychainStore.set(legacy)
+            UserDefaults.standard.removeObject(forKey: "apiKey")
+            logger.info("Migrated API key from UserDefaults to Keychain")
+        }
+        self.apiKey = KeychainStore.get() ?? ""
+
         loadNotificationRules()
         loadTravelNotificationSettings()
         loadWatchlist()
@@ -342,7 +448,15 @@ class AppState: ObservableObject {
     }
     
     func addToWatchlist(itemId: Int, name: String) {
-        let item = WatchlistItem(id: itemId, name: name, lowestPrice: 0, lowestPriceQuantity: 0, secondLowestPrice: 0, lastUpdated: nil, error: nil)
+        // Clamp inputs at the trust boundary. itemId flows directly into a request URL path
+        // and `name` flows into UNNotificationContent.body, so reject obviously bogus values
+        // rather than persisting them. Torn item IDs are positive and currently <100k.
+        guard itemId > 0, itemId < 100_000 else {
+            logger.warning("addToWatchlist rejected itemId out of range: \(itemId)")
+            return
+        }
+        let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(64))
+        let item = WatchlistItem(id: itemId, name: trimmed, lowestPrice: 0, lowestPriceQuantity: 0, secondLowestPrice: 0, lastUpdated: nil, error: nil)
         if !watchlistItems.contains(where: { $0.id == itemId }) {
             watchlistItems.append(item)
             saveWatchlist()
@@ -757,7 +871,7 @@ class AppState: ObservableObject {
         isLoading = true
         errorMsg = nil
 
-        logger.info("Starting data fetch from: \(url.absoluteString.prefix(80))...")
+        logger.info("Starting data fetch from: \(tornRedactedURL(url))")
 
         fetchTask?.cancel()
         fetchTask = Task {
@@ -789,9 +903,14 @@ class AppState: ObservableObject {
 
                 switch httpResponse.statusCode {
                 case 200:
-                    // Log raw JSON for debugging (first 500 chars)
-                    if let jsonString = String(data: data, encoding: .utf8) {
-                        logger.debug("Raw API response: \(jsonString.prefix(500))")
+                    // Diagnostics only: payload size + top-level keys. Never log raw response —
+                    // it contains player name, money, stats, attacks, and other PII (and the
+                    // request URL with the API key already passed through redacted logging).
+                    if let topLevel = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        let keys = topLevel.keys.sorted().joined(separator: ",")
+                        logger.debug("API response: \(data.count) bytes, keys=[\(keys)]")
+                    } else {
+                        logger.debug("API response: \(data.count) bytes (non-JSON or unparseable)")
                     }
 
                     // Parse user data and fetch faction data in parallel
@@ -837,8 +956,25 @@ class AppState: ObservableObject {
                 return (nil, nil, nil, nil, nil, [], "API Error: \(errorMessage)")
             }
 
-            // Attempt to decode TornResponse first
-            let decodedTornResponse = try? JSONDecoder().decode(TornResponse.self, from: data)
+            // Attempt to decode TornResponse first. Surface the decode failure class
+            // (without dumping payload contents — that's PII) so silent decode failures
+            // become diagnosable instead of vanishing into a "no data" state.
+            let decodedTornResponse: TornResponse?
+            do {
+                decodedTornResponse = try JSONDecoder().decode(TornResponse.self, from: data)
+            } catch let DecodingError.keyNotFound(key, ctx) {
+                logger.error("TornResponse decode: missing key '\(key.stringValue)' at \(ctx.codingPath.map(\.stringValue).joined(separator: "."))")
+                decodedTornResponse = nil
+            } catch let DecodingError.typeMismatch(_, ctx) {
+                logger.error("TornResponse decode: type mismatch at \(ctx.codingPath.map(\.stringValue).joined(separator: "."))")
+                decodedTornResponse = nil
+            } catch let DecodingError.valueNotFound(_, ctx) {
+                logger.error("TornResponse decode: value not found at \(ctx.codingPath.map(\.stringValue).joined(separator: "."))")
+                decodedTornResponse = nil
+            } catch {
+                logger.error("TornResponse decode failed: \(String(describing: type(of: error)))")
+                decodedTornResponse = nil
+            }
             
             // --- EXTENDED DATA ---
             
@@ -926,8 +1062,8 @@ class AppState: ObservableObject {
             }
 
             if let decoded = result.0 {
-                logger.info("Parsed data - Name: \(decoded.name ?? "nil"), Life: \(decoded.life?.current ?? -1)/\(decoded.life?.maximum ?? -1)")
-                logger.info("Status: \(decoded.status?.description ?? "nil"), State: \(decoded.status?.state ?? "nil")")
+                // Don't log player name (identifying PII). State + life are non-identifying diagnostics.
+                logger.info("Parsed data — Life: \(decoded.life?.current ?? -1)/\(decoded.life?.maximum ?? -1), State: \(decoded.status?.state ?? "nil")")
                 if let events = decoded.events {
                     logger.info("Events count: \(events.count)")
                 }

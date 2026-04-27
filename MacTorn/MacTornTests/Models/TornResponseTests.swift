@@ -182,3 +182,164 @@ final class TornResponseTests: XCTestCase {
         XCTAssertEqual(message.read, 0)
     }
 }
+
+// MARK: - URL Redactor (F-02)
+
+final class TornRedactedURLTests: XCTestCase {
+    /// Documents the exact bug F-02 fixes. The previous code logged
+    /// `url.absoluteString.prefix(80)`; for a short Torn API key (16 chars)
+    /// the entire key landed in os_log. The redactor must never emit values.
+    func testRedactor_doesNotLeakAPIKey() {
+        let secret = "AbCdEfGhIjKlMnOp"
+        let url = URL(string: "https://api.torn.com/user/?selections=basic,bars&key=\(secret)")!
+        let redacted = tornRedactedURL(url)
+        XCTAssertFalse(redacted.contains(secret), "redactor leaked API key: \(redacted)")
+    }
+
+    func testRedactor_keepsHostAndPath() {
+        // URL.path strips the trailing slash in Foundation, so the redacted form is
+        // .../user (no trailing slash). What we actually care about is that host + path
+        // survive intact and only values are dropped.
+        let url = URL(string: "https://api.torn.com/user/?selections=basic&key=XYZ")!
+        let out = tornRedactedURL(url)
+        XCTAssertTrue(out.contains("api.torn.com"))
+        XCTAssertTrue(out.contains("/user"))
+        XCTAssertFalse(out.contains("XYZ"))
+    }
+
+    func testRedactor_listsQueryKeysSorted() {
+        let url = URL(string: "https://api.torn.com/v2/market/123?selections=itemmarket,bazaar&key=XYZ")!
+        XCTAssertEqual(tornRedactedURL(url), "https://api.torn.com/v2/market/123?[key,selections]")
+    }
+
+    func testRedactor_handlesNoQueryString() {
+        let url = URL(string: "https://api.torn.com/v2/market/123")!
+        XCTAssertEqual(tornRedactedURL(url), "https://api.torn.com/v2/market/123")
+    }
+
+    func testRedactor_doesNotLeakKeyEvenWithSpecialChars() {
+        let secret = "Ab&Cd=Ef Gh"
+        let raw = "https://api.torn.com/user/?selections=basic&key=\(secret)"
+        guard let url = URL(string: raw.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? raw) else {
+            return XCTFail("could not build URL")
+        }
+        XCTAssertFalse(tornRedactedURL(url).contains("Ef"))
+    }
+}
+
+// MARK: - TornAPI URL Builder (F-06)
+
+final class TornAPIURLBuilderTests: XCTestCase {
+    /// Keys with `&`, `=`, or whitespace would have produced malformed URLs under
+    /// the old string-interpolation builder. URLComponents must percent-encode them
+    /// AND round-trip back to the original via queryItems.
+    func testURL_percentEncodesKeyWithReservedChars() {
+        let key = "ab&cd=ef gh"
+        guard let url = TornAPI.url(for: key),
+              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return XCTFail("URL builder returned nil")
+        }
+        let keyValue = comps.queryItems?.first(where: { $0.name == "key" })?.value
+        XCTAssertEqual(keyValue, key, "key should round-trip exactly through percent-encoding")
+    }
+
+    func testURL_marketURLIncludesItemIdInPath() {
+        guard let url = TornAPI.marketURL(itemId: 1234, apiKey: "abc") else {
+            return XCTFail("nil URL")
+        }
+        XCTAssertEqual(url.path, "/v2/market/1234")
+    }
+
+    func testURL_forumThreadURLIncludesThreadIdInPath() {
+        guard let url = TornAPI.forumThreadURL(threadId: 567, apiKey: "abc") else {
+            return XCTFail("nil URL")
+        }
+        XCTAssertEqual(url.path, "/v2/forum/567/thread")
+    }
+
+    func testURL_keyIsAlwaysPresent() {
+        let urls: [URL?] = [
+            TornAPI.url(for: "k"),
+            TornAPI.factionURL(for: "k"),
+            TornAPI.marketURL(itemId: 1, apiKey: "k"),
+            TornAPI.tornStocksURL(for: "k"),
+            TornAPI.forumThreadURL(threadId: 1, apiKey: "k"),
+            TornAPI.forumCategoryThreadsURL(categoryId: 1, apiKey: "k"),
+        ]
+        for url in urls {
+            let comps = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+            let keyItem = comps?.queryItems?.first { $0.name == "key" }
+            XCTAssertEqual(keyItem?.value, "k", "key missing in \(url?.absoluteString ?? "nil")")
+        }
+    }
+}
+
+// MARK: - Notification Sanitizer (F-08)
+
+final class NotificationSanitizerTests: XCTestCase {
+    func testSanitize_capsLength() {
+        let input = String(repeating: "x", count: 500)
+        let out = NotificationManager.sanitize(input, maxLength: 200)
+        XCTAssertEqual(out.count, 200)
+    }
+
+    func testSanitize_stripsControlCharacters() {
+        let input = "hello\u{0}\nworld\u{1}\u{7}!"
+        let out = NotificationManager.sanitize(input, maxLength: 100)
+        XCTAssertFalse(out.contains("\n"))
+        XCTAssertFalse(out.contains("\u{0}"))
+        XCTAssertFalse(out.contains("\u{1}"))
+        XCTAssertEqual(out, "helloworld!")
+    }
+
+    func testSanitize_passesThroughNormalText() {
+        let input = "Travel: Mexico"
+        XCTAssertEqual(NotificationManager.sanitize(input, maxLength: 200), input)
+    }
+}
+
+// MARK: - KeychainStore (F-01)
+
+final class KeychainStoreTests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        // Tests run against the `.tests` service so the prod entry is untouched.
+        KeychainStore.delete()
+    }
+
+    override func tearDown() {
+        KeychainStore.delete()
+        super.tearDown()
+    }
+
+    func testKeychain_setAndGetRoundtrip() {
+        KeychainStore.set("AbCdEfGh12345678")
+        XCTAssertEqual(KeychainStore.get(), "AbCdEfGh12345678")
+    }
+
+    func testKeychain_setOverwrites() {
+        KeychainStore.set("first")
+        KeychainStore.set("second")
+        XCTAssertEqual(KeychainStore.get(), "second")
+    }
+
+    func testKeychain_deleteClears() {
+        KeychainStore.set("xyz")
+        KeychainStore.delete()
+        XCTAssertNil(KeychainStore.get())
+    }
+
+    func testKeychain_setEmptyDeletes() {
+        KeychainStore.set("xyz")
+        KeychainStore.set("")
+        XCTAssertNil(KeychainStore.get())
+    }
+
+    /// Defense-in-depth: ensure tests don't accidentally use the production keychain
+    /// service. If this asserts, an environment change broke isolation.
+    func testKeychain_serviceIsTestIsolated() {
+        XCTAssertTrue(KeychainStore.service.hasPrefix("com.mactorn.app.tests"),
+                      "service should be test-isolated, got: \(KeychainStore.service)")
+        XCTAssertNotEqual(KeychainStore.service, "com.mactorn.app")
+    }
+}

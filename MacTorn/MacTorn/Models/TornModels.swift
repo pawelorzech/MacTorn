@@ -956,31 +956,57 @@ enum TornAPI {
     static let marketURL = "https://api.torn.com/market/"
     static let tornURL = "https://api.torn.com/torn/"
     static let selections = "basic,bars,cooldowns,travel,profile,events,messages,money,battlestats,attacks,properties,stocks"
-    
+
+    /// Build a Torn API URL with proper percent-encoding via URLComponents/URLQueryItem.
+    /// String interpolation (the previous approach) would silently mangle keys that
+    /// happen to contain `&`, `=`, or whitespace if pasted with junk.
+    private static func build(_ urlString: String, query: [String: String]) -> URL? {
+        guard var comps = URLComponents(string: urlString) else { return nil }
+        comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+            .sorted { $0.name < $1.name }
+        return comps.url
+    }
+
     static func url(for apiKey: String) -> URL? {
-        URL(string: "\(baseURL)?selections=\(selections)&key=\(apiKey)")
+        build(baseURL, query: ["selections": selections, "key": apiKey])
     }
-    
+
     static func factionURL(for apiKey: String) -> URL? {
-        URL(string: "\(factionURL)?selections=basic,chain,crimes&key=\(apiKey)")
+        build(factionURL, query: ["selections": "basic,chain,crimes", "key": apiKey])
     }
-    
+
     static func marketURL(itemId: Int, apiKey: String) -> URL? {
-        // v2 endpoint for item market
-        URL(string: "https://api.torn.com/v2/market/\(itemId)?selections=itemmarket,bazaar&key=\(apiKey)")
+        build("https://api.torn.com/v2/market/\(itemId)",
+              query: ["selections": "itemmarket,bazaar", "key": apiKey])
     }
 
     static func tornStocksURL(for apiKey: String) -> URL? {
-        URL(string: "\(tornURL)?selections=stocks&key=\(apiKey)")
+        build(tornURL, query: ["selections": "stocks", "key": apiKey])
     }
 
     static func forumThreadURL(threadId: Int, apiKey: String) -> URL? {
-        URL(string: "https://api.torn.com/v2/forum/\(threadId)/thread?key=\(apiKey)")
+        build("https://api.torn.com/v2/forum/\(threadId)/thread", query: ["key": apiKey])
     }
 
     static func forumCategoryThreadsURL(categoryId: Int, apiKey: String) -> URL? {
-        URL(string: "https://api.torn.com/v2/forum/\(categoryId)/threads?key=\(apiKey)")
+        build("https://api.torn.com/v2/forum/\(categoryId)/threads", query: ["key": apiKey])
     }
+}
+
+/// Returns a log-safe description of an api.torn.com URL: scheme://host/path?[sorted-query-keys].
+/// Strips every query *value* — Torn API keys travel in the `key` query param, so any
+/// `absoluteString` interpolated into a log call would leak the key into os_log / Console.app.
+/// Always use this instead of `url.absoluteString` in logger statements.
+func tornRedactedURL(_ url: URL) -> String {
+    let scheme = url.scheme ?? "?"
+    let host = url.host ?? "?"
+    let path = url.path
+    let comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+    let keys = (comps?.queryItems?.map(\.name).sorted() ?? []).joined(separator: ",")
+    if keys.isEmpty {
+        return "\(scheme)://\(host)\(path)"
+    }
+    return "\(scheme)://\(host)\(path)?[\(keys)]"
 }
 
 // MARK: - Notification Settings

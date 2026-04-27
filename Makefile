@@ -1,18 +1,22 @@
 # MacTorn Makefile
 # Run tests and build commands for local development
 
-.PHONY: test test-unit test-ui build clean coverage help
+.PHONY: test test-unit test-ui build clean coverage help release release-signed
 
 # Default target
 help:
 	@echo "MacTorn Build Commands:"
 	@echo ""
-	@echo "  make test       - Run all unit tests"
-	@echo "  make test-ui    - Run UI tests"
-	@echo "  make build      - Build the app in Debug mode"
-	@echo "  make release    - Build the app in Release mode"
-	@echo "  make clean      - Clean build artifacts"
-	@echo "  make coverage   - Run tests with code coverage"
+	@echo "  make test            - Run all unit tests"
+	@echo "  make test-ui         - Run UI tests"
+	@echo "  make build           - Build the app in Debug mode"
+	@echo "  make release         - Build the app in Release mode (ad-hoc signed, dev only)"
+	@echo "  make release-signed  - Build Release signed with Developer ID (set DEVELOPER_ID)"
+	@echo "  make clean           - Clean build artifacts"
+	@echo "  make coverage        - Run tests with code coverage"
+	@echo ""
+	@echo "  Example:"
+	@echo "    make release-signed DEVELOPER_ID=\"Developer ID Application: NAME (TEAMID)\""
 	@echo ""
 
 # Run unit tests
@@ -57,7 +61,8 @@ build:
 		CODE_SIGN_IDENTITY="-" \
 		CODE_SIGNING_REQUIRED=NO
 
-# Build Release (Universal Binary for Intel + Apple Silicon)
+# Build Release (Universal Binary for Intel + Apple Silicon, ad-hoc signed)
+# This is fine for local development. For distribution use `release-signed` below.
 release:
 	xcodebuild build \
 		-project MacTorn/MacTorn.xcodeproj \
@@ -68,6 +73,37 @@ release:
 		ONLY_ACTIVE_ARCH=NO \
 		CODE_SIGN_IDENTITY="-" \
 		CODE_SIGNING_REQUIRED=NO
+
+# Build Release signed with Developer ID (Universal Binary). Required for distribution
+# so users can verify the publisher. Notarization is a follow-up — without it, Gatekeeper
+# on recent macOS will still warn on first launch (right-click → Open is required).
+#
+# Usage:
+#   make release-signed DEVELOPER_ID="Developer ID Application: NAME (TEAMID)"
+#
+# To list available identities:
+#   security find-identity -v -p codesigning
+release-signed:
+ifndef DEVELOPER_ID
+	$(error DEVELOPER_ID is not set. Example: make release-signed DEVELOPER_ID="Developer ID Application: NAME (TEAMID)")
+endif
+	xcodebuild build \
+		-project MacTorn/MacTorn.xcodeproj \
+		-scheme MacTorn \
+		-configuration Release \
+		-destination 'generic/platform=macOS' \
+		ARCHS="arm64 x86_64" \
+		ONLY_ACTIVE_ARCH=NO \
+		CODE_SIGN_STYLE=Manual \
+		CODE_SIGN_IDENTITY="$(DEVELOPER_ID)" \
+		OTHER_CODE_SIGN_FLAGS="--options=runtime --timestamp" \
+		CODE_SIGNING_REQUIRED=YES \
+		CODE_SIGNING_ALLOWED=YES
+	@echo ""
+	@echo "Verify the signed bundle:"
+	@echo "  codesign -dvv build/Build/Products/Release/MacTorn.app"
+	@echo "  spctl --assess --verbose=4 build/Build/Products/Release/MacTorn.app"
+	@echo "  (spctl will report 'rejected ... no notarization' until F-04 follow-up adds notarytool.)"
 
 # Clean build artifacts
 clean:
