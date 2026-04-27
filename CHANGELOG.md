@@ -5,6 +5,23 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.8] - 2026-04-27
+
+### Performance
+- **Live timer no longer churns SwiftUI every second.** The 1 Hz countdown that drives the menu bar label and the travel countdown now skips `@Published`/Observation writes when the displayed value hasn't changed (e.g. cooldowns shown as `Hh Mm` only mutate every ~60 s). Removes per-second invalidation cascade across `MenuBarLabel`, header, and TravelView.
+- **Polling no longer restarts on every menu open.** `MenuBarExtra` fires `onAppear` on each popover open; previously each open cancelled the timer and immediately re-fetched. `startPolling()` now no-ops when a timer is already running and the last fetch is < `refreshInterval / 2` old. `refreshNow()` keeps an explicit `force: true` bypass for the user-initiated refresh button. Same guard added to `startForumPolling()`.
+- **Watchlist threshold notifications are now batched.** When the periodic watchlist refresh sees ≥ 2 items cross their price threshold in a single pass, a single summary notification (`"3 price alerts: Xanax, Plushie +1 more"`) is emitted instead of N separate banners. Single-item add-to-watchlist still fires individually.
+- **Forum poll short-circuits unchanged threads.** `checkThreadForUpdates` returns early when the post count is unchanged since the last poll, skipping the notification path and the post-count write entirely.
+- **Stocks metadata retry uses exponential backoff (60 s → 300 s → 1800 s cap).** Previously a persistent `torn/?selections=stocks` failure was retried on every 30 s main poll, burning API quota. Backoff resets on success.
+- **Release build is now stripped end-to-end.** `SWIFT_OPTIMIZATION_LEVEL=-O`, `DEAD_CODE_STRIPPING=YES`, `DEPLOYMENT_POSTPROCESSING=YES`, `STRIP_INSTALLED_PRODUCT=YES`, `STRIP_STYLE=all` are now explicit on the project-level Release config (previously relying on Xcode defaults; `DEPLOYMENT_POSTPROCESSING` was off, so the binary that ended up in `build/Build/Products/Release/MacTorn.app` was not actually stripped on a plain `make release`).
+
+### Changed
+- **`AppState` migrated from `ObservableObject` + `@Published` to `@Observable` (Observation framework, macOS 14+).** SwiftUI now invalidates only the views that actually read a changed property — previously a single fetch cycle wrote 7 `@Published` properties and triggered 7 invalidation rounds across every view that observed `AppState`. All 11 views switched from `@EnvironmentObject` to `@Environment(AppState.self)`; `MacTornApp` switched from `@StateObject` to `@State`; `SettingsView` uses `@Bindable` to keep the existing `$appState.refreshInterval` Picker binding.
+- `@AppStorage("refreshInterval")` and `@AppStorage("appearanceMode")` on `AppState` replaced with stored properties + `didSet` write-through to `UserDefaults` (required because `@AppStorage` is a SwiftUI property wrapper and doesn't compose with `@Observable`). Behavior unchanged: same UserDefaults keys, same defaults, persistence across launches preserved.
+
+### Tests
+- New `AppStatePerformanceTests` records `JSONDecoder` baselines via `XCTest.measure` for full-response and stocks-metadata parsing, plus a regression guard for the stocks backoff ladder.
+
 ## [1.8.7] - 2026-04-27
 
 ### Security

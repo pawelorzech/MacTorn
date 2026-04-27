@@ -23,7 +23,7 @@ enum AppTab: String, CaseIterable {
 }
 
 struct ContentView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
     @State private var showSettings = false
     @State private var currentTab: AppTab = .status
@@ -34,7 +34,7 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 if appState.apiKey.isEmpty || showSettings {
                     SettingsView()
-                        .environmentObject(appState)
+                        .environment(appState)
                 } else {
                     // Header with last updated
                     headerView
@@ -76,7 +76,7 @@ struct ContentView: View {
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
 
                 FeedbackPromptView()
-                    .environmentObject(appState)
+                    .environment(appState)
             }
         }
         .frame(width: 320)
@@ -137,25 +137,25 @@ struct ContentView: View {
         switch currentTab {
         case .status:
             StatusView()
-                .environmentObject(appState)
+                .environment(appState)
         case .travel:
             TravelView()
-                .environmentObject(appState)
+                .environment(appState)
         case .money:
             MoneyView()
-                .environmentObject(appState)
+                .environment(appState)
         case .attacks:
             AttacksView()
-                .environmentObject(appState)
+                .environment(appState)
         case .faction:
             FactionView()
-                .environmentObject(appState)
+                .environment(appState)
         case .watchlist:
             WatchlistView()
-                .environmentObject(appState)
+                .environment(appState)
         case .forums:
             ForumWatchView()
-                .environmentObject(appState)
+                .environment(appState)
         }
     }
     

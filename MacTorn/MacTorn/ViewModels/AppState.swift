@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import Security
 import SwiftUI
+import Observation
 import os.log
 
 private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "AppState")
@@ -105,12 +106,13 @@ enum AppearanceMode: String, CaseIterable {
 }
 
 @MainActor
-class AppState: ObservableObject {
+@Observable
+class AppState {
     // MARK: - Persisted
     /// Torn API key. Stored in the macOS Keychain (see `KeychainStore` above).
     /// Was previously `@AppStorage("apiKey")` which writes plaintext to
     /// `~/Library/Preferences/com.mactorn.app.plist` — an unprivileged read.
-    @Published var apiKey: String = "" {
+    var apiKey: String = "" {
         didSet {
             // Skip the redundant write that the migration assignment in init would
             // otherwise trigger, and avoid Keychain churn on no-op assignments from
@@ -119,73 +121,96 @@ class AppState: ObservableObject {
             KeychainStore.set(apiKey)
         }
     }
-    @AppStorage("refreshInterval") var refreshInterval: Int = 30
-    @AppStorage("appearanceMode") var appearanceMode: String = AppearanceMode.system.rawValue
 
-    // MARK: - Published State
-    @Published var data: TornResponse?
-    @Published var lastUpdated: Date?
-    @Published var errorMsg: String?
-    @Published var isLoading: Bool = false
-    @Published var notificationRules: [NotificationRule] = []
-    @Published var travelNotificationSettings: [TravelNotificationSetting] = []
+    // Was @AppStorage; replaced with stored property + didSet write-through to
+    // UserDefaults so @Observable change tracking sees it. Initial value is
+    // populated from UserDefaults in init().
+    var refreshInterval: Int = 30 {
+        didSet {
+            guard refreshInterval != oldValue else { return }
+            UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval")
+        }
+    }
+    var appearanceMode: String = AppearanceMode.system.rawValue {
+        didSet {
+            guard appearanceMode != oldValue else { return }
+            UserDefaults.standard.set(appearanceMode, forKey: "appearanceMode")
+        }
+    }
+
+    // MARK: - Observable State
+    var data: TornResponse?
+    var lastUpdated: Date?
+    var errorMsg: String?
+    var isLoading: Bool = false
+    var notificationRules: [NotificationRule] = []
+    var travelNotificationSettings: [TravelNotificationSetting] = []
 
     // MARK: - New Data Sources
-    @Published var moneyData: MoneyData?
-    @Published var battleStats: BattleStats?
-    @Published var recentAttacks: [AttackResult]?
-    @Published var factionData: FactionData?
-    @Published var propertiesData: [PropertyInfo]?
-    @Published var stocksData: [StockHolding] = []
-    @Published var stocksMetadata: [Int: StockMetadata] = [:]
-    @Published var watchlistItems: [WatchlistItem] = []
-    @Published var organizedCrimes: [OrganizedCrime] = []
-    @Published var watchedThreads: [WatchedThread] = []
-    @Published var forumWatchConfig: ForumWatchConfig = ForumWatchConfig()
+    var moneyData: MoneyData?
+    var battleStats: BattleStats?
+    var recentAttacks: [AttackResult]?
+    var factionData: FactionData?
+    var propertiesData: [PropertyInfo]?
+    var stocksData: [StockHolding] = []
+    var stocksMetadata: [Int: StockMetadata] = [:]
+    var watchlistItems: [WatchlistItem] = []
+    var organizedCrimes: [OrganizedCrime] = []
+    var watchedThreads: [WatchedThread] = []
+    var forumWatchConfig: ForumWatchConfig = ForumWatchConfig()
 
     // MARK: - Update State
-    @Published var updateAvailable: GitHubRelease?
+    var updateAvailable: GitHubRelease?
 
     // MARK: - Feedback State
-    @Published var feedbackState: AppFeedbackState?
-    @Published var showFeedbackPrompt: Bool = false
+    var feedbackState: AppFeedbackState?
+    var showFeedbackPrompt: Bool = false
     static let feedbackThresholds: [TimeInterval] = [3600, 7 * 86400, 30 * 86400]
 
     // MARK: - Fetch Time (for live countdown calculations)
-    @Published var lastFetchTime: Date = Date()
+    var lastFetchTime: Date = Date()
 
     // MARK: - Live Travel Countdown
-    @Published var travelSecondsRemaining: Int = 0
-    @Published var menuBarDisplay: MenuBarDisplay = .fallbackIcon
-    private var liveTimerCancellable: AnyCancellable?
+    var travelSecondsRemaining: Int = 0
+    var menuBarDisplay: MenuBarDisplay = .fallbackIcon
+    @ObservationIgnored private var liveTimerCancellable: AnyCancellable?
 
     // MARK: - Managers
-    let launchAtLogin = LaunchAtLoginManager()
-    let shortcutsManager = ShortcutsManager()
-    let updateManager = UpdateManager.shared
+    @ObservationIgnored let launchAtLogin = LaunchAtLoginManager()
+    @ObservationIgnored let shortcutsManager = ShortcutsManager()
+    @ObservationIgnored let updateManager = UpdateManager.shared
 
     // MARK: - Networking (Dependency Injection for Testing)
-    private let session: NetworkSession
-    private let connectivity: NetworkConnectivity
+    @ObservationIgnored private let session: NetworkSession
+    @ObservationIgnored private let connectivity: NetworkConnectivity
 
     // MARK: - State Comparison
-    private var previousBars: Bars?
-    private var previousCooldowns: Cooldowns?
-    private var previousTravel: Travel?
-    private var previousChain: Chain?
-    private var previousStatus: Status?
-    private var previousOCReady: Set<Int> = []
+    @ObservationIgnored private var previousBars: Bars?
+    @ObservationIgnored private var previousCooldowns: Cooldowns?
+    @ObservationIgnored private var previousTravel: Travel?
+    @ObservationIgnored private var previousChain: Chain?
+    @ObservationIgnored private var previousStatus: Status?
+    @ObservationIgnored private var previousOCReady: Set<Int> = []
 
     // MARK: - Task Handles (for deduplication)
-    private var fetchTask: Task<Void, Never>?
-    private var watchlistTask: Task<Void, Never>?
-    private var forumFetchTask: Task<Void, Never>?
+    @ObservationIgnored private var fetchTask: Task<Void, Never>?
+    @ObservationIgnored private var watchlistTask: Task<Void, Never>?
+    @ObservationIgnored private var forumFetchTask: Task<Void, Never>?
 
     // MARK: - Timer
-    private var timerCancellable: AnyCancellable?
-    private var forumTimerCancellable: AnyCancellable?
+    @ObservationIgnored private var timerCancellable: AnyCancellable?
+    @ObservationIgnored private var forumTimerCancellable: AnyCancellable?
+    @ObservationIgnored private var lastForumFetchAt: Date?
 
     private static let stocksMetadataCacheKey = "stocksMetadataCache"
+
+    // Stocks metadata backoff: ladder of seconds applied between retries after failures.
+    // Last value is the cap and is used for any further failure beyond the ladder length.
+    // Reset to 0 (= no backoff active) on success or when metadata is freshly cached.
+    private static let stocksBackoffLadder: [TimeInterval] = [60, 300, 1800]
+    // `internal` (default) so @testable can read these in performance tests.
+    var stocksFailureCount = 0
+    var stocksNextRetryAfter: Date?
 
     init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil) {
         self.session = session
@@ -200,6 +225,16 @@ class AppState: ObservableObject {
             logger.info("Migrated API key from UserDefaults to Keychain")
         }
         self.apiKey = KeychainStore.get() ?? ""
+
+        // Was provided by @AppStorage; now manual seed from UserDefaults so the
+        // values survive across launches. Note: didSet does NOT fire on init,
+        // so this assignment doesn't loop-write back into UserDefaults.
+        if let stored = UserDefaults.standard.object(forKey: "refreshInterval") as? Int {
+            self.refreshInterval = stored
+        }
+        if let stored = UserDefaults.standard.string(forKey: "appearanceMode") {
+            self.appearanceMode = stored
+        }
 
         loadNotificationRules()
         loadTravelNotificationSettings()
@@ -226,17 +261,33 @@ class AppState: ObservableObject {
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             let (data, _) = try await session.data(for: request)
             let parsed = AppState.parseStocksMetadata(from: data, logger: logger)
-            guard !parsed.isEmpty else { return }
+            guard !parsed.isEmpty else {
+                await MainActor.run { self.recordStocksMetadataFailure() }
+                return
+            }
             await MainActor.run {
                 self.stocksMetadata = parsed
                 if let encoded = try? JSONEncoder().encode(parsed) {
                     UserDefaults.standard.set(encoded, forKey: Self.stocksMetadataCacheKey)
                 }
+                self.stocksFailureCount = 0
+                self.stocksNextRetryAfter = nil
                 logger.info("Stocks metadata loaded: \(parsed.count) stocks")
             }
         } catch {
+            await MainActor.run { self.recordStocksMetadataFailure() }
             logger.error("Failed to fetch stocks metadata: \(error.localizedDescription)")
         }
+    }
+
+    /// Bumps failure count and computes the next allowable retry instant from the backoff ladder.
+    /// `internal` so unit tests can drive it without going through a fake URL session.
+    @MainActor
+    func recordStocksMetadataFailure() {
+        stocksFailureCount += 1
+        let idx = min(stocksFailureCount - 1, Self.stocksBackoffLadder.count - 1)
+        let delay = Self.stocksBackoffLadder[idx]
+        stocksNextRetryAfter = Date().addingTimeInterval(delay)
     }
 
     /// Parses the `torn/?selections=stocks` response using JSONSerialization (resilient to extra fields).
@@ -393,15 +444,26 @@ class AppState: ObservableObject {
 
     private func tick() {
         updateTravelSecondsRemaining()
-        menuBarDisplay = computeMenuBarDisplay()
+        // Skip @Published write if computed value is unchanged: avoids SwiftUI
+        // invalidating MenuBarLabel + every observer once per second when the
+        // displayed string hasn't actually changed (cooldowns shown as `Hh Mm`
+        // tick the underlying seconds but render the same label for ~60s).
+        let next = computeMenuBarDisplay()
+        if next != menuBarDisplay {
+            menuBarDisplay = next
+        }
     }
 
     private func updateTravelSecondsRemaining() {
-        guard let travel = data?.travel, travel.isTraveling else {
-            travelSecondsRemaining = 0
-            return
+        let next: Int
+        if let travel = data?.travel, travel.isTraveling {
+            next = travel.remainingSeconds(from: lastFetchTime)
+        } else {
+            next = 0
         }
-        travelSecondsRemaining = travel.remainingSeconds(from: lastFetchTime)
+        if next != travelSecondsRemaining {
+            travelSecondsRemaining = next
+        }
     }
 
     private func computeMenuBarDisplay() -> MenuBarDisplay {
@@ -479,14 +541,42 @@ class AppState: ObservableObject {
         }
     }
     
+    /// Accumulated alerts during a batch refresh; flushed (single or summary) at the end.
+    private var pendingPriceAlerts: [(name: String, price: Int)] = []
+
     private func fetchWatchlistPrices() async {
         guard connectivity.isConnected else { return }
+        pendingPriceAlerts.removeAll(keepingCapacity: true)
         await withTaskGroup(of: Void.self) { group in
             for item in watchlistItems {
                 group.addTask { await self.fetchItemPrice(itemId: item.id, save: false) }
             }
         }
+        flushPendingPriceAlerts()
         saveWatchlist()
+    }
+
+    private func flushPendingPriceAlerts() {
+        let alerts = pendingPriceAlerts
+        pendingPriceAlerts.removeAll(keepingCapacity: true)
+        guard !alerts.isEmpty else { return }
+        if alerts.count == 1 {
+            let a = alerts[0]
+            NotificationManager.shared.send(
+                title: "Price Alert: \(a.name)",
+                body: "Lowest price dropped to \(formatAlertPrice(a.price))",
+                type: .priceAlert
+            )
+            return
+        }
+        // Summary notification: list up to 3 names then "+N more".
+        let preview = alerts.prefix(3).map { $0.name }.joined(separator: ", ")
+        let extra = alerts.count > 3 ? " +\(alerts.count - 3) more" : ""
+        NotificationManager.shared.send(
+            title: "\(alerts.count) price alerts",
+            body: "\(preview)\(extra)",
+            type: .priceAlert
+        )
     }
     
     private func fetchItemPrice(itemId: Int, save: Bool = true) async {
@@ -575,12 +665,18 @@ class AppState: ObservableObject {
             item.error = nil
             watchlistItems[index] = item
             if watchlistItems[index].shouldFirePriceAlert {
-                let priceString = formatAlertPrice(lowestPrice)
-                NotificationManager.shared.send(
-                    title: "Price Alert: \(item.name)",
-                    body: "Lowest price dropped to \(priceString)",
-                    type: .priceAlert
-                )
+                if save {
+                    // Single-item path (e.g. addToWatchlist): fire immediately.
+                    NotificationManager.shared.send(
+                        title: "Price Alert: \(item.name)",
+                        body: "Lowest price dropped to \(formatAlertPrice(lowestPrice))",
+                        type: .priceAlert
+                    )
+                } else {
+                    // Batch path (refreshWatchlistPrices): buffer and emit one summary
+                    // notification at end of fetchWatchlistPrices via flushPendingPriceAlerts().
+                    pendingPriceAlerts.append((name: item.name, price: lowestPrice))
+                }
                 watchlistItems[index].lastAlertedPrice = lowestPrice
             }
             if save { saveWatchlist() }
@@ -676,6 +772,13 @@ class AppState: ObservableObject {
     }
 
     func startForumPolling() {
+        // Same MenuBarExtra-onAppear churn as startPolling: skip restart if already
+        // running and we polled recently.
+        if forumTimerCancellable != nil,
+           let last = lastForumFetchAt,
+           Date().timeIntervalSince(last) < Double(forumWatchConfig.pollingIntervalSeconds) / 2 {
+            return
+        }
         forumTimerCancellable?.cancel()
         guard !apiKey.isEmpty else { return }
 
@@ -711,6 +814,7 @@ class AppState: ObservableObject {
             }
         }
 
+        lastForumFetchAt = Date()
         saveForumWatch()
     }
 
@@ -742,9 +846,20 @@ class AppState: ObservableObject {
                 await MainActor.run {
                     if let index = self.watchedThreads.firstIndex(where: { $0.id == threadId }) {
                         let previousCount = self.watchedThreads[index].lastKnownPostCount
-                        self.watchedThreads[index].title = title
+
+                        // Always-set: title (may have changed) + lastChecked. Only set error
+                        // if it was non-nil (avoid spurious @Published write on no-op).
+                        if self.watchedThreads[index].title != title {
+                            self.watchedThreads[index].title = title
+                        }
                         self.watchedThreads[index].lastChecked = Date()
-                        self.watchedThreads[index].error = nil
+                        if self.watchedThreads[index].error != nil {
+                            self.watchedThreads[index].error = nil
+                        }
+
+                        // Short-circuit: if post count is unchanged, skip the
+                        // notification check + post-count write entirely.
+                        guard currentPostCount != previousCount else { return }
 
                         if previousCount > 0 && currentPostCount > previousCount {
                             let newPosts = currentPostCount - previousCount
@@ -818,7 +933,16 @@ class AppState: ObservableObject {
     }
 
     // MARK: - Polling
-    func startPolling() {
+    func startPolling(force: Bool = false) {
+        // MenuBarExtra fires onAppear on every menu open, so this is called repeatedly.
+        // If the timer is already running and we fetched recently (< refreshInterval/2 ago),
+        // skip the restart + immediate refetch — it just burns API quota.
+        // `force: true` (refreshNow) bypasses the guard for an explicit user-initiated refresh.
+        if !force,
+           timerCancellable != nil,
+           Date().timeIntervalSince(lastFetchTime) < Double(refreshInterval) / 2 {
+            return
+        }
         timerCancellable?.cancel()
         fetchData()
         // Idempotent: only fetch if we don't already have metadata. This survives the
@@ -834,6 +958,9 @@ class AppState: ObservableObject {
 
     private func triggerStocksMetadataFetchIfNeeded() {
         guard stocksMetadata.isEmpty, !apiKey.isEmpty else { return }
+        // Respect exponential backoff so a persistent endpoint failure doesn't
+        // burn API quota on every 30s poll cycle.
+        if let nextRetry = stocksNextRetryAfter, Date() < nextRetry { return }
         Task { await self.fetchStocksMetadata() }
     }
     
@@ -843,7 +970,7 @@ class AppState: ObservableObject {
     }
     
     func refreshNow() {
-        startPolling()
+        startPolling(force: true)
     }
     
     // MARK: - Fetch Data

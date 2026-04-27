@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) private var appState
     @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
     @AppStorage("preferredBrowser") private var preferredBrowser: String = PreferredBrowser.system.rawValue
@@ -22,7 +22,11 @@ struct SettingsView: View {
     }
 
     private var settingsContent: some View {
-        VStack(spacing: 20) {
+        // @Bindable creates write-back bindings on @Observable model fields. Shadowing
+        // the existing `appState` lets us use `$appState.refreshInterval` inline below
+        // without changing the SwiftUI binding syntax at call sites.
+        @Bindable var appState = appState
+        return VStack(spacing: 20) {
             // Header
             Image(systemName: "bolt.circle.fill")
                 .font(.system(size: 48))

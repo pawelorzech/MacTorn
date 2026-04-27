@@ -3,7 +3,7 @@ import AppKit
 
 // MARK: - Flying Status View (separate for proper live updates)
 struct FlyingStatusView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
     let destination: String
     let timestamp: Int
@@ -80,7 +80,7 @@ struct FlyingStatusView: View {
 }
 
 struct TravelView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {

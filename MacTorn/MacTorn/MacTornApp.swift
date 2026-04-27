@@ -2,14 +2,14 @@ import SwiftUI
 
 @main
 struct MacTornApp: App {
-    @StateObject private var appState = AppState()
+    @State private var appState = AppState()
     @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
 
     var body: some Scene {
         MenuBarExtra {
             ContentView()
-                .environmentObject(appState)
+                .environment(appState)
                 .environment(\.reduceTransparency, reduceTransparency)
                 .onAppear {
                     updateAppearance()
@@ -38,7 +38,11 @@ struct MacTornApp: App {
 
 // MARK: - Menu Bar Label
 struct MenuBarLabel: View {
-    @ObservedObject var appState: AppState
+    // @Bindable is the @Observable equivalent of @ObservedObject for views that
+    // are passed an instance (vs. reading it from the environment). Plain `var`
+    // would also work since SwiftUI tracks property reads in body for @Observable
+    // types, but @Bindable keeps the call-site identical to before.
+    @Bindable var appState: AppState
 
     var body: some View {
         Group {

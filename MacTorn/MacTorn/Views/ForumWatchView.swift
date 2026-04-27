@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ForumWatchView: View {
-    @EnvironmentObject var appState: AppState
+    @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
     @State private var showAddThread = false
     @State private var threadInput = ""
