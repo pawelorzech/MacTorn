@@ -5,6 +5,21 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.7] - 2026-04-27
+
+### Security
+- **API key now stored in macOS Keychain** instead of plaintext UserDefaults (`~/Library/Preferences/com.mactorn.app.plist`). On first launch the app migrates any existing key automatically and clears the old plist entry. Service: `com.mactorn.app`, account: `apiKey`, accessible after first unlock.
+- **Stop leaking the API key into `os_log`/Console.** All log statements that referenced a request URL now run through a redactor that emits `scheme://host/path?[sorted-query-keys]` with values dropped. The previous `url.absoluteString.prefix(80)` was exposing the 16-character key to anyone reading Console / sysdiagnose. Also removed raw API response and player-name diagnostic logs.
+- **Hardened Runtime + App Sandbox + entitlements** enabled on Debug and Release. Network access is the only granted entitlement (`com.apple.security.network.client`).
+- **TornAPI URL builders** now use `URLComponents` + `URLQueryItem` instead of string interpolation — keys with `&`, `=`, or whitespace are percent-encoded correctly.
+- **Watchlist input clamped** at the trust boundary: `itemId` must be in `(0, 100000)`, `name` is trimmed and capped at 64 chars.
+- **Notification text sanitized** centrally in `NotificationManager.send`/`scheduleNotification` — strips control characters, length-caps title (80) and body (200) so a MITM'd or compromised Torn API can't spoof multi-line notifications.
+- **Decoder failures** at the outer envelope are now logged with key path + error class instead of being silently swallowed.
+- **`.gitignore` hardened** against accidental commit of signing material (`*.p12`, `*.cer`, `*.mobileprovision`), `.env`, and release archives.
+- **CI workflows:** added `concurrency:` groups to the Claude code-review workflows (least-privilege `permissions:` were already in place).
+
+Full audit and per-finding breakdown: `SECURITY_AUDIT.md` in the repo root. Distribution model is unchanged (ad-hoc signed direct download — Gatekeeper warning on first launch is expected; right-click → Open).
+
 ## [1.8.6] - 2026-04-26
 
 ### Added
