@@ -5,6 +5,11 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.10] - 2026-04-30
+
+### Fixed
+- **Booster/drug/medical countdown no longer jumps on every poll.** v1.8.9 fixed the long-term clock-skew drift by storing absolute end-timestamps (`endsAt = serverTimestamp + duration`), but each ~30 s API poll still re-derived `endsAt` from a fresh integer-second `serverTimestamp` and integer-second `cooldowns.{kind}` pair. API rounding plus network-latency variance made the recomputed value wobble by ±1–3 s vs the previous one, which the menu bar rendered as a visible jump on every refresh. `CooldownEnds.merged(with:toleranceSeconds:)` now pins each `*EndsAt` across polls when the freshly computed value is within ±3 s; larger gaps are treated as a real cooldown reset (new booster/drug/medical) and adopt the new value. Transitions in/out of active (0 ↔ nonzero) are always immediate so the countdown starts/clears without delay. Travel/hospital/jail are unaffected — they already receive absolute Unix epochs from the API and don't have this jitter. Plan: `MacTorn/Plans/ca-y-czas-mam-taki-quiet-crescent.md`.
+
 ## [1.8.9] - 2026-04-30
 
 ### Fixed

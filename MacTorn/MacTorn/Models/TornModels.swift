@@ -148,6 +148,30 @@ struct CooldownEnds: Equatable {
             .filter { $0.seconds > 0 }
             .min { $0.seconds < $1.seconds }
     }
+
+    /// Stabilises per-poll jitter in cooldown end-timestamps. Each poll re-derives
+    /// `endsAt = serverTimestamp + cooldowns.{kind}`, but both the API timestamp and
+    /// the duration are integer-seconds and are subject to network-latency variance,
+    /// so the freshly-computed `endsAt` typically wobbles by ±1–3 s between polls
+    /// even though the cooldown's true expiry is fixed. Without smoothing, every
+    /// poll causes a visible jump in the menu bar countdown.
+    ///
+    /// Per kind: keep the previously-pinned `endsAt` whenever the new one is within
+    /// `toleranceSeconds`. A larger gap means the cooldown was reset (new booster
+    /// taken, drug applied, medical after hospitalisation) — we adopt the new value.
+    /// A `0` on either side (cooldown inactive on one side) is taken from `other`
+    /// so transitions in/out of active are immediate.
+    func merged(with other: CooldownEnds, toleranceSeconds: Int = 3) -> CooldownEnds {
+        func pick(_ old: Int, _ new: Int) -> Int {
+            if old == 0 || new == 0 { return new }
+            return abs(new - old) <= toleranceSeconds ? old : new
+        }
+        return CooldownEnds(
+            drugEndsAt:    pick(drugEndsAt,    other.drugEndsAt),
+            boosterEndsAt: pick(boosterEndsAt, other.boosterEndsAt),
+            medicalEndsAt: pick(medicalEndsAt, other.medicalEndsAt)
+        )
+    }
 }
 
 // MARK: - Travel

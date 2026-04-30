@@ -149,6 +149,137 @@ final class AppStateTests: XCTestCase {
         XCTAssertLessThanOrEqual(ends.boosterEndsAt, after + 600)
     }
 
+    // MARK: - CooldownEnds.merged (pure model)
+
+    /// Per-poll jitter ≤ tolerance keeps the previously pinned `endsAt`. Without this,
+    /// every poll re-derives `endsAt = serverTimestamp + cooldowns.{kind}`, and any
+    /// ±1–3 s wobble in the API integers or in network latency reshuffles the
+    /// displayed countdown — Paweł sees this as the menu bar jumping each ~30 s.
+    func testCooldownEndsMerged_keepsOldWhenWithinTolerance() {
+        let pinned = CooldownEnds(drugEndsAt: 1000, boosterEndsAt: 2000, medicalEndsAt: 3000)
+        let jittered = CooldownEnds(drugEndsAt: 1002, boosterEndsAt: 1998, medicalEndsAt: 3001)
+
+        let merged = pinned.merged(with: jittered)
+
+        XCTAssertEqual(merged.drugEndsAt, 1000, "drug within ±3 s → keep pinned")
+        XCTAssertEqual(merged.boosterEndsAt, 2000, "booster within ±3 s → keep pinned")
+        XCTAssertEqual(merged.medicalEndsAt, 3000, "medical within ±3 s → keep pinned")
+    }
+
+    /// Beyond tolerance the cooldown was almost certainly reset (new booster taken,
+    /// drug applied, medical cooldown after a hospital trip). Adopt the new value
+    /// or the menu bar would freeze on a stale `endsAt`.
+    func testCooldownEndsMerged_replacesWhenBeyondTolerance() {
+        let pinned = CooldownEnds(drugEndsAt: 1000, boosterEndsAt: 2000, medicalEndsAt: 3000)
+        let reset  = CooldownEnds(drugEndsAt: 5000, boosterEndsAt: 2004, medicalEndsAt: 3000)
+
+        let merged = pinned.merged(with: reset)
+
+        XCTAssertEqual(merged.drugEndsAt, 5000, "drug jumped 4000 s → adopt new")
+        XCTAssertEqual(merged.boosterEndsAt, 2004, "booster +4 s → outside tolerance, adopt new")
+        XCTAssertEqual(merged.medicalEndsAt, 3000, "medical unchanged → keep")
+    }
+
+    /// `0 → nonzero` means a cooldown just started; we want the menu bar to start
+    /// counting down immediately, not pin to the `0`.
+    func testCooldownEndsMerged_zeroToNonzero_takesNew() {
+        let inactive = CooldownEnds(drugEndsAt: 0, boosterEndsAt: 0, medicalEndsAt: 0)
+        let started  = CooldownEnds(drugEndsAt: 0, boosterEndsAt: 5400, medicalEndsAt: 0)
+
+        let merged = inactive.merged(with: started)
+
+        XCTAssertEqual(merged.boosterEndsAt, 5400)
+    }
+
+    /// `nonzero → 0` means the cooldown ended (server stopped reporting it); the
+    /// pin must release so we don't keep showing a phantom countdown.
+    func testCooldownEndsMerged_nonzeroToZero_takesNew() {
+        let pinned   = CooldownEnds(drugEndsAt: 0, boosterEndsAt: 5400, medicalEndsAt: 0)
+        let inactive = CooldownEnds(drugEndsAt: 0, boosterEndsAt: 0, medicalEndsAt: 0)
+
+        let merged = pinned.merged(with: inactive)
+
+        XCTAssertEqual(merged.boosterEndsAt, 0)
+    }
+
+    /// Custom tolerance lets callers tune the pin sensitivity if Torn's API jitter
+    /// turns out to be larger than the 3 s default in practice.
+    func testCooldownEndsMerged_respectsCustomTolerance() {
+        let pinned = CooldownEnds(drugEndsAt: 0, boosterEndsAt: 2000, medicalEndsAt: 0)
+        let drift  = CooldownEnds(drugEndsAt: 0, boosterEndsAt: 2008, medicalEndsAt: 0)
+
+        XCTAssertEqual(pinned.merged(with: drift, toleranceSeconds: 3).boosterEndsAt, 2008,
+                       "8 s > 3 s default → replace")
+        XCTAssertEqual(pinned.merged(with: drift, toleranceSeconds: 10).boosterEndsAt, 2000,
+                       "8 s ≤ 10 s relaxed → keep pinned")
+    }
+
+    // MARK: - Cooldown end-time pinning across polls (integration)
+
+    /// End-to-end: simulate two consecutive polls where the server's `(timestamp,
+    /// cooldowns.booster)` pair wobbles by 2 s — the boundary case where the second
+    /// poll computes a slightly different `endsAt` than the first. AppState must
+    /// keep the original pinned `endsAt` so the menu bar countdown does not jump.
+    func testFetchData_cooldownEnds_pinnedAcrossPollsWithinTolerance() async throws {
+        appState.apiKey = "valid_key"
+
+        // Poll 1: serverTimestamp = T, booster = 3600 → endsAt = T + 3600
+        let firstTs = 1_730_000_000
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.responseWithCooldowns(
+                timestamp: firstTs, drug: 0, booster: 3600, medical: 0
+            )
+        )
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        let firstEndsAt = try XCTUnwrap(appState.cooldownEnds?.boosterEndsAt)
+        XCTAssertEqual(firstEndsAt, firstTs + 3600)
+
+        // Poll 2 ~30 s later, but booster was rounded by API such that the recomputed
+        // endsAt is 2 s earlier (typical integer-truncation jitter).
+        // serverTimestamp += 30, booster = 3568 → fresh endsAt = T + 30 + 3568 = T + 3598
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.responseWithCooldowns(
+                timestamp: firstTs + 30, drug: 0, booster: 3568, medical: 0
+            )
+        )
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let secondEndsAt = try XCTUnwrap(appState.cooldownEnds?.boosterEndsAt)
+        XCTAssertEqual(secondEndsAt, firstEndsAt,
+                       "Within ±3 s tolerance, the pinned endsAt must survive the next poll")
+    }
+
+    /// If the second poll diverges beyond tolerance (cooldown was reset / new booster
+    /// taken), the pin must release and the new `endsAt` take over. Otherwise the
+    /// menu bar would freeze on a stale value forever.
+    func testFetchData_cooldownEnds_replacedAcrossPollsWhenCooldownReset() async throws {
+        appState.apiKey = "valid_key"
+
+        let firstTs = 1_730_000_000
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.responseWithCooldowns(
+                timestamp: firstTs, drug: 0, booster: 600, medical: 0
+            )
+        )
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertEqual(appState.cooldownEnds?.boosterEndsAt, firstTs + 600)
+
+        // Poll 2: user took a new booster — fresh endsAt is far in the future.
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.responseWithCooldowns(
+                timestamp: firstTs + 30, drug: 0, booster: 18000, medical: 0
+            )
+        )
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertEqual(appState.cooldownEnds?.boosterEndsAt, firstTs + 30 + 18000,
+                       "Reset detected (>3 s gap) → adopt the new endsAt instead of pinning")
+    }
+
     func testFetchData_tornAPIError() async throws {
         appState.apiKey = "valid_key"
         try mockSession.setTornAPIError(code: 2, message: "Incorrect Key")

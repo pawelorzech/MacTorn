@@ -1208,7 +1208,12 @@ class AppState {
                 // even if the Mac clock is skewed vs the Torn server.
                 if let cooldowns = decoded.cooldowns {
                     let anchor = decoded.serverTimestamp ?? Int(Date().timeIntervalSince1970)
-                    self.cooldownEnds = CooldownEnds.from(cooldowns: cooldowns, anchor: anchor)
+                    let fresh = CooldownEnds.from(cooldowns: cooldowns, anchor: anchor)
+                    // Pin previous end-timestamps when the freshly computed values
+                    // wobble by ≤3 s — that wobble is API/latency jitter, not a real
+                    // change in expiry, and replacing endsAt would visibly jump the
+                    // menu bar countdown on every poll.
+                    self.cooldownEnds = self.cooldownEnds?.merged(with: fresh) ?? fresh
                 } else {
                     self.cooldownEnds = nil
                 }
