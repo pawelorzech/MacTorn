@@ -25,13 +25,18 @@ struct TornResponse: Codable {
     let events: [String: TornEvent]?
     let messages: [String: TornMessage]?
     let error: TornError?
-    
+    /// Server-side Unix epoch at which this response was generated. Used as the
+    /// anchor when converting relative durations (e.g. cooldowns) into absolute
+    /// end-timestamps so countdowns match torn.com regardless of Mac↔server clock skew.
+    let serverTimestamp: Int?
+
     enum CodingKeys: String, CodingKey {
         case name
         case playerId = "player_id"
         case energy, nerve, life, happy
         case cooldowns, travel, status, chain
         case events, messages, error
+        case serverTimestamp = "timestamp"
     }
     
     // Convenience computed property
@@ -105,23 +110,41 @@ enum CooldownKind: CaseIterable {
     }
 }
 
-extension Cooldowns {
-    /// Cooldown values from the API are relative seconds, so we adjust against the fetch time
-    /// to keep the live countdown accurate between polls.
-    func remainingSeconds(_ kind: CooldownKind, from fetchTime: Date) -> Int {
-        let initial: Int
-        switch kind {
-        case .drug:    initial = drug
-        case .booster: initial = booster
-        case .medical: initial = medical
-        }
-        let elapsed = Int(Date().timeIntervalSince(fetchTime))
-        return max(0, initial - elapsed)
+/// Absolute end-timestamps for each cooldown, computed once at fetch time from
+/// the server's response timestamp + the relative cooldown duration. Storing the
+/// end-time (not the duration) is what keeps every countdown drift-free against
+/// torn.com — see `Plans/wszystkie-czasy-kt-re-s-dazzling-bumblebee.md`. A value
+/// of `0` means the cooldown is not active.
+struct CooldownEnds: Equatable {
+    let drugEndsAt: Int
+    let boosterEndsAt: Int
+    let medicalEndsAt: Int
+
+    static func from(cooldowns: Cooldowns, anchor: Int) -> CooldownEnds {
+        CooldownEnds(
+            drugEndsAt: cooldowns.drug > 0 ? anchor + cooldowns.drug : 0,
+            boosterEndsAt: cooldowns.booster > 0 ? anchor + cooldowns.booster : 0,
+            medicalEndsAt: cooldowns.medical > 0 ? anchor + cooldowns.medical : 0
+        )
     }
 
-    func soonestActive(from fetchTime: Date) -> (kind: CooldownKind, seconds: Int)? {
+    func endsAt(_ kind: CooldownKind) -> Int {
+        switch kind {
+        case .drug:    return drugEndsAt
+        case .booster: return boosterEndsAt
+        case .medical: return medicalEndsAt
+        }
+    }
+
+    func remainingSeconds(_ kind: CooldownKind) -> Int {
+        let target = endsAt(kind)
+        guard target > 0 else { return 0 }
+        return max(0, target - Int(Date().timeIntervalSince1970))
+    }
+
+    func soonestActive() -> (kind: CooldownKind, seconds: Int)? {
         CooldownKind.allCases
-            .map { (kind: $0, seconds: remainingSeconds($0, from: fetchTime)) }
+            .map { (kind: $0, seconds: remainingSeconds($0)) }
             .filter { $0.seconds > 0 }
             .min { $0.seconds < $1.seconds }
     }

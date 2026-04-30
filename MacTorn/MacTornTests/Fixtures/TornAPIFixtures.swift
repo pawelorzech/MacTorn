@@ -5,9 +5,15 @@ enum TornAPIFixtures {
 
     // MARK: - Full Response
 
-    static let validFullResponse: [String: Any] = [
+    /// Function (not `static let`) so the top-level `timestamp` is captured at
+    /// the moment the test calls it, not at first-access of the type. The Torn
+    /// API stamps every response with the current server time, and several
+    /// tests assert on `endsAt = timestamp + duration` against `Date()`, which
+    /// fails if the fixture's clock froze ~60 s into the test run.
+    static func validFullResponse() -> [String: Any] { [
         "name": "TestPlayer",
         "player_id": 123456,
+        "timestamp": Int(Date().timeIntervalSince1970),
         "energy": [
             "current": 100,
             "maximum": 150,
@@ -79,7 +85,7 @@ enum TornAPIFixtures {
                 "read": 0
             ]
         ]
-    ]
+    ] }
 
     // MARK: - Bars
 
@@ -178,6 +184,27 @@ enum TornAPIFixtures {
         "timeout": 0,
         "cooldown": 3600
     ]
+
+    // MARK: - Cooldowns
+
+    /// Response with active cooldowns and a known top-level server `timestamp`,
+    /// useful for asserting that `AppState.cooldownEnds` is computed as
+    /// `timestamp + duration` for each kind.
+    static func responseWithCooldowns(
+        timestamp: Int,
+        drug: Int,
+        booster: Int,
+        medical: Int
+    ) -> [String: Any] {
+        var resp = validFullResponse()
+        resp["timestamp"] = timestamp
+        resp["cooldowns"] = [
+            "drug": drug,
+            "medical": medical,
+            "booster": booster
+        ]
+        return resp
+    }
 
     // MARK: - Errors
 

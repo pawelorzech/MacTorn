@@ -6,6 +6,10 @@ struct MacTornApp: App {
     @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
 
+    init() {
+        SentryManager.startIfEnabled()
+    }
+
     var body: some Scene {
         MenuBarExtra {
             ContentView()

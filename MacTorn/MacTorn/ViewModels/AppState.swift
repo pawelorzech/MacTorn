@@ -170,6 +170,11 @@ class AppState {
     // MARK: - Fetch Time (for live countdown calculations)
     var lastFetchTime: Date = Date()
 
+    /// Absolute end-timestamps for active cooldowns, derived at fetch time from
+    /// the server's response timestamp. The single source of truth that keeps
+    /// the menu-bar and Status tab cooldown countdowns matching torn.com.
+    var cooldownEnds: CooldownEnds?
+
     // MARK: - Live Travel Countdown
     var travelSecondsRemaining: Int = 0
     var menuBarDisplay: MenuBarDisplay = .fallbackIcon
@@ -421,7 +426,7 @@ class AppState {
         guard let data = data else { return false }
         if let travel = data.travel, travel.isTraveling { return true }
         if let status = data.status, status.isInHospital || status.isInJail { return true }
-        if let cd = data.cooldowns, cd.soonestActive(from: lastFetchTime) != nil { return true }
+        if let ends = cooldownEnds, ends.soonestActive() != nil { return true }
         return false
     }
 
@@ -487,8 +492,8 @@ class AppState {
             return .jail(seconds: status.timeRemaining)
         }
 
-        if let cd = data.cooldowns,
-           let soonest = cd.soonestActive(from: lastFetchTime) {
+        if let ends = cooldownEnds,
+           let soonest = ends.soonestActive() {
             return .cooldown(emoji: soonest.kind.emoji, seconds: soonest.seconds)
         }
 
@@ -1197,6 +1202,16 @@ class AppState {
 
                 self.checkNotifications(newData: decoded)
                 self.data = decoded
+
+                // Convert relative cooldown durations into absolute end-timestamps,
+                // anchored on the server's response time so countdowns match torn.com
+                // even if the Mac clock is skewed vs the Torn server.
+                if let cooldowns = decoded.cooldowns {
+                    let anchor = decoded.serverTimestamp ?? Int(Date().timeIntervalSince1970)
+                    self.cooldownEnds = CooldownEnds.from(cooldowns: cooldowns, anchor: anchor)
+                } else {
+                    self.cooldownEnds = nil
+                }
 
                 self.previousBars = decoded.bars
                 self.previousCooldowns = decoded.cooldowns

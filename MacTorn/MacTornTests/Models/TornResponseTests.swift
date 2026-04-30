@@ -6,7 +6,7 @@ final class TornResponseTests: XCTestCase {
     // MARK: - Full Decoding Tests
 
     func testDecoding_validFullResponse() throws {
-        let data = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse)
+        let data = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
         let response = try JSONDecoder().decode(TornResponse.self, from: data)
 
         XCTAssertEqual(response.name, "TestPlayer")
@@ -27,7 +27,7 @@ final class TornResponseTests: XCTestCase {
     // MARK: - Bars Computed Property Tests
 
     func testBars_allBarsPresent() throws {
-        let data = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse)
+        let data = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
         let response = try JSONDecoder().decode(TornResponse.self, from: data)
 
         let bars = response.bars

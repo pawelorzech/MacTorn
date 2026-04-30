@@ -211,10 +211,10 @@ struct StatusView: View {
                 .foregroundColor(.secondary)
 
             HStack(spacing: 16) {
-                if let fetchTime = appState.lastUpdated {
-                    LiveCooldownItem(label: "Drug", originalSeconds: cooldowns.drug, fetchTime: fetchTime, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
-                    LiveCooldownItem(label: "Medical", originalSeconds: cooldowns.medical, fetchTime: fetchTime, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
-                    LiveCooldownItem(label: "Booster", originalSeconds: cooldowns.booster, fetchTime: fetchTime, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel)
+                if let ends = appState.cooldownEnds {
+                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
+                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
+                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel)
                 } else {
                     CooldownItem(label: "Drug", seconds: cooldowns.drug, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
                     CooldownItem(label: "Medical", seconds: cooldowns.medical, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
@@ -365,10 +365,16 @@ struct CooldownItem: View {
 }
 
 // MARK: - Live Cooldown Item
+//
+// Receives the *absolute* end-timestamp (Unix seconds) the cooldown will expire
+// at, computed once at fetch time from the server's response timestamp. Each
+// tick recomputes `endsAt - now` — never `originalSeconds - elapsed` — so the
+// countdown stays drift-free against torn.com.
+//
+// `endsAt == 0` means the cooldown is not active.
 struct LiveCooldownItem: View {
     let label: String
-    let originalSeconds: Int
-    let fetchTime: Date
+    let endsAt: Int
     let icon: String
     var actionURL: URL? = nil
     var actionLabel: String? = nil
@@ -376,9 +382,10 @@ struct LiveCooldownItem: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
-        TimelineView(.periodic(from: fetchTime, by: 1.0)) { context in
-            let elapsed = Int(context.date.timeIntervalSince(fetchTime))
-            let remaining = max(0, originalSeconds - elapsed)
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            let remaining = endsAt > 0
+                ? max(0, endsAt - Int(context.date.timeIntervalSince1970))
+                : 0
 
             if remaining <= 0, let url = actionURL {
                 Button {

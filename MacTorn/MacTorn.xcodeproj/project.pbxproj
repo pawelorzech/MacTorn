@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B1525E92794A5931934A964 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 9D32C7372CF21C5A6D2443EC /* Sentry */; };
+		283327E20486060110E15CEF /* SentryOptInPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */; };
+		4105620C57CC1C7F080D013F /* SentryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */; };
 		AAA00001 /* MacTornApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10001 /* MacTornApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10002 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA10003 /* Assets.xcassets */; };
@@ -35,7 +38,6 @@
 		AAA00026 /* BrowserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10027 /* BrowserManager.swift */; };
 		AAA00028 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10028 /* NetworkMonitor.swift */; };
 		AAA00029 /* ForumWatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10029 /* ForumWatchView.swift */; };
-/* Unit Tests */
 		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
 		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
 		BBB00003 /* TornAPIFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10003 /* TornAPIFixtures.swift */; };
@@ -58,7 +60,6 @@
 		BBB00020 /* StockMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10020 /* StockMetadataTests.swift */; };
 		BBB00021 /* AppStateStocksMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10021 /* AppStateStocksMetadataTests.swift */; };
 		BBB00022 /* AppStatePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10022 /* AppStatePerformanceTests.swift */; };
-/* UI Tests */
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -80,6 +81,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryManager.swift; sourceTree = "<group>"; };
+		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA10001 /* MacTornApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornApp.swift; sourceTree = "<group>"; };
 		AAA10002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		AAA10003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -109,8 +112,7 @@
 		AAA10027 /* BrowserManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserManager.swift; sourceTree = "<group>"; };
 		AAA10028 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		AAA10029 /* ForumWatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchView.swift; sourceTree = "<group>"; };
-		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
-/* Unit Test Files */
+		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
 		BBB10002 /* TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHelpers.swift; sourceTree = "<group>"; };
 		BBB10003 /* TornAPIFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIFixtures.swift; sourceTree = "<group>"; };
@@ -133,10 +135,9 @@
 		BBB10020 /* StockMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockMetadataTests.swift; sourceTree = "<group>"; };
 		BBB10021 /* AppStateStocksMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStocksMetadataTests.swift; sourceTree = "<group>"; };
 		BBB10022 /* AppStatePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePerformanceTests.swift; sourceTree = "<group>"; };
-		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-/* UI Test Files */
-		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
 		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
+		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -144,6 +145,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0B1525E92794A5931934A964 /* Sentry in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -243,6 +245,7 @@
 				AAA10014 /* StatusBadgesView.swift */,
 				AAA10015 /* EventsView.swift */,
 				AAA10026 /* FeedbackPromptView.swift */,
+				F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -256,6 +259,7 @@
 				AAA10012 /* ShortcutsManager.swift */,
 				AAA10016 /* SoundManager.swift */,
 				AAA10028 /* NetworkMonitor.swift */,
+				3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -276,7 +280,6 @@
 			path = Helpers;
 			sourceTree = "<group>";
 		};
-/* Unit Tests Groups */
 		BBB30000 /* MacTornTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -338,7 +341,6 @@
 			path = ViewModels;
 			sourceTree = "<group>";
 		};
-/* UI Tests Group */
 		CCC30000 /* MacTornUITests */ = {
 			isa = PBXGroup;
 			children = (
@@ -363,6 +365,9 @@
 			dependencies = (
 			);
 			name = MacTorn;
+			packageProductDependencies = (
+				9D32C7372CF21C5A6D2443EC /* Sentry */,
+			);
 			productName = MacTorn;
 			productReference = AAA10000 /* MacTorn.app */;
 			productType = "com.apple.product-type.application";
@@ -435,6 +440,9 @@
 				Base,
 			);
 			mainGroup = AAA30000;
+			packageReferences = (
+				D6BD24E861DA2E39CE8AD5DC /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+			);
 			productRefGroup = AAA30002 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -503,6 +511,8 @@
 				AAA00026 /* BrowserManager.swift in Sources */,
 				AAA00028 /* NetworkMonitor.swift in Sources */,
 				AAA00029 /* ForumWatchView.swift in Sources */,
+				4105620C57CC1C7F080D013F /* SentryManager.swift in Sources */,
+				283327E20486060110E15CEF /* SentryOptInPromptView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -625,6 +635,10 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ARCHS = (
+					arm64,
+					x86_64,
+				);
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
@@ -655,7 +669,9 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEPLOYMENT_POSTPROCESSING = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -671,13 +687,10 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				DEAD_CODE_STRIPPING = YES;
-				DEPLOYMENT_POSTPROCESSING = YES;
 				STRIP_INSTALLED_PRODUCT = YES;
 				STRIP_STYLE = all;
-				ARCHS = "arm64 x86_64";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
 			name = Release;
 		};
@@ -700,7 +713,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.8.8;
+				MARKETING_VERSION = 1.8.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -727,7 +740,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.8.8;
+				MARKETING_VERSION = 1.8.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -735,7 +748,6 @@
 			};
 			name = Release;
 		};
-/* Unit Test Configurations */
 		BBB70000 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -745,7 +757,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.8;
+				MARKETING_VERSION = 1.8.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -763,7 +775,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.8;
+				MARKETING_VERSION = 1.8.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -772,7 +784,6 @@
 			};
 			name = Release;
 		};
-/* UI Test Configurations */
 		CCC70000 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -781,7 +792,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.8;
+				MARKETING_VERSION = 1.8.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -798,7 +809,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.8.8;
+				MARKETING_VERSION = 1.8.9;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -847,6 +858,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D6BD24E861DA2E39CE8AD5DC /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9D32C7372CF21C5A6D2443EC /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D6BD24E861DA2E39CE8AD5DC /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = AAA00000 /* Project object */;
 }

@@ -11,7 +11,7 @@ final class AppStatePerformanceTests: XCTestCase {
     // MARK: - JSON decode microbenchmarks
 
     func testDecodeFullResponsePerformance() throws {
-        let data = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse)
+        let data = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
         measure {
             for _ in 0..<50 {
                 _ = try? JSONDecoder().decode(TornResponse.self, from: data)

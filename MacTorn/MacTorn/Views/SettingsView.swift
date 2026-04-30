@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("preferredBrowser") private var preferredBrowser: String = PreferredBrowser.system.rawValue
     @AppStorage("boosterCooldownTarget") private var boosterCooldownTarget: String = "boosters"
     @AppStorage("privateIsland") private var privateIsland: Bool = false
+    @AppStorage(SentryManager.enabledKey) private var sentryEnabled: Bool = false
     @State private var inputKey: String = ""
     @State private var showCredits: Bool = false
     @State private var availableBrowsers: [PreferredBrowser] = PreferredBrowser.availableBrowsers()
@@ -177,11 +178,29 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                 }
+
+                // Crash reporting (opt-in)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "ladybug")
+                            .foregroundColor(.secondary)
+                            .frame(width: 20)
+                        Toggle("Send crash reports", isOn: $sentryEnabled)
+                            .toggleStyle(.switch)
+                            .onChange(of: sentryEnabled) { _, _ in
+                                SentryManager.applyState()
+                            }
+                    }
+                    Text("Anonymous crash + error reports help fix bugs. API keys and player data are never sent.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.leading, 28)
+                }
             }
             .padding(.horizontal)
-            
+
             Divider()
-            
+
             // Support section
             VStack(spacing: 8) {
                 HStack(spacing: 4) {

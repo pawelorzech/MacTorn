@@ -27,6 +27,7 @@ struct ContentView: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
     @State private var showSettings = false
     @State private var currentTab: AppTab = .status
+    @State private var showSentryOptIn = false
     
     var body: some View {
 
@@ -78,11 +79,20 @@ struct ContentView: View {
                 FeedbackPromptView()
                     .environment(appState)
             }
+
+            // Sentry Opt-In Prompt Overlay
+            if showSentryOptIn {
+                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.3))
+                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+
+                SentryOptInPromptView(isPresented: $showSentryOptIn)
+            }
         }
         .frame(width: 320)
         .onAppear {
             appState.startPolling()
             appState.startForumPolling()
+            checkSentryOptInPrompt()
         }
         .task {
             await NotificationManager.shared.requestPermission()
@@ -183,6 +193,15 @@ struct ContentView: View {
         .padding(.bottom, 8)
     }
     
+    private func checkSentryOptInPrompt() {
+        guard !appState.apiKey.isEmpty else { return }
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let shownFor = UserDefaults.standard.string(forKey: SentryManager.promptShownKey) ?? ""
+        if shownFor != currentVersion && !SentryManager.isEnabled {
+            showSentryOptIn = true
+        }
+    }
+
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.timeStyle = .short

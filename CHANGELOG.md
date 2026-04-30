@@ -5,6 +5,16 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.9] - 2026-04-30
+
+### Fixed
+- **Drift-free cooldown countdowns.** Booster/medical/drug countdowns previously drifted by ~30 s vs torn.com because we stored the API's *relative* duration and subtracted `Date().timeIntervalSince(fetchTime)` locally each tick — any Mac↔server clock skew compounded into a constant offset. Now we convert each cooldown into an absolute Unix end-timestamp at fetch time (`endsAt = serverTimestamp + duration`) and every view computes `max(0, endsAt − now)`. New `CooldownEnds` value type owns the conversion; `Cooldowns.soonestActive(from:)` was replaced with `CooldownEnds.soonestActive()`. Travel, hospital, jail, and chain countdowns already used absolute timestamps and are unchanged. Plan: `Plans/wszystkie-czasy-kt-re-s-dazzling-bumblebee.md`.
+- Faction Chain timer: switched from a one-shot string render of `chain.timeout` to a per-second `TimelineView`, so the chain countdown now ticks live like every other countdown in the app.
+
+### Added
+- **Opt-in crash + error reporting via Sentry.** Off by default. After upgrading, users see a one-time prompt explaining the option; the toggle also lives in Settings (`Send crash reports`). When enabled, only crashes and unhandled errors are sent — no performance traces, no replays, no `sendDefaultPii`. URLs in events and breadcrumbs run through the existing `tornRedactedURL` so the Torn API key never leaves the device. Project: `mactorn` on `mactorn.sentry.io` (DE region).
+- New `SentryManager` (`Utilities/SentryManager.swift`) that owns SDK lifecycle and PII scrubbing; new `SentryOptInPromptView` overlay shown once per upgrade.
+
 ## [1.8.8] - 2026-04-27
 
 ### Performance

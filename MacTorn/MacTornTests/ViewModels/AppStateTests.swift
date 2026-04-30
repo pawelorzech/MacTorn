@@ -67,7 +67,7 @@ final class AppStateTests: XCTestCase {
 
     func testFetchData_success() async throws {
         appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse)
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
 
         appState.fetchData()
 
@@ -83,7 +83,7 @@ final class AppStateTests: XCTestCase {
 
     func testFetchData_parsesAllBars() async throws {
         appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse)
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
 
         appState.fetchData()
 
@@ -97,6 +97,57 @@ final class AppStateTests: XCTestCase {
     }
 
     // MARK: - Torn API Error Tests
+
+    // MARK: - Cooldown End-Time Conversion
+
+    /// The whole point of `cooldownEnds`: at fetch time we convert each relative
+    /// cooldown duration into an absolute server-time end-timestamp, so countdowns
+    /// stay matched to torn.com regardless of Mac↔server clock skew or how long
+    /// has passed since the fetch.
+    func testFetchData_cooldownEnds_computedFromServerTimestampPlusDuration() async throws {
+        let serverTs = 1_730_000_000  // arbitrary, not "now" — proves we use the API value, not Date()
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.responseWithCooldowns(
+                timestamp: serverTs,
+                drug: 0,
+                booster: 3600,
+                medical: 1200
+            )
+        )
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let ends = try XCTUnwrap(appState.cooldownEnds)
+        XCTAssertEqual(ends.drugEndsAt, 0, "Inactive cooldown (drug=0) should be stored as 0, not anchor+0")
+        XCTAssertEqual(ends.boosterEndsAt, serverTs + 3600)
+        XCTAssertEqual(ends.medicalEndsAt, serverTs + 1200)
+    }
+
+    /// Falls back to local `Date()` if the API response doesn't include a top-level
+    /// `timestamp` (older API versions / partial responses). Don't crash, don't drop
+    /// the cooldowns — just lose the clock-skew correction.
+    func testFetchData_cooldownEnds_fallbackToLocalNow_whenServerTimestampMissing() async throws {
+        appState.apiKey = "valid_key"
+        var json = TornAPIFixtures.responseWithCooldowns(
+            timestamp: 0,
+            drug: 0,
+            booster: 600,
+            medical: 0
+        )
+        json.removeValue(forKey: "timestamp")
+        try mockSession.setSuccessResponse(json: json)
+
+        let before = Int(Date().timeIntervalSince1970)
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        let after = Int(Date().timeIntervalSince1970)
+
+        let ends = try XCTUnwrap(appState.cooldownEnds)
+        XCTAssertGreaterThanOrEqual(ends.boosterEndsAt, before + 600)
+        XCTAssertLessThanOrEqual(ends.boosterEndsAt, after + 600)
+    }
 
     func testFetchData_tornAPIError() async throws {
         appState.apiKey = "valid_key"
@@ -163,7 +214,7 @@ final class AppStateTests: XCTestCase {
 
     func testStartPolling_fetchesData() async throws {
         appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse)
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
 
         appState.startPolling()
 
@@ -188,7 +239,7 @@ final class AppStateTests: XCTestCase {
 
     func testFetchData_setsLoadingState() async throws {
         appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse)
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
 
         appState.fetchData()
 
@@ -245,7 +296,7 @@ final class AppStateTests: XCTestCase {
 
     func testRefreshNow_triggersFetch() async throws {
         appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse)
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
 
         // refreshNow calls fetchData which is async
         appState.refreshNow()
@@ -266,7 +317,7 @@ final class AppStateTests: XCTestCase {
         status: [String: Any]? = nil,
         cooldowns: [String: Any]? = nil
     ) -> [String: Any] {
-        var json = TornAPIFixtures.validFullResponse
+        var json = TornAPIFixtures.validFullResponse()
         if let travel = travel { json["travel"] = travel }
         if let status = status { json["status"] = status }
         if let cooldowns = cooldowns { json["cooldowns"] = cooldowns }
@@ -350,7 +401,7 @@ final class AppStateTests: XCTestCase {
     }
 
     func testMenuBarDisplay_idleNoCooldowns_fallsBack() async throws {
-        try await fetch(TornAPIFixtures.validFullResponse) // all cooldowns 0, status Okay, in Torn
+        try await fetch(TornAPIFixtures.validFullResponse()) // all cooldowns 0, status Okay, in Torn
 
         XCTAssertEqual(appState.menuBarDisplay, .fallbackIcon)
     }

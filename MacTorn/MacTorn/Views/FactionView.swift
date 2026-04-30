@@ -21,21 +21,27 @@ struct FactionView: View {
                                 .foregroundColor(.secondary)
                         }
                         
-                        // Chain Status
+                        // Chain Status — `faction.chain.timeout` is an absolute Unix
+                        // timestamp from the Torn API, so we tick `now` against it
+                        // every second and never extrapolate from a stored duration.
                         if faction.chain.current > 0 {
-                            HStack {
-                                Image(systemName: "link")
-                                    .foregroundColor(chainColor(faction.chain))
-                                Text("Chain: \(faction.chain.current)/\(faction.chain.max)")
-                                    .font(.caption.bold())
-                                Spacer()
-                                Text(formatTime(faction.chain.timeout))
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundColor(chainColor(faction.chain))
+                            TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                                let remaining = max(0, faction.chain.timeout - Int(context.date.timeIntervalSince1970))
+                                let color = chainColor(remaining: remaining)
+                                HStack {
+                                    Image(systemName: "link")
+                                        .foregroundColor(color)
+                                    Text("Chain: \(faction.chain.current)/\(faction.chain.max)")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Text(formatTime(remaining))
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundColor(color)
+                                }
+                                .padding(8)
+                                .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
+                                .cornerRadius(6)
                             }
-                            .padding(8)
-                            .background(chainColor(faction.chain).opacity(reduceTransparency ? 0.4 : 0.1))
-                            .cornerRadius(6)
                         }
                         
                         // Respect
@@ -73,7 +79,7 @@ struct FactionView: View {
                         }
 
                         ForEach(appState.organizedCrimes) { crime in
-                            OCStatusRow(crime: crime, fetchTime: appState.lastUpdated ?? Date())
+                            OCStatusRow(crime: crime)
                         }
                     }
                     .padding()
@@ -128,15 +134,15 @@ struct FactionView: View {
         .fixedSize(horizontal: false, vertical: true)
     }
     
-    private func chainColor(_ chain: FactionChain) -> Color {
-        if chain.timeout < 60 {
+    private func chainColor(remaining: Int) -> Color {
+        if remaining < 60 {
             return .red
-        } else if chain.timeout < 180 {
+        } else if remaining < 180 {
             return .orange
         }
         return .green
     }
-    
+
     private func formatTime(_ seconds: Int) -> String {
         let mins = seconds / 60
         let secs = seconds % 60
@@ -160,12 +166,12 @@ struct FactionView: View {
 struct OCStatusRow: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
     let crime: OrganizedCrime
-    let fetchTime: Date
 
     var body: some View {
-        TimelineView(.periodic(from: fetchTime, by: 1.0)) { context in
-            let elapsed = Int(context.date.timeIntervalSince(fetchTime))
-            let remaining = max(0, crime.timeLeft - elapsed)
+        // `crime.timeReady` is an absolute Unix timestamp; ticking `now` against it
+        // keeps the countdown matched to the in-game OC panel without drift.
+        TimelineView(.periodic(from: .now, by: 1.0)) { context in
+            let remaining = max(0, crime.timeReady - Int(context.date.timeIntervalSince1970))
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
