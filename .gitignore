@@ -72,6 +72,7 @@ archive/
 # Claude Code
 CLAUDE.md
 .superpowers/
+.playwright-mcp/
 firebase-debug.log
 
 # Secrets and signing material — must never be committed
