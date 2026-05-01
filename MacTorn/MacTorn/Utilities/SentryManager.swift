@@ -63,6 +63,8 @@ enum SentryManager {
             // Redact URLs Sentry might capture from URLSession swizzling.
             options.enableNetworkTracking = false
             options.enableNetworkBreadcrumbs = false
+            // Torn API 5xx are upstream noise, not MacTorn bugs — don't auto-capture them.
+            options.enableCaptureFailedRequests = false
         }
         logger.info("Sentry started, release \(release)")
     }
