@@ -5,6 +5,11 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.11] - 2026-05-12
+
+### Fixed
+- **Stop spamming Sentry with upstream Torn API 5xx errors.** Sentry-Cocoa 9.x defaults `enableCaptureFailedRequests` to `true`, which auto-captures any URLSession response with a 500–599 status as an application error. When Torn API returned 504 Gateway Timeout (upstream overload, not a MacTorn bug), Sentry reported it as a MacTorn error — 71 such events from 6 users landed against 1.8.10. Now `enableCaptureFailedRequests = false`. Crashes and explicit `SentrySDK.capture()` calls still report normally. The code change was present from commit `e54fc80`, but tag `v1.8.10` was cut before that commit, so the binary in users' hands didn't include it — `v1.8.11` is the actual rollout of the fix.
+
 ## [1.8.10] - 2026-04-30
 
 ### Fixed
