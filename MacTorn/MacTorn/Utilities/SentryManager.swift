@@ -65,6 +65,10 @@ enum SentryManager {
             options.enableNetworkBreadcrumbs = false
             // Torn API 5xx are upstream noise, not MacTorn bugs — don't auto-capture them.
             options.enableCaptureFailedRequests = false
+            // AppHang detection produces only system-frame events for MenuBarExtra apps
+            // (CAFenceHandle, SkyLight display state) which are macOS doing its thing on
+            // wake/animate, not actionable MacTorn bugs. Crashes still captured.
+            options.enableAppHangTracking = false
         }
         logger.info("Sentry started, release \(release)")
     }
