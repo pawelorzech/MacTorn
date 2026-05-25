@@ -5,6 +5,11 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.12] - 2026-05-25
+
+### Fixed
+- **Stop spamming Sentry with macOS "App Hanging" false positives.** Sentry-Cocoa enables `AppHangTracking` by default with a 2-second threshold. For a `MenuBarExtra` app that's whatever-it-wants-to-be most of the time, normal macOS scenes — display wake, fence creation in `+[CAFenceHandle newFenceFromDefaultServer]`, `CGSPostLocalNotification` in SkyLight — routinely block the main thread for >2 s and are captured as application errors. Both unresolved issues against 1.8.10/1.8.11 (MACTORN-2, MACTORN-3) had **zero in-app frames** — pure `mach_msg2_trap` → AppKit/QuartzCore/SkyLight system traces, nothing actionable in MacTorn code. Now `options.enableAppHangTracking = false`. Real crashes and explicit `SentrySDK.capture()` calls still report normally. Same noise-reduction rationale as v1.8.11's `enableCaptureFailedRequests = false`.
+
 ## [1.8.11] - 2026-05-12
 
 ### Fixed
