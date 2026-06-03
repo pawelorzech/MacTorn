@@ -343,3 +343,51 @@ final class KeychainStoreTests: XCTestCase {
         XCTAssertNotEqual(KeychainStore.service, "com.mactorn.app")
     }
 }
+
+// MARK: - Torn API Error Envelope Contract
+
+/// Contract tests for `tornAPIErrorMessage(in:)` against the two error envelopes
+/// documented by Torn: the legacy v1 nested form and the v2 top-level form (per the
+/// official OpenAPI spec at https://api.torn.com/v2). Mocks mirror the documented
+/// schema exactly — `code` (int) + `error` (string), siblings in v2, nested in v1.
+final class TornAPIErrorEnvelopeTests: XCTestCase {
+
+    func testV2Envelope_topLevelCodeAndErrorString() {
+        // Per spec ErrorTooManyRequests: {"code":5,"error":"Too many requests"}
+        let json: [String: Any] = ["code": 5, "error": "Too many requests"]
+        XCTAssertEqual(tornAPIErrorMessage(in: json), "Too many requests")
+    }
+
+    func testV2Envelope_incorrectKey() {
+        let json: [String: Any] = ["code": 2, "error": "Incorrect key"]
+        XCTAssertEqual(tornAPIErrorMessage(in: json), "Incorrect key")
+    }
+
+    func testV1Envelope_nestedErrorObject() {
+        // Legacy v1: {"error":{"code":2,"error":"Incorrect Key"}}
+        let json: [String: Any] = ["error": ["code": 2, "error": "Incorrect Key"]]
+        XCTAssertEqual(tornAPIErrorMessage(in: json), "Incorrect Key")
+    }
+
+    func testSuccessPayload_v2Market_returnsNil() {
+        // A real /v2/market/{id} success has no error envelope.
+        let json: [String: Any] = ["itemmarket": ["listings": [["price": 1000, "amount": 5]]]]
+        XCTAssertNil(tornAPIErrorMessage(in: json))
+    }
+
+    func testSuccessPayload_v2Forum_returnsNil() {
+        let json: [String: Any] = ["thread": ["title": "Topic", "posts": 42]]
+        XCTAssertNil(tornAPIErrorMessage(in: json))
+    }
+
+    func testEmptyObject_returnsNil() {
+        XCTAssertNil(tornAPIErrorMessage(in: [:]))
+    }
+
+    /// A bare top-level `error` string without a sibling `code` is NOT treated as the
+    /// v2 envelope — guards against false positives from unrelated `error` fields.
+    func testTopLevelErrorStringWithoutCode_returnsNil() {
+        let json: [String: Any] = ["error": "some unrelated field"]
+        XCTAssertNil(tornAPIErrorMessage(in: json))
+    }
+}

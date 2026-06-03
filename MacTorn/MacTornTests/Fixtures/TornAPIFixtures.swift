@@ -222,6 +222,21 @@ enum TornAPIFixtures {
         ]
     ]
 
+    // v2 error envelope — per Torn OpenAPI spec (https://api.torn.com/v2), error
+    // schemas (ErrorTooManyRequests, ErrorIncorrectKey, …) expose `code` (int) and
+    // `error` (string) as sibling TOP-LEVEL properties. This differs from the v1
+    // envelope above, where `error` is a nested object. v2 endpoints (market, forum)
+    // return this shape.
+    static let tornErrorRateLimitV2: [String: Any] = [
+        "code": 5,
+        "error": "Too many requests"
+    ]
+
+    static let tornErrorInvalidKeyV2: [String: Any] = [
+        "code": 2,
+        "error": "Incorrect key"
+    ]
+
     // MARK: - Money
 
     static let moneyData: [String: Any] = [

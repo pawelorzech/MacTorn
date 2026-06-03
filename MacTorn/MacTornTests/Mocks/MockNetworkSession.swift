@@ -59,13 +59,31 @@ final class MockNetworkSession: NetworkSession, @unchecked Sendable {
         mockError = nil
     }
 
-    /// Set up Torn API error response
+    /// Set up Torn API error response (v1 envelope: nested `error` object).
     func setTornAPIError(code: Int, message: String) throws {
         let errorJSON: [String: Any] = [
             "error": [
                 "code": code,
                 "error": message
             ]
+        ]
+        mockData = try JSONSerialization.data(withJSONObject: errorJSON)
+        mockResponse = HTTPURLResponse(
+            url: URL(string: "https://api.torn.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )
+        mockError = nil
+    }
+
+    /// Set up Torn API error response in the **v2 envelope** — `code` and `error`
+    /// as sibling top-level keys, exactly as the Torn OpenAPI spec defines for the
+    /// v2 endpoints (market, forum). HTTP status is 200, per Torn's contract.
+    func setTornAPIErrorV2(code: Int, message: String) throws {
+        let errorJSON: [String: Any] = [
+            "code": code,
+            "error": message
         ]
         mockData = try JSONSerialization.data(withJSONObject: errorJSON)
         mockResponse = HTTPURLResponse(

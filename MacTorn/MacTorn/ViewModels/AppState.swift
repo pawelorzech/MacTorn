@@ -302,7 +302,7 @@ class AppState {
             logger.error("Stocks metadata: failed to parse JSON")
             return [:]
         }
-        if let apiError = json["error"] as? [String: Any], let msg = apiError["error"] as? String {
+        if let msg = tornAPIErrorMessage(in: json) {
             logger.error("Stocks metadata API error: \(msg)")
             return [:]
         }
@@ -604,7 +604,7 @@ class AppState {
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
 
                 // Check if API returned error
-                if let error = json["error"] as? [String: Any], let errorText = error["error"] as? String {
+                if let errorText = tornAPIErrorMessage(in: json) {
                     logger.warning("Item \(itemId) API error: \(errorText)")
                     updateItemError(itemId: itemId, error: errorText, save: save)
                     return
@@ -836,7 +836,7 @@ class AppState {
             // v2 API wraps the thread in a top-level object
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 // Check for API error
-                if let error = json["error"] as? [String: Any], let errorText = error["error"] as? String {
+                if let errorText = tornAPIErrorMessage(in: json) {
                     await updateThreadError(threadId: threadId, error: errorText)
                     return
                 }
@@ -909,7 +909,7 @@ class AppState {
             }
 
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let error = json["error"] as? [String: Any], let errorText = error["error"] as? String {
+                if let errorText = tornAPIErrorMessage(in: json) {
                     await updateThreadError(threadId: threadId, error: errorText)
                     return
                 }
@@ -1083,8 +1083,7 @@ class AppState {
             }
 
             // Check for Torn API error (API returns HTTP 200 even on errors like rate limiting)
-            if let apiError = json["error"] as? [String: Any],
-               let errorMessage = apiError["error"] as? String {
+            if let errorMessage = tornAPIErrorMessage(in: json) {
                 return (nil, nil, nil, nil, nil, [], "API Error: \(errorMessage)")
             }
 
@@ -1258,8 +1257,7 @@ class AppState {
 
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 // Check for Torn API error first
-                if let error = json["error"] as? [String: Any],
-                   let errorMessage = error["error"] as? String {
+                if let errorMessage = tornAPIErrorMessage(in: json) {
                     logger.warning("Faction API error: \(errorMessage)")
                     return
                 }

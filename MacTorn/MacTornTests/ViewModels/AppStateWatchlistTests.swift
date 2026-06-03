@@ -324,4 +324,32 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertFalse(stored.hasPrefix(" "), "leading whitespace not trimmed")
         XCTAssertFalse(stored.hasSuffix(" "), "trailing whitespace not trimmed")
     }
+
+    // MARK: - v2 Error Envelope Contract (market endpoint)
+
+    /// The market endpoint is v2 (`/v2/market/{id}`). Torn's v2 error envelope is
+    /// `{"code":Int,"error":String}` with `error` as a TOP-LEVEL string. When the
+    /// error is swallowed it gets mis-reported to the user as "No listings"; this
+    /// must surface the real message (e.g. rate-limit) instead.
+    func testFetchItemPrice_surfacesV2RateLimitError() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setTornAPIErrorV2(code: 5, message: "Too many requests")
+
+        appState.addToWatchlist(itemId: 123, name: "Xanax")
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        XCTAssertEqual(appState.watchlistItems.first?.error, "Too many requests",
+                       "v2 market error envelope must be surfaced, not swallowed as 'No listings'")
+    }
+
+    func testFetchItemPrice_surfacesV2IncorrectKeyError() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setTornAPIErrorV2(code: 2, message: "Incorrect key")
+
+        appState.addToWatchlist(itemId: 456, name: "Item")
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        XCTAssertEqual(appState.watchlistItems.first?.error, "Incorrect key",
+                       "v2 incorrect-key error must surface")
+    }
 }

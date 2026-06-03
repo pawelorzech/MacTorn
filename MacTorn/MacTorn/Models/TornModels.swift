@@ -1056,6 +1056,32 @@ func tornRedactedURL(_ url: URL) -> String {
     return "\(scheme)://\(host)\(path)?[\(keys)]"
 }
 
+/// Extracts a Torn API error message from a parsed top-level JSON object, accepting
+/// BOTH error envelopes Torn uses. Torn always returns HTTP 200 even on API errors,
+/// so the envelope — not the status code — is the source of truth.
+///
+///   • v1 (legacy `/user`, `/faction`, `/torn`):  `{"error": {"code": Int, "error": String}}`
+///   • v2 (`/v2/...` market, forum):              `{"code": Int, "error": String}`
+///
+/// The v2 form (per the Torn OpenAPI spec: ErrorTooManyRequests, ErrorIncorrectKey, …)
+/// carries `code` and `error` as sibling top-level keys with `error` as a *string*.
+/// Parsing only the v1 shape silently swallows every v2 error (rate-limit, bad key,
+/// access level), so v2 call sites surfaced garbage ("No listings", "Unknown" thread)
+/// instead of the real failure. This helper detects either shape.
+///
+/// Returns the human-readable message, or nil if `json` is not an error envelope.
+func tornAPIErrorMessage(in json: [String: Any]) -> String? {
+    // v1 envelope: `error` is a nested object carrying the message.
+    if let nested = json["error"] as? [String: Any], let message = nested["error"] as? String {
+        return message
+    }
+    // v2 envelope: `code` + `error` are sibling top-level keys, `error` a String.
+    if json["code"] != nil, let message = json["error"] as? String {
+        return message
+    }
+    return nil
+}
+
 // MARK: - Notification Settings
 struct NotificationRule: Codable, Identifiable, Equatable {
     let id: String

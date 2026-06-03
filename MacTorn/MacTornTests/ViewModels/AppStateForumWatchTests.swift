@@ -157,4 +157,24 @@ final class AppStateForumWatchTests: XCTestCase {
         XCTAssertTrue(appState.watchedThreads.isEmpty)
         XCTAssertFalse(appState.forumWatchConfig.factionForumAutoMonitor)
     }
+
+    // MARK: - v2 Error Envelope Contract (forum endpoint)
+
+    /// The forum endpoint is v2 (`/v2/forum/{threadId}/thread`). Torn's v2 error
+    /// envelope is `{"code":Int,"error":String}` with `error` as a TOP-LEVEL string.
+    /// A swallowed error makes the thread parse as a bogus "Unknown" thread with
+    /// post count 0 — corrupting watch state. The error must be surfaced instead.
+    func testFetchForumThreadMetadata_surfacesV2RateLimitError() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setTornAPIErrorV2(code: 5, message: "Too many requests")
+
+        appState.addWatchedThread(input: "12345")
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        let thread = appState.watchedThreads.first
+        XCTAssertEqual(thread?.error, "Too many requests",
+                       "v2 forum error envelope must be surfaced, not parsed as an 'Unknown' thread")
+        XCTAssertNotEqual(thread?.title, "Unknown",
+                          "on a v2 error the thread title must not be corrupted to 'Unknown'")
+    }
 }
