@@ -5,6 +5,11 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.13] - 2026-06-04
+
+### Fixed
+- **Surface Torn API v2 errors on the market and forum endpoints instead of swallowing them.** The v2 endpoints (`/v2/market/{id}`, `/v2/forum/{id}/thread`, `/v2/forum/{id}/threads`) return errors as `{"code":Int,"error":String}` — `error` is a top-level string — per the official Torn OpenAPI spec. The client only recognised the legacy v1 envelope (`{"error":{"code","error"}}`), so every v2 API error (rate-limit code 5, incorrect key code 2, access-level-too-low, etc.) slipped through undetected: a rate-limited watchlist item showed up as "No listings", and a rate-limited forum check parsed into a bogus "Unknown" thread with post count 0, corrupting watch state. A new `tornAPIErrorMessage(in:)` helper recognises both envelopes and is now used at all six API error-parse sites. Added contract tests for both envelope shapes plus integration tests proving the market and forum paths surface v2 rate-limit / incorrect-key errors.
+
 ## [1.8.12] - 2026-05-25
 
 ### Fixed
