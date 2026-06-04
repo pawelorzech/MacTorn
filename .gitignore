@@ -71,6 +71,7 @@ archive/
 
 # Claude Code
 CLAUDE.md
+.claude/scheduled_tasks.lock
 .superpowers/
 .playwright-mcp/
 firebase-debug.log
