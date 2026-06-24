@@ -1,0 +1,36 @@
+# gitleaks configuration for MacTorn
+# Docs: https://github.com/gitleaks/gitleaks#configuration
+#
+# Builds on gitleaks' built-in ruleset (100+ secret detectors) and layers
+# project-specific tweaks on top. Used by both the local pre-commit hook
+# (`make hooks`) and the GitHub Actions workflow (.github/workflows/gitleaks.yml).
+
+title = "MacTorn gitleaks config"
+
+[extend]
+# Inherit all of gitleaks' default rules. Custom rules below are additive.
+useDefault = true
+
+# --- Project-specific rules -------------------------------------------------
+
+[[rules]]
+id = "torn-api-key"
+description = "Torn API key assigned to a variable/key/literal"
+# Torn API keys are 16-char alphanumeric. Matching them bare would be far too
+# noisy, so we only flag them when they sit next to an api-key-like identifier.
+regex = '''(?i)(torn[_-]?api[_-]?key|api[_-]?key|apikey)["'`]?\s*[:=]\s*["'`]?([a-zA-Z0-9]{16})["'`]?'''
+secretGroup = 2
+keywords = ["api_key", "apikey", "tornapikey", "torn_api_key"]
+
+# --- Allowlist --------------------------------------------------------------
+
+[allowlist]
+description = "Globally ignored paths and values"
+# Documentation and lockfiles never contain live credentials.
+paths = [
+  '''(.*?)(png|jpg|jpeg|gif|svg|ico|pdf)$''',
+]
+# Obvious placeholders used throughout the codebase, docs and tests.
+regexes = [
+  '''(?i)(your[_-]?api[_-]?key|placeholder|example|dummy|sample|xxxx+|0{8,}|1234567890)''',
+]

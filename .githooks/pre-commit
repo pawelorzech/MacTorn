@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# MacTorn pre-commit hook: block commits that contain secrets.
+# Installed via `make hooks` (sets core.hooksPath to .githooks).
+# Scans only what is staged, using the repo's .gitleaks.toml.
+
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠️  gitleaks not installed — skipping secret scan."
+  echo "    Install with: brew install gitleaks"
+  exit 0
+fi
+
+if ! gitleaks git --staged --no-banner --redact --config .gitleaks.toml; then
+  echo ""
+  echo "🛑 Commit blocked: potential secret detected (see above)."
+  echo "   • Remove the secret, or"
+  echo "   • If it's a false positive, allowlist it in .gitleaks.toml, or"
+  echo "   • Bypass once with: git commit --no-verify"
+  exit 1
+fi

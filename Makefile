@@ -1,7 +1,7 @@
 # MacTorn Makefile
 # Run tests and build commands for local development
 
-.PHONY: test test-unit test-ui build clean coverage help release release-signed
+.PHONY: test test-unit test-ui build clean coverage help release release-signed hooks scan
 
 # Default target
 help:
@@ -14,6 +14,8 @@ help:
 	@echo "  make release-signed  - Build Release signed with Developer ID (set DEVELOPER_ID)"
 	@echo "  make clean           - Clean build artifacts"
 	@echo "  make coverage        - Run tests with code coverage"
+	@echo "  make hooks           - Install the gitleaks pre-commit secret scan"
+	@echo "  make scan            - Scan full git history for secrets"
 	@echo ""
 	@echo "  Example:"
 	@echo "    make release-signed DEVELOPER_ID=\"Developer ID Application: NAME (TEAMID)\""
@@ -148,6 +150,18 @@ watch:
 # Open project in Xcode
 open:
 	open MacTorn/MacTorn.xcodeproj
+
+# Install git hooks (gitleaks secret scan on every commit)
+hooks:
+	@command -v gitleaks >/dev/null 2>&1 || { echo "❌ gitleaks not found. Install with: brew install gitleaks"; exit 1; }
+	git config core.hooksPath .githooks
+	chmod +x .githooks/*
+	@echo "✅ Git hooks installed (core.hooksPath -> .githooks). gitleaks runs on every commit."
+
+# Scan the entire git history for secrets
+scan:
+	@command -v gitleaks >/dev/null 2>&1 || { echo "❌ gitleaks not found. Install with: brew install gitleaks"; exit 1; }
+	gitleaks git --no-banner --redact -v --config .gitleaks.toml
 
 # Show test summary
 test-summary:
