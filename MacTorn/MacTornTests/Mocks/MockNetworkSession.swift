@@ -8,6 +8,12 @@ final class MockNetworkSession: NetworkSession, @unchecked Sendable {
     var mockError: Error?
     var requestedURLs: [URL] = []
 
+    /// `AppState.fetchData` fans out several `session.data(for:)` calls concurrently
+    /// (user v1 + faction + v2-user), each landing on a background thread. Guard all
+    /// shared-state access so the concurrent `requestedURLs.append` and field reads
+    /// aren't a data race (which showed up as intermittent test failures).
+    private let lock = NSLock()
+
     init(mockData: Data? = nil, mockResponse: URLResponse? = nil, mockError: Error? = nil) {
         self.mockData = mockData
         self.mockResponse = mockResponse
@@ -15,6 +21,9 @@ final class MockNetworkSession: NetworkSession, @unchecked Sendable {
     }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        lock.lock()
+        defer { lock.unlock() }
+
         if let url = request.url {
             requestedURLs.append(url)
         }

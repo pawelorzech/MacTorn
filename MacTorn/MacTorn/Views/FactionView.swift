@@ -68,23 +68,19 @@ struct FactionView: View {
                 .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
 
-                // OC Status
-                if !appState.organizedCrimes.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Image(systemName: "briefcase.fill")
-                                .foregroundColor(.orange)
-                            Text("Organized Crimes")
-                                .font(.caption.bold())
-                        }
+                // Organized Crime 2.0 (your own current OC)
+                if let oc = appState.organizedCrime {
+                    OC2StatusView(oc: oc, playerId: appState.data?.playerId)
+                }
 
-                        ForEach(appState.organizedCrimes) { crime in
-                            OCStatusRow(crime: crime)
-                        }
-                    }
-                    .padding()
-                    .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
-                    .cornerRadius(8)
+                // Active ranked war (score vs target)
+                if let war = appState.rankedWars.first(where: { $0.isActive }) {
+                    RankedWarView(war: war, myFactionId: appState.factionData?.factionId)
+                }
+
+                // Faction news feed
+                if !appState.factionNews.isEmpty {
+                    FactionNewsView(news: appState.factionNews)
                 }
 
                 // Armory Quick Actions
@@ -162,23 +158,39 @@ struct FactionView: View {
     }
 }
 
-// MARK: - OC Status Row
-struct OCStatusRow: View {
+// MARK: - Organized Crime 2.0 Status (your own current OC)
+struct OC2StatusView: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
-    let crime: OrganizedCrime
+    let oc: OrganizedCrime2
+    let playerId: Int?
 
     var body: some View {
-        // `crime.timeReady` is an absolute Unix timestamp; ticking `now` against it
-        // keeps the countdown matched to the in-game OC panel without drift.
-        TimelineView(.periodic(from: .now, by: 1.0)) { context in
-            let remaining = max(0, crime.timeReady - Int(context.date.timeIntervalSince1970))
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "briefcase.fill")
+                    .foregroundColor(.orange)
+                Text("Organized Crime")
+                    .font(.caption.bold())
+                Spacer()
+                if let difficulty = oc.difficulty {
+                    Text("Lvl \(difficulty)")
+                        .font(.caption2.bold())
+                        .foregroundColor(.secondary)
+                }
+            }
 
-            VStack(alignment: .leading, spacing: 4) {
+            // Name + ready countdown. `readyAt` is an absolute Unix timestamp, so we
+            // tick `now` against it every second — no drift vs the in-game OC panel.
+            TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                let now = Int(context.date.timeIntervalSince1970)
+                let ready = oc.readyAt.map { $0 <= now } ?? false
+                let remaining = max(0, (oc.readyAt ?? 0) - now)
+
                 HStack {
-                    Text(crime.crimeName)
+                    Text(oc.name)
                         .font(.caption.bold())
                     Spacer()
-                    if remaining <= 0 && crime.initiated {
+                    if ready {
                         Text("READY")
                             .font(.caption2.bold())
                             .foregroundColor(.white)
@@ -190,33 +202,45 @@ struct OCStatusRow: View {
                         Text(formatTime(remaining))
                             .font(.caption.monospacedDigit())
                             .foregroundColor(.orange)
-                    } else {
-                        Text("Waiting")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
                     }
                 }
+            }
 
-                HStack {
-                    if let planner = crime.plannerName {
-                        Text("By: \(planner)")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                    Text("\(crime.participants.count) members")
+            // Status + slots filled
+            HStack {
+                if let status = oc.status {
+                    Text(status)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                if oc.totalSlots > 0 {
+                    Text("\(oc.filledSlots)/\(oc.totalSlots) filled")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
             }
-            .padding(8)
-            .background(
-                remaining <= 0 && crime.initiated
-                    ? Color.green.opacity(reduceTransparency ? 0.25 : 0.12)
-                    : Color.orange.opacity(reduceTransparency ? 0.2 : 0.08)
-            )
-            .cornerRadius(6)
+
+            // Your own progress in your slot, if you hold one
+            if let pid = playerId, let progress = oc.myProgress(playerId: pid) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text("Your progress")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text("\(Int(progress))%")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    }
+                    ProgressView(value: min(max(progress, 0), 100), total: 100)
+                        .tint(.orange)
+                }
+            }
         }
+        .padding()
+        .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
+        .cornerRadius(8)
     }
 
     private func formatTime(_ seconds: Int) -> String {
@@ -227,6 +251,103 @@ struct OCStatusRow: View {
             return String(format: "%d:%02d:%02d", hours, minutes, secs)
         }
         return String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+// MARK: - Ranked War
+struct RankedWarView: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
+    let war: RankedWar
+    let myFactionId: Int?
+
+    var body: some View {
+        let mine = myFactionId.flatMap { war.faction(id: $0) }
+        let opp = myFactionId.flatMap { war.opponent(of: $0) }
+
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "flame.fill")
+                    .foregroundColor(.red)
+                Text("Ranked War")
+                    .font(.caption.bold())
+                Spacer()
+                Text("Target \(formatNumber(war.target))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+
+            if let mine, let opp {
+                let lead = mine.score - opp.score
+                HStack {
+                    Text(mine.name)
+                        .font(.caption.bold())
+                        .lineLimit(1)
+                    Spacer()
+                    Text("\(formatNumber(mine.score)) – \(formatNumber(opp.score))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(lead >= 0 ? .green : .red)
+                    Spacer()
+                    Text(opp.name)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                // War is won when a faction's *lead* reaches `target`.
+                ProgressView(value: Double(min(max(lead, 0), war.target)),
+                             total: Double(max(war.target, 1)))
+                    .tint(lead >= 0 ? .green : .red)
+                Text(lead >= 0 ? "Leading by \(formatNumber(lead))" : "Behind by \(formatNumber(-lead))")
+                    .font(.caption2)
+                    .foregroundColor(lead >= 0 ? .green : .red)
+            } else {
+                ForEach(war.factions) { f in
+                    HStack {
+                        Text(f.name).font(.caption).lineLimit(1)
+                        Spacer()
+                        Text(formatNumber(f.score)).font(.caption.monospacedDigit())
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(Color.red.opacity(reduceTransparency ? 0.25 : 0.06))
+        .cornerRadius(8)
+    }
+
+    private func formatNumber(_ v: Int) -> String {
+        AppState.decimalFormatter.string(from: NSNumber(value: v)) ?? "\(v)"
+    }
+}
+
+// MARK: - Faction News
+struct FactionNewsView: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
+    let news: [FactionNews]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Image(systemName: "newspaper.fill")
+                    .foregroundColor(.blue)
+                Text("Faction News")
+                    .font(.caption.bold())
+            }
+            ForEach(news.prefix(5)) { item in
+                HStack(alignment: .top, spacing: 4) {
+                    Text("•")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(item.plainText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding()
+        .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
+        .cornerRadius(8)
     }
 }
 

@@ -19,6 +19,7 @@ enum NotificationType: String {
     case travelApproaching
     case priceAlert
     case ocReady
+    case bountyOnMe
     case forumNewPosts
     case factionNewThread
 
@@ -42,6 +43,8 @@ enum NotificationType: String {
             return URL(string: "https://www.torn.com/page.php?sid=ItemMarket")!
         case .ocReady:
             return URL(string: "https://www.torn.com/factions.php?step=your#/tab=crimes")!
+        case .bountyOnMe:
+            return URL(string: "https://www.torn.com/bounties.php")!
         case .forumNewPosts, .factionNewThread:
             return URL(string: "https://www.torn.com/forums.php")!
         }

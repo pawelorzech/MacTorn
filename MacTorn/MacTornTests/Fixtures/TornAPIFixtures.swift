@@ -5,15 +5,18 @@ enum TornAPIFixtures {
 
     // MARK: - Full Response
 
-    /// Function (not `static let`) so the top-level `timestamp` is captured at
+    /// Function (not `static let`) so the top-level `server_time` is captured at
     /// the moment the test calls it, not at first-access of the type. The Torn
     /// API stamps every response with the current server time, and several
-    /// tests assert on `endsAt = timestamp + duration` against `Date()`, which
+    /// tests assert on `endsAt = server_time + duration` against `Date()`, which
     /// fails if the fixture's clock froze ~60 s into the test run.
+    ///
+    /// NOTE: the live v1 `user` root anchors on `server_time` (not `timestamp`),
+    /// verified against a real API response 2026-07-03 — fixtures mirror that.
     static func validFullResponse() -> [String: Any] { [
         "name": "TestPlayer",
         "player_id": 123456,
-        "timestamp": Int(Date().timeIntervalSince1970),
+        "server_time": Int(Date().timeIntervalSince1970),
         "energy": [
             "current": 100,
             "maximum": 150,
@@ -187,9 +190,10 @@ enum TornAPIFixtures {
 
     // MARK: - Cooldowns
 
-    /// Response with active cooldowns and a known top-level server `timestamp`,
+    /// Response with active cooldowns and a known top-level `server_time`,
     /// useful for asserting that `AppState.cooldownEnds` is computed as
-    /// `timestamp + duration` for each kind.
+    /// `server_time + duration` for each kind. (Param name kept as `timestamp`
+    /// for call-site brevity; it populates the real `server_time` key.)
     static func responseWithCooldowns(
         timestamp: Int,
         drug: Int,
@@ -197,7 +201,7 @@ enum TornAPIFixtures {
         medical: Int
     ) -> [String: Any] {
         var resp = validFullResponse()
-        resp["timestamp"] = timestamp
+        resp["server_time"] = timestamp
         resp["cooldowns"] = [
             "drug": drug,
             "medical": medical,
@@ -270,33 +274,86 @@ enum TornAPIFixtures {
         "bazaar": []
     ]
 
-    // MARK: - Faction with OC
+    // MARK: - API v2 User (organized crime 2.0, refills, education, bounties)
 
-    static let factionWithOC: [String: Any] = [
-        "name": "The Masters",
-        "ID": 11559,
-        "respect": 500000,
-        "chain": [
-            "current": 0,
-            "max": 100,
-            "timeout": 0,
-            "cooldown": 0
-        ],
-        "crimes": [
-            "1": [
-                "crime_id": 8,
-                "crime_name": "Planned Robbery",
-                "participants": [
-                    ["description": "Driver", "state": "Okay"],
-                    ["description": "Lookout", "state": "Okay"]
+    /// Mirrors a live `/v2/user?selections=organizedcrime,refills,education,bounties`
+    /// response (captured 2026-07-03). `ocReadyAt` places the OC's ready time relative
+    /// to `now` so tests can drive both the "ready" and "counting down" states.
+    static func userV2Response(
+        ocReadyAt: Int = 1783158163,
+        refillEnergy: Bool = true,
+        studyingUntil: Int? = nil,
+        bounties: [[String: Any]] = []
+    ) -> [String: Any] {
+        var education: [String: Any] = ["complete": [1, 2, 3]]
+        education["current"] = studyingUntil.map { ["id": 12, "until": $0] } ?? NSNull()
+        return [
+            "organizedCrime": [
+                "id": 1836033,
+                "name": "Clinical Precision",
+                "difficulty": 8,
+                "status": "Planning",
+                "created_at": 1782739952,
+                "ready_at": ocReadyAt,
+                "expired_at": 1783344752,
+                "executed_at": NSNull(),
+                "slots": [
+                    ["position": "Imitator", "checkpoint_pass_rate": 75,
+                     "user": ["id": 2362436, "progress": 100, "joined_at": 1782895791]],
+                    ["position": "Cat Burglar", "checkpoint_pass_rate": 75,
+                     "user": ["id": 1412840, "progress": 41.42, "joined_at": 1782812563]]
+                ]
+            ],
+            "refills": ["energy": refillEnergy, "nerve": false, "token": false, "special_count": 0],
+            "education": education,
+            "bounties": bounties,
+            "bounties_timestamp": 1783107206,
+            "bounties_delay": 0
+        ]
+    }
+
+    /// A single anonymous bounty placed on the signed-in player (id 2362436).
+    static func bountyOnMe(targetId: Int = 2362436, reward: Int = 2_500_000) -> [String: Any] {
+        [
+            "target_id": targetId, "target_name": "TestPlayer", "target_level": 50,
+            "lister_id": NSNull(), "lister_name": NSNull(),
+            "reward": reward, "reason": NSNull(), "quantity": 1,
+            "is_anonymous": true, "valid_until": 1790000000
+        ]
+    }
+
+    // MARK: - API v2 Faction (ranked wars, news)
+
+    /// Mirrors `/v2/faction/rankedwars` (captured 2026-07-03): one active war
+    /// (`end == 0`) plus one finished war. Faction 11559 = The Masters.
+    static func rankedWarsResponse() -> [String: Any] {
+        [
+            "rankedwars": [
+                [
+                    "id": 44751, "start": 1783083600, "end": 0, "target": 13000, "winner": NSNull(),
+                    "factions": [
+                        ["id": 11559, "name": "The Masters", "score": 9890, "chain": 0],
+                        ["id": 37498, "name": "The Railroad", "score": 3643, "chain": 0]
+                    ]
                 ],
-                "time_started": Int(Date().timeIntervalSince1970) - 3600,
-                "time_ready": Int(Date().timeIntervalSince1970) + 3600,
-                "time_left": 3600,
-                "initiated": false,
-                "planner_id": 12345,
-                "planner_name": "TestPlayer"
+                [
+                    "id": 43781, "start": 1781000000, "end": 1781967435, "target": 9900, "winner": 36457,
+                    "factions": [
+                        ["id": 11559, "name": "The Masters", "score": 8942, "chain": 0],
+                        ["id": 36457, "name": "Warband", "score": 18848, "chain": 0]
+                    ]
+                ]
             ]
+        ]
+    }
+
+    /// Mirrors `/v2/faction/news?cat=main` — text is HTML with profile/faction links.
+    static let factionNewsResponse: [String: Any] = [
+        "news": [
+            ["id": "zL8X", "text": "<a href='/profiles.php?XID=889354'>Steven</a> disabled war mode",
+             "timestamp": 1783102710],
+            ["id": "8Mn2", "text": "<a href='/profiles.php?XID=2676448'>Lord</a> enabled war mode",
+             "timestamp": 1783080225]
         ]
     ]
 

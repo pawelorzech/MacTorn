@@ -58,6 +58,7 @@
 		BBB00018 /* AppStateForumWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10018 /* AppStateForumWatchTests.swift */; };
 		BBB00019 /* PropertyInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10019 /* PropertyInfoTests.swift */; };
 		BBB00020 /* StockMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10020 /* StockMetadataTests.swift */; };
+		BBB00023 /* UserV2ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10023 /* UserV2ModelsTests.swift */; };
 		BBB00021 /* AppStateStocksMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10021 /* AppStateStocksMetadataTests.swift */; };
 		BBB00022 /* AppStatePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10022 /* AppStatePerformanceTests.swift */; };
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
@@ -133,6 +134,7 @@
 		BBB10018 /* AppStateForumWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateForumWatchTests.swift; sourceTree = "<group>"; };
 		BBB10019 /* PropertyInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyInfoTests.swift; sourceTree = "<group>"; };
 		BBB10020 /* StockMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockMetadataTests.swift; sourceTree = "<group>"; };
+		BBB10023 /* UserV2ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2ModelsTests.swift; sourceTree = "<group>"; };
 		BBB10021 /* AppStateStocksMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStocksMetadataTests.swift; sourceTree = "<group>"; };
 		BBB10022 /* AppStatePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePerformanceTests.swift; sourceTree = "<group>"; };
 		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -324,6 +326,7 @@
 				BBB10017 /* WatchedThreadTests.swift */,
 				BBB10019 /* PropertyInfoTests.swift */,
 				BBB10020 /* StockMetadataTests.swift */,
+				BBB10023 /* UserV2ModelsTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -540,6 +543,7 @@
 				BBB00018 /* AppStateForumWatchTests.swift in Sources */,
 				BBB00019 /* PropertyInfoTests.swift in Sources */,
 				BBB00020 /* StockMetadataTests.swift in Sources */,
+				BBB00023 /* UserV2ModelsTests.swift in Sources */,
 				BBB00021 /* AppStateStocksMetadataTests.swift in Sources */,
 				BBB00022 /* AppStatePerformanceTests.swift in Sources */,
 			);

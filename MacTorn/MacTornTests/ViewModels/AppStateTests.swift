@@ -125,9 +125,9 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(ends.medicalEndsAt, serverTs + 1200)
     }
 
-    /// Falls back to local `Date()` if the API response doesn't include a top-level
-    /// `timestamp` (older API versions / partial responses). Don't crash, don't drop
-    /// the cooldowns — just lose the clock-skew correction.
+    /// Falls back to local `Date()` if the API response includes neither `server_time`
+    /// nor the legacy `timestamp` (partial responses). Don't crash, don't drop the
+    /// cooldowns — just lose the clock-skew correction.
     func testFetchData_cooldownEnds_fallbackToLocalNow_whenServerTimestampMissing() async throws {
         appState.apiKey = "valid_key"
         var json = TornAPIFixtures.responseWithCooldowns(
@@ -136,6 +136,7 @@ final class AppStateTests: XCTestCase {
             booster: 600,
             medical: 0
         )
+        json.removeValue(forKey: "server_time")
         json.removeValue(forKey: "timestamp")
         try mockSession.setSuccessResponse(json: json)
 
@@ -147,6 +148,73 @@ final class AppStateTests: XCTestCase {
         let ends = try XCTUnwrap(appState.cooldownEnds)
         XCTAssertGreaterThanOrEqual(ends.boosterEndsAt, before + 600)
         XCTAssertLessThanOrEqual(ends.boosterEndsAt, after + 600)
+    }
+
+    /// Regression: the live API anchors on `server_time`, but a response carrying only
+    /// the legacy `timestamp` key must still anchor on it (dual-key decode), not fall
+    /// back to local `Date()`. Guards the fallback path added alongside the server_time fix.
+    func testFetchData_cooldownEnds_anchorsOnLegacyTimestamp_whenServerTimeMissing() async throws {
+        let legacyTs = 1_730_000_000  // arbitrary, not "now"
+        appState.apiKey = "valid_key"
+        var json = TornAPIFixtures.responseWithCooldowns(
+            timestamp: 0, drug: 0, booster: 3600, medical: 0
+        )
+        json.removeValue(forKey: "server_time")
+        json["timestamp"] = legacyTs
+        try mockSession.setSuccessResponse(json: json)
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let ends = try XCTUnwrap(appState.cooldownEnds)
+        XCTAssertEqual(ends.boosterEndsAt, legacyTs + 3600,
+                       "legacy `timestamp` must anchor cooldowns when `server_time` is absent")
+    }
+
+    // MARK: - API v2 user data (own organized crime)
+
+    /// End-to-end: the combined v2 user response flows through `fetchData` into
+    /// `organizedCrime`. Guards the fetch→decode→state wiring that replaced the dead
+    /// v1 `faction/crimes` (OC 1.0) feature. The mock returns the same body for every
+    /// request; the v1 parse degrades gracefully, but `fetchUserV2Data` picks up the OC.
+    func testFetchData_populatesOwnOrganizedCrime_fromV2() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.userV2Response())
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let oc = try XCTUnwrap(appState.organizedCrime, "v2 organized crime should be parsed")
+        XCTAssertEqual(oc.name, "Clinical Precision")
+        XCTAssertEqual(oc.difficulty, 8)
+        XCTAssertEqual(oc.filledSlots, 2)
+        XCTAssertEqual(oc.myProgress(playerId: 2362436), 100)
+    }
+
+    /// A bounty in the v2 response lands in `bountiesOnMe` for the alert badge.
+    func testFetchData_populatesBountiesOnMe_fromV2() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.userV2Response(bounties: [TornAPIFixtures.bountyOnMe(reward: 3_000_000)])
+        )
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertEqual(appState.bountiesOnMe.count, 1)
+        XCTAssertEqual(appState.bountiesOnMe.first?.reward, 3_000_000)
+    }
+
+    /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
+    func testFetchData_populatesRankedWars_fromV2Faction() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.rankedWarsResponse())
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertTrue(appState.rankedWars.contains { $0.isActive },
+                      "the active ranked war should be parsed from the v2 faction call")
     }
 
     // MARK: - CooldownEnds.merged (pure model)

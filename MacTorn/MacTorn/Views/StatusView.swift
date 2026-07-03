@@ -40,7 +40,15 @@ struct StatusView: View {
                 if let cooldowns = appState.data?.cooldowns {
                     cooldownsSection(cooldowns)
                 }
-                
+
+                // Bounty alert — someone placed a bounty on you (safety signal)
+                if !appState.bountiesOnMe.isEmpty {
+                    bountyBadge
+                }
+
+                // Dailies (refills + education) — from the v2 user call
+                dailiesSection
+
                 // Messages badge
                 if appState.data?.unreadMessagesCount ?? 0 > 0 {
                     messagesBadge
@@ -280,6 +288,85 @@ struct StatusView: View {
         }
     }
     
+    // MARK: - Bounty Alert
+    private var bountyBadge: some View {
+        let total = appState.bountiesOnMe.reduce(0) { $0 + $1.reward }
+        let count = appState.bountiesOnMe.count
+        let amount = AppState.decimalFormatter.string(from: NSNumber(value: total)) ?? "\(total)"
+        return Button {
+            BrowserManager.shared.open(URL(string: "https://www.torn.com/bounties.php")!)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "target")
+                    .foregroundColor(.red)
+                Text(count == 1 ? "Bounty on you" : "\(count) bounties on you")
+                    .font(.caption.bold())
+                Spacer()
+                Text("$\(amount)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.red)
+            }
+            .padding()
+            .background(Color.red.opacity(reduceTransparency ? 0.3 : 0.1))
+            .cornerRadius(8)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Dailies (refills + education)
+    @ViewBuilder
+    private var dailiesSection: some View {
+        let refills = appState.refills
+        let studying = appState.education?.isStudying ?? false
+        if refills != nil || studying {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "checklist")
+                        .foregroundColor(.mint)
+                    Text("Dailies")
+                        .font(.caption.bold())
+                }
+
+                if let refills {
+                    HStack(spacing: 6) {
+                        Image(systemName: "drop.fill")
+                            .foregroundColor(.cyan)
+                            .font(.caption2)
+                        if refills.unclaimed.isEmpty {
+                            Text("Refills claimed")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("Refills left: \(refills.unclaimed.joined(separator: ", "))")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                        }
+                    }
+                }
+
+                // `endsDate` is an absolute time, so tick `now` against it — no drift.
+                if let ends = appState.education?.endsDate {
+                    TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                        let remaining = max(0, Int(ends.timeIntervalSince(context.date)))
+                        HStack(spacing: 6) {
+                            Image(systemName: "graduationcap.fill")
+                                .foregroundColor(.purple)
+                                .font(.caption2)
+                            Text(remaining > 0
+                                 ? "Education: \(formatDuration(remaining)) left"
+                                 : "Education: complete")
+                                .font(.caption)
+                                .foregroundColor(remaining > 0 ? .secondary : .green)
+                        }
+                    }
+                }
+            }
+            .padding()
+            .background(Color.mint.opacity(reduceTransparency ? 0.25 : 0.06))
+            .cornerRadius(8)
+        }
+    }
+
     // MARK: - Helpers
     private func formatTime(_ seconds: Int) -> String {
         if seconds <= 0 { return "Ready" }
@@ -290,6 +377,16 @@ struct StatusView: View {
             return String(format: "%d:%02d:%02d", hours, minutes, secs)
         }
         return String(format: "%d:%02d", minutes, secs)
+    }
+
+    /// Day-aware duration for long timers like education (can span days).
+    private func formatDuration(_ seconds: Int) -> String {
+        let days = seconds / 86400
+        let hours = (seconds % 86400) / 3600
+        let minutes = (seconds % 3600) / 60
+        if days > 0 { return "\(days)d \(hours)h" }
+        if hours > 0 { return "\(hours)h \(minutes)m" }
+        return "\(minutes)m"
     }
 }
 

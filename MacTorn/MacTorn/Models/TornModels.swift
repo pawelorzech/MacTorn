@@ -28,7 +28,18 @@ struct TornResponse: Codable {
     /// Server-side Unix epoch at which this response was generated. Used as the
     /// anchor when converting relative durations (e.g. cooldowns) into absolute
     /// end-timestamps so countdowns match torn.com regardless of Mac↔server clock skew.
+    ///
+    /// The live v1 `user` root returns this under `server_time` — NOT `timestamp`
+    /// (which is only present when the `timestamp` selection is requested, which we
+    /// don't). `legacyTimestamp` keeps the old `timestamp` key working as a fallback
+    /// so a response carrying either key still anchors correctly. Verified against a
+    /// live API response 2026-07-03.
     let serverTimestamp: Int?
+    let legacyTimestamp: Int?
+
+    /// Best available server-time anchor: prefer `server_time`, fall back to the
+    /// legacy `timestamp` key, else nil (caller drops to local `Date()`).
+    var anchorTimestamp: Int? { serverTimestamp ?? legacyTimestamp }
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -36,7 +47,8 @@ struct TornResponse: Codable {
         case energy, nerve, life, happy
         case cooldowns, travel, status, chain
         case events, messages, error
-        case serverTimestamp = "timestamp"
+        case serverTimestamp = "server_time"
+        case legacyTimestamp = "timestamp"
     }
     
     // Convenience computed property
@@ -639,57 +651,205 @@ struct FactionChain: Codable {
     }
 }
 
-// MARK: - Organized Crime
-struct OrganizedCrime: Codable, Identifiable {
-    let crimeId: Int
-    let crimeName: String
-    let participants: [OCParticipant]
-    let timeStarted: Int
-    let timeReady: Int
-    let timeLeft: Int
-    let initiated: Bool
-    let plannerId: Int?
-    let plannerName: String?
-
-    var id: Int { crimeId }
+// MARK: - Organized Crime 2.0 (player's own OC via v2 /user?selections=organizedcrime)
+//
+// Torn migrated every faction to Organized Crimes 2.0 (~Feb 2025). The old v1
+// `faction/?selections=crimes` selection now only returns frozen OC-1.0 *history*
+// (completed pre-migration crimes, 0 active) and its `initiated` field flipped from
+// Bool to Int — so the previous parser silently dropped every crime. We instead read
+// the player's OWN current OC from the v2 endpoint: the live, useful signal for a
+// menu-bar monitor. Shape verified against a live API response 2026-07-03.
+struct OrganizedCrime2: Codable, Equatable, Identifiable {
+    let id: Int
+    let name: String
+    let difficulty: Int?
+    let status: String?          // e.g. "Planning", "Recruiting", "Successful"
+    let createdAt: Int?
+    let readyAt: Int?            // epoch when the OC becomes executable
+    let expiredAt: Int?
+    let executedAt: Int?
+    let slots: [OCSlot]?
 
     enum CodingKeys: String, CodingKey {
-        case crimeId = "crime_id"
-        case crimeName = "crime_name"
-        case participants
-        case timeStarted = "time_started"
-        case timeReady = "time_ready"
-        case timeLeft = "time_left"
-        case initiated
-        case plannerId = "planner_id"
-        case plannerName = "planner_name"
+        case id, name, difficulty, status, slots
+        case createdAt = "created_at"
+        case readyAt = "ready_at"
+        case expiredAt = "expired_at"
+        case executedAt = "executed_at"
     }
 
-    init(crimeId: Int, crimeName: String, participants: [OCParticipant], timeStarted: Int, timeReady: Int, timeLeft: Int, initiated: Bool, plannerId: Int?, plannerName: String?) {
-        self.crimeId = crimeId
-        self.crimeName = crimeName
-        self.participants = participants
-        self.timeStarted = timeStarted
-        self.timeReady = timeReady
-        self.timeLeft = timeLeft
-        self.initiated = initiated
-        self.plannerId = plannerId
-        self.plannerName = plannerName
-    }
-
-    var isReady: Bool {
-        timeLeft <= 0 && initiated
+    init(id: Int, name: String, difficulty: Int? = nil, status: String? = nil,
+         createdAt: Int? = nil, readyAt: Int? = nil, expiredAt: Int? = nil,
+         executedAt: Int? = nil, slots: [OCSlot]? = nil) {
+        self.id = id; self.name = name; self.difficulty = difficulty; self.status = status
+        self.createdAt = createdAt; self.readyAt = readyAt; self.expiredAt = expiredAt
+        self.executedAt = executedAt; self.slots = slots
     }
 
     var readyDate: Date? {
-        guard timeReady > 0 else { return nil }
-        return Date(timeIntervalSince1970: TimeInterval(timeReady))
+        guard let readyAt, readyAt > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(readyAt))
+    }
+
+    /// True once the OC has reached its ready time and hasn't been executed yet.
+    var isReady: Bool {
+        guard executedAt == nil, let readyAt, readyAt > 0 else { return false }
+        return readyAt <= Int(Date().timeIntervalSince1970)
+    }
+
+    var filledSlots: Int { slots?.filter { $0.user != nil }.count ?? 0 }
+    var totalSlots: Int { slots?.count ?? 0 }
+
+    /// The signed-in player's progress (0–100) in their slot, if they hold one.
+    func myProgress(playerId: Int) -> Double? {
+        slots?.first { $0.user?.id == playerId }?.user?.progress
     }
 }
 
-struct OCParticipant: Codable {
-    let description: String?
-    let state: String?
+struct OCSlot: Codable, Equatable {
+    let position: String?
+    let checkpointPassRate: Int?
+    let user: OCSlotUser?
+
+    enum CodingKeys: String, CodingKey {
+        case position, user
+        case checkpointPassRate = "checkpoint_pass_rate"
+    }
+
+    init(position: String? = nil, checkpointPassRate: Int? = nil, user: OCSlotUser? = nil) {
+        self.position = position; self.checkpointPassRate = checkpointPassRate; self.user = user
+    }
+}
+
+struct OCSlotUser: Codable, Equatable {
+    let id: Int?
+    let progress: Double?
+    let joinedAt: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, progress
+        case joinedAt = "joined_at"
+    }
+
+    init(id: Int? = nil, progress: Double? = nil, joinedAt: Int? = nil) {
+        self.id = id; self.progress = progress; self.joinedAt = joinedAt
+    }
+}
+
+// MARK: - Daily Refills (v2 /user?selections=refills)
+struct Refills: Codable, Equatable {
+    let energy: Bool
+    let nerve: Bool
+    let token: Bool
+    let specialCount: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case energy, nerve, token
+        case specialCount = "special_count"
+    }
+
+    init(energy: Bool = false, nerve: Bool = false, token: Bool = false, specialCount: Int? = nil) {
+        self.energy = energy; self.nerve = nerve; self.token = token; self.specialCount = specialCount
+    }
+
+    /// Refills the player hasn't claimed yet today (the actionable nudge).
+    var unclaimed: [String] {
+        var out: [String] = []
+        if !energy { out.append("Energy") }
+        if !nerve { out.append("Nerve") }
+        if !token { out.append("Token") }
+        return out
+    }
+}
+
+// MARK: - Education (v2 /user?selections=education)
+struct EducationStatus: Codable, Equatable {
+    let complete: [Int]
+    let current: CurrentEducation?
+
+    init(complete: [Int] = [], current: CurrentEducation? = nil) {
+        self.complete = complete; self.current = current
+    }
+
+    var isStudying: Bool { current?.until != nil }
+
+    /// When the in-progress course finishes; nil if not studying.
+    var endsDate: Date? {
+        guard let until = current?.until, until > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(until))
+    }
+}
+
+struct CurrentEducation: Codable, Equatable {
+    let id: Int?
+    let until: Int?   // epoch when the current course completes
+}
+
+// MARK: - Bounty (v2 /user?selections=bounties)
+struct Bounty: Codable, Equatable, Identifiable {
+    let targetId: Int
+    let targetName: String?
+    let targetLevel: Int?
+    let listerId: Int?
+    let listerName: String?     // null when the bounty is anonymous
+    let reward: Int
+    let reason: String?
+    let quantity: Int?
+    let isAnonymous: Bool?
+    let validUntil: Int?
+
+    // The payload has no stable per-bounty id; a composite key is enough to
+    // de-dup "bounty on you" notifications across polls.
+    var id: String { "\(targetId)-\(reward)-\(listerId ?? 0)-\(validUntil ?? 0)" }
+
+    enum CodingKeys: String, CodingKey {
+        case targetId = "target_id"
+        case targetName = "target_name"
+        case targetLevel = "target_level"
+        case listerId = "lister_id"
+        case listerName = "lister_name"
+        case reward, reason, quantity
+        case isAnonymous = "is_anonymous"
+        case validUntil = "valid_until"
+    }
+}
+
+// MARK: - Faction Ranked War (v2 /faction/rankedwars)
+struct RankedWar: Codable, Equatable, Identifiable {
+    let id: Int
+    let start: Int
+    let end: Int
+    let target: Int
+    let winner: Int?
+    let factions: [RankedWarFaction]
+
+    /// Ongoing war: no end timestamp yet. Shape verified live 2026-07-03.
+    var isActive: Bool { end == 0 }
+
+    func faction(id: Int) -> RankedWarFaction? { factions.first { $0.id == id } }
+    func opponent(of factionId: Int) -> RankedWarFaction? { factions.first { $0.id != factionId } }
+}
+
+struct RankedWarFaction: Codable, Equatable, Identifiable {
+    let id: Int
+    let name: String
+    let score: Int
+    let chain: Int?
+}
+
+// MARK: - Faction News (v2 /faction/news?cat=main)
+struct FactionNews: Codable, Equatable, Identifiable {
+    let id: String
+    let text: String
+    let timestamp: Int
+
+    /// News text arrives as HTML (profile/faction links); strip tags for display,
+    /// matching `TornEvent.cleanEvent`.
+    var plainText: String {
+        text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 // MARK: - Property Info
@@ -1019,7 +1179,29 @@ enum TornAPI {
     }
 
     static func factionURL(for apiKey: String) -> URL? {
-        build(factionURL, query: ["selections": "basic,chain,crimes", "key": apiKey])
+        // `crimes` dropped: OC 1.0 is dead (frozen history + Int/Bool decode break).
+        // The player's own OC 2.0 comes from `userV2URL` instead.
+        build(factionURL, query: ["selections": "basic,chain", "key": apiKey])
+    }
+
+    /// Combined API v2 `user` call. v2 accepts multiple selections in one request
+    /// (verified live), so a single call covers organized crime, refills, education
+    /// and bounties. v1 selections stay on the frozen v1 endpoints above.
+    static let userV2Selections = "organizedcrime,refills,education,bounties"
+    static func userV2URL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/user",
+              query: ["selections": userV2Selections, "key": apiKey])
+    }
+
+    /// Ranked wars use a dedicated v2 path (the combined `?selections=rankedwars,news`
+    /// call returns code 21 because `news` requires a `cat` parameter).
+    static func factionRankedWarsURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/faction/rankedwars", query: ["key": apiKey])
+    }
+
+    /// Faction news requires a category (`cat`); `main` is the general feed.
+    static func factionNewsURL(for apiKey: String, cat: String = "main") -> URL? {
+        build("https://api.torn.com/v2/faction/news", query: ["cat": cat, "key": apiKey])
     }
 
     static func marketURL(itemId: Int, apiKey: String) -> URL? {

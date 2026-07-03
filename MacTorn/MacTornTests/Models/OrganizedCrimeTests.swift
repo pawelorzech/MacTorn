@@ -1,64 +1,83 @@
 import XCTest
 @testable import MacTorn
 
+/// Tests the Organized Crime 2.0 model (`OrganizedCrime2`), the player's own current
+/// OC read from v2 `/user?selections=organizedcrime`. The legacy v1 `faction/crimes`
+/// (OC 1.0) selection is dead: it now returns only frozen pre-migration history and its
+/// `initiated` field flipped Bool→Int, so the old parser silently dropped everything.
+/// JSON below mirrors a live API response captured 2026-07-03.
 final class OrganizedCrimeTests: XCTestCase {
 
-    func testOrganizedCrime_decodesFromJSON() throws {
-        let json: [String: Any] = [
-            "crime_id": 8,
-            "crime_name": "Planned Robbery",
-            "participants": [
-                ["description": "Driver", "state": "Okay"],
-                ["description": "Lookout", "state": "Okay"]
-            ],
-            "time_started": 1700000000,
-            "time_ready": 1700086400,
-            "time_left": 3600,
-            "initiated": false,
-            "planner_id": 12345,
-            "planner_name": "TestPlayer"
+    /// A trimmed but faithful copy of the live `organizedCrime` object.
+    private func liveOCJSON(readyAt: Int, executedAt: Int? = nil) -> [String: Any] {
+        var json: [String: Any] = [
+            "id": 1836033,
+            "name": "Clinical Precision",
+            "difficulty": 8,
+            "status": "Planning",
+            "created_at": 1782739952,
+            "planning_at": 1782812563,
+            "ready_at": readyAt,
+            "expired_at": 1783344752,
+            "slots": [
+                ["position": "Imitator",
+                 "checkpoint_pass_rate": 75,
+                 "user": ["id": 2362436, "progress": 100, "joined_at": 1782895791]],
+                ["position": "Cat Burglar",
+                 "checkpoint_pass_rate": 75,
+                 "user": ["id": 1412840, "progress": 41.42, "joined_at": 1782812563]],
+                ["position": "Assassin",
+                 "checkpoint_pass_rate": 79,
+                 "user": NSNull()]
+            ]
         ]
-
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let oc = try JSONDecoder().decode(OrganizedCrime.self, from: data)
-
-        XCTAssertEqual(oc.crimeId, 8)
-        XCTAssertEqual(oc.crimeName, "Planned Robbery")
-        XCTAssertEqual(oc.participants.count, 2)
-        XCTAssertEqual(oc.timeStarted, 1700000000)
-        XCTAssertEqual(oc.timeReady, 1700086400)
-        XCTAssertEqual(oc.timeLeft, 3600)
-        XCTAssertFalse(oc.initiated)
-        XCTAssertEqual(oc.plannerName, "TestPlayer")
+        if let executedAt { json["executed_at"] = executedAt }
+        return json
     }
 
-    func testOrganizedCrime_isReady() {
-        let oc = OrganizedCrime(
-            crimeId: 8, crimeName: "Planned Robbery",
-            participants: [], timeStarted: 1700000000,
-            timeReady: 1700086400, timeLeft: 0,
-            initiated: true, plannerId: 12345, plannerName: "Test"
-        )
+    func testOrganizedCrime2_decodesFromLiveShape() throws {
+        let data = try JSONSerialization.data(withJSONObject: liveOCJSON(readyAt: 1783158163))
+        let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
+
+        XCTAssertEqual(oc.id, 1836033)
+        XCTAssertEqual(oc.name, "Clinical Precision")
+        XCTAssertEqual(oc.difficulty, 8)
+        XCTAssertEqual(oc.status, "Planning")
+        XCTAssertEqual(oc.readyAt, 1783158163)
+        XCTAssertEqual(oc.totalSlots, 3)
+        XCTAssertEqual(oc.filledSlots, 2, "third slot has a null user → unfilled")
+    }
+
+    func testOrganizedCrime2_myProgress_returnsSignedInPlayerSlot() throws {
+        let data = try JSONSerialization.data(withJSONObject: liveOCJSON(readyAt: 1783158163))
+        let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
+
+        XCTAssertEqual(oc.myProgress(playerId: 2362436), 100)
+        let fractional = try XCTUnwrap(oc.myProgress(playerId: 1412840))
+        XCTAssertEqual(fractional, 41.42, accuracy: 0.001, "fractional progress must decode as Double")
+        XCTAssertNil(oc.myProgress(playerId: 999999), "player not in this OC → nil")
+    }
+
+    func testOrganizedCrime2_isReady_whenReadyPastAndNotExecuted() throws {
+        let past = Int(Date().timeIntervalSince1970) - 100
+        let data = try JSONSerialization.data(withJSONObject: liveOCJSON(readyAt: past))
+        let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
         XCTAssertTrue(oc.isReady)
     }
 
-    func testOrganizedCrime_isNotReady_timeRemaining() {
-        let oc = OrganizedCrime(
-            crimeId: 8, crimeName: "Planned Robbery",
-            participants: [], timeStarted: 1700000000,
-            timeReady: 1700086400, timeLeft: 3600,
-            initiated: false, plannerId: 12345, plannerName: "Test"
-        )
+    func testOrganizedCrime2_notReady_whenReadyInFuture() throws {
+        let future = Int(Date().timeIntervalSince1970) + 3600
+        let data = try JSONSerialization.data(withJSONObject: liveOCJSON(readyAt: future))
+        let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
         XCTAssertFalse(oc.isReady)
     }
 
-    func testOrganizedCrime_isNotReady_notInitiated() {
-        let oc = OrganizedCrime(
-            crimeId: 8, crimeName: "Planned Robbery",
-            participants: [], timeStarted: 1700000000,
-            timeReady: 1700086400, timeLeft: 0,
-            initiated: false, plannerId: 12345, plannerName: "Test"
+    func testOrganizedCrime2_notReady_whenAlreadyExecuted() throws {
+        let past = Int(Date().timeIntervalSince1970) - 100
+        let data = try JSONSerialization.data(
+            withJSONObject: liveOCJSON(readyAt: past, executedAt: past + 10)
         )
-        XCTAssertFalse(oc.isReady)
+        let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
+        XCTAssertFalse(oc.isReady, "an executed OC is no longer 'ready to execute'")
     }
 }

@@ -155,7 +155,14 @@ class AppState {
     var stocksData: [StockHolding] = []
     var stocksMetadata: [Int: StockMetadata] = [:]
     var watchlistItems: [WatchlistItem] = []
-    var organizedCrimes: [OrganizedCrime] = []
+    // MARK: - API v2 user state (organized crime, refills, education, bounties)
+    var organizedCrime: OrganizedCrime2?
+    var refills: Refills?
+    var education: EducationStatus?
+    var bountiesOnMe: [Bounty] = []
+    // MARK: - Faction v2 state (ranked wars, news)
+    var rankedWars: [RankedWar] = []
+    var factionNews: [FactionNews] = []
     var watchedThreads: [WatchedThread] = []
     var forumWatchConfig: ForumWatchConfig = ForumWatchConfig()
 
@@ -195,7 +202,8 @@ class AppState {
     @ObservationIgnored private var previousTravel: Travel?
     @ObservationIgnored private var previousChain: Chain?
     @ObservationIgnored private var previousStatus: Status?
-    @ObservationIgnored private var previousOCReady: Set<Int> = []
+    @ObservationIgnored private var previousOCReadyId: Int?
+    @ObservationIgnored private var notifiedBountyKeys: Set<String> = []
 
     // MARK: - Task Handles (for deduplication)
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
@@ -1045,10 +1053,14 @@ class AppState {
                         logger.debug("API response: \(data.count) bytes (non-JSON or unparseable)")
                     }
 
-                    // Parse user data and fetch faction data in parallel
+                    // Parse user data and fetch faction + v2 data in parallel
                     async let factionResult: Void = self.fetchFactionData()
+                    async let userV2Result: Void = self.fetchUserV2Data()
+                    async let factionV2Result: Void = self.fetchFactionV2Data()
                     try await parseDataInBackground(data: data)
                     await factionResult
+                    await userV2Result
+                    await factionV2Result
 
                     logger.info("Data fetch completed successfully")
 
@@ -1206,7 +1218,7 @@ class AppState {
                 // anchored on the server's response time so countdowns match torn.com
                 // even if the Mac clock is skewed vs the Torn server.
                 if let cooldowns = decoded.cooldowns {
-                    let anchor = decoded.serverTimestamp ?? Int(Date().timeIntervalSince1970)
+                    let anchor = decoded.anchorTimestamp ?? Int(Date().timeIntervalSince1970)
                     let fresh = CooldownEnds.from(cooldowns: cooldowns, anchor: anchor)
                     // Pin previous end-timestamps when the freshly computed values
                     // wobble by ≤3 s — that wobble is API/latency jitter, not a real
@@ -1276,29 +1288,8 @@ class AppState {
                     )
                 }
 
-                // Parse Organized Crimes
-                var crimes: [OrganizedCrime] = []
-                if let crimesDict = json["crimes"] as? [String: [String: Any]] {
-                    for (_, crimeData) in crimesDict {
-                        if let crimeJSON = try? JSONSerialization.data(withJSONObject: crimeData),
-                           let crime = try? JSONDecoder().decode(OrganizedCrime.self, from: crimeJSON) {
-                            crimes.append(crime)
-                        }
-                    }
-                }
-                self.organizedCrimes = crimes.sorted { $0.timeReady < $1.timeReady }
-
-                // Check for OC ready notifications
-                for crime in crimes where crime.isReady {
-                    if !previousOCReady.contains(crime.crimeId) {
-                        NotificationManager.shared.send(
-                            title: "OC Ready! 💼",
-                            body: "\(crime.crimeName) is ready to initiate",
-                            type: .ocReady
-                        )
-                    }
-                }
-                previousOCReady = Set(crimes.filter { $0.isReady }.map { $0.crimeId })
+                // Organized crime moved to `fetchUserV2Data` (own OC 2.0). The v1
+                // `crimes` selection is dead (frozen OC-1.0 history only).
 
                 self.factionData = FactionData(name: name, factionId: factionId, respect: respect, chain: chain)
                 logger.info("Faction data fetched: \(name)")
@@ -1308,7 +1299,146 @@ class AppState {
             // Faction data is optional, ignore errors
         }
     }
-    
+
+    // MARK: - Fetch API v2 User Data (organized crime, refills, education, bounties)
+    //
+    // One combined v2 call (v2 accepts multiple selections). Each section is decoded
+    // independently so a malformed/absent one never drops the others. Payload is small
+    // (~2 KB), so decoding on the main actor is fine — same pattern as fetchFactionData.
+    private func fetchUserV2Data() async {
+        guard !apiKey.isEmpty, let url = TornAPI.userV2URL(for: apiKey) else { return }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, _) = try await session.data(for: request)
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            if let errorMessage = tornAPIErrorMessage(in: json) {
+                logger.warning("User v2 API error: \(errorMessage)")
+                return
+            }
+
+            let decoder = JSONDecoder()
+
+            // Organized crime — `organizedCrime` is oneOf(object | error | null).
+            // Only a well-formed object carrying an Int `id` is a real active OC.
+            var oc: OrganizedCrime2?
+            if let ocDict = json["organizedCrime"] as? [String: Any], ocDict["id"] is Int,
+               let ocData = try? JSONSerialization.data(withJSONObject: ocDict) {
+                oc = try? decoder.decode(OrganizedCrime2.self, from: ocData)
+            }
+            self.organizedCrime = oc
+
+            if let rDict = json["refills"] as? [String: Any],
+               let rData = try? JSONSerialization.data(withJSONObject: rDict) {
+                self.refills = try? decoder.decode(Refills.self, from: rData)
+            }
+
+            if let eDict = json["education"] as? [String: Any],
+               let eData = try? JSONSerialization.data(withJSONObject: eDict) {
+                self.education = try? decoder.decode(EducationStatus.self, from: eData)
+            }
+
+            // `/user?selections=bounties` is scoped to the authenticated player, so
+            // every returned bounty is a bounty ON Paweł.
+            if let bArr = json["bounties"] as? [[String: Any]],
+               let bData = try? JSONSerialization.data(withJSONObject: bArr) {
+                self.bountiesOnMe = (try? decoder.decode([Bounty].self, from: bData)) ?? []
+            } else {
+                self.bountiesOnMe = []
+            }
+
+            // OC-ready notification: fire once per OC as it crosses its ready time.
+            if let oc, oc.isReady {
+                if previousOCReadyId != oc.id {
+                    NotificationManager.shared.send(
+                        title: "OC Ready! 💼",
+                        body: "\(oc.name) is ready to execute",
+                        type: .ocReady
+                    )
+                }
+                previousOCReadyId = oc.id
+            } else {
+                previousOCReadyId = nil
+            }
+
+            notifyBountiesOnMe()
+
+            logger.info("User v2 data fetched (OC: \(oc?.name ?? "none"), bounties: \(self.bountiesOnMe.count))")
+        } catch {
+            logger.warning("User v2 fetch error (optional): \(error.localizedDescription)")
+        }
+    }
+
+    /// Alerts once per distinct bounty placed on Paweł (safety signal). Re-remembers
+    /// only the bounties still active, so a bounty that's cleared and re-listed alerts again.
+    private func notifyBountiesOnMe() {
+        let currentKeys = Set(bountiesOnMe.map(\.id))
+        for bounty in bountiesOnMe where !notifiedBountyKeys.contains(bounty.id) {
+            let amount = Self.decimalFormatter.string(from: NSNumber(value: bounty.reward)) ?? "\(bounty.reward)"
+            let who: String
+            if bounty.isAnonymous == true {
+                who = " (anonymous)"
+            } else if let name = bounty.listerName {
+                who = " from \(name)"
+            } else {
+                who = ""
+            }
+            NotificationManager.shared.send(
+                title: "⚠️ Bounty on you",
+                body: "$\(amount)\(who)",
+                type: .bountyOnMe
+            )
+        }
+        notifiedBountyKeys = currentKeys
+    }
+
+    static let decimalFormatter: NumberFormatter = {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        return f
+    }()
+
+    // MARK: - Fetch API v2 Faction Data (ranked wars, news)
+    //
+    // Dedicated v2 paths: the combined `?selections=rankedwars,news` call fails with
+    // code 21 because `news` needs a `cat` parameter. Both are optional overlays.
+    private func fetchFactionV2Data() async {
+        guard !apiKey.isEmpty else { return }
+
+        if let url = TornAPI.factionRankedWarsURL(for: apiKey),
+           let wars: [RankedWar] = await fetchV2Array(url: url, key: "rankedwars") {
+            self.rankedWars = wars
+        }
+
+        if let url = TornAPI.factionNewsURL(for: apiKey),
+           let news: [FactionNews] = await fetchV2Array(url: url, key: "news") {
+            self.factionNews = news
+        }
+    }
+
+    /// Fetches a v2 endpoint whose payload is `{ "<key>": [ … ] }` and decodes the
+    /// array. Returns nil on network/API error so the caller keeps its prior value.
+    private func fetchV2Array<T: Decodable>(url: URL, key: String) async -> [T]? {
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, _) = try await session.data(for: request)
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            if let errorMessage = tornAPIErrorMessage(in: json) {
+                logger.warning("Faction v2 (\(key)) API error: \(errorMessage)")
+                return nil
+            }
+            guard let arr = json[key] as? [[String: Any]],
+                  let arrData = try? JSONSerialization.data(withJSONObject: arr) else { return nil }
+            return try? JSONDecoder().decode([T].self, from: arrData)
+        } catch {
+            logger.warning("Faction v2 (\(key)) fetch error (optional): \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     // MARK: - Notifications
     private func checkNotifications(newData: TornResponse) {
         if let prev = previousBars, let current = newData.bars {
