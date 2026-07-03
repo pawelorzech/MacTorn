@@ -5,6 +5,22 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-07-03
+
+Audit of MacTorn's Torn API usage against the live v2 OpenAPI spec (6.0.0) and real API responses. API v1 is frozen (not sunset) — every selection MacTorn relies on still returns its v1 shape — but two selections had drifted out from under the client, and v2 opened up four new signals worth surfacing. Plan: `Plans/sprawd-czy-si-nie-ticklish-rivest.md`.
+
+### Fixed
+- **Faction Organized Crimes were silently empty.** After Torn made Organized Crimes 2.0 mandatory faction-wide (~Feb 2025), the v1 `faction/?selections=crimes` selection returns only frozen pre-migration OC-1.0 *history* (0 active crimes, newest from Feb 2025), and its `initiated` field flipped from Bool to Int — so the client's all-or-nothing decode dropped every crime. The test fixture used `"initiated": false` (a Bool), so the suite stayed falsely green. The dead OC-1.0 list is gone; the app now shows the player's **own current OC 2.0** via v2 `/user?selections=organizedcrime` — a "ready in Xh" timer, status, slots filled, and your own progress — verified against a live response.
+- **Cooldown countdowns weren't anchored to server time.** The client anchored drug/medical/booster end-times on a top-level `timestamp` field, but the live v1 user root returns `server_time` (top-level `timestamp` only appears with the `timestamp` selection, which we don't request). So `serverTimestamp` was always nil and the countdowns silently fell back to the local Mac clock — defeating the clock-skew correction they were built for. Now decodes `server_time` with a legacy `timestamp` fallback.
+
+### Added
+- **Your Organized Crime 2.0 status** in the Faction tab: name, difficulty, live "ready in" countdown, slots filled, and your own progress bar — plus an OC-ready notification. The modern replacement for the removed faction OC-1.0 list.
+- **Dailies card** in the Status tab: which daily refills (energy / nerve / token) you still have to claim, and a live completion timer for an in-progress education course.
+- **Bounty-on-you alert.** A red badge in the Status tab and a notification when someone places a bounty on you (`/user?selections=bounties`).
+- **Faction ranked war + news.** The Faction tab shows the active ranked war as a lead-vs-target progress bar (your faction vs the opponent) and a feed of recent faction news (`/v2/faction/rankedwars`, `/v2/faction/news?cat=main`).
+
+All four user-side signals ride a single combined v2 `/user` call. Also hardened the test network mock against a data race on concurrent fetches. 253 unit tests, all green.
+
 ## [1.8.13] - 2026-06-04
 
 ### Fixed
