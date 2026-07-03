@@ -204,6 +204,9 @@ class AppState {
     @ObservationIgnored private var previousStatus: Status?
     @ObservationIgnored private var previousOCReadyId: Int?
     @ObservationIgnored private var notifiedBountyKeys: Set<String> = []
+    /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
+    @ObservationIgnored private var lastFactionV2Fetch: Date?
+    private static let factionV2MinInterval: TimeInterval = 60
 
     // MARK: - Task Handles (for deduplication)
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
@@ -1406,6 +1409,15 @@ class AppState {
     // code 21 because `news` needs a `cat` parameter. Both are optional overlays.
     private func fetchFactionV2Data() async {
         guard !apiKey.isEmpty else { return }
+
+        // Ranked wars (~15 KB) + news (~23 KB) change slowly and are the heaviest
+        // calls in a poll. Fetch at most once per minute regardless of the poll
+        // interval (which can be as low as 15s) — always runs on the first poll.
+        if let last = lastFactionV2Fetch,
+           Date().timeIntervalSince(last) < Self.factionV2MinInterval {
+            return
+        }
+        lastFactionV2Fetch = Date()
 
         if let url = TornAPI.factionRankedWarsURL(for: apiKey),
            let wars: [RankedWar] = await fetchV2Array(url: url, key: "rankedwars") {

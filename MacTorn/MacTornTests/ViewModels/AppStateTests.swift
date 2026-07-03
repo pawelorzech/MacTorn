@@ -217,6 +217,21 @@ final class AppStateTests: XCTestCase {
                       "the active ranked war should be parsed from the v2 faction call")
     }
 
+    /// Ranked wars + news are heavy and slow-changing, so back-to-back polls must not
+    /// re-fetch them within the 60s throttle — only the first poll hits the endpoint.
+    func testFetchData_throttlesFactionV2Calls_withinInterval() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.rankedWarsResponse())
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        appState.fetchData()  // second poll, well within the 60s window
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let rankedWarCalls = mockSession.requestedURLs.filter { $0.path.contains("rankedwars") }.count
+        XCTAssertEqual(rankedWarCalls, 1, "the second poll within 60s must not re-fetch ranked wars")
+    }
+
     // MARK: - CooldownEnds.merged (pure model)
 
     /// Per-poll jitter ≤ tolerance keeps the previously pinned `endsAt`. Without this,
