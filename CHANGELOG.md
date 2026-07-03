@@ -5,6 +5,11 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-07-03
+
+### Performance
+- **Throttle the heaviest faction API calls.** The ranked-war (~15 KB) and news (~23 KB) v2 calls added in 1.9.0 are the largest in a poll cycle and change slowly, but were fetched every poll — as often as every 15 s. A 60 s time-based gate now fetches them at most once per minute regardless of the refresh interval (still runs on the first poll so the Faction tab populates immediately), cutting ~150 KB/min of near-static traffic at the 15 s floor. No user-visible change.
+
 ## [1.9.0] - 2026-07-03
 
 Audit of MacTorn's Torn API usage against the live v2 OpenAPI spec (6.0.0) and real API responses. API v1 is frozen (not sunset) — every selection MacTorn relies on still returns its v1 shape — but two selections had drifted out from under the client, and v2 opened up four new signals worth surfacing. Plan: `Plans/sprawd-czy-si-nie-ticklish-rivest.md`.
