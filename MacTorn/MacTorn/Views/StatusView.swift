@@ -50,13 +50,13 @@ struct StatusView: View {
                 dailiesSection
 
                 // Messages badge
-                if appState.data?.unreadMessagesCount ?? 0 > 0 {
+                if appState.unreadMessages > 0 {
                     messagesBadge
                 }
-                
+
                 // Events
-                if let events = appState.data?.recentEvents, !events.isEmpty {
-                    EventsView(events: events)
+                if !appState.activityEvents.isEmpty {
+                    EventsView(events: appState.activityEvents)
                 }
                 
                 // Quick Links
@@ -114,7 +114,7 @@ struct StatusView: View {
             HStack {
                 Image(systemName: "envelope.fill")
                     .foregroundColor(.blue)
-                Text("\(appState.data?.unreadMessagesCount ?? 0) unread messages")
+                Text("\(appState.unreadMessages) unread messages")
                     .font(.caption)
             }
             .padding(.horizontal, 10)

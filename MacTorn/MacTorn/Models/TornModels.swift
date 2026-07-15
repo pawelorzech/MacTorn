@@ -1162,7 +1162,21 @@ enum TornAPI {
     static let factionURL = "https://api.torn.com/faction/"
     static let marketURL = "https://api.torn.com/market/"
     static let tornURL = "https://api.torn.com/torn/"
-    static let selections = "basic,bars,cooldowns,travel,profile,events,messages,money,battlestats,attacks,properties,stocks"
+
+    /// Fast poll: only point-in-time selections. Deliberately EXCLUDES the row-based
+    /// cloud categories (`events`, `attacks`) — those count against Torn's 50,000-
+    /// rows/day-per-category cap (error code 14 "Daily read limit reached"), which is
+    /// a separate limit from the 100-requests/minute rate limit. Pulling a full
+    /// `events`/`attacks` page every 30 s, 24/7 blows past 50k rows/day ~5×. Row-based
+    /// data now lives on `activityURL` below (slow cadence + hard row limit).
+    static let selections = "basic,bars,cooldowns,travel,profile,money,battlestats,properties,stocks"
+
+    /// Slow poll: the row-based / display-only categories. Capped with `limit` and
+    /// fetched every few minutes so each category stays well under 50k rows/day.
+    static let activitySelections = "events,messages,attacks"
+    /// Rows per category per activity call. The UI only ever shows a handful, so 25 is
+    /// generous; at a 5-minute cadence that is 25 × 288 ≈ 7,200 rows/day/category.
+    static let activityRowLimit = 25
 
     /// Build a Torn API URL with proper percent-encoding via URLComponents/URLQueryItem.
     /// String interpolation (the previous approach) would silently mangle keys that
@@ -1176,6 +1190,14 @@ enum TornAPI {
 
     static func url(for apiKey: String) -> URL? {
         build(baseURL, query: ["selections": selections, "key": apiKey])
+    }
+
+    /// Row-based activity call (events + messages + attacks) with a hard `limit` so
+    /// it can never exhaust the 50k-rows/day category budget. Polled slowly.
+    static func activityURL(for apiKey: String) -> URL? {
+        build(baseURL, query: ["selections": activitySelections,
+                               "limit": String(activityRowLimit),
+                               "key": apiKey])
     }
 
     static func factionURL(for apiKey: String) -> URL? {
@@ -1200,8 +1222,11 @@ enum TornAPI {
     }
 
     /// Faction news requires a category (`cat`); `main` is the general feed.
+    /// `news` is a row-based cloud category (counts against the 50k-rows/day cap),
+    /// so cap it with `limit` on top of the slow poll cadence.
     static func factionNewsURL(for apiKey: String, cat: String = "main") -> URL? {
-        build("https://api.torn.com/v2/faction/news", query: ["cat": cat, "key": apiKey])
+        build("https://api.torn.com/v2/faction/news",
+              query: ["cat": cat, "limit": String(activityRowLimit), "key": apiKey])
     }
 
     static func marketURL(itemId: Int, apiKey: String) -> URL? {

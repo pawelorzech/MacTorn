@@ -150,6 +150,11 @@ class AppState {
     var moneyData: MoneyData?
     var battleStats: BattleStats?
     var recentAttacks: [AttackResult]?
+    // Row-based, display-only data pulled on a slow cadence (see fetchActivityData).
+    // Kept as dedicated properties (not on `data`) so the fast poll — which no longer
+    // requests events/messages — never clobbers them.
+    var activityEvents: [TornEvent] = []
+    var unreadMessages: Int = 0
     var factionData: FactionData?
     var propertiesData: [PropertyInfo]?
     var stocksData: [StockHolding] = []
@@ -205,8 +210,15 @@ class AppState {
     @ObservationIgnored private var previousOCReadyId: Int?
     @ObservationIgnored private var notifiedBountyKeys: Set<String> = []
     /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
+    /// `news` is a row-based cloud category, so this doubles as its rate control:
+    /// 5 min → ≤288 calls/day × 25-row limit ≈ 7,200 rows/day, well under the 50k cap.
     @ObservationIgnored private var lastFactionV2Fetch: Date?
-    private static let factionV2MinInterval: TimeInterval = 60
+    private static let factionV2MinInterval: TimeInterval = 300
+
+    /// Throttle for the row-based user activity call (events + messages + attacks).
+    /// Same 50k-rows/day-per-category budget as faction news — keep the cadence slow.
+    @ObservationIgnored private var lastActivityFetch: Date?
+    private static let activityMinInterval: TimeInterval = 300
 
     // MARK: - Task Handles (for deduplication)
     @ObservationIgnored private var fetchTask: Task<Void, Never>?
@@ -1060,10 +1072,12 @@ class AppState {
                     async let factionResult: Void = self.fetchFactionData()
                     async let userV2Result: Void = self.fetchUserV2Data()
                     async let factionV2Result: Void = self.fetchFactionV2Data()
+                    async let activityResult: Void = self.fetchActivityData()
                     try await parseDataInBackground(data: data)
                     await factionResult
                     await userV2Result
                     await factionV2Result
+                    await activityResult
 
                     logger.info("Data fetch completed successfully")
 
@@ -1300,6 +1314,64 @@ class AppState {
         } catch {
             logger.warning("Faction fetch error (optional): \(error.localizedDescription)")
             // Faction data is optional, ignore errors
+        }
+    }
+
+    // MARK: - Fetch Row-Based Activity Data (events, messages, attacks)
+    //
+    // These are cloud/row-based categories subject to Torn's 50,000-rows/day-per-category
+    // limit (error code 14 "Daily read limit reached"), which is SEPARATE from the
+    // 100-requests/minute rate limit. They are display-only — no notifications derive
+    // from them — so a slow cadence plus a small `limit` keeps us far under the cap while
+    // the fast poll handles the live bars/cooldowns/travel data.
+    private func fetchActivityData() async {
+        guard !apiKey.isEmpty, let url = TornAPI.activityURL(for: apiKey) else { return }
+
+        // Self-throttle: always runs on the first poll (lastActivityFetch == nil), then
+        // at most once per activityMinInterval regardless of how fast the main poll ticks.
+        // Set upfront (not reset on error) so an error-state retry can't exceed the cap.
+        if let last = lastActivityFetch,
+           Date().timeIntervalSince(last) < Self.activityMinInterval {
+            return
+        }
+        lastActivityFetch = Date()
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, _) = try await session.data(for: request)
+
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            if let errorMessage = tornAPIErrorMessage(in: json) {
+                logger.warning("Activity API error: \(errorMessage)")
+                return
+            }
+
+            // events + messages via the TornResponse Codable shape (both optional fields).
+            if let decoded = try? JSONDecoder().decode(TornResponse.self, from: data) {
+                self.activityEvents = decoded.recentEvents
+                self.unreadMessages = decoded.unreadMessagesCount
+            }
+
+            // attacks via JSONSerialization (same mapping as the legacy combined parse).
+            if let attacks = json["attacks"] as? [String: [String: Any]] {
+                self.recentAttacks = attacks.values.compactMap { attackDict -> AttackResult? in
+                    guard let code = attackDict["code"] as? String else { return nil }
+                    return AttackResult(
+                        code: code,
+                        timestampStarted: attackDict["timestamp_started"] as? Int,
+                        timestampEnded: attackDict["timestamp_ended"] as? Int,
+                        attackerId: attackDict["attacker_id"] as? Int,
+                        attackerName: attackDict["attacker_name"] as? String,
+                        defenderId: attackDict["defender_id"] as? Int,
+                        defenderName: attackDict["defender_name"] as? String,
+                        result: attackDict["result"] as? String,
+                        respect: attackDict["respect"] as? Double
+                    )
+                }.sorted(by: { ($0.timestampEnded ?? 0) > ($1.timestampEnded ?? 0) })
+            }
+        } catch {
+            logger.warning("Activity fetch error (optional): \(error.localizedDescription)")
         }
     }
 

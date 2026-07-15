@@ -5,6 +5,13 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] - 2026-07-15
+
+### Fixed
+- **"API Error: Daily read limit reached" (Torn error code 14).** MacTorn was tripping Torn's *per-category* cloud-data cap — 50,000 rows/day (rolling 24 h) for row-based categories like `events`, `attacks` and faction `news` — which is a completely separate limit from the 100-requests/minute rate limit (the app was never close to that one). The single `user/` poll bundled `events` **and** `attacks` (up to ~100 rows each, no `limit`) and ran every 30 s around the clock: ~288,000 rows/day/category, roughly 5–6× over the cap, so any one category alone would trip error 14. Faction `news` (every 60 s) piled on a second over-quota category.
+  - The fast poll (refresh interval, default 30 s) now carries **only point-in-time selections** (`basic,bars,cooldowns,travel,profile,money,battlestats,properties,stocks`) — no row-based categories — so it can't touch the daily cap. All live bars, cooldown/travel countdowns and notifications are unchanged.
+  - `events`, `messages` and `attacks` moved to a **separate slow call** (every 5 min) with a hard `limit=25`, and faction ranked-wars/news moved from a 60 s to a 5 min gate (also `limit=25`). Net: ~288k → ~7k rows/day/category, with comfortable headroom even at the 15 s refresh floor. Events/attacks/messages now refresh every few minutes instead of every 30 s — they're display-only, so no functional loss.
+
 ## [1.9.1] - 2026-07-03
 
 ### Performance
