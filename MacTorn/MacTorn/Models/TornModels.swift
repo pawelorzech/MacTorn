@@ -1215,6 +1215,13 @@ enum TornAPI {
               query: ["selections": userV2Selections, "key": apiKey])
     }
 
+    /// Official key-info endpoint (Etap C). Returns the key's access level/type, the
+    /// owner's IDs, and the per-category selections the key can read — the authoritative
+    /// source for onboarding validation. Called on demand only (never polled).
+    static func keyInfoURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/key/info", query: ["key": apiKey])
+    }
+
     /// Ranked wars use a dedicated v2 path (the combined `?selections=rankedwars,news`
     /// call returns code 21 because `news` requires a `cat` parameter).
     static func factionRankedWarsURL(for apiKey: String) -> URL? {

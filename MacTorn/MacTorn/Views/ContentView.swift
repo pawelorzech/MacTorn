@@ -190,6 +190,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(.secondary)
+                .uiTestID("uitest.openSettings")
             }
             
             Spacer()

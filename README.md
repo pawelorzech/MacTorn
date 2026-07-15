@@ -128,6 +128,7 @@ calls are throttled and hard-limited to stay well under that cap.
 | Stock metadata | v1 | stocks | point-in-time | Rarely (cached; refreshed on demand) | — | metadata | no | Global stock names/acronyms used to label the user's stock holdings (slow-changing reference data). |
 | Forum thread | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Post count of a watched forum thread, to alert on new replies. |
 | Forum category threads | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Thread list of a watched forum category, to alert on new threads. |
+| Key info | v2 | — | point-in-time | On demand (Test Connection / key change) | — | core | no | One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read — used by onboarding's Test Connection. Never polled. |
 
 Your API key needs **Limited Access** or higher. Everything above is **read-only** —
 MacTorn never performs actions in Torn. See [`SECURITY.md`](SECURITY.md) for how your

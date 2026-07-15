@@ -323,6 +323,23 @@ enum TornEndpointRegistry {
             budget: .forum,
             critical: false
         ),
+        TornEndpoint(
+            id: "key.info",
+            name: "Key info",
+            version: .v2,
+            path: "https://api.torn.com/v2/key/info",
+            selections: [],
+            extraQuery: [:],
+            minimumAccessLevel: .publicOnly,
+            purpose: "One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read — used by onboarding's Test Connection. Never polled.",
+            cadence: "On demand (Test Connection / key change)",
+            dataShape: .pointInTime,
+            recordLimit: nil,
+            sendsLimitQuery: false,
+            cachePolicy: .none,
+            budget: .core,
+            critical: false
+        ),
     ]
 
     static func endpoint(id: String) -> TornEndpoint? {

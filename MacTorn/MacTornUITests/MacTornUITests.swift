@@ -85,4 +85,45 @@ final class MacTornUITests: XCTestCase {
         XCTAssertTrue(error.waitForExistence(timeout: 15),
                       "An invalid key should surface a visible error message")
     }
+
+    // MARK: - Key validation (Etap C)
+
+    /// "Test Connection" validates the key against /key/info and reports what it unlocks.
+    func testTestConnectionReportsAccess() throws {
+        let app = launch(fixture: "full", apiKey: "sample-connection-user")
+        _ = window(app)
+
+        // Open Settings from the signed-in footer, then run Test Connection.
+        let settings = app.buttons["uitest.openSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings button should exist")
+        settings.click()
+
+        let testButton = app.buttons["uitest.testConnection"]
+        XCTAssertTrue(testButton.waitForExistence(timeout: 10), "Test Connection button should exist")
+        testButton.click()
+
+        XCTAssertTrue(app.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
+                      "A valid key should report its access level after Test Connection")
+    }
+
+    /// During onboarding, Test Connection validates the typed key WITHOUT saving it, so the
+    /// result stays visible on the Settings screen instead of flipping to the tab UI.
+    func testOnboardingTestConnectionKeepsSettingsVisible() throws {
+        let app = launch(fixture: "full", apiKey: nil)
+        _ = window(app)
+
+        let keyField = app.secureTextFields["uitest.apiKeyField"]
+        XCTAssertTrue(keyField.waitForExistence(timeout: 10), "Key field should be shown at onboarding")
+        keyField.click()
+        keyField.typeText("sample-typed-value")
+
+        app.buttons["uitest.testConnection"].click()
+
+        XCTAssertTrue(app.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
+                      "Result should appear after Test Connection")
+        XCTAssertTrue(keyField.exists,
+                      "Test Connection must not save the key / leave the onboarding screen")
+        XCTAssertFalse(app.buttons["uitest.tab.Status"].exists,
+                       "The signed-in tab UI must not appear from a mere Test Connection")
+    }
 }

@@ -134,18 +134,47 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
     static func body(for url: URL?, scenario: FixtureScenario) -> Data {
         let s = url?.absoluteString ?? ""
         let isFastUser = s.contains("api.torn.com/user/") && s.contains("bars")
+        let isKeyInfo = s.contains("/key/info")
 
         let json: [String: Any]
-        switch (isFastUser, scenario) {
-        case (true, .full):
+        switch (isKeyInfo, isFastUser, scenario) {
+        case (true, _, .invalidKey):
+            json = invalidKeyEnvelope
+        case (true, _, _):
+            json = keyInfoResponse()
+        case (_, true, .full):
             json = fullUserResponse()
-        case (true, .invalidKey):
+        case (_, true, .invalidKey):
             json = invalidKeyEnvelope
         default:
             json = [:]
         }
         return (try? JSONSerialization.data(withJSONObject: json)) ?? Data("{}".utf8)
     }
+
+    /// A full-access `/key/info` response granting every selection MacTorn requests, so
+    /// Test Connection reports all features available. Shape matches the verified
+    /// `KeyInfoResponse` schema.
+    static func keyInfoResponse() -> [String: Any] { [
+        "info": [
+            "access": ["level": 4, "type": "Full Access", "faction": true, "company": false,
+                       "log": ["custom_permissions": false, "available": []]],
+            "user": ["id": 123456, "faction_id": 6789, "company_id": NSNull()],
+            "selections": [
+                "user": ["basic", "bars", "cooldowns", "travel", "profile", "money",
+                         "battlestats", "properties", "stocks", "organizedcrime", "refills",
+                         "education", "bounties", "events", "messages", "attacks"],
+                "faction": ["basic", "chain"],
+                "market": ["itemmarket", "bazaar"],
+                "property": [],
+                "torn": ["stocks"],
+                "racing": [],
+                "forum": [],
+                "key": ["info"],
+                "company": [],
+            ],
+        ],
+    ] }
 
     /// The Torn v1 "incorrect key" envelope (code 2). `AppState` classifies this as a
     /// permanent key error and halts polling.
