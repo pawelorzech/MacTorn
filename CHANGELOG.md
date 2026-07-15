@@ -83,6 +83,15 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
   80% line coverage. SwiftUI views are excluded — they're validated by the UI-test suite.
   Also available locally via `make coverage-gate`.
 
+### Fixed — duplicate OC-ready alert after relaunch (Etap E)
+- **"OC Ready!" no longer re-alerts when you reopen the app.** The organized-crime ready
+  notification is now deduplicated persistently (once per OC), so relaunching MacTorn while
+  the same OC is still ready won't fire it again. A new OC still alerts.
+
+### Changed — more reliability closures (Etap F)
+- **Diagnostics now cover the stock-metadata call too** (last outcome/latency/size), alongside
+  the poll fan-out added earlier.
+
 ### Changed — reliability closures (Etap B/F follow-ups)
 - **A daily read-limit no longer stalls unrelated data.** If Torn returns "daily read limit
   reached" (error 14) for a row-based feed (activity, faction news), MacTorn now pauses just
