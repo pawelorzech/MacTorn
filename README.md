@@ -23,6 +23,8 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 ### 📊 Status Tab
 - Live Energy, Nerve, Happy, Life bars with color-coded progress
 - Cooldown timers (Drug, Medical, Booster) with quick action buttons when ready
+- Daily refills remaining (energy/nerve) and in-progress education timer
+- Bounties-on-you badge (count + total reward)
 - Travel monitoring with arrival countdown
 - Chain timer with timeout warning
 - Hospital/Jail status badges
@@ -70,8 +72,10 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 
 ### ⚙️ General
 - **🔄 Update Checker**: Automatically notifies you when a new version is available on GitHub.
-- **🔔 Smart Notifications**: Alerts for bar thresholds, cooldown ready, landing, chain expiring.
+- **🔔 Smart Notifications**: Alerts for bar thresholds, cooldown ready, landing, chain expiring, Organized Crime ready, and release.
 - **🕒 Configurable Refresh**: Intervals (15s/30s/60s/2m).
+- **🩺 Diagnostics Screen**: Settings → Diagnostics shows live API request/row budgets, driven by the same endpoint registry as the table below.
+- **🐞 Opt-in Crash Reporting**: Off by default. Powered by Sentry with PII scrubbing; enable it in Settings. See [`SECURITY.md`](SECURITY.md).
 - **🚀 Launch at Login**: Start seamlessly with macOS.
 - **⚡️ Optimized Startup**: Non-blocking data fetching for instant UI responsiveness.
 
@@ -96,7 +100,7 @@ MacTorn respects macOS accessibility settings:
 
 - macOS 14.0 (Sonoma) or later
 - **Universal Binary**: Supports both Intel (x86_64) and Apple Silicon (arm64) Macs
-- Torn API Key with access to: basic, bars, cooldowns, travel, profile, events, messages, market
+- Torn API Key with **Limited Access** or higher (read-only). The exact selections MacTorn requests are listed in [API Data Usage](#api-data-usage) below.
 
 ## API Data Usage
 
@@ -135,7 +139,7 @@ key and data are protected.
 Choose polling frequency: 15s, 30s, 60s, or 120s
 
 ### Notifications
-MacTorn sends notifications for bar thresholds, cooldown ready, landing, chain expiring, and release. Notification defaults are stored locally.
+MacTorn sends notifications for bar thresholds, cooldown ready, landing, chain expiring, Organized Crime ready, and release. Notification defaults are stored locally.
 
 ### Updates
 The app checks for updates automatically on startup. If a new version is available, you'll see a notification in the **Settings** tab.
