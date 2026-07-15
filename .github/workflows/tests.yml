@@ -9,24 +9,31 @@ on:
 jobs:
   unit-tests:
     name: Unit Tests
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # The repo's Package.resolved is in Xcode 16's PinsStorage v3 format, which the
+      # previously-pinned Xcode 15.2 cannot parse ("unknown 'PinsStorage' version '3'"),
+      # so every job failed package resolution. Use the latest stable Xcode on the image.
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Show Xcode version
         run: xcodebuild -version
 
       - name: Build and Test
         run: |
+          set -o pipefail
           xcodebuild test \
             -project MacTorn/MacTorn.xcodeproj \
             -scheme MacTorn \
             -destination 'platform=macOS' \
+            -only-testing:MacTornTests \
             -resultBundlePath TestResults \
             -enableCodeCoverage YES \
             CODE_SIGN_IDENTITY="-" \
@@ -49,17 +56,20 @@ jobs:
 
   ui-tests:
     name: UI Tests
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Build and Run UI Tests
         run: |
+          set -o pipefail
           xcodebuild test \
             -project MacTorn/MacTorn.xcodeproj \
             -scheme MacTorn \
@@ -68,18 +78,23 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             | xcpretty --color
+        # TODO(Etap G): remove continue-on-error once the deterministic UI-test harness
+        # lands so UI tests block merges. Kept non-blocking for now to isolate this
+        # CI-infra fix from the (separate) UI-test hardening work.
         continue-on-error: true
 
   build:
     name: Build Release
-    runs-on: macos-14
+    runs-on: macos-15
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_15.2.app/Contents/Developer
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
 
       - name: Build Release
         run: |
@@ -87,7 +102,9 @@ jobs:
             -project MacTorn/MacTorn.xcodeproj \
             -scheme MacTorn \
             -configuration Release \
-            -destination 'platform=macOS' \
+            -destination 'generic/platform=macOS' \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO
 
@@ -96,8 +113,7 @@ jobs:
           xcodebuild archive \
             -project MacTorn/MacTorn.xcodeproj \
             -scheme MacTorn \
-            -destination 'platform=macOS' \
+            -destination 'generic/platform=macOS' \
             -archivePath build/MacTorn.xcarchive \
             CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            || echo "Archive step optional"
+            CODE_SIGNING_REQUIRED=NO
