@@ -1,7 +1,7 @@
 # MacTorn Makefile
 # Run tests and build commands for local development
 
-.PHONY: test test-unit test-ui build clean coverage help release release-signed hooks scan
+.PHONY: test test-unit test-ui build clean coverage coverage-gate help release release-signed hooks scan
 
 # Default target
 help:
@@ -14,6 +14,7 @@ help:
 	@echo "  make release-signed  - Build Release signed with Developer ID (set DEVELOPER_ID)"
 	@echo "  make clean           - Clean build artifacts"
 	@echo "  make coverage        - Run tests with code coverage"
+	@echo "  make coverage-gate   - Enforce >=80% coverage on critical modules"
 	@echo "  make hooks           - Install the gitleaks pre-commit secret scan"
 	@echo "  make scan            - Scan full git history for secrets"
 	@echo ""
@@ -123,12 +124,27 @@ coverage:
 		-scheme MacTorn \
 		-destination 'platform=macOS' \
 		-enableCodeCoverage YES \
-		-resultBundlePath TestResults \
+		-resultBundlePath TestResults.xcresult \
 		CODE_SIGN_IDENTITY="-" \
 		CODE_SIGNING_REQUIRED=NO
 	@echo ""
-	@echo "Coverage report generated in TestResults/"
-	@echo "Open TestResults/action.xccovreport to view in Xcode"
+	@echo "Coverage report generated in TestResults.xcresult"
+	@echo "Open TestResults.xcresult to view in Xcode"
+
+# Enforce >=80% line coverage on reliability-critical modules (Etap G / ISC-20).
+# Runs the unit suite with coverage, then the gate. Views are intentionally excluded.
+coverage-gate:
+	rm -rf TestResults.xcresult
+	xcodebuild test \
+		-project MacTorn/MacTorn.xcodeproj \
+		-scheme MacTorn \
+		-destination 'platform=macOS' \
+		-only-testing:MacTornTests \
+		-resultBundlePath TestResults.xcresult \
+		-enableCodeCoverage YES \
+		CODE_SIGN_IDENTITY="-" \
+		CODE_SIGNING_REQUIRED=NO
+	bash scripts/coverage-gate.sh TestResults.xcresult 80
 
 # Quick test - faster iteration
 quick-test:

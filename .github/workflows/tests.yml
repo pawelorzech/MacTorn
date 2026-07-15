@@ -34,25 +34,30 @@ jobs:
             -scheme MacTorn \
             -destination 'platform=macOS' \
             -only-testing:MacTornTests \
-            -resultBundlePath TestResults \
+            -resultBundlePath TestResults.xcresult \
             -enableCodeCoverage YES \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             | xcpretty --color --report junit
+
+      # ISC-20: reliability-critical modules must stay >= 80% line-covered (views excluded —
+      # they are validated by the UI-test job, not line coverage).
+      - name: Coverage gate (critical modules)
+        run: bash scripts/coverage-gate.sh TestResults.xcresult 80
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results
-          path: TestResults
+          path: TestResults.xcresult
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: coverage-report
-          path: TestResults
+          path: TestResults.xcresult
 
   ui-tests:
     name: UI Tests
@@ -78,10 +83,6 @@ jobs:
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             | xcpretty --color
-        # TODO(Etap G): remove continue-on-error once the deterministic UI-test harness
-        # lands so UI tests block merges. Kept non-blocking for now to isolate this
-        # CI-infra fix from the (separate) UI-test hardening work.
-        continue-on-error: true
 
   build:
     name: Build Release
