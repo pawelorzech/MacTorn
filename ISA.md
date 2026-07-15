@@ -123,10 +123,13 @@ tracked backlog with deferral reasons.
   latch stops auto-restart on MenuBarExtra open) with a clear message, and clears when
   the key changes. Verified by `AppStateTests` (halt / no-restart / key-change-clears)
   and `TornAPIErrorTests` (envelope classification).
-- [ ] ISC-15.1: Etap B (category pause for error 14) — pause only the offending row-based
-  category on a daily-row-limit hit while bars/countdowns keep running. *(Deferred: the
-  v1.9.2 fix already keeps categories well under the 50k cap, so this is belt-and-braces;
-  `haltsCategoryOnly` is modelled and tested, wiring the per-category pause is the step.)*
+- [x] ISC-15.1: Etap B (category pause for error 14) — a daily-row-limit (code 14) on a
+  row-based source now pauses **only that source** (keyed by endpoint id, not budget
+  category, so `faction.news` pausing never stops the point-in-time `faction.basic` chain
+  data) for a rolling 1 h window, re-arming off the injected `TimeSource`; bars/countdowns
+  keep polling. Wired into `user.activity` and `faction.news` (the main poll's row sources).
+  Verified by `AppStateTests` (`testDailyRowLimitPausesOnlyRowSources`,
+  `testRowSourcePauseReArmsAfterWindow`).
 - [x] ISC-16: Etap C — key validation/onboarding. Calls the official Torn v2 `/key/info`
   endpoint (shape verified against the live OpenAPI spec, not guessed) via
   `TornAPI.keyInfoURL` + a `key.info` registry entry. `TornKeyInfo` decodes access
@@ -167,10 +170,12 @@ tracked backlog with deferral reasons.
   reachable from Settings, with a **"Copy sanitized report"** that carries none of: key,
   full URLs, player name/ID, money, stats, faction/company names, or raw payloads.
   Verified by `DiagnosticsTests` (PII-safety of `sanitizedText()`).
-- [ ] ISC-19.1: Etap F (full instrumentation, F-02) — extend outcome/latency/size health
-  to every endpoint (fast poll is the reference implementation); event-driven endpoints
-  (market/forum/stocks) currently populate on first use. *(Deferred: mechanical per-site
-  timing, low value vs. risk right now.)*
+- [x] ISC-19.1: Etap F (F-02) — endpoint health (outcome/latency/size) now recorded across
+  the **continuous poll fan-out** (`faction.basic`, `user.activity`, `user.v2`,
+  `faction.rankedwars`, `faction.news`), not just `user.fast`/`key.info`. Verified by
+  `testFetchDataRecordsHealthForFanOutEndpoints`. *(Remaining: the event-driven endpoints —
+  `market.item`, `forum.thread`/`threads`, `torn.stocks` — are per-item/rare and structurally
+  different (loops, backoff); instrumenting them is low value and left as a small follow-up.)*
 - [x] ISC-20: Etap G — deterministic UI-test harness + real UI tests + hardened CI.
   `--uitesting` builds `AppState` from fixtures/doubles (`FixtureNetworkSession` URL-routed
   canned JSON, isolated ephemeral `UserDefaults`, in-memory `KeychainStore` override,
@@ -279,6 +284,9 @@ tracked backlog with deferral reasons.
 - ISC-10,11: `NotificationCoordinatorTests` (12 tests) pass — incl.
   `testChainAlertFiresOnceAcrossManySubThresholdPolls`.
 - ISC-12: `SECURITY.md` present at repo root.
+- ISC-15.1 / ISC-19.1: `AppStateTests` — `testDailyRowLimitPausesOnlyRowSources`,
+  `testRowSourcePauseReArmsAfterWindow`, `testFetchDataRecordsHealthForFanOutEndpoints` green;
+  full unit suite 352 green; Release Universal builds; coverage gate PASSED.
 - ISC-16: `KeyValidationTests` (11) green — model decode against the verified `/key/info`
   schema, `KeyValidator` availability (full/Custom-missing-selection/empty-faction/
   parameterized), and `AppState.validateKey` (success / error-envelope / empty / key-change

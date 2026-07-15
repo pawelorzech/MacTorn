@@ -83,6 +83,16 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
   80% line coverage. SwiftUI views are excluded — they're validated by the UI-test suite.
   Also available locally via `make coverage-gate`.
 
+### Changed — reliability closures (Etap B/F follow-ups)
+- **A daily read-limit no longer stalls unrelated data.** If Torn returns "daily read limit
+  reached" (error 14) for a row-based feed (activity, faction news), MacTorn now pauses just
+  that feed for an hour and keeps everything else — bars, cooldowns, travel, the chain
+  counter — updating live. Previously the whole faction/activity overlay could be affected.
+- **Diagnostics now cover the whole poll.** Endpoint health (last outcome, latency, size) is
+  recorded for every endpoint the app polls (faction, activity, v2 user, ranked wars, news),
+  not only the fast user poll — so a "Copy sanitized report" is more useful when something's
+  off. (Rarely-called market/forum/stocks calls are a small follow-up.)
+
 ### Added — Etap C (key validation & onboarding)
 - **Test Connection.** Onboarding (Settings) gains a "Test Connection" button that checks
   your API key against Torn's official key-info endpoint and tells you exactly what it
