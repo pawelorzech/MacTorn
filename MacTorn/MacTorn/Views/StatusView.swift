@@ -10,7 +10,12 @@ struct StatusView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // Header
                 headerSection
-                
+
+                // Next Action timeline (Etap J) — the single most useful glance.
+                if appState.data != nil {
+                    NextActionView(reduceTransparency: reduceTransparency)
+                }
+
                 // Error state
                 if let error = appState.errorMsg {
                     errorSection(error)

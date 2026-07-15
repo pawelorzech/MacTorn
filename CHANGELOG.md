@@ -61,8 +61,15 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
   it never contains the API key, full URLs, player name/ID, money, stats,
   faction/company names, or raw payloads.
 
+### Added — Etap J (Next Action)
+- **Next Action timeline.** A new card at the top of the Status tab shows the single
+  soonest thing to happen — bars filling, cooldowns ending, travel landing, hospital/jail
+  release, education finishing, OC becoming ready, chain timeout, or refills waiting —
+  with a live countdown, plus the list of what follows. All times come from one shared,
+  testable clock. Pick which categories appear in **Settings → Next Action**.
+
 ### Notes
-- 61 new unit tests since `main` (314 total, all green). No existing feature behaviour
+- 70 new unit tests since `main` (323 total, all green). No existing feature behaviour
   changed. CI's Release build was also un-broken (Xcode 16 for `Package.resolved` v3).
 
 ## [1.9.2] - 2026-07-15

@@ -187,6 +187,15 @@ class AppState {
     /// the menu-bar and Status tab cooldown countdowns matching torn.com.
     var cooldownEnds: CooldownEnds?
 
+    // MARK: - Next Action (Etap J)
+    /// Categories the user has hidden from the Next Action timeline. Persisted.
+    var hiddenNextActionCategories: Set<NextActionCategory> = [] {
+        didSet {
+            guard hiddenNextActionCategories != oldValue else { return }
+            saveHiddenNextActionCategories()
+        }
+    }
+
     // MARK: - Live Travel Countdown
     var travelSecondsRemaining: Int = 0
     var menuBarDisplay: MenuBarDisplay = .fallbackIcon
@@ -297,6 +306,7 @@ class AppState {
         loadForumWatch()
         loadFeedbackState()
         loadStocksMetadataFromCache()
+        loadHiddenNextActionCategories()
 
         // Etap D: when the network comes back after an outage, refresh once immediately
         // instead of waiting up to a full refresh interval. `refreshNow` routes through
@@ -1055,6 +1065,70 @@ class AppState {
                               latencyMs: Int(Date().timeIntervalSince(start) * 1000),
                               responseBytes: bytes,
                               errorClass: errorClass)
+    }
+
+    // MARK: - Next Action (Etap J)
+
+    private static let hiddenNextActionKey = "hiddenNextActionCategories"
+
+    private func loadHiddenNextActionCategories() {
+        guard let raw = defaults.stringArray(forKey: Self.hiddenNextActionKey) else { return }
+        hiddenNextActionCategories = Set(raw.compactMap(NextActionCategory.init(rawValue:)))
+    }
+
+    private func saveHiddenNextActionCategories() {
+        defaults.set(hiddenNextActionCategories.map(\.rawValue), forKey: Self.hiddenNextActionKey)
+    }
+
+    /// Builds the decoupled snapshot the Next Action engine consumes, mapping each live
+    /// model to an absolute Unix timestamp. Cooldowns/status/OC/education/chain already
+    /// carry absolute epochs; bars use `fulltime` (seconds-to-full) and travel uses the
+    /// live `travelSecondsRemaining`.
+    func makeNextActionSnapshot(now: Date = Date()) -> NextActionSnapshot {
+        let nowUnix = Int(now.timeIntervalSince1970)
+        var s = NextActionSnapshot(now: nowUnix)
+
+        if let bars = data?.bars {
+            s.energyFullAt = barFullAt(bars.energy, nowUnix: nowUnix)
+            s.nerveFullAt = barFullAt(bars.nerve, nowUnix: nowUnix)
+            s.happyFullAt = barFullAt(bars.happy, nowUnix: nowUnix)
+            s.lifeFullAt = barFullAt(bars.life, nowUnix: nowUnix)
+        }
+        if let cd = cooldownEnds {
+            s.drugReadyAt = cd.drugEndsAt > 0 ? cd.drugEndsAt : nil
+            s.medicalReadyAt = cd.medicalEndsAt > 0 ? cd.medicalEndsAt : nil
+            s.boosterReadyAt = cd.boosterEndsAt > 0 ? cd.boosterEndsAt : nil
+        }
+        if let travel = data?.travel, travel.isTraveling, travelSecondsRemaining > 0 {
+            s.travelArrivalAt = nowUnix + travelSecondsRemaining
+        }
+        if let status = data?.status {
+            if status.isInHospital { s.hospitalReleaseAt = status.until }
+            if status.isInJail { s.jailReleaseAt = status.until }
+        }
+        if let until = education?.current?.until, until > 0 {
+            s.educationEndsAt = until
+        }
+        if let ready = organizedCrime?.readyAt, ready > 0 {
+            s.ocReadyAt = ready
+        }
+        if let chain = data?.chain, chain.isActive, let timeout = chain.timeout, timeout > 0 {
+            s.chainTimeoutAt = timeout
+        }
+        if let refills, !refills.unclaimed.isEmpty {
+            s.refillsAvailable = true
+        }
+        return s
+    }
+
+    private func barFullAt(_ bar: Bar, nowUnix: Int) -> Int? {
+        guard bar.current < bar.maximum, let full = bar.fulltime, full > 0 else { return nil }
+        return nowUnix + full
+    }
+
+    /// The full upcoming timeline (soonest first), minus hidden categories.
+    func nextEvents(now: Date = Date()) -> [NextEvent] {
+        NextActionEngine().events(from: makeNextActionSnapshot(now: now), hidden: hiddenNextActionCategories)
     }
 
     /// Assemble a PII-safe diagnostics snapshot (Etap F). Async because the notification

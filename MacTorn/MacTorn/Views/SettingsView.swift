@@ -93,7 +93,9 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                
+
+                nextActionConfigSection
+
                 // Launch at Login
                 HStack {
                     Image(systemName: "power")
@@ -344,6 +346,41 @@ struct SettingsView: View {
     }
     
     // MARK: - API Usage Disclosure
+    private var nextActionConfigSection: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Choose which events appear in the Next Action timeline.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                ForEach(NextActionCategory.allCases, id: \.self) { category in
+                    Toggle(isOn: Binding(
+                        get: { !appState.hiddenNextActionCategories.contains(category) },
+                        set: { show in
+                            if show {
+                                appState.hiddenNextActionCategories.remove(category)
+                            } else {
+                                appState.hiddenNextActionCategories.insert(category)
+                            }
+                        }
+                    )) {
+                        Label(category.label, systemImage: category.systemImage)
+                            .font(.caption)
+                    }
+                    .toggleStyle(.checkbox)
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "flag.checkered")
+                    .foregroundColor(.secondary)
+                Text("Next Action")
+                    .font(.caption.bold())
+            }
+        }
+        .padding(.horizontal)
+    }
+
     private var apiUsageDisclosure: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {

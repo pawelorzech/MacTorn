@@ -159,8 +159,15 @@ tracked backlog with deferral reasons.
 - [ ] ISC-22: Etap I — extract `TornAPIClient`, `PollingCoordinator`,
   `NotificationCoordinator` (started), stores from `AppState`. *(Incremental;
   `NotificationCoordinator` extracted this stage.)*
-- [ ] ISC-23: Etap J — "Next Action" unified event timeline + menu-bar variant.
-  *(Deferred product feature; depends on a shared testable clock.)*
+- [x] ISC-23: Etap J — "Next Action" unified event timeline. A pure `NextActionEngine`
+  turns a decoupled snapshot (bars-full / cooldowns / travel / hospital / jail /
+  education / OC / chain / refills, as absolute Unix timestamps off the shared
+  `TimeSource`) into a sorted, future-only, hide-filtered list; surfaced as a live
+  count-down card at the top of the Status tab, with per-category show/hide in Settings.
+  Verified by `NextActionTests` (ordering, future-only, hide, tie-break, refills-ready).
+- [ ] ISC-23.1: Etap J (menu-bar variant, J-02) — show the next event in the menu bar
+  with compact/verbose + icon/timer/value options. *(Deferred: the menu bar has its own
+  `MenuBarDisplay` logic; integrating Next Action there is a separate change.)*
 - [ ] ISC-24: Etap K — navigation/accessibility redesign (3–4 sections + More, reorder,
   VoiceOver, larger targets). *(Deferred UX work.)*
 - [ ] ISC-25: Etap L — release engineering (Developer ID/notarization optional via CI
