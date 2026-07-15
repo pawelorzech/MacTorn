@@ -52,8 +52,17 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
 - The **15s** refresh option is now labelled **"15s aggressive"** with a note that Torn
   may serve cached data for ~30s, so 15s can spend API budget for no fresher data.
 
+### Added — Etap F (diagnostics)
+- **Diagnostics screen** (Settings → Diagnostics): app/macOS/architecture, network and
+  notification-permission state, whether an API key is configured and the access level
+  it needs, last successful refresh, live request/record budget counters, and
+  per-endpoint outcome/latency/size.
+- **"Copy sanitized report"** — a clipboard snapshot that is PII-safe by construction:
+  it never contains the API key, full URLs, player name/ID, money, stats,
+  faction/company names, or raw payloads.
+
 ### Notes
-- 55 new unit tests since `main` (308 total, all green). No existing feature behaviour
+- 61 new unit tests since `main` (314 total, all green). No existing feature behaviour
   changed. CI's Release build was also un-broken (Xcode 16 for `Package.resolved` v3).
 
 ## [1.9.2] - 2026-07-15
