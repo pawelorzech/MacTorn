@@ -2,15 +2,33 @@ import SwiftUI
 
 @main
 struct MacTornApp: App {
-    @State private var appState = AppState()
+    @State private var appState: AppState
     @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
 
+    #if DEBUG
+    // Promotes the accessory app to a regular window when launched under `--uitesting`,
+    // so the UI-test window actually appears. Inert on any normal launch.
+    @NSApplicationDelegateAdaptor(UITestAppDelegate.self) private var uiTestDelegate
+    #endif
+
     init() {
+        #if DEBUG
+        // Under the UI-test harness, build a hermetic AppState from fixtures/doubles and
+        // skip Sentry (no crash reporter, no network) so runs are deterministic.
+        if UITestConfiguration.isActive {
+            _appState = State(initialValue: UITestConfiguration.makeAppState())
+            return
+        }
+        #endif
         SentryManager.startIfEnabled()
+        _appState = State(initialValue: AppState())
     }
 
     var body: some Scene {
+        #if DEBUG
+        uiTestWindow
+        #endif
         MenuBarExtra {
             ContentView()
                 .environment(appState)
@@ -26,6 +44,24 @@ struct MacTornApp: App {
         }
         .menuBarExtraStyle(.window)
     }
+
+    #if DEBUG
+    // A MenuBarExtra has no ordinary window, so XCUITest cannot see or drive its content.
+    // Under the UI-test harness, surface the exact same ContentView in a real window the
+    // test runner can query. Otherwise fall back to an inert `Settings` scene, which never
+    // auto-opens a window — so a normal Debug launch is unaffected. Production ships
+    // MenuBarExtra only (this whole scene is `#if DEBUG`).
+    //
+    // Note: `SceneBuilder` does not support runtime `if`/`else` (only `#available`), so the
+    // window cannot be conditionalized at the scene level — it is always present in DEBUG.
+    // `UITestRootView` gates its content on `UITestConfiguration.isActive` and closes this
+    // window on a normal (non-UI-test) Debug launch, so it is invisible outside UI tests.
+    private var uiTestWindow: some Scene {
+        WindowGroup(id: "uitest-window") {
+            UITestRootView(appState: appState)
+        }
+    }
+    #endif
 
     private func updateAppearance() {
         let mode = AppearanceMode(rawValue: appearanceModeRaw) ?? .system
@@ -48,6 +84,10 @@ struct MenuBarLabel: View {
     // types, but @Bindable keeps the call-site identical to before.
     @Bindable var appState: AppState
 
+    #if DEBUG
+    @Environment(\.openWindow) private var openWindow
+    #endif
+
     var body: some View {
         Group {
             switch appState.menuBarDisplay {
@@ -66,6 +106,16 @@ struct MenuBarLabel: View {
             }
         }
         .transaction { $0.animation = nil }
+        #if DEBUG
+        // The menu-bar label renders at launch even for an accessory app, so it's the one
+        // reliable place to explicitly open the UI-test window (a MenuBarExtra's own content
+        // only appears on click, which XCUITest can't trigger). Inert on a normal launch.
+        .onAppear {
+            if UITestConfiguration.isActive {
+                openWindow(id: "uitest-window")
+            }
+        }
+        #endif
     }
 
     private var menuBarIcon: String {

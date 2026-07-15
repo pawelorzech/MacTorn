@@ -153,10 +153,30 @@ tracked backlog with deferral reasons.
   to every endpoint (fast poll is the reference implementation); event-driven endpoints
   (market/forum/stocks) currently populate on first use. *(Deferred: mechanical per-site
   timing, low value vs. risk right now.)*
-- [ ] ISC-20: Etap G — deterministic UI-test harness (`--uitesting`, fixture selection,
-  fake clock/keychain/connectivity) + real UI tests; remove `continue-on-error` and
-  `|| echo "optional"`; coverage gate ≥80% on critical modules. *(Deferred: large;
-  the UserDefaults injection is the first brick.)*
+- [x] ISC-20: Etap G — deterministic UI-test harness + real UI tests + hardened CI.
+  `--uitesting` builds `AppState` from fixtures/doubles (`FixtureNetworkSession` URL-routed
+  canned JSON, isolated ephemeral `UserDefaults`, in-memory `KeychainStore` override,
+  `UITestConnectivity`) and surfaces the MenuBarExtra content in a real window XCUITest can
+  drive (accessory app promoted to a regular activation policy + explicit `openWindow`). Real
+  UI tests: onboarding-without-key, tab navigation, invalid-key error surfacing (green ×4
+  consecutive runs, deterministic). `continue-on-error` removed from the UI-tests job so it
+  gates merges. Coverage gate (`scripts/coverage-gate.sh`, dependency-free `xccov`) enforces
+  ≥80% line coverage on the reliability-critical modules — currently TornAPIError 99%,
+  TornEndpoint 84%, PollingCoordinator 100%, NotificationCoordinator 100%, NextAction 97% —
+  views excluded by design. All harness/fixture surface is DEBUG-gated (verified: no
+  `TestPlayer`/`FixtureNetworkSession`/launch-arg strings in the Release binary). Verified by
+  `MacTornUITests` (3) + `UITestHarnessTests` (7) + `make coverage-gate`. *(Views not visually
+  verified — logic/interaction only, per the audit's visual caveat.)*
+- [ ] ISC-20.1: Etap G (remaining UI scenarios, fake clock in UI harness) — offline→reconnect
+  and chain-alert-no-duplicates are **not** driven through the UI. *(Deferred: reconnect is
+  already proven by `PollingCoordinatorTests`/AppState reconnect tests, and chain-dedup by the
+  `NotificationCoordinator` regression tests (ISC-11); a MenuBarExtra window can't reliably
+  observe a system notification, so a UI test there would assert nothing new. The UI harness
+  uses the real clock — current UI tests assert no absolute time — while `MutableTimeSource`
+  stays wired for unit tests.)*
+- [ ] ISC-20.2: Etap G (key-validation in the coverage gate) — add the ISC-16 key-info/
+  validation module to `coverage-gate.sh` once Etap C lands. *(Deferred: the module does not
+  exist yet; gating a non-existent file would just fail the build.)*
 - [ ] ISC-21: Etap H — CI overhaul (current Xcode, required UI tests, archive smoke,
   coverage, SwiftLint, entitlements/codesign/lipo checks, Dependabot). *(Deferred:
   CI changes; `SECURITY.md` done.)*
@@ -241,3 +261,8 @@ tracked backlog with deferral reasons.
 - ISC-10,11: `NotificationCoordinatorTests` (12 tests) pass — incl.
   `testChainAlertFiresOnceAcrossManySubThresholdPolls`.
 - ISC-12: `SECURITY.md` present at repo root.
+- ISC-20: `xcodebuild test -only-testing:MacTornUITests` (3 UI tests) green ×4 consecutive
+  runs; `-only-testing:MacTornTests/UITestHarnessTests` (7) green; `bash
+  scripts/coverage-gate.sh TestResults.xcresult 80` → PASSED (critical modules 84–100%);
+  Release Universal build (`arm64`+`x86_64`) succeeds and `strings` shows no fixture/harness
+  surface.

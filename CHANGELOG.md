@@ -68,6 +68,21 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
   with a live countdown, plus the list of what follows. All times come from one shared,
   testable clock. Pick which categories appear in **Settings → Next Action**.
 
+### Added — Etap G (deterministic UI tests + hardened CI)
+- **Hermetic UI-test harness.** Launched with `--uitesting`, the app builds itself from
+  fixtures and test doubles — a URL-routed fake network session, an isolated `UserDefaults`,
+  an in-memory Keychain (so a UI test never touches your real Torn key), and controllable
+  connectivity — and surfaces the menu-bar content in a real window the test runner can
+  drive. Real UI tests now cover onboarding-without-a-key, tab navigation, and invalid-key
+  error surfacing. This is developer-facing only: it is fully DEBUG-gated, so the Release
+  app carries none of the fixture/harness code.
+- **UI tests gate merges.** The CI UI-test job no longer swallows failures
+  (`continue-on-error` removed).
+- **Coverage gate.** CI fails if any reliability-critical module (API error taxonomy,
+  endpoint registry, polling/notification coordinators, Next Action engine) drops below
+  80% line coverage. SwiftUI views are excluded — they're validated by the UI-test suite.
+  Also available locally via `make coverage-gate`.
+
 ### Fixed — Etap B (stop retrying a dead key)
 - **A bad or paused API key now halts polling** instead of retrying forever. When Torn
   returns a permanent key/permission error (codes 2 / 16 / 18), MacTorn stops the poll

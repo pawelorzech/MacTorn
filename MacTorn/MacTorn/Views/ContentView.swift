@@ -95,6 +95,9 @@ struct ContentView: View {
             checkSentryOptInPrompt()
         }
         .task {
+            // Skip system-permission prompts and the update-check network call under the
+            // UI-test harness so runs stay hermetic and no modal steals focus.
+            guard !UITestConfiguration.isActive else { return }
             await NotificationManager.shared.requestPermission()
             appState.checkForAppUpdates()
         }
@@ -135,6 +138,7 @@ struct ContentView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundColor(currentTab == tab ? .accentColor : .secondary)
+                .uiTestID("uitest.tab.\(tab.rawValue)")
             }
         }
         .padding(.horizontal, 8)
@@ -144,6 +148,14 @@ struct ContentView: View {
     // MARK: - Tab Content
     @ViewBuilder
     private var tabContent: some View {
+        tabContentBody
+            // A single element whose identifier tracks the active tab, so a UI test can
+            // assert navigation actually switched content (Etap G).
+            .uiTestID("uitest.tabContent.\(currentTab.rawValue)")
+    }
+
+    @ViewBuilder
+    private var tabContentBody: some View {
         switch currentTab {
         case .status:
             StatusView()
@@ -194,6 +206,7 @@ struct ContentView: View {
     }
     
     private func checkSentryOptInPrompt() {
+        guard !UITestConfiguration.isActive else { return }
         guard !appState.apiKey.isEmpty else { return }
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let shownFor = UserDefaults.standard.string(forKey: SentryManager.promptShownKey) ?? ""

@@ -35,6 +35,12 @@ enum KeychainStore {
     }
 
     static func get() -> String? {
+        #if DEBUG
+        // Under the UI-test harness, the app runs as a separate process without the
+        // XCTest env var, so the real login Keychain would be hit. Route through an
+        // in-memory store instead so a UI test never reads a developer's real key.
+        if UITestConfiguration.isActive { return UITestConfiguration.keychainOverride[account] }
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -57,6 +63,12 @@ enum KeychainStore {
             delete()
             return
         }
+        #if DEBUG
+        if UITestConfiguration.isActive {
+            UITestConfiguration.keychainOverride[account] = value
+            return
+        }
+        #endif
         guard let data = value.data(using: .utf8) else { return }
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -81,6 +93,12 @@ enum KeychainStore {
     }
 
     static func delete() {
+        #if DEBUG
+        if UITestConfiguration.isActive {
+            UITestConfiguration.keychainOverride[account] = nil
+            return
+        }
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
