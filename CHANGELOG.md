@@ -5,10 +5,16 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — reliability & product audit (stage 1)
+## [Unreleased]
 
-Branch `audit/reliability-product-pass`. First stage of the Etap A–L quality program;
-the full plan and deferred backlog live in [`ISA.md`](ISA.md).
+## [1.10.0] — 2026-07-15 — reliability & product audit
+
+A large reliability + product pass (audit Etaps A–G, C, and follow-ups). Highlights: key
+validation & onboarding ("Test Connection"), a deterministic UI-test harness that gates
+merges, error-14 per-source pausing, poll-wide diagnostics health, a persistent OC-ready
+dedup, plus the earlier spine (typed API registry, error taxonomy, notification de-dup, the
+Next Action timeline, diagnostics, and the halt-on-dead-key fix). The full plan and deferred
+backlog live in [`ISA.md`](ISA.md).
 
 ### Fixed
 - **Chain-expiring notification fired on every poll.** While a chain's timeout was under
