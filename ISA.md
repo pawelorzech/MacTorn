@@ -174,8 +174,12 @@ tracked backlog with deferral reasons.
   `MenuBarDisplay` logic; integrating Next Action there is a separate change.)*
 - [ ] ISC-24: Etap K — navigation/accessibility redesign (3–4 sections + More, reorder,
   VoiceOver, larger targets). *(Deferred UX work.)*
-- [ ] ISC-25: Etap L — release engineering (Developer ID/notarization optional via CI
-  secrets, SHA-256, Sparkle). *(Deferred; `release-signed` scaffold already exists.)*
+- [ ] ISC-25: Etap L — release engineering (Developer ID/notarization, SHA-256, Sparkle).
+  **WON'T DO (2026-07-15, Paweł's decision):** Developer ID + notarization require a paid
+  Apple Developer Program, which Paweł does not want (consistent with accepted risk F-04).
+  The `release-signed` Makefile scaffold + ad-hoc Universal Release remain; revisit only
+  if a paid program is ever set up. SHA-256 checksums of release artifacts could still be
+  added cheaply if desired, but the signing/notarization core is out of scope.
 
 ## Test Strategy
 

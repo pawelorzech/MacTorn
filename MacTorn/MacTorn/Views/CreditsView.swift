@@ -9,6 +9,7 @@ struct CreditsView: View {
 
     // MARK: - Special Thanks
     private let specialThanks: [TornContributor] = [
+        TornContributor(name: "Greeney", tornID: nil),
         TornContributor(name: "kaszmir", tornID: 3913934),
         TornContributor(name: "dylanwishop", tornID: 3918903),
         TornContributor(name: "constanziagatta", tornID: 3961012),
@@ -17,10 +18,6 @@ struct CreditsView: View {
     // MARK: - Faction
     private let factionName = "The Masters"
     private let factionID = 11559
-
-    // MARK: - Company
-    private let companyName = "Glory Holes Productions"
-    private let companyOwnerID = 2362436
 
     var body: some View {
         VStack(spacing: 16) {
@@ -57,9 +54,6 @@ struct CreditsView: View {
 
                     // Faction Section
                     factionSection
-
-                    // Company Section
-                    companySection
                 }
                 .padding(.horizontal)
             }
@@ -130,38 +124,6 @@ struct CreditsView: View {
             } label: {
                 HStack {
                     Text(factionName)
-                        .font(.caption)
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(.accentColor)
-            .padding(10)
-            .frame(maxWidth: .infinity)
-            .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
-            .cornerRadius(8)
-        }
-    }
-
-    // MARK: - Company Section
-    private var companySection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "building.2.fill")
-                    .foregroundColor(.purple)
-                Text("Company")
-                    .font(.subheadline.bold())
-            }
-
-            Button {
-                openCompany(companyOwnerID)
-            } label: {
-                HStack {
-                    Text(companyName)
                         .font(.caption)
                     Spacer()
                     Image(systemName: "arrow.up.right.square")
@@ -251,12 +213,6 @@ struct CreditsView: View {
         }
     }
 
-    private func openCompany(_ ownerID: Int) {
-        let urlString = "https://www.torn.com/joblist.php#/p=corpinfo&userID=\(ownerID)"
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
 }
 
 // MARK: - Contributor Model
