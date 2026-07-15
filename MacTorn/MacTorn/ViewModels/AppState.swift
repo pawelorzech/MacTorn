@@ -139,6 +139,9 @@ class AppState {
             KeychainStore.set(apiKey)
             // A new key clears any permanent-key halt so polling can resume (Etap B).
             keyHalted = false
+            // A new key invalidates any prior validation result (Etap C).
+            keyValidation = .idle
+            keyInfo = nil
         }
     }
 
@@ -146,6 +149,13 @@ class AppState {
     /// Blocks auto-restart (e.g. on MenuBarExtra open) until the user changes the key.
     /// `internal` for `@testable`.
     var keyHalted: Bool = false
+
+    // MARK: - Key validation (Etap C, ISC-16)
+    /// Onboarding "Test Connection" state. Drives the SettingsView result panel.
+    var keyValidation: KeyValidationState = .idle
+    /// The last successfully-decoded key info. `nil` until validated / after a key change.
+    /// PII (player id) lives here for display only — never logged or put in a report.
+    var keyInfo: TornKeyInfo?
 
     // Was @AppStorage; replaced with stored property + didSet write-through to
     // UserDefaults so @Observable change tracking sees it. Initial value is
@@ -1097,6 +1107,75 @@ class AppState {
         data = nil
         stopPolling()
         logger.error("Polling halted on permanent key/permission error (code \(error.tornCode ?? -1))")
+    }
+
+    /// Validate the current API key against the official `/key/info` endpoint (Etap C).
+    /// On success, publishes the real access level/type, the owner's id, and per-endpoint
+    /// availability so onboarding can show exactly what the key unlocks and disable the
+    /// modules it can't serve. All error paths surface a sanitized, PII-free message.
+    func validateKey() async {
+        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            keyValidation = .failure("Enter your Torn API key first.")
+            return
+        }
+        guard connectivity.isConnected else {
+            keyValidation = .failure(TornAPIError.offline.userMessage)
+            return
+        }
+        guard let url = TornAPI.keyInfoURL(for: trimmed) else {
+            keyValidation = .failure("Could not build the key-info request.")
+            return
+        }
+
+        keyValidation = .validating
+        recordRequest("key.info")
+        let startTime = Date()
+        logger.info("Validating key via key-info: \(tornRedactedURL(url))")
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let (data, response) = try await session.data(for: request)
+
+            guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
+
+            // Torn returns HTTP 200 even on errors — check the envelope before decoding.
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let apiError = tornAPIError(in: json) {
+                recordHealth("key.info", outcome: .error, since: startTime, bytes: data.count,
+                             errorClass: apiError.classification.rawValue)
+                keyValidation = .failure(apiError.userMessage)
+                return
+            }
+
+            guard http.statusCode == 200 else {
+                recordHealth("key.info", outcome: .error, since: startTime, bytes: data.count,
+                             errorClass: "temporaryBackend")
+                keyValidation = .failure("Torn returned HTTP \(http.statusCode). Please try again.")
+                return
+            }
+
+            let decoded = try JSONDecoder().decode(TornKeyInfo.Response.self, from: data)
+            self.keyInfo = decoded.info
+            self.keyValidation = .success(KeyValidator.validate(decoded.info))
+            recordHealth("key.info", outcome: .ok, since: startTime, bytes: data.count)
+            logger.info("Key validated: access level \(decoded.info.access.level)")
+        } catch {
+            if Task.isCancelled {
+                recordHealth("key.info", outcome: .cancelled, since: startTime, bytes: 0)
+                return
+            }
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            let message = mapped?.userMessage
+                ?? "Couldn't read Torn's response. Please try again."
+            keyValidation = .failure(message)
+            recordHealth("key.info",
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "malformedResponse")
+            logger.error("Key validation failed: \(String(describing: type(of: error)))")
+        }
     }
 
     /// Record the outcome of a request for the Diagnostics screen (Etap F).

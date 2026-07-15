@@ -57,6 +57,27 @@ struct SettingsView: View {
                 .disabled(inputKey.isEmpty)
                 .uiTestID("uitest.saveKey")
 
+                Button {
+                    let typed = inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !typed.isEmpty { appState.apiKey = typed }
+                    Task { await appState.validateKey() }
+                } label: {
+                    if appState.keyValidation == .validating {
+                        HStack(spacing: 6) {
+                            ProgressView().controlSize(.small)
+                            Text("Testing…")
+                        }
+                    } else {
+                        Text("Test Connection")
+                    }
+                }
+                .buttonStyle(.bordered)
+                .disabled(appState.keyValidation == .validating
+                          || (inputKey.isEmpty && appState.apiKey.isEmpty))
+                .uiTestID("uitest.testConnection")
+
+                keyValidationResult
+
                 Link("Get API Key from Torn",
                      destination: URL(string: "https://www.torn.com/preferences.php#tab=api")!)
                     .font(.caption)
@@ -383,20 +404,67 @@ struct SettingsView: View {
         .padding(.horizontal)
     }
 
+    // MARK: - Key validation result (Etap C, ISC-16)
+    @ViewBuilder
+    private var keyValidationResult: some View {
+        switch appState.keyValidation {
+        case .idle, .validating:
+            EmptyView()
+        case .success(let result):
+            let blocked = result.availability.filter { !$0.available }
+            VStack(alignment: .leading, spacing: 4) {
+                Label("\(result.accessType) · ID \(result.playerID)",
+                      systemImage: "checkmark.seal.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.green)
+                if blocked.isEmpty {
+                    Text("All MacTorn features are available with this key.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Limited by your key — these features won't load:")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    ForEach(blocked) { item in
+                        Text("• \(item.name)")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .uiTestID("uitest.keyValidationSuccess")
+        case .failure(let message):
+            Label(message, systemImage: "xmark.octagon.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .uiTestID("uitest.keyValidationFailure")
+        }
+    }
+
     private var apiUsageDisclosure: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(apiSelections, id: \.selection) { item in
-                    HStack(alignment: .top) {
-                        Text(item.selection)
-                            .font(.caption.monospaced())
-                            .frame(width: 60, alignment: .leading)
-                            .foregroundColor(.accentColor)
-                        Text(item.purpose)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                disclosureLine("key.fill",
+                               "Requires a Torn key with at least **\(TornEndpointRegistry.requiredAccessLevel.label)** for every feature. Lower access still works — modules your key can't read are shown after Test Connection.")
+                disclosureLine("lock.fill",
+                               "Your key is stored in the macOS **Keychain**, never in plaintext preferences.")
+                disclosureLine("desktopcomputer",
+                               "All Torn data stays **on this Mac**. MacTorn is read-only — it never takes any action on your account.")
+                disclosureLine("exclamationmark.shield",
+                               "Crash reporting (Sentry) is **opt-in** and off by default; no Torn data is sent.")
+
+                Divider()
+
+                Text("Selections requested (from the app's endpoint registry):")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text(TornEndpointRegistry.allSelections.joined(separator: ", "))
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(Color.accentColor)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Divider()
 
@@ -409,26 +477,26 @@ struct SettingsView: View {
             HStack(spacing: 4) {
                 Image(systemName: "doc.text")
                     .foregroundColor(.secondary)
-                Text("API Data Usage")
+                Text("API Data Usage & Privacy")
                     .font(.caption.bold())
             }
         }
         .padding(.horizontal)
     }
 
-    private var apiSelections: [(selection: String, purpose: String)] {
-        [
-            ("basic", "Player name, ID, basic info"),
-            ("bars", "Energy, Nerve, Happy, Life bars"),
-            ("cooldowns", "Drug, Medical, Booster cooldowns"),
-            ("travel", "Travel status and destination"),
-            ("profile", "Battle stats, faction info"),
-            ("events", "Recent events feed"),
-            ("messages", "Unread message count"),
-            ("market", "Item watchlist prices"),
-            ("forum", "Forum thread monitoring")
-        ]
+    private func disclosureLine(_ icon: String, _ markdown: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: icon)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(.init(markdown))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
+
 
     private func openTornProfile() {
         let url = "https://www.torn.com/profiles.php?XID=\(developerID)"

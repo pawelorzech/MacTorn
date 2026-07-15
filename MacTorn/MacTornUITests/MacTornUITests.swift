@@ -85,4 +85,24 @@ final class MacTornUITests: XCTestCase {
         XCTAssertTrue(error.waitForExistence(timeout: 15),
                       "An invalid key should surface a visible error message")
     }
+
+    // MARK: - Key validation (Etap C)
+
+    /// "Test Connection" validates the key against /key/info and reports what it unlocks.
+    func testTestConnectionReportsAccess() throws {
+        let app = launch(fixture: "full", apiKey: "sample-connection-user")
+        _ = window(app)
+
+        // Open Settings from the signed-in footer, then run Test Connection.
+        let settings = app.buttons["uitest.openSettings"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings button should exist")
+        settings.click()
+
+        let testButton = app.buttons["uitest.testConnection"]
+        XCTAssertTrue(testButton.waitForExistence(timeout: 10), "Test Connection button should exist")
+        testButton.click()
+
+        XCTAssertTrue(app.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
+                      "A valid key should report its access level after Test Connection")
+    }
 }

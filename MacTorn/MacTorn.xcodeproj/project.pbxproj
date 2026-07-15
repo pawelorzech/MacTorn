@@ -64,8 +64,10 @@
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
 		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
 		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
+		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
 		AAA00032 /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10032 /* NotificationCoordinator.swift */; };
 		BBB00024 /* TornEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10024 /* TornEndpointTests.swift */; };
+		BBB00031 /* KeyValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10031 /* KeyValidationTests.swift */; };
 		BBB00025 /* TornAPIErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10025 /* TornAPIErrorTests.swift */; };
 		BBB00026 /* NotificationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10026 /* NotificationCoordinatorTests.swift */; };
 		AAA00033 /* TimeSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10033 /* TimeSource.swift */; };
@@ -158,8 +160,10 @@
 		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
 		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
 		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
+		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
 		AAA10032 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
 		BBB10024 /* TornEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointTests.swift; sourceTree = "<group>"; };
+		BBB10031 /* KeyValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyValidationTests.swift; sourceTree = "<group>"; };
 		BBB10025 /* TornAPIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIErrorTests.swift; sourceTree = "<group>"; };
 		BBB10026 /* NotificationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinatorTests.swift; sourceTree = "<group>"; };
 		AAA10033 /* TimeSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSource.swift; sourceTree = "<group>"; };
@@ -312,6 +316,7 @@
 				AAA10022 /* NetworkSession.swift */,
 				AAA10030 /* TornEndpoint.swift */,
 				AAA10031 /* TornAPIError.swift */,
+				AAA10040 /* TornKeyInfo.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -372,6 +377,7 @@
 				BBB10020 /* StockMetadataTests.swift */,
 				BBB10023 /* UserV2ModelsTests.swift */,
 				BBB10024 /* TornEndpointTests.swift */,
+				BBB10031 /* KeyValidationTests.swift */,
 				BBB10025 /* TornAPIErrorTests.swift */,
 			);
 			path = Models;
@@ -560,6 +566,7 @@
 				AAA00021 /* NetworkSession.swift in Sources */,
 				AAA00030 /* TornEndpoint.swift in Sources */,
 				AAA00031 /* TornAPIError.swift in Sources */,
+				AAA00040 /* TornKeyInfo.swift in Sources */,
 				AAA00032 /* NotificationCoordinator.swift in Sources */,
 				AAA00033 /* TimeSource.swift in Sources */,
 				AAA00039 /* UITestSupport.swift in Sources */,
@@ -608,6 +615,7 @@
 				BBB00021 /* AppStateStocksMetadataTests.swift in Sources */,
 				BBB00022 /* AppStatePerformanceTests.swift in Sources */,
 				BBB00024 /* TornEndpointTests.swift in Sources */,
+				BBB00031 /* KeyValidationTests.swift in Sources */,
 				BBB00025 /* TornAPIErrorTests.swift in Sources */,
 				BBB00026 /* NotificationCoordinatorTests.swift in Sources */,
 				BBB00027 /* PollingCoordinatorTests.swift in Sources */,
