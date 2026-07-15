@@ -63,4 +63,5 @@ final class AppStatePerformanceTests: XCTestCase {
 /// Test connectivity stub: always claims online so AppState code paths run.
 private final class AlwaysOnlineConnectivity: NetworkConnectivity {
     var isConnected: Bool { true }
+    var onConnectivityRestored: (() -> Void)?
 }

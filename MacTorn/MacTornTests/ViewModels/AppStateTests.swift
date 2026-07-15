@@ -26,6 +26,42 @@ final class AppStateTests: XCTestCase {
         try await super.tearDown()
     }
 
+    // MARK: - Etap D: request budget wiring + reconnect refresh
+
+    func testFetchRecordsAgainstRequestBudget() {
+        let conn = ControllableConnectivity(connected: true)
+        let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
+        app.apiKey = "valid_key"
+        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
+        app.refreshNow()   // fetchData records "user.fast" synchronously before spawning its task
+        XCTAssertGreaterThanOrEqual(app.pollingCoordinator.requestsInLastMinute, 1,
+                                    "a poll must be recorded against the API budget")
+        app.stopPolling()
+    }
+
+    func testReconnectTriggersRefresh() {
+        let conn = ControllableConnectivity(connected: true)
+        let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
+        app.apiKey = "valid_key"
+        XCTAssertNotNil(conn.onConnectivityRestored, "AppState wires the reconnect handler")
+
+        let before = app.pollingCoordinator.requestsInLastMinute
+        conn.goOffline()
+        conn.restore()   // down→up edge → refreshNow → fetchData records a request
+        XCTAssertGreaterThan(app.pollingCoordinator.requestsInLastMinute, before,
+                             "a restored connection refreshes immediately")
+        app.stopPolling()
+    }
+
+    func testOfflineFetchRecordsNothing() {
+        let conn = ControllableConnectivity(connected: false)
+        let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
+        app.apiKey = "valid_key"
+        app.refreshNow()   // fetchData bails on the connectivity guard before recording
+        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
+        app.stopPolling()
+    }
+
     // MARK: - API Key Validation Tests
 
     func testFetchData_emptyAPIKey() async {

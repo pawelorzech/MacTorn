@@ -74,7 +74,7 @@ struct SettingsView: View {
                         .frame(width: 20)
                     
                     Picker("Refresh", selection: $appState.refreshInterval) {
-                        Text("15s").tag(15)
+                        Text("15s ⚡︎").tag(15)
                         Text("30s").tag(30)
                         Text("60s").tag(60)
                         Text("2m").tag(120)
@@ -85,6 +85,12 @@ struct SettingsView: View {
                             appState.startPolling()
                         }
                     }
+                }
+                if appState.refreshInterval == 15 {
+                    Text("⚡︎ Aggressive: Torn may return cached data for up to ~30s, so 15s can spend API budget without fresher data. 30s is recommended.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 
                 // Launch at Login
