@@ -68,9 +68,18 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
   with a live countdown, plus the list of what follows. All times come from one shared,
   testable clock. Pick which categories appear in **Settings → Next Action**.
 
+### Fixed — Etap B (stop retrying a dead key)
+- **A bad or paused API key now halts polling** instead of retrying forever. When Torn
+  returns a permanent key/permission error (codes 2 / 16 / 18), MacTorn stops the poll
+  loop, shows the specific message, and stays stopped even when the menu re-opens —
+  until you change the key. Previously it showed "API Error: …" and kept hammering the
+  dead key every cycle. Transient errors (rate limit, backend) are unaffected.
+
 ### Notes
-- 70 new unit tests since `main` (323 total, all green). No existing feature behaviour
-  changed. CI's Release build was also un-broken (Xcode 16 for `Package.resolved` v3).
+- 77 new unit tests since `main` (330 total, all green). The one existing test that
+  encoded the old "keep retrying a dead key" behaviour was updated to the new halt
+  contract; no other feature behaviour changed. CI's Release build was also un-broken
+  (Xcode 16 for `Package.resolved` v3).
 
 ## [1.9.2] - 2026-07-15
 

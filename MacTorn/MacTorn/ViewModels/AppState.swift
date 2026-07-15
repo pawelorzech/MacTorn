@@ -119,8 +119,15 @@ class AppState {
             // SwiftUI's binding lifecycle.
             guard apiKey != oldValue else { return }
             KeychainStore.set(apiKey)
+            // A new key clears any permanent-key halt so polling can resume (Etap B).
+            keyHalted = false
         }
     }
+
+    /// True after a permanent key/permission error (Torn codes 2/16/18) halted polling.
+    /// Blocks auto-restart (e.g. on MenuBarExtra open) until the user changes the key.
+    /// `internal` for `@testable`.
+    var keyHalted: Bool = false
 
     // Was @AppStorage; replaced with stored property + didSet write-through to
     // UserDefaults so @Observable change tracking sees it. Initial value is
@@ -1011,6 +1018,12 @@ class AppState {
 
     // MARK: - Polling
     func startPolling(force: Bool = false) {
+        // A permanently-bad key won't work no matter how often we retry — don't restart
+        // the loop (Etap B). Changing the key clears `keyHalted` and lets polling resume.
+        guard !keyHalted else {
+            logger.warning("startPolling skipped: polling halted on a permanent key error")
+            return
+        }
         // MenuBarExtra fires onAppear on every menu open, so this is called repeatedly.
         // If the timer is already running and we fetched recently (< refreshInterval/2 ago),
         // skip the restart + immediate refetch — it just burns API quota.
@@ -1056,6 +1069,16 @@ class AppState {
         if let endpoint = TornEndpointRegistry.endpoint(id: endpointID) {
             pollingCoordinator.record(endpoint)
         }
+    }
+
+    /// Handle a permanent key/permission error (Etap B): stop the loop, show the user a
+    /// clear message, and latch `keyHalted` so it won't auto-restart until the key changes.
+    func handlePermanentKeyError(_ error: TornAPIError) {
+        keyHalted = true
+        errorMsg = error.userMessage
+        data = nil
+        stopPolling()
+        logger.error("Polling halted on permanent key/permission error (code \(error.tornCode ?? -1))")
     }
 
     /// Record the outcome of a request for the Diagnostics screen (Etap F).
@@ -1227,6 +1250,14 @@ class AppState {
                     // it contains player name, money, stats, attacks, and other PII (and the
                     // request URL with the API key already passed through redacted logging).
                     if let topLevel = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        // Etap B: Torn returns key/permission errors with HTTP 200 in an
+                        // envelope. A permanent one (codes 2/16/18) must halt polling —
+                        // retrying a dead/paused/under-privileged key forever is pointless.
+                        if let apiError = tornAPIError(in: topLevel), apiError.haltsAllRequests {
+                            self.recordHealth("user.fast", outcome: .error, since: startTime, bytes: data.count, errorClass: apiError.classification.rawValue)
+                            await MainActor.run { self.handlePermanentKeyError(apiError) }
+                            return
+                        }
                         let keys = topLevel.keys.sorted().joined(separator: ",")
                         logger.debug("API response: \(data.count) bytes, keys=[\(keys)]")
                     } else {

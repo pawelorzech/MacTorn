@@ -1289,6 +1289,24 @@ func tornAPIErrorMessage(in json: [String: Any]) -> String? {
     return nil
 }
 
+/// Like `tornAPIErrorMessage`, but returns the *classified* error (Etap B) so callers can
+/// react to its kind — halt on a permanent key/permission error (codes 2/16/18), pause a
+/// category on the daily-row-limit (14), back off on transient ones. Returns nil when the
+/// payload is not an error envelope. Recognises both v1 and v2 shapes.
+func tornAPIError(in json: [String: Any]) -> TornAPIError? {
+    // v1 envelope: { "error": { "code": Int, "error": String } }
+    if let nested = json["error"] as? [String: Any] {
+        let code = nested["code"] as? Int ?? 0
+        let message = nested["error"] as? String ?? ""
+        return TornAPIError.classify(code: code, message: message)
+    }
+    // v2 envelope: { "code": Int, "error": String }
+    if let code = json["code"] as? Int, let message = json["error"] as? String {
+        return TornAPIError.classify(code: code, message: message)
+    }
+    return nil
+}
+
 // MARK: - Notification Settings
 struct NotificationRule: Codable, Identifiable, Equatable {
     let id: String

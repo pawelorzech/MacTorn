@@ -62,6 +62,40 @@ final class AppStateTests: XCTestCase {
         app.stopPolling()
     }
 
+    // MARK: - Etap B: permanent key error halts polling (ISC-15)
+
+    func testPermanentKeyErrorHaltsPolling() async throws {
+        let conn = ControllableConnectivity(connected: true)
+        let mock = MockNetworkSession()
+        let app = AppState(session: mock, connectivity: conn, defaults: .createMockDefaults())
+        app.apiKey = "bad_key"
+        try mock.setSuccessResponse(json: ["code": 2, "error": "Incorrect key"]) // HTTP 200 + Torn envelope
+        app.startPolling()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertTrue(app.keyHalted, "a code-2 error must halt polling")
+        XCTAssertNil(app.data)
+        XCTAssertNotNil(app.errorMsg)
+        app.stopPolling()
+    }
+
+    func testChangingKeyClearsHalt() {
+        let app = AppState(session: MockNetworkSession(), connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        app.apiKey = "bad_key"
+        app.keyHalted = true
+        app.apiKey = "fresh_key"   // didSet clears the halt
+        XCTAssertFalse(app.keyHalted)
+    }
+
+    func testHaltedPollingIssuesNoRequests() {
+        let app = AppState(session: MockNetworkSession(), connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        app.apiKey = "key"
+        app.keyHalted = true       // set after apiKey (which would otherwise clear it)
+        let before = app.pollingCoordinator.requestsInLastMinute
+        app.startPolling()         // must early-return without issuing a request
+        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, before)
+        app.stopPolling()
+    }
+
     // MARK: - API Key Validation Tests
 
     func testFetchData_emptyAPIKey() async {
@@ -409,7 +443,11 @@ final class AppStateTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "API Error: Incorrect Key")
+        // Etap B: code 2 is a permanent key error — polling now halts and the classified
+        // message surfaces (previously this showed "API Error: Incorrect Key" and kept
+        // retrying a dead key forever).
+        XCTAssertTrue(appState.keyHalted)
+        XCTAssertEqual(appState.errorMsg, "Incorrect Key")
         XCTAssertNil(appState.data)
     }
 
