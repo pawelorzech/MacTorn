@@ -118,11 +118,15 @@ tracked backlog with deferral reasons.
 
 **Deferred — backlog (later stages, with reasons):**
 
-- [ ] ISC-15: Etap B/C — wire `TornAPIError` classification into the live fetch paths so
-  a permanent key error stops polling and error 14 pauses only its category.
-  *(Deferred: touches the live polling loop; needs its own regression harness around
-  `AppState.fetchData` to change error handling safely. Typed model + classifier are
-  ready and tested.)*
+- [x] ISC-15: Etap B — `tornAPIError(in:)` classifies the live v1/v2 error envelope; a
+  permanent key/permission error (codes 2/16/18) now **halts polling** (`keyHalted`
+  latch stops auto-restart on MenuBarExtra open) with a clear message, and clears when
+  the key changes. Verified by `AppStateTests` (halt / no-restart / key-change-clears)
+  and `TornAPIErrorTests` (envelope classification).
+- [ ] ISC-15.1: Etap B (category pause for error 14) — pause only the offending row-based
+  category on a daily-row-limit hit while bars/countdowns keep running. *(Deferred: the
+  v1.9.2 fix already keeps categories well under the 50k cap, so this is belt-and-braces;
+  `haltsCategoryOnly` is modelled and tested, wiring the per-category pause is the step.)*
 - [ ] ISC-16: Etap C — key validation/onboarding: call the key-info endpoint, show real
   permissions, disable modules without access, "Test connection". *(Deferred: new UI +
   a new endpoint; the registry already exposes required selections/level for the copy.)*

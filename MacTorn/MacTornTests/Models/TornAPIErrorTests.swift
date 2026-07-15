@@ -133,4 +133,27 @@ final class TornAPIErrorTests: XCTestCase {
             XCTAssertLessThanOrEqual(policy.delay(attempt: attempt, jitter: 1), policy.cap)
         }
     }
+
+    // MARK: - Envelope classification (tornAPIError)
+
+    func testEnvelopeV2Classifies() {
+        let error = tornAPIError(in: ["code": 2, "error": "Incorrect key"])
+        XCTAssertEqual(error?.classification, .permanentKey)
+        XCTAssertEqual(error?.tornCode, 2)
+    }
+
+    func testEnvelopeV1Classifies() {
+        let error = tornAPIError(in: ["error": ["code": 16, "error": "Access level too low"]])
+        XCTAssertEqual(error?.classification, .insufficientPermissions)
+    }
+
+    func testEnvelopeDailyLimit() {
+        let error = tornAPIError(in: ["code": 14, "error": "Daily read limit reached"])
+        XCTAssertTrue(error!.haltsCategoryOnly)
+        XCTAssertFalse(error!.haltsAllRequests)
+    }
+
+    func testNonEnvelopeReturnsNil() {
+        XCTAssertNil(tornAPIError(in: ["player_id": 123, "name": "Someone", "money": 5000]))
+    }
 }
