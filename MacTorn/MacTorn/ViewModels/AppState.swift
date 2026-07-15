@@ -301,6 +301,21 @@ class AppState {
     /// Per-endpoint last-result/latency/size health (Etap F, Diagnostics).
     @ObservationIgnored let endpointHealth: EndpointHealthTracker
 
+    /// Shared clock (injected). Used for the daily-row-limit pause windows below.
+    @ObservationIgnored private let time: TimeSource
+
+    /// Row-based sources paused after a Torn "daily read limit" hit (error code 14),
+    /// keyed by endpoint id → re-arm instant (ISC-15.1). Keyed by endpoint (NOT budget
+    /// category): `faction.news` and `faction.basic` share the `faction` budget, but only
+    /// the row-based `news` can trip code 14 — pausing it must never stop the point-in-time
+    /// `faction.basic` chain data that drives the chain alert. Point-in-time endpoints never
+    /// land here, so the live bars/countdowns keep running while a row source is paused.
+    @ObservationIgnored private var rowSourcePausedUntil: [String: Date] = [:]
+
+    /// How long a row source stays paused after a code-14 hit before it is retried. The cap
+    /// is a rolling 24 h window, so a conservative 1 h pause backs off without giving up.
+    private static let dailyRowLimitPause: TimeInterval = 3600
+
     /// Chain timeout (seconds remaining) below which the "Chain Expiring!" alert arms.
     static let chainWarningThreshold = 60
 
@@ -311,6 +326,7 @@ class AppState {
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
         self.defaults = defaults
+        self.time = time
         self.notificationCoordinator = NotificationCoordinator(defaults: defaults)
         self.pollingCoordinator = PollingCoordinator(time: time)
         self.endpointHealth = EndpointHealthTracker(time: time)
@@ -1091,6 +1107,24 @@ class AppState {
         startPolling(force: true)
     }
 
+    /// True while a row-based source is paused after a daily-row-limit (code 14) hit.
+    /// Auto-clears (and reports false) once the pause window elapses. `internal` for tests.
+    func isRowSourcePaused(_ endpointID: String) -> Bool {
+        guard let until = rowSourcePausedUntil[endpointID] else { return false }
+        if time.now >= until {
+            rowSourcePausedUntil[endpointID] = nil
+            return false
+        }
+        return true
+    }
+
+    /// Pause a single row-based source after Torn returns a daily-row-limit error (ISC-15.1),
+    /// so only that category backs off while everything point-in-time keeps polling.
+    private func pauseRowSource(_ endpointID: String, error: TornAPIError) {
+        rowSourcePausedUntil[endpointID] = time.now.addingTimeInterval(Self.dailyRowLimitPause)
+        logger.warning("Paused row source \(endpointID) for \(Int(Self.dailyRowLimitPause))s after daily read limit (code \(error.tornCode ?? 14))")
+    }
+
     /// Record an issued request against the API budget (Etap D). Defensive no-op if the
     /// id isn't in the registry.
     private func recordRequest(_ endpointID: String) {
@@ -1586,6 +1620,7 @@ class AppState {
     private func fetchFactionData() async {
         guard let url = TornAPI.factionURL(for: apiKey) else { return }
         recordRequest("faction.basic")
+        let startTime = Date()
 
         do {
             var request = URLRequest(url: url)
@@ -1594,8 +1629,9 @@ class AppState {
 
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 // Check for Torn API error first
-                if let errorMessage = tornAPIErrorMessage(in: json) {
-                    logger.warning("Faction API error: \(errorMessage)")
+                if let apiError = tornAPIError(in: json) {
+                    recordHealth("faction.basic", outcome: .error, since: startTime, bytes: data.count, errorClass: apiError.classification.rawValue)
+                    logger.warning("Faction API error: \(apiError.userMessage)")
                     return
                 }
 
@@ -1618,8 +1654,16 @@ class AppState {
 
                 self.factionData = FactionData(name: name, factionId: factionId, respect: respect, chain: chain)
                 logger.info("Faction data fetched: \(name)")
+                recordHealth("faction.basic", outcome: .ok, since: startTime, bytes: data.count)
+            } else {
+                recordHealth("faction.basic", outcome: .error, since: startTime, bytes: data.count, errorClass: "malformedResponse")
             }
         } catch {
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth("faction.basic",
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "transport")
             logger.warning("Faction fetch error (optional): \(error.localizedDescription)")
             // Faction data is optional, ignore errors
         }
@@ -1634,6 +1678,8 @@ class AppState {
     // the fast poll handles the live bars/cooldowns/travel data.
     private func fetchActivityData() async {
         guard !apiKey.isEmpty, let url = TornAPI.activityURL(for: apiKey) else { return }
+        // Skip while this row source is paused after a daily-row-limit hit (ISC-15.1).
+        guard !isRowSourcePaused("user.activity") else { return }
         // (recorded below, after the throttle guard, so a throttled skip isn't counted)
 
         // Self-throttle: always runs on the first poll (lastActivityFetch == nil), then
@@ -1645,15 +1691,22 @@ class AppState {
         }
         lastActivityFetch = Date()
         recordRequest("user.activity")
+        let startTime = Date()
 
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             let (data, _) = try await session.data(for: request)
 
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-            if let errorMessage = tornAPIErrorMessage(in: json) {
-                logger.warning("Activity API error: \(errorMessage)")
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                recordHealth("user.activity", outcome: .error, since: startTime, bytes: data.count, errorClass: "malformedResponse")
+                return
+            }
+            if let apiError = tornAPIError(in: json) {
+                // A daily-row-limit (code 14) pauses only this row source (ISC-15.1).
+                if apiError.haltsCategoryOnly { pauseRowSource("user.activity", error: apiError) }
+                recordHealth("user.activity", outcome: .error, since: startTime, bytes: data.count, errorClass: apiError.classification.rawValue)
+                logger.warning("Activity API error: \(apiError.userMessage)")
                 return
             }
 
@@ -1680,7 +1733,13 @@ class AppState {
                     )
                 }.sorted(by: { ($0.timestampEnded ?? 0) > ($1.timestampEnded ?? 0) })
             }
+            recordHealth("user.activity", outcome: .ok, since: startTime, bytes: data.count)
         } catch {
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth("user.activity",
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "transport")
             logger.warning("Activity fetch error (optional): \(error.localizedDescription)")
         }
     }
@@ -1693,15 +1752,20 @@ class AppState {
     private func fetchUserV2Data() async {
         guard !apiKey.isEmpty, let url = TornAPI.userV2URL(for: apiKey) else { return }
         recordRequest("user.v2")
+        let startTime = Date()
 
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             let (data, _) = try await session.data(for: request)
 
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-            if let errorMessage = tornAPIErrorMessage(in: json) {
-                logger.warning("User v2 API error: \(errorMessage)")
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                recordHealth("user.v2", outcome: .error, since: startTime, bytes: data.count, errorClass: "malformedResponse")
+                return
+            }
+            if let apiError = tornAPIError(in: json) {
+                recordHealth("user.v2", outcome: .error, since: startTime, bytes: data.count, errorClass: apiError.classification.rawValue)
+                logger.warning("User v2 API error: \(apiError.userMessage)")
                 return
             }
 
@@ -1752,7 +1816,13 @@ class AppState {
             notifyBountiesOnMe()
 
             logger.info("User v2 data fetched (OC: \(oc?.name ?? "none"), bounties: \(self.bountiesOnMe.count))")
+            recordHealth("user.v2", outcome: .ok, since: startTime, bytes: data.count)
         } catch {
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth("user.v2",
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "transport")
             logger.warning("User v2 fetch error (optional): \(error.localizedDescription)")
         }
     }
@@ -1804,14 +1874,16 @@ class AppState {
 
         if let url = TornAPI.factionRankedWarsURL(for: apiKey) {
             recordRequest("faction.rankedwars")
-            if let wars: [RankedWar] = await fetchV2Array(url: url, key: "rankedwars") {
+            if let wars: [RankedWar] = await fetchV2Array(url: url, key: "rankedwars", endpointID: "faction.rankedwars") {
                 self.rankedWars = wars
             }
         }
 
-        if let url = TornAPI.factionNewsURL(for: apiKey) {
+        // News is the only row-based faction call — skip while it is paused after a
+        // daily-row-limit hit (ISC-15.1). Ranked wars (point-in-time) keeps running.
+        if !isRowSourcePaused("faction.news"), let url = TornAPI.factionNewsURL(for: apiKey) {
             recordRequest("faction.news")
-            if let news: [FactionNews] = await fetchV2Array(url: url, key: "news") {
+            if let news: [FactionNews] = await fetchV2Array(url: url, key: "news", endpointID: "faction.news") {
                 self.factionNews = news
             }
         }
@@ -1819,20 +1891,34 @@ class AppState {
 
     /// Fetches a v2 endpoint whose payload is `{ "<key>": [ … ] }` and decodes the
     /// array. Returns nil on network/API error so the caller keeps its prior value.
-    private func fetchV2Array<T: Decodable>(url: URL, key: String) async -> [T]? {
+    /// Records endpoint health (Etap F) and, on a daily-row-limit error, pauses the source
+    /// (ISC-15.1) — only meaningful for the row-based `news` call.
+    private func fetchV2Array<T: Decodable>(url: URL, key: String, endpointID: String) async -> [T]? {
+        let startTime = Date()
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             let (data, _) = try await session.data(for: request)
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-            if let errorMessage = tornAPIErrorMessage(in: json) {
-                logger.warning("Faction v2 (\(key)) API error: \(errorMessage)")
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                recordHealth(endpointID, outcome: .error, since: startTime, bytes: data.count, errorClass: "malformedResponse")
                 return nil
             }
+            if let apiError = tornAPIError(in: json) {
+                if apiError.haltsCategoryOnly { pauseRowSource(endpointID, error: apiError) }
+                recordHealth(endpointID, outcome: .error, since: startTime, bytes: data.count, errorClass: apiError.classification.rawValue)
+                logger.warning("Faction v2 (\(key)) API error: \(apiError.userMessage)")
+                return nil
+            }
+            recordHealth(endpointID, outcome: .ok, since: startTime, bytes: data.count)
             guard let arr = json[key] as? [[String: Any]],
                   let arrData = try? JSONSerialization.data(withJSONObject: arr) else { return nil }
             return try? JSONDecoder().decode([T].self, from: arrData)
         } catch {
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth(endpointID,
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "transport")
             logger.warning("Faction v2 (\(key)) fetch error (optional): \(error.localizedDescription)")
             return nil
         }
