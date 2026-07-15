@@ -126,10 +126,15 @@ tracked backlog with deferral reasons.
 - [ ] ISC-16: Etap C — key validation/onboarding: call the key-info endpoint, show real
   permissions, disable modules without access, "Test connection". *(Deferred: new UI +
   a new endpoint; the registry already exposes required selections/level for the copy.)*
-- [ ] ISC-17: Etap D — `PollingCoordinator` with one global schedule + request/record
-  budget, adaptive cadence, immediate refresh on reconnect, sleep/wake correctness,
-  no timer restart on MenuBarExtra open. *(Deferred: the highest-value next stage;
-  largest single extraction from `AppState`.)*
+- [x] ISC-17: Etap D (budget + reconnect) — `PollingCoordinator` measures requests/min,
+  requests/day and rows/day/category against the registry, with a 60/min hard-cap gate
+  (`canMakeRequest()`) wired into `fetchData` and `record()` at all 9 request sites; a
+  shared injectable `TimeSource`; and immediate refresh on a down→up connectivity edge.
+  Verified by `PollingCoordinatorTests` (11) + AppState budget/reconnect tests (3).
+- [ ] ISC-17.1: Etap D (schedule ownership, D-02) — move the Combine poll timer, adaptive
+  cadence and sleep/wake handling out of `AppState` into the coordinator so it owns the
+  schedule, not just the accounting. *(Deferred: the high-regression-risk extraction; the
+  measurable budget/reconnect wins land first without destabilising the poll loop.)*
 - [ ] ISC-18: Etap E — route the remaining categories (cooldown ready, landing,
   release, OC ready, bounty, price alert, forum, bar threshold) through the
   coordinator's epoch dedup. *(Deferred: coordinator primitives are built + tested;

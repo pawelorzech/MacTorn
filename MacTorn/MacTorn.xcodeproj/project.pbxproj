@@ -68,6 +68,9 @@
 		BBB00024 /* TornEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10024 /* TornEndpointTests.swift */; };
 		BBB00025 /* TornAPIErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10025 /* TornAPIErrorTests.swift */; };
 		BBB00026 /* NotificationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10026 /* NotificationCoordinatorTests.swift */; };
+		AAA00033 /* TimeSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10033 /* TimeSource.swift */; };
+		AAA00034 /* PollingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10034 /* PollingCoordinator.swift */; };
+		BBB00027 /* PollingCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10027 /* PollingCoordinatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -151,6 +154,9 @@
 		BBB10024 /* TornEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointTests.swift; sourceTree = "<group>"; };
 		BBB10025 /* TornAPIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIErrorTests.swift; sourceTree = "<group>"; };
 		BBB10026 /* NotificationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinatorTests.swift; sourceTree = "<group>"; };
+		AAA10033 /* TimeSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSource.swift; sourceTree = "<group>"; };
+		AAA10034 /* PollingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinator.swift; sourceTree = "<group>"; };
+		BBB10027 /* PollingCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinatorTests.swift; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -274,6 +280,7 @@
 				AAA10016 /* SoundManager.swift */,
 				AAA10028 /* NetworkMonitor.swift */,
 				AAA10032 /* NotificationCoordinator.swift */,
+				AAA10034 /* PollingCoordinator.swift */,
 				3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */,
 			);
 			path = Utilities;
@@ -293,6 +300,7 @@
 			isa = PBXGroup;
 			children = (
 				AAA10025 /* TransparencyEnvironment.swift */,
+				AAA10033 /* TimeSource.swift */,
 			);
 			path = Helpers;
 			sourceTree = "<group>";
@@ -358,6 +366,7 @@
 				BBB10021 /* AppStateStocksMetadataTests.swift */,
 				BBB10022 /* AppStatePerformanceTests.swift */,
 				BBB10026 /* NotificationCoordinatorTests.swift */,
+				BBB10027 /* PollingCoordinatorTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -528,6 +537,8 @@
 				AAA00030 /* TornEndpoint.swift in Sources */,
 				AAA00031 /* TornAPIError.swift in Sources */,
 				AAA00032 /* NotificationCoordinator.swift in Sources */,
+				AAA00033 /* TimeSource.swift in Sources */,
+				AAA00034 /* PollingCoordinator.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
 				AAA00023 /* CreditsView.swift in Sources */,
 				AAA00024 /* TransparencyEnvironment.swift in Sources */,
@@ -570,6 +581,7 @@
 				BBB00024 /* TornEndpointTests.swift in Sources */,
 				BBB00025 /* TornAPIErrorTests.swift in Sources */,
 				BBB00026 /* NotificationCoordinatorTests.swift in Sources */,
+				BBB00027 /* PollingCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

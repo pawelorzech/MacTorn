@@ -250,14 +250,22 @@ class AppState {
     /// `defaults`, so tests get isolated dedup state alongside isolated persistence.
     @ObservationIgnored let notificationCoordinator: NotificationCoordinator
 
+    /// Request/record budget accounting (Etap D). Every request-issuing path records
+    /// through it; diagnostics read from it.
+    @ObservationIgnored let pollingCoordinator: PollingCoordinator
+
     /// Chain timeout (seconds remaining) below which the "Chain Expiring!" alert arms.
     static let chainWarningThreshold = 60
 
-    init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil, defaults: UserDefaults = .standard) {
+    init(session: NetworkSession = URLSession.shared,
+         connectivity: NetworkConnectivity? = nil,
+         defaults: UserDefaults = .standard,
+         time: TimeSource = SystemTimeSource()) {
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
         self.defaults = defaults
         self.notificationCoordinator = NotificationCoordinator(defaults: defaults)
+        self.pollingCoordinator = PollingCoordinator(time: time)
 
         // F-01 migration: lift any pre-existing plaintext key out of UserDefaults
         // into the Keychain on first launch of the new build, then clear the
@@ -285,6 +293,14 @@ class AppState {
         loadForumWatch()
         loadFeedbackState()
         loadStocksMetadataFromCache()
+
+        // Etap D: when the network comes back after an outage, refresh once immediately
+        // instead of waiting up to a full refresh interval. `refreshNow` routes through
+        // the same throttled + budget-gated path, so this can't stampede requests. The
+        // callback is only ever invoked on the main actor (NetworkMonitor hops to it).
+        self.connectivity.onConnectivityRestored = { [weak self] in
+            self?.refreshNow()
+        }
         // Polling and permissions moved to onAppear in UI
     }
 
@@ -299,6 +315,7 @@ class AppState {
 
     func fetchStocksMetadata() async {
         guard !apiKey.isEmpty, let url = TornAPI.tornStocksURL(for: apiKey) else { return }
+        recordRequest("torn.stocks")
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
@@ -625,6 +642,7 @@ class AppState {
     private func fetchItemPrice(itemId: Int, save: Bool = true) async {
         guard !apiKey.isEmpty,
               let url = TornAPI.marketURL(itemId: itemId, apiKey: apiKey) else { return }
+        recordRequest("market.item")
 
         logger.info("Fetching price for item \(itemId)")
 
@@ -863,6 +881,7 @@ class AppState {
 
     private func checkThreadForUpdates(threadId: Int) async {
         guard let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: apiKey) else { return }
+        recordRequest("forum.thread")
 
         do {
             var request = URLRequest(url: url)
@@ -935,6 +954,7 @@ class AppState {
 
     private func fetchForumThreadMetadata(threadId: Int) async {
         guard let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: apiKey) else { return }
+        recordRequest("forum.thread")
 
         do {
             var request = URLRequest(url: url)
@@ -1015,7 +1035,15 @@ class AppState {
     func refreshNow() {
         startPolling(force: true)
     }
-    
+
+    /// Record an issued request against the API budget (Etap D). Defensive no-op if the
+    /// id isn't in the registry.
+    private func recordRequest(_ endpointID: String) {
+        if let endpoint = TornEndpointRegistry.endpoint(id: endpointID) {
+            pollingCoordinator.record(endpoint)
+        }
+    }
+
     // MARK: - Fetch Data
     func fetchData() {
         guard connectivity.isConnected else {
@@ -1037,6 +1065,15 @@ class AppState {
             logger.error("Fetch aborted: Invalid URL")
             return
         }
+
+        // Etap D: the request-budget hard cap that no path may bypass. At normal cadence
+        // (~3 requests / 30s) this never trips; it only guards against a pathological
+        // burst (e.g. rapid manual refresh) exceeding the per-minute ceiling.
+        guard pollingCoordinator.canMakeRequest() else {
+            logger.warning("Fetch skipped: per-minute request budget reached")
+            return
+        }
+        recordRequest("user.fast")
 
         isLoading = true
         errorMsg = nil
@@ -1293,6 +1330,7 @@ class AppState {
     // MARK: - Fetch Faction Data
     private func fetchFactionData() async {
         guard let url = TornAPI.factionURL(for: apiKey) else { return }
+        recordRequest("faction.basic")
 
         do {
             var request = URLRequest(url: url)
@@ -1341,6 +1379,7 @@ class AppState {
     // the fast poll handles the live bars/cooldowns/travel data.
     private func fetchActivityData() async {
         guard !apiKey.isEmpty, let url = TornAPI.activityURL(for: apiKey) else { return }
+        // (recorded below, after the throttle guard, so a throttled skip isn't counted)
 
         // Self-throttle: always runs on the first poll (lastActivityFetch == nil), then
         // at most once per activityMinInterval regardless of how fast the main poll ticks.
@@ -1350,6 +1389,7 @@ class AppState {
             return
         }
         lastActivityFetch = Date()
+        recordRequest("user.activity")
 
         do {
             var request = URLRequest(url: url)
@@ -1397,6 +1437,7 @@ class AppState {
     // (~2 KB), so decoding on the main actor is fine — same pattern as fetchFactionData.
     private func fetchUserV2Data() async {
         guard !apiKey.isEmpty, let url = TornAPI.userV2URL(for: apiKey) else { return }
+        recordRequest("user.v2")
 
         do {
             var request = URLRequest(url: url)
@@ -1506,14 +1547,18 @@ class AppState {
         }
         lastFactionV2Fetch = Date()
 
-        if let url = TornAPI.factionRankedWarsURL(for: apiKey),
-           let wars: [RankedWar] = await fetchV2Array(url: url, key: "rankedwars") {
-            self.rankedWars = wars
+        if let url = TornAPI.factionRankedWarsURL(for: apiKey) {
+            recordRequest("faction.rankedwars")
+            if let wars: [RankedWar] = await fetchV2Array(url: url, key: "rankedwars") {
+                self.rankedWars = wars
+            }
         }
 
-        if let url = TornAPI.factionNewsURL(for: apiKey),
-           let news: [FactionNews] = await fetchV2Array(url: url, key: "news") {
-            self.factionNews = news
+        if let url = TornAPI.factionNewsURL(for: apiKey) {
+            recordRequest("faction.news")
+            if let news: [FactionNews] = await fetchV2Array(url: url, key: "news") {
+                self.factionNews = news
+            }
         }
     }
 

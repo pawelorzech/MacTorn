@@ -82,6 +82,26 @@ extension XCTestCase {
     }
 }
 
+// MARK: - Connectivity Test Double
+
+/// Controllable connectivity for tests: flip `isConnected` and fire the restore edge
+/// by hand.
+@MainActor
+final class ControllableConnectivity: NetworkConnectivity {
+    var isConnected: Bool
+    var onConnectivityRestored: (() -> Void)?
+
+    init(connected: Bool = true) { isConnected = connected }
+
+    /// Simulate a down→up transition (as `NetworkMonitor` does on a real reconnect).
+    func restore() {
+        isConnected = true
+        onConnectivityRestored?()
+    }
+
+    func goOffline() { isConnected = false }
+}
+
 // MARK: - UserDefaults Test Helpers
 
 extension UserDefaults {
