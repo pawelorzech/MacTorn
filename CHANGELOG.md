@@ -5,6 +5,43 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — reliability & product audit (stage 1)
+
+Branch `audit/reliability-product-pass`. First stage of the Etap A–L quality program;
+the full plan and deferred backlog live in [`ISA.md`](ISA.md).
+
+### Fixed
+- **Chain-expiring notification fired on every poll.** While a chain's timeout was under
+  60 s, "Chain Expiring! ⚠️" was re-sent on *every* refresh (a burst of identical
+  banners). It now fires **exactly once** per crossing into the danger window and
+  re-arms only after the chain leaves it (a member hits, the chain ends, or it drops),
+  via a new persistent `NotificationCoordinator` whose de-dup survives an app restart.
+- **Flaky unit test / non-deterministic suite.** `AppState` hardcoded
+  `UserDefaults.standard`, so watchlist tests raced on the shared store under parallel
+  execution (`testPriceThreshold_persistedWithWatchlist` failed intermittently on
+  `main`). `AppState` now takes an injectable `UserDefaults`; each test isolates its own
+  suite. The suite is green and deterministic across 8 parallel runners.
+
+### Added
+- **Typed Torn API registry** (`TornEndpoint` / `TornEndpointRegistry`): one catalog of
+  all 10 endpoints (version, path, selections, access level, cadence, point-in-time vs
+  row-based, record limit, cache policy, budget category, critical/optional). It drives
+  request building, the README "API Data Usage" table and onboarding disclosure — a
+  contract test pins every registry URL to its legacy `TornAPI` builder so they can't
+  drift.
+- **Typed error taxonomy** (`TornAPIError`): classifies Torn error codes (permanent key,
+  insufficient permissions, rate limit, daily row limit, temporary backend) plus
+  transport states (offline / transport / malformed / cancelled), with `haltsAllRequests`
+  (codes 2/16/18) and `haltsCategoryOnly` (code 14) semantics and a `RetryPolicy`
+  exponential backoff (2/5/15/30/60 s, capped at 5 min, jittered). Wiring into the live
+  fetch path is deferred (ISA ISC-15).
+- **`SECURITY.md`** — private vulnerability disclosure policy and supported-version note.
+- **`ISA.md`** — system-of-record for the audit program with the full A–L backlog and
+  deferral reasons.
+
+### Notes
+- 41 new unit tests (294 total, all green). No existing feature behaviour changed.
+
 ## [1.9.2] - 2026-07-15
 
 ### Fixed

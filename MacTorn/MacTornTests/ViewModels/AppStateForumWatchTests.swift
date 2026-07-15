@@ -6,13 +6,15 @@ final class AppStateForumWatchTests: XCTestCase {
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
+    var testDefaults: UserDefaults!
 
     override func setUp() async throws {
         try await super.setUp()
+        testDefaults = .createMockDefaults()
         mockSession = MockNetworkSession()
-        appState = AppState(session: mockSession)
-        UserDefaults.standard.removeObject(forKey: "forumWatchedThreads")
-        UserDefaults.standard.removeObject(forKey: "forumWatchConfig")
+        appState = AppState(session: mockSession, defaults: testDefaults)
+        testDefaults.removeObject(forKey: "forumWatchedThreads")
+        testDefaults.removeObject(forKey: "forumWatchConfig")
         appState.watchedThreads = []
         appState.forumWatchConfig = ForumWatchConfig()
     }
@@ -22,8 +24,8 @@ final class AppStateForumWatchTests: XCTestCase {
         appState.stopForumPolling()
         appState = nil
         mockSession = nil
-        UserDefaults.standard.removeObject(forKey: "forumWatchedThreads")
-        UserDefaults.standard.removeObject(forKey: "forumWatchConfig")
+        testDefaults.removeObject(forKey: "forumWatchedThreads")
+        testDefaults.removeObject(forKey: "forumWatchConfig")
         try await super.tearDown()
     }
 
@@ -137,7 +139,7 @@ final class AppStateForumWatchTests: XCTestCase {
         appState.forumWatchConfig.pollingIntervalSeconds = 300
         appState.saveForumWatch()
 
-        let newAppState = AppState(session: mockSession)
+        let newAppState = AppState(session: mockSession, defaults: testDefaults)
 
         XCTAssertEqual(newAppState.watchedThreads.count, 2)
         XCTAssertEqual(newAppState.watchedThreads[0].id, 111)
@@ -149,8 +151,8 @@ final class AppStateForumWatchTests: XCTestCase {
     }
 
     func testLoadForumWatch_emptyWhenNothingSaved() {
-        UserDefaults.standard.removeObject(forKey: "forumWatchedThreads")
-        UserDefaults.standard.removeObject(forKey: "forumWatchConfig")
+        testDefaults.removeObject(forKey: "forumWatchedThreads")
+        testDefaults.removeObject(forKey: "forumWatchConfig")
 
         appState.loadForumWatch()
 

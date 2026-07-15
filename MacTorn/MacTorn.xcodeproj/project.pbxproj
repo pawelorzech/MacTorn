@@ -62,6 +62,12 @@
 		BBB00021 /* AppStateStocksMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10021 /* AppStateStocksMetadataTests.swift */; };
 		BBB00022 /* AppStatePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10022 /* AppStatePerformanceTests.swift */; };
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
+		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
+		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
+		AAA00032 /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10032 /* NotificationCoordinator.swift */; };
+		BBB00024 /* TornEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10024 /* TornEndpointTests.swift */; };
+		BBB00025 /* TornAPIErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10025 /* TornAPIErrorTests.swift */; };
+		BBB00026 /* NotificationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10026 /* NotificationCoordinatorTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -139,6 +145,12 @@
 		BBB10022 /* AppStatePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePerformanceTests.swift; sourceTree = "<group>"; };
 		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
+		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
+		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
+		AAA10032 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
+		BBB10024 /* TornEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointTests.swift; sourceTree = "<group>"; };
+		BBB10025 /* TornAPIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIErrorTests.swift; sourceTree = "<group>"; };
+		BBB10026 /* NotificationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinatorTests.swift; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -261,6 +273,7 @@
 				AAA10012 /* ShortcutsManager.swift */,
 				AAA10016 /* SoundManager.swift */,
 				AAA10028 /* NetworkMonitor.swift */,
+				AAA10032 /* NotificationCoordinator.swift */,
 				3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */,
 			);
 			path = Utilities;
@@ -270,6 +283,8 @@
 			isa = PBXGroup;
 			children = (
 				AAA10022 /* NetworkSession.swift */,
+				AAA10030 /* TornEndpoint.swift */,
+				AAA10031 /* TornAPIError.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -327,6 +342,8 @@
 				BBB10019 /* PropertyInfoTests.swift */,
 				BBB10020 /* StockMetadataTests.swift */,
 				BBB10023 /* UserV2ModelsTests.swift */,
+				BBB10024 /* TornEndpointTests.swift */,
+				BBB10025 /* TornAPIErrorTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -340,6 +357,7 @@
 				BBB10018 /* AppStateForumWatchTests.swift */,
 				BBB10021 /* AppStateStocksMetadataTests.swift */,
 				BBB10022 /* AppStatePerformanceTests.swift */,
+				BBB10026 /* NotificationCoordinatorTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -507,6 +525,9 @@
 				AAA00019 /* WatchlistView.swift in Sources */,
 				AAA00020 /* PropertiesView.swift in Sources */,
 				AAA00021 /* NetworkSession.swift in Sources */,
+				AAA00030 /* TornEndpoint.swift in Sources */,
+				AAA00031 /* TornAPIError.swift in Sources */,
+				AAA00032 /* NotificationCoordinator.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
 				AAA00023 /* CreditsView.swift in Sources */,
 				AAA00024 /* TransparencyEnvironment.swift in Sources */,
@@ -546,6 +567,9 @@
 				BBB00023 /* UserV2ModelsTests.swift in Sources */,
 				BBB00021 /* AppStateStocksMetadataTests.swift in Sources */,
 				BBB00022 /* AppStatePerformanceTests.swift in Sources */,
+				BBB00024 /* TornEndpointTests.swift in Sources */,
+				BBB00025 /* TornAPIErrorTests.swift in Sources */,
+				BBB00026 /* NotificationCoordinatorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

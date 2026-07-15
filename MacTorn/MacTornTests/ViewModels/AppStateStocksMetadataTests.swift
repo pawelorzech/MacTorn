@@ -8,19 +8,21 @@ final class AppStateStocksMetadataTests: XCTestCase {
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
+    var testDefaults: UserDefaults!
 
     override func setUp() async throws {
         try await super.setUp()
-        UserDefaults.standard.removeObject(forKey: Self.cacheKey)
+        testDefaults = .createMockDefaults()
+        testDefaults.removeObject(forKey: Self.cacheKey)
         mockSession = MockNetworkSession()
-        appState = AppState(session: mockSession)
+        appState = AppState(session: mockSession, defaults: testDefaults)
     }
 
     override func tearDown() async throws {
         appState.stopPolling()
         appState = nil
         mockSession = nil
-        UserDefaults.standard.removeObject(forKey: Self.cacheKey)
+        testDefaults.removeObject(forKey: Self.cacheKey)
         try await super.tearDown()
     }
 
@@ -40,7 +42,7 @@ final class AppStateStocksMetadataTests: XCTestCase {
         XCTAssertEqual(appState.stocksMetadata[16]?.name, "Sym-Sym Pharmaceuticals")
 
         // Persisted to cache
-        let cached = UserDefaults.standard.data(forKey: Self.cacheKey)
+        let cached = testDefaults.data(forKey: Self.cacheKey)
         XCTAssertNotNil(cached)
         let decoded = try JSONDecoder().decode([Int: StockMetadata].self, from: cached!)
         XCTAssertEqual(decoded[16]?.acronym, "SYS")
@@ -52,9 +54,9 @@ final class AppStateStocksMetadataTests: XCTestCase {
             7: StockMetadata(id: 7, name: "Big Al's Gun Shop", acronym: "BAG", currentPrice: 42.5)
         ]
         let data = try JSONEncoder().encode(cached)
-        UserDefaults.standard.set(data, forKey: Self.cacheKey)
+        testDefaults.set(data, forKey: Self.cacheKey)
 
-        let freshAppState = AppState(session: MockNetworkSession())
+        let freshAppState = AppState(session: MockNetworkSession(), defaults: testDefaults)
 
         XCTAssertEqual(freshAppState.stocksMetadata[7]?.acronym, "BAG")
         XCTAssertEqual(freshAppState.stocksMetadata[7]?.currentPrice ?? 0, 42.5, accuracy: 0.001)

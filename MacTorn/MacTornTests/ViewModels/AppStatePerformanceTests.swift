@@ -33,7 +33,7 @@ final class AppStatePerformanceTests: XCTestCase {
 
     @MainActor
     func testStocksMetadataBackoffLadder() async {
-        let appState = AppState(session: MockNetworkSession(), connectivity: AlwaysOnlineConnectivity())
+        let appState = AppState(session: MockNetworkSession(), connectivity: AlwaysOnlineConnectivity(), defaults: .createMockDefaults())
 
         let t0 = Date()
         appState.recordStocksMetadataFailure()

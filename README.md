@@ -100,23 +100,34 @@ MacTorn respects macOS accessibility settings:
 
 ## API Data Usage
 
-In compliance with the [Torn API Terms of Service](https://www.torn.com/api.html), the following table shows which API selections MacTorn uses and why:
+In compliance with the [Torn API Terms of Service](https://www.torn.com/api.html), the
+table below shows every Torn API endpoint MacTorn calls and why. It is generated from
+the typed endpoint registry (`MacTorn/Networking/TornEndpoint.swift`,
+`TornEndpointRegistry.markdownTable()`) — the single source of truth that also builds
+the requests and the onboarding disclosure, so this list can't drift from what the app
+actually does.
 
-| Selection | Purpose |
-|-----------|---------|
-| `basic` | Player name, ID, basic info |
-| `bars` | Energy, Nerve, Happy, Life bars |
-| `cooldowns` | Drug, Medical, Booster cooldowns |
-| `travel` | Travel status and destination |
-| `profile` | Battle stats, faction info |
-| `events` | Recent events feed |
-| `messages` | Unread message count |
-| `money` | Cash, vault, points, tokens |
-| `stocks` | Stock holdings and transactions |
-| `properties` | Property vaults and upkeep |
-| `attacks` | Recent attack results |
-| `market` | Item watchlist prices |
-| `faction` | Faction info, chain, organized crimes |
+**Data shape** distinguishes *point-in-time* snapshots (bars, money, cooldowns — safe
+to poll frequently) from *row-based* cloud data (events, attacks, news, forum posts),
+which counts against Torn's 50,000-rows/day-per-category cap (error code 14). Row-based
+calls are throttled and hard-limited to stay well under that cap.
+
+| Endpoint | API | Selections | Data | Cadence | Rows/call | Budget | Critical | Purpose |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| User (fast poll) | v1 | basic, bars, cooldowns, travel, profile, money, battlestats, properties, stocks | point-in-time | Every refresh interval (default 30s; 15s aggressive) | — | core | yes | Live Energy/Nerve/Happy/Life bars, drug/medical/booster cooldowns, travel status, money & net worth, battle stats, properties and stock holdings. |
+| User v2 (combined) | v2 | organizedcrime, refills, education, bounties | point-in-time | Every refresh interval (rides the fast poll) | — | core | no | Own Organized Crime 2.0 status, daily refills remaining, in-progress education timer, and bounties placed on you. |
+| User activity | v1 | events, messages, attacks | row-based | ≥5 min (self-throttled; hard row limit) | 25 | activity | no | Events feed, unread message count and recent attacks (display-only). |
+| Faction basic + chain | v1 | basic, chain | point-in-time | Every refresh interval (rides the fast poll) | — | faction | no | Faction identity and the live chain counter/timeout that drives the chain-expiring alert. |
+| Faction ranked wars | v2 | — | point-in-time | ≥5 min (throttled — large, slow-changing payload) | — | faction | no | Active ranked war progress (your faction vs. the opponent). |
+| Faction news | v2 | — | row-based | ≥5 min (throttled; hard row limit) | 25 | faction | no | Recent faction news feed. |
+| Item market | v2 | itemmarket, bazaar | point-in-time | Watchlist refresh (manual + on price-alert timer) | — | market | no | Lowest item-market listings for each watchlist item, used to drive price alerts. |
+| Stock metadata | v1 | stocks | point-in-time | Rarely (cached; refreshed on demand) | — | metadata | no | Global stock names/acronyms used to label the user's stock holdings (slow-changing reference data). |
+| Forum thread | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Post count of a watched forum thread, to alert on new replies. |
+| Forum category threads | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Thread list of a watched forum category, to alert on new threads. |
+
+Your API key needs **Limited Access** or higher. Everything above is **read-only** —
+MacTorn never performs actions in Torn. See [`SECURITY.md`](SECURITY.md) for how your
+key and data are protected.
 
 ## Configuration
 
