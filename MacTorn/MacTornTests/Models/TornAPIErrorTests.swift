@@ -1,0 +1,136 @@
+import XCTest
+@testable import MacTorn
+
+/// Etap B — the error taxonomy must classify Torn codes correctly and the backoff
+/// ladder must obey its bounds.
+final class TornAPIErrorTests: XCTestCase {
+
+    // MARK: - Code classification
+
+    func testIncorrectKeyIsPermanent() {
+        XCTAssertEqual(TornAPIError.classify(code: 2, message: "Incorrect key").classification, .permanentKey)
+    }
+
+    func testPausedAndDisabledKeysArePermanent() {
+        XCTAssertEqual(TornAPIError.classify(code: 18, message: "").classification, .permanentKey) // paused by owner
+        XCTAssertEqual(TornAPIError.classify(code: 13, message: "").classification, .permanentKey) // owner inactive
+        XCTAssertEqual(TornAPIError.classify(code: 1, message: "").classification, .permanentKey)  // empty key
+    }
+
+    func testAccessLevelTooLowIsInsufficientPermissions() {
+        XCTAssertEqual(TornAPIError.classify(code: 16, message: "").classification, .insufficientPermissions)
+    }
+
+    func testTooManyRequestsIsRateLimit() {
+        XCTAssertEqual(TornAPIError.classify(code: 5, message: "").classification, .rateLimit)
+    }
+
+    func testDailyReadLimitIsDailyRowLimit() {
+        XCTAssertEqual(TornAPIError.classify(code: 14, message: "").classification, .dailyRowLimit)
+    }
+
+    func testBackendCodesAreTemporary() {
+        for code in [0, 8, 9, 15, 17, 24, 999] {
+            XCTAssertEqual(TornAPIError.classify(code: code, message: "").classification, .temporaryBackend,
+                           "code \(code) should be temporary")
+        }
+    }
+
+    func testTornCodeIsPreserved() {
+        XCTAssertEqual(TornAPIError.classify(code: 14, message: "x").tornCode, 14)
+        XCTAssertNil(TornAPIError.offline.tornCode)
+    }
+
+    // MARK: - Halt / retry semantics (Etap C: 2, 16, 18 halt; 14 halts category only)
+
+    func testKeyAndPermissionErrorsHaltAllRequests() {
+        XCTAssertTrue(TornAPIError.classify(code: 2, message: "").haltsAllRequests)
+        XCTAssertTrue(TornAPIError.classify(code: 16, message: "").haltsAllRequests)
+        XCTAssertTrue(TornAPIError.classify(code: 18, message: "").haltsAllRequests)
+    }
+
+    func testDailyRowLimitHaltsCategoryOnly() {
+        let err = TornAPIError.classify(code: 14, message: "")
+        XCTAssertTrue(err.haltsCategoryOnly)
+        XCTAssertFalse(err.haltsAllRequests, "error 14 must NOT stop bars/countdowns")
+    }
+
+    func testRetryability() {
+        XCTAssertTrue(TornAPIError.classify(code: 5, message: "").isRetryable)   // rate limit
+        XCTAssertTrue(TornAPIError.classify(code: 17, message: "").isRetryable)  // backend
+        XCTAssertTrue(TornAPIError.offline.isRetryable)
+        XCTAssertFalse(TornAPIError.classify(code: 2, message: "").isRetryable)  // bad key
+        XCTAssertFalse(TornAPIError.classify(code: 14, message: "").isRetryable) // don't hammer daily cap
+        XCTAssertFalse(TornAPIError.cancelled.isRetryable)
+        XCTAssertFalse(TornAPIError.malformedResponse(detail: "x").isRetryable)
+    }
+
+    // MARK: - Transport mapping
+
+    func testTransportMapping() {
+        XCTAssertEqual(TornAPIError.from(urlError: URLError(.cancelled)), .cancelled)
+        XCTAssertEqual(TornAPIError.from(urlError: URLError(.notConnectedToInternet)), .offline)
+        XCTAssertEqual(TornAPIError.from(urlError: URLError(.networkConnectionLost)), .offline)
+        XCTAssertEqual(TornAPIError.from(urlError: URLError(.timedOut)).classification, .transport)
+    }
+
+    // MARK: - User message safety
+
+    func testUserMessageStripsControlCharactersAndCaps() {
+        let nasty = String(repeating: "A", count: 500) + "\n\n\rmalicious"
+        let msg = TornAPIError.permanentKey(code: 2, message: nasty).userMessage
+        XCTAssertLessThanOrEqual(msg.count, 120)
+        XCTAssertFalse(msg.contains("\n"))
+        XCTAssertFalse(msg.contains("\r"))
+    }
+
+    func testUserMessageNeverEmpty() {
+        let cases: [TornAPIError] = [
+            .permanentKey(code: 2, message: ""),
+            .insufficientPermissions(code: 16, message: ""),
+            .rateLimit(code: 5, message: ""),
+            .dailyRowLimit(code: 14, message: ""),
+            .temporaryBackend(code: 17, message: ""),
+            .offline, .transport(detail: "x"), .malformedResponse(detail: "x"), .cancelled,
+        ]
+        for error in cases {
+            XCTAssertFalse(error.userMessage.isEmpty, "\(error) has empty user message")
+        }
+    }
+
+    // MARK: - Retry policy
+
+    func testBaseDelayFollowsLadderThenCaps() {
+        let policy = RetryPolicy.standard
+        XCTAssertEqual(policy.baseDelay(attempt: 0), 2)
+        XCTAssertEqual(policy.baseDelay(attempt: 1), 5)
+        XCTAssertEqual(policy.baseDelay(attempt: 2), 15)
+        XCTAssertEqual(policy.baseDelay(attempt: 3), 30)
+        XCTAssertEqual(policy.baseDelay(attempt: 4), 60)
+        XCTAssertEqual(policy.baseDelay(attempt: 5), 300)   // cap
+        XCTAssertEqual(policy.baseDelay(attempt: 99), 300)  // still cap
+    }
+
+    func testJitterBounds() {
+        let policy = RetryPolicy.standard
+        // Equal jitter → [base/2, base]
+        XCTAssertEqual(policy.delay(attempt: 4, jitter: 0), 30, accuracy: 0.001)   // 60/2
+        XCTAssertEqual(policy.delay(attempt: 4, jitter: 1), 60, accuracy: 0.001)
+        let mid = policy.delay(attempt: 4, jitter: 0.5)
+        XCTAssertGreaterThan(mid, 30)
+        XCTAssertLessThan(mid, 60)
+    }
+
+    func testJitterClampsOutOfRangeInput() {
+        let policy = RetryPolicy.standard
+        XCTAssertEqual(policy.delay(attempt: 0, jitter: -5), 1, accuracy: 0.001) // clamps to 0 → base/2 = 1
+        XCTAssertEqual(policy.delay(attempt: 0, jitter: 5), 2, accuracy: 0.001)  // clamps to 1 → base = 2
+    }
+
+    func testDelayNeverExceedsCap() {
+        let policy = RetryPolicy.standard
+        for attempt in 0...10 {
+            XCTAssertLessThanOrEqual(policy.delay(attempt: attempt, jitter: 1), policy.cap)
+        }
+    }
+}

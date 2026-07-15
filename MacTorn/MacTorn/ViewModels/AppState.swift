@@ -246,10 +246,18 @@ class AppState {
     /// Production always passes `.standard`. See audit finding G-01.
     @ObservationIgnored private let defaults: UserDefaults
 
+    /// Persistent notification de-duplication (Etap E). Built from the same injected
+    /// `defaults`, so tests get isolated dedup state alongside isolated persistence.
+    @ObservationIgnored let notificationCoordinator: NotificationCoordinator
+
+    /// Chain timeout (seconds remaining) below which the "Chain Expiring!" alert arms.
+    static let chainWarningThreshold = 60
+
     init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil, defaults: UserDefaults = .standard) {
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
         self.defaults = defaults
+        self.notificationCoordinator = NotificationCoordinator(defaults: defaults)
 
         // F-01 migration: lift any pre-existing plaintext key out of UserDefaults
         // into the Keychain on first launch of the new build, then clear the
@@ -1566,10 +1574,8 @@ class AppState {
             scheduleTravelNotifications(for: currentTravel)
         }
         
-        if let chain = newData.chain, chain.isActive {
-            if chain.timeoutRemaining < 60 && chain.timeoutRemaining > 0 {
-                NotificationManager.shared.send(title: "Chain Expiring! ⚠️", body: "Chain timeout in \(chain.timeoutRemaining) seconds!", type: .chainExpiring)
-            }
+        if chainExpiringShouldFire(newData.chain), let chain = newData.chain {
+            NotificationManager.shared.send(title: "Chain Expiring! ⚠️", body: "Chain timeout in \(chain.timeoutRemaining) seconds!", type: .chainExpiring)
         }
         
         if let prevStatus = previousStatus, let currentStatus = newData.status {
@@ -1579,6 +1585,21 @@ class AppState {
         }
     }
     
+    /// Decides whether the "Chain Expiring!" alert should fire on this poll.
+    ///
+    /// The alert must fire exactly once when the chain enters the danger window
+    /// (0 < timeout < `chainWarningThreshold`), NOT on every poll while it stays there
+    /// (the previous bug). It re-arms once the chain leaves the window — a member hits
+    /// (timeout jumps back up), the chain ends, or the chain drops — so a fresh danger
+    /// window alerts again. The latch is persisted, so a relaunch mid-window is silent.
+    /// `internal` for `@testable` regression coverage.
+    func chainExpiringShouldFire(_ chain: Chain?) -> Bool {
+        let inDanger = (chain?.isActive == true)
+            && chain!.timeoutRemaining > 0
+            && chain!.timeoutRemaining < Self.chainWarningThreshold
+        return notificationCoordinator.shouldFireOnEdge("chain.expiring", active: inDanger)
+    }
+
     private func checkBarNotification(prevBar: Bar, currentBar: Bar, barType: NotificationRule.BarType) {
         let prevPct = prevBar.percentage
         let currentPct = currentBar.percentage
