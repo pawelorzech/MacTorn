@@ -74,6 +74,9 @@
 		AAA00035 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10035 /* Diagnostics.swift */; };
 		AAA00036 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10036 /* DiagnosticsView.swift */; };
 		BBB00028 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10028 /* DiagnosticsTests.swift */; };
+		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
+		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
+		BBB00029 /* NextActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10029 /* NextActionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -163,6 +166,9 @@
 		AAA10035 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
 		AAA10036 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BBB10028 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
+		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
+		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
+		BBB10029 /* NextActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionTests.swift; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -272,6 +278,7 @@
 				AAA10014 /* StatusBadgesView.swift */,
 				AAA10015 /* EventsView.swift */,
 				AAA10026 /* FeedbackPromptView.swift */,
+				AAA10038 /* NextActionView.swift */,
 				F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */,
 			);
 			path = Components;
@@ -289,6 +296,7 @@
 				AAA10032 /* NotificationCoordinator.swift */,
 				AAA10034 /* PollingCoordinator.swift */,
 				AAA10035 /* Diagnostics.swift */,
+				AAA10037 /* NextAction.swift */,
 				3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */,
 			);
 			path = Utilities;
@@ -376,6 +384,7 @@
 				BBB10026 /* NotificationCoordinatorTests.swift */,
 				BBB10027 /* PollingCoordinatorTests.swift */,
 				BBB10028 /* DiagnosticsTests.swift */,
+				BBB10029 /* NextActionTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -550,6 +559,8 @@
 				AAA00034 /* PollingCoordinator.swift in Sources */,
 				AAA00035 /* Diagnostics.swift in Sources */,
 				AAA00036 /* DiagnosticsView.swift in Sources */,
+				AAA00037 /* NextAction.swift in Sources */,
+				AAA00038 /* NextActionView.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
 				AAA00023 /* CreditsView.swift in Sources */,
 				AAA00024 /* TransparencyEnvironment.swift in Sources */,
@@ -594,6 +605,7 @@
 				BBB00026 /* NotificationCoordinatorTests.swift in Sources */,
 				BBB00027 /* PollingCoordinatorTests.swift in Sources */,
 				BBB00028 /* DiagnosticsTests.swift in Sources */,
+				BBB00029 /* NextActionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
