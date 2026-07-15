@@ -65,6 +65,8 @@ fastlane/test_output
 # Build output
 build/
 DerivedData/
+TestResults/
+*.xcresult
 
 # Archive folder (old releases)
 archive/
