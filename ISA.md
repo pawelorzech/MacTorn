@@ -160,10 +160,15 @@ tracked backlog with deferral reasons.
   cadence and sleep/wake handling out of `AppState` into the coordinator so it owns the
   schedule, not just the accounting. *(Deferred: the high-regression-risk extraction; the
   measurable budget/reconnect wins land first without destabilising the poll loop.)*
-- [ ] ISC-18: Etap E — route the remaining categories (cooldown ready, landing,
-  release, OC ready, bounty, price alert, forum, bar threshold) through the
-  coordinator's epoch dedup. *(Deferred: coordinator primitives are built + tested;
-  this is mechanical wiring per category with a test each.)*
+- [ ] ISC-18: Etap E — route the remaining categories through the coordinator's persistent
+  dedup. **OC-ready is done** (`shouldNotifyOCReady` → `NotificationCoordinator.shouldFireOnce`,
+  epoch = OC id), which fixes a real cross-restart duplicate — the old in-memory
+  `previousOCReadyId` re-alerted after relaunch. Verified by
+  `testOCReadyDedupIsPerIdAndPersistsAcrossRestart`. *(Remaining: cooldown-ready / landing /
+  released are already guarded by an in-memory `if let prev…` that is nil on restart, so they
+  don't cross-restart-duplicate — migrating them changes no behaviour and isn't a clean win.
+  Bounty deliberately keeps its in-memory set: persistent dedup would break its intended
+  re-alert when a bounty is cleared and re-listed. Price alerts are transient by design.)*
 - [x] ISC-19: Etap F — Diagnostics screen (app/macOS/arch, network + notification
   permission, key present + required access, last refresh, request/record counters from
   PollingCoordinator, and per-endpoint outcome/latency/size from `EndpointHealthTracker`)
@@ -172,10 +177,11 @@ tracked backlog with deferral reasons.
   Verified by `DiagnosticsTests` (PII-safety of `sanitizedText()`).
 - [x] ISC-19.1: Etap F (F-02) — endpoint health (outcome/latency/size) now recorded across
   the **continuous poll fan-out** (`faction.basic`, `user.activity`, `user.v2`,
-  `faction.rankedwars`, `faction.news`), not just `user.fast`/`key.info`. Verified by
-  `testFetchDataRecordsHealthForFanOutEndpoints`. *(Remaining: the event-driven endpoints —
-  `market.item`, `forum.thread`/`threads`, `torn.stocks` — are per-item/rare and structurally
-  different (loops, backoff); instrumenting them is low value and left as a small follow-up.)*
+  `faction.rankedwars`, `faction.news`), not just `user.fast`/`key.info`, plus the single-call
+  `torn.stocks`. Verified by `testFetchDataRecordsHealthForFanOutEndpoints` and
+  `testFetchStocksMetadataRecordsHealth`. *(Remaining: `market.item` and `forum.thread`/
+  `threads` are per-item loops where a single health slot would just show the last item — low
+  value, left as a small follow-up.)*
 - [x] ISC-20: Etap G — deterministic UI-test harness + real UI tests + hardened CI.
   `--uitesting` builds `AppState` from fixtures/doubles (`FixtureNetworkSession` URL-routed
   canned JSON, isolated ephemeral `UserDefaults`, in-memory `KeychainStore` override,
@@ -287,6 +293,9 @@ tracked backlog with deferral reasons.
 - ISC-15.1 / ISC-19.1: `AppStateTests` — `testDailyRowLimitPausesOnlyRowSources`,
   `testRowSourcePauseReArmsAfterWindow`, `testFetchDataRecordsHealthForFanOutEndpoints` green;
   full unit suite 352 green; Release Universal builds; coverage gate PASSED.
+- ISC-18 (OC-ready) / ISC-19.1 (stocks): `AppStateTests` —
+  `testOCReadyDedupIsPerIdAndPersistsAcrossRestart`, `testFetchStocksMetadataRecordsHealth`
+  green; full unit suite 354 green; Release Universal builds; coverage gate PASSED.
 - ISC-16: `KeyValidationTests` (11) green — model decode against the verified `/key/info`
   schema, `KeyValidator` availability (full/Custom-missing-selection/empty-faction/
   parameterized), and `AppState.validateKey` (success / error-envelope / empty / key-change
