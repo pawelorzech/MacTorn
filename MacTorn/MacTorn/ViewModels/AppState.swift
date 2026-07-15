@@ -251,7 +251,6 @@ class AppState {
     @ObservationIgnored private var previousTravel: Travel?
     @ObservationIgnored private var previousChain: Chain?
     @ObservationIgnored private var previousStatus: Status?
-    @ObservationIgnored private var previousOCReadyId: Int?
     @ObservationIgnored private var notifiedBountyKeys: Set<String> = []
     /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
     /// `news` is a row-based cloud category, so this doubles as its rate control:
@@ -381,13 +380,17 @@ class AppState {
     func fetchStocksMetadata() async {
         guard !apiKey.isEmpty, let url = TornAPI.tornStocksURL(for: apiKey) else { return }
         recordRequest("torn.stocks")
+        let startTime = Date()
         do {
             var request = URLRequest(url: url)
             request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
             let (data, _) = try await session.data(for: request)
             let parsed = AppState.parseStocksMetadata(from: data, logger: logger)
             guard !parsed.isEmpty else {
-                await MainActor.run { self.recordStocksMetadataFailure() }
+                await MainActor.run {
+                    self.recordStocksMetadataFailure()
+                    self.recordHealth("torn.stocks", outcome: .error, since: startTime, bytes: data.count, errorClass: "malformedResponse")
+                }
                 return
             }
             await MainActor.run {
@@ -397,10 +400,18 @@ class AppState {
                 }
                 self.stocksFailureCount = 0
                 self.stocksNextRetryAfter = nil
+                self.recordHealth("torn.stocks", outcome: .ok, since: startTime, bytes: data.count)
                 logger.info("Stocks metadata loaded: \(parsed.count) stocks")
             }
         } catch {
-            await MainActor.run { self.recordStocksMetadataFailure() }
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            await MainActor.run {
+                self.recordStocksMetadataFailure()
+                self.recordHealth("torn.stocks",
+                                  outcome: mapped?.classification == .offline ? .offline : .error,
+                                  since: startTime, bytes: 0,
+                                  errorClass: mapped?.classification.rawValue ?? "transport")
+            }
             logger.error("Failed to fetch stocks metadata: \(error.localizedDescription)")
         }
     }
@@ -1799,18 +1810,13 @@ class AppState {
                 self.bountiesOnMe = []
             }
 
-            // OC-ready notification: fire once per OC as it crosses its ready time.
-            if let oc, oc.isReady {
-                if previousOCReadyId != oc.id {
-                    NotificationManager.shared.send(
-                        title: "OC Ready! 💼",
-                        body: "\(oc.name) is ready to execute",
-                        type: .ocReady
-                    )
-                }
-                previousOCReadyId = oc.id
-            } else {
-                previousOCReadyId = nil
+            // OC-ready notification: fire once per distinct OC id (see shouldNotifyOCReady).
+            if shouldNotifyOCReady(oc), let oc {
+                NotificationManager.shared.send(
+                    title: "OC Ready! 💼",
+                    body: "\(oc.name) is ready to execute",
+                    type: .ocReady
+                )
             }
 
             notifyBountiesOnMe()
@@ -1825,6 +1831,15 @@ class AppState {
                          errorClass: mapped?.classification.rawValue ?? "transport")
             logger.warning("User v2 fetch error (optional): \(error.localizedDescription)")
         }
+    }
+
+    /// Whether an OC-ready alert should fire now: true once per distinct OC id, deduped
+    /// **persistently** via the NotificationCoordinator (Etap E / ISC-18), so relaunching
+    /// while the same OC is still ready doesn't re-alert (the old in-memory `previousOCReadyId`
+    /// did). A new OC (new id) re-arms naturally. `internal` for tests.
+    func shouldNotifyOCReady(_ oc: OrganizedCrime2?) -> Bool {
+        guard let oc, oc.isReady else { return false }
+        return notificationCoordinator.shouldFireOnce("oc.ready", epoch: "\(oc.id)")
     }
 
     /// Alerts once per distinct bounty placed on Paweł (safety signal). Re-remembers

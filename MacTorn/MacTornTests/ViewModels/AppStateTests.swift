@@ -769,4 +769,44 @@ final class AppStateTests: XCTestCase {
                            "health should be recorded (ok) for \(id)")
         }
     }
+
+    /// A successful stocks-metadata fetch records endpoint health (F-02 completion).
+    func testFetchStocksMetadataRecordsHealth() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.stocksData)
+
+        await appState.fetchStocksMetadata()
+
+        XCTAssertEqual(appState.endpointHealth.latest(for: "torn.stocks")?.outcome, .ok)
+    }
+
+    // MARK: - ISC-18: OC-ready dedup routed through the coordinator (persistent)
+
+    /// OC-ready fires once per distinct OC id, and the dedup survives a relaunch (the old
+    /// in-memory `previousOCReadyId` re-alerted after restart). A new OC id re-arms.
+    func testOCReadyDedupIsPerIdAndPersistsAcrossRestart() {
+        let defaults = UserDefaults.createMockDefaults()
+        let mock = MockNetworkSession()
+        let state = AppState(session: mock,
+                             connectivity: ControllableConnectivity(connected: true),
+                             defaults: defaults)
+
+        let now = Int(Date().timeIntervalSince1970)
+        let ready5 = OrganizedCrime2(id: 5, name: "Test OC", readyAt: now - 10)
+
+        XCTAssertTrue(state.shouldNotifyOCReady(ready5), "first ready id should fire")
+        XCTAssertFalse(state.shouldNotifyOCReady(ready5), "the same id should be suppressed")
+
+        let planning = OrganizedCrime2(id: 7, name: "Planning", readyAt: now + 3600)
+        XCTAssertFalse(state.shouldNotifyOCReady(planning), "a not-ready OC never fires")
+        XCTAssertFalse(state.shouldNotifyOCReady(nil), "nil OC never fires")
+
+        // Relaunch on the same store: id 5 stays deduped; a new OC id re-arms.
+        let relaunched = AppState(session: mock,
+                                  connectivity: ControllableConnectivity(connected: true),
+                                  defaults: defaults)
+        XCTAssertFalse(relaunched.shouldNotifyOCReady(ready5), "dedup persists across restart")
+        let ready6 = OrganizedCrime2(id: 6, name: "New OC", readyAt: now - 10)
+        XCTAssertTrue(relaunched.shouldNotifyOCReady(ready6), "a new OC id re-arms")
+    }
 }
