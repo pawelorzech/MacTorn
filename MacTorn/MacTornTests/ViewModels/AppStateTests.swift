@@ -6,15 +6,17 @@ final class AppStateTests: XCTestCase {
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
+    var testDefaults: UserDefaults!
 
     override func setUp() async throws {
         try await super.setUp()
+        testDefaults = .createMockDefaults()
         mockSession = MockNetworkSession()
-        appState = AppState(session: mockSession)
+        appState = AppState(session: mockSession, defaults: testDefaults)
         // Clear any persisted data
-        UserDefaults.standard.removeObject(forKey: "apiKey")
-        UserDefaults.standard.removeObject(forKey: "watchlist")
-        UserDefaults.standard.removeObject(forKey: "notificationRules")
+        testDefaults.removeObject(forKey: "apiKey")
+        testDefaults.removeObject(forKey: "watchlist")
+        testDefaults.removeObject(forKey: "notificationRules")
     }
 
     override func tearDown() async throws {
@@ -470,9 +472,9 @@ final class AppStateTests: XCTestCase {
 
     func testLoadNotificationRules_defaults() {
         // Clear existing rules
-        UserDefaults.standard.removeObject(forKey: "notificationRules")
+        testDefaults.removeObject(forKey: "notificationRules")
 
-        let newAppState = AppState(session: mockSession)
+        let newAppState = AppState(session: mockSession, defaults: testDefaults)
 
         XCTAssertFalse(newAppState.notificationRules.isEmpty)
         // Should have default rules

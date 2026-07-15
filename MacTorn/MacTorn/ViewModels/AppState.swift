@@ -128,13 +128,13 @@ class AppState {
     var refreshInterval: Int = 30 {
         didSet {
             guard refreshInterval != oldValue else { return }
-            UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval")
+            defaults.set(refreshInterval, forKey: "refreshInterval")
         }
     }
     var appearanceMode: String = AppearanceMode.system.rawValue {
         didSet {
             guard appearanceMode != oldValue else { return }
-            UserDefaults.standard.set(appearanceMode, forKey: "appearanceMode")
+            defaults.set(appearanceMode, forKey: "appearanceMode")
         }
     }
 
@@ -240,16 +240,23 @@ class AppState {
     var stocksFailureCount = 0
     var stocksNextRetryAfter: Date?
 
-    init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil) {
+    /// Non-secret persistence store. Injected so tests get an isolated
+    /// `UserDefaults` suite instead of the process-wide `.standard`, which under
+    /// parallel testing races across test classes on shared keys (e.g. "watchlist").
+    /// Production always passes `.standard`. See audit finding G-01.
+    @ObservationIgnored private let defaults: UserDefaults
+
+    init(session: NetworkSession = URLSession.shared, connectivity: NetworkConnectivity? = nil, defaults: UserDefaults = .standard) {
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
+        self.defaults = defaults
 
         // F-01 migration: lift any pre-existing plaintext key out of UserDefaults
         // into the Keychain on first launch of the new build, then clear the
         // UserDefaults entry. Safe to run every launch (idempotent).
-        if let legacy = UserDefaults.standard.string(forKey: "apiKey"), !legacy.isEmpty {
+        if let legacy = defaults.string(forKey: "apiKey"), !legacy.isEmpty {
             KeychainStore.set(legacy)
-            UserDefaults.standard.removeObject(forKey: "apiKey")
+            defaults.removeObject(forKey: "apiKey")
             logger.info("Migrated API key from UserDefaults to Keychain")
         }
         self.apiKey = KeychainStore.get() ?? ""
@@ -257,10 +264,10 @@ class AppState {
         // Was provided by @AppStorage; now manual seed from UserDefaults so the
         // values survive across launches. Note: didSet does NOT fire on init,
         // so this assignment doesn't loop-write back into UserDefaults.
-        if let stored = UserDefaults.standard.object(forKey: "refreshInterval") as? Int {
+        if let stored = defaults.object(forKey: "refreshInterval") as? Int {
             self.refreshInterval = stored
         }
-        if let stored = UserDefaults.standard.string(forKey: "appearanceMode") {
+        if let stored = defaults.string(forKey: "appearanceMode") {
             self.appearanceMode = stored
         }
 
@@ -275,7 +282,7 @@ class AppState {
 
     // MARK: - Stocks Metadata (global lookup from torn/?selections=stocks)
     func loadStocksMetadataFromCache() {
-        guard let data = UserDefaults.standard.data(forKey: Self.stocksMetadataCacheKey),
+        guard let data = defaults.data(forKey: Self.stocksMetadataCacheKey),
               let cached = try? JSONDecoder().decode([Int: StockMetadata].self, from: data) else {
             return
         }
@@ -296,7 +303,7 @@ class AppState {
             await MainActor.run {
                 self.stocksMetadata = parsed
                 if let encoded = try? JSONEncoder().encode(parsed) {
-                    UserDefaults.standard.set(encoded, forKey: Self.stocksMetadataCacheKey)
+                    defaults.set(encoded, forKey: Self.stocksMetadataCacheKey)
                 }
                 self.stocksFailureCount = 0
                 self.stocksNextRetryAfter = nil
@@ -353,7 +360,7 @@ class AppState {
     
     // MARK: - Notification Rules
     func loadNotificationRules() {
-        if let data = UserDefaults.standard.data(forKey: "notificationRules"),
+        if let data = defaults.data(forKey: "notificationRules"),
            let rules = try? JSONDecoder().decode([NotificationRule].self, from: data) {
             notificationRules = rules
         } else {
@@ -364,7 +371,7 @@ class AppState {
     
     func saveNotificationRules() {
         if let data = try? JSONEncoder().encode(notificationRules) {
-            UserDefaults.standard.set(data, forKey: "notificationRules")
+            defaults.set(data, forKey: "notificationRules")
         }
     }
     
@@ -377,7 +384,7 @@ class AppState {
 
     // MARK: - Travel Notification Settings
     func loadTravelNotificationSettings() {
-        if let data = UserDefaults.standard.data(forKey: "travelNotificationSettings"),
+        if let data = defaults.data(forKey: "travelNotificationSettings"),
            let settings = try? JSONDecoder().decode([TravelNotificationSetting].self, from: data) {
             travelNotificationSettings = settings
         } else {
@@ -388,7 +395,7 @@ class AppState {
 
     func saveTravelNotificationSettings() {
         if let data = try? JSONEncoder().encode(travelNotificationSettings) {
-            UserDefaults.standard.set(data, forKey: "travelNotificationSettings")
+            defaults.set(data, forKey: "travelNotificationSettings")
         }
     }
 
@@ -525,7 +532,7 @@ class AppState {
 
     // MARK: - Watchlist
     func loadWatchlist() {
-        if let data = UserDefaults.standard.data(forKey: "watchlist"),
+        if let data = defaults.data(forKey: "watchlist"),
            let items = try? JSONDecoder().decode([WatchlistItem].self, from: data) {
             watchlistItems = items
         }
@@ -533,7 +540,7 @@ class AppState {
     
     func saveWatchlist() {
         if let data = try? JSONEncoder().encode(watchlistItems) {
-            UserDefaults.standard.set(data, forKey: "watchlist")
+            defaults.set(data, forKey: "watchlist")
         }
     }
     
@@ -731,11 +738,11 @@ class AppState {
     
     // MARK: - Forum Watch
     func loadForumWatch() {
-        if let data = UserDefaults.standard.data(forKey: "forumWatchedThreads"),
+        if let data = defaults.data(forKey: "forumWatchedThreads"),
            let threads = try? JSONDecoder().decode([WatchedThread].self, from: data) {
             watchedThreads = threads
         }
-        if let data = UserDefaults.standard.data(forKey: "forumWatchConfig"),
+        if let data = defaults.data(forKey: "forumWatchConfig"),
            let config = try? JSONDecoder().decode(ForumWatchConfig.self, from: data) {
             forumWatchConfig = config
         }
@@ -743,10 +750,10 @@ class AppState {
 
     func saveForumWatch() {
         if let data = try? JSONEncoder().encode(watchedThreads) {
-            UserDefaults.standard.set(data, forKey: "forumWatchedThreads")
+            defaults.set(data, forKey: "forumWatchedThreads")
         }
         if let data = try? JSONEncoder().encode(forumWatchConfig) {
-            UserDefaults.standard.set(data, forKey: "forumWatchConfig")
+            defaults.set(data, forKey: "forumWatchConfig")
         }
     }
 
@@ -1621,7 +1628,7 @@ class AppState {
     // MARK: - Feedback Prompt
 
     func loadFeedbackState() {
-        if let data = UserDefaults.standard.data(forKey: "appFeedbackState"),
+        if let data = defaults.data(forKey: "appFeedbackState"),
            let state = try? JSONDecoder().decode(AppFeedbackState.self, from: data) {
             feedbackState = state
         } else {
@@ -1638,7 +1645,7 @@ class AppState {
     func saveFeedbackState() {
         guard let state = feedbackState,
               let data = try? JSONEncoder().encode(state) else { return }
-        UserDefaults.standard.set(data, forKey: "appFeedbackState")
+        defaults.set(data, forKey: "appFeedbackState")
     }
 
     func checkFeedbackPrompt() {

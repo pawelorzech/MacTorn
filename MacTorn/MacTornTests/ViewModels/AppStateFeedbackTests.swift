@@ -6,19 +6,21 @@ final class AppStateFeedbackTests: XCTestCase {
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
+    var testDefaults: UserDefaults!
 
     override func setUp() async throws {
         try await super.setUp()
+        testDefaults = .createMockDefaults()
         mockSession = MockNetworkSession()
-        UserDefaults.standard.removeObject(forKey: "appFeedbackState")
-        appState = AppState(session: mockSession)
+        testDefaults.removeObject(forKey: "appFeedbackState")
+        appState = AppState(session: mockSession, defaults: testDefaults)
     }
 
     override func tearDown() async throws {
         appState.stopPolling()
         appState = nil
         mockSession = nil
-        UserDefaults.standard.removeObject(forKey: "appFeedbackState")
+        testDefaults.removeObject(forKey: "appFeedbackState")
         try await super.tearDown()
     }
 
@@ -149,7 +151,7 @@ final class AppStateFeedbackTests: XCTestCase {
         appState.saveFeedbackState()
 
         // Create a new AppState instance (simulates app restart)
-        let newAppState = AppState(session: mockSession)
+        let newAppState = AppState(session: mockSession, defaults: testDefaults)
 
         XCTAssertNotNil(newAppState.feedbackState)
         XCTAssertEqual(newAppState.feedbackState!.dismissCount, 1)

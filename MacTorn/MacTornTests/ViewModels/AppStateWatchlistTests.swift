@@ -6,13 +6,15 @@ final class AppStateWatchlistTests: XCTestCase {
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
+    var testDefaults: UserDefaults!
 
     override func setUp() async throws {
         try await super.setUp()
+        testDefaults = .createMockDefaults()
         mockSession = MockNetworkSession()
-        appState = AppState(session: mockSession)
+        appState = AppState(session: mockSession, defaults: testDefaults)
         // Clear watchlist
-        UserDefaults.standard.removeObject(forKey: "watchlist")
+        testDefaults.removeObject(forKey: "watchlist")
         appState.watchlistItems = []
     }
 
@@ -20,7 +22,7 @@ final class AppStateWatchlistTests: XCTestCase {
         appState.stopPolling()
         appState = nil
         mockSession = nil
-        UserDefaults.standard.removeObject(forKey: "watchlist")
+        testDefaults.removeObject(forKey: "watchlist")
         try await super.tearDown()
     }
 
@@ -106,7 +108,7 @@ final class AppStateWatchlistTests: XCTestCase {
         appState.saveWatchlist()
 
         // Create new instance and load
-        let newAppState = AppState(session: mockSession)
+        let newAppState = AppState(session: mockSession, defaults: testDefaults)
         newAppState.loadWatchlist()
 
         XCTAssertEqual(newAppState.watchlistItems.count, 1)
@@ -114,7 +116,7 @@ final class AppStateWatchlistTests: XCTestCase {
     }
 
     func testLoadWatchlist_emptyWhenNothingSaved() {
-        UserDefaults.standard.removeObject(forKey: "watchlist")
+        testDefaults.removeObject(forKey: "watchlist")
 
         appState.loadWatchlist()
 
@@ -294,7 +296,7 @@ final class AppStateWatchlistTests: XCTestCase {
         appState.watchlistItems = [original]
         appState.saveWatchlist()
 
-        let newAppState = AppState(session: mockSession)
+        let newAppState = AppState(session: mockSession, defaults: testDefaults)
         newAppState.loadWatchlist()
 
         let loaded = newAppState.watchlistItems.first
