@@ -83,6 +83,16 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
   80% line coverage. SwiftUI views are excluded — they're validated by the UI-test suite.
   Also available locally via `make coverage-gate`.
 
+### Added — Etap C (key validation & onboarding)
+- **Test Connection.** Onboarding (Settings) gains a "Test Connection" button that checks
+  your API key against Torn's official key-info endpoint and tells you exactly what it
+  unlocks: your access type (e.g. Full Access), your player ID, and — if the key is Limited
+  or Custom — precisely which features won't load. No more guessing why a tab is empty.
+- **Clearer data & privacy disclosure.** The "API Data Usage & Privacy" section now states
+  the required access level, that your key is stored in the macOS Keychain (never plaintext),
+  that all Torn data stays on your Mac, that crash reporting is opt-in, and lists the exact
+  selections requested — generated from the app's endpoint registry so it can't drift.
+
 ### Fixed — Etap B (stop retrying a dead key)
 - **A bad or paused API key now halts polling** instead of retrying forever. When Torn
   returns a permanent key/permission error (codes 2 / 16 / 18), MacTorn stops the poll

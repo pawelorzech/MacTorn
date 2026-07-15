@@ -127,9 +127,27 @@ tracked backlog with deferral reasons.
   category on a daily-row-limit hit while bars/countdowns keep running. *(Deferred: the
   v1.9.2 fix already keeps categories well under the 50k cap, so this is belt-and-braces;
   `haltsCategoryOnly` is modelled and tested, wiring the per-category pause is the step.)*
-- [ ] ISC-16: Etap C — key validation/onboarding: call the key-info endpoint, show real
-  permissions, disable modules without access, "Test connection". *(Deferred: new UI +
-  a new endpoint; the registry already exposes required selections/level for the copy.)*
+- [x] ISC-16: Etap C — key validation/onboarding. Calls the official Torn v2 `/key/info`
+  endpoint (shape verified against the live OpenAPI spec, not guessed) via
+  `TornAPI.keyInfoURL` + a `key.info` registry entry. `TornKeyInfo` decodes access
+  level/type, the owner's IDs, and the per-category available selections; `KeyValidator`
+  maps that to per-endpoint availability using the registry as the source of truth.
+  `AppState.validateKey()` fetches + classifies errors through `TornAPIError` (PII-free
+  messages). SettingsView gains a **"Test Connection"** button whose result panel shows the
+  real access type + player ID and, when the key is limited/Custom, exactly which features
+  won't load. The API disclosure now states the required access level, that the key lives in
+  the Keychain, that all data stays local, that Sentry is opt-in, and lists the requested
+  selections **from the registry** (no hand-maintained drift) + the ToS link. Verified by
+  `KeyValidationTests` (11: decode / validator / `validateKey` success+error+empty+reset) and
+  the `testTestConnectionReportsAccess` UI test. *(Result panel not visually verified — logic
+  + interaction only.)*
+- [ ] ISC-16.1: Etap C (hard module gating) — the validation result *names* the blocked
+  modules with a clear explanation, but tabs are not hard-removed/disabled from the bar.
+  *(Deferred by choice: gating must be fail-open — a user may never run Test Connection, and
+  key-info can be briefly unavailable — so hiding tabs on absent/stale key-info risks hiding
+  features that actually work. The app already degrades gracefully (unavailable endpoints
+  error-handle to empty state); the explicit "these won't load" list is the safe first step.
+  Per-tab access banners driven by `keyInfo` are the natural follow-up.)*
 - [x] ISC-17: Etap D (budget + reconnect) — `PollingCoordinator` measures requests/min,
   requests/day and rows/day/category against the registry, with a 60/min hard-cap gate
   (`canMakeRequest()`) wired into `fetchData` and `record()` at all 9 request sites; a
@@ -261,6 +279,11 @@ tracked backlog with deferral reasons.
 - ISC-10,11: `NotificationCoordinatorTests` (12 tests) pass — incl.
   `testChainAlertFiresOnceAcrossManySubThresholdPolls`.
 - ISC-12: `SECURITY.md` present at repo root.
+- ISC-16: `KeyValidationTests` (11) green — model decode against the verified `/key/info`
+  schema, `KeyValidator` availability (full/Custom-missing-selection/empty-faction/
+  parameterized), and `AppState.validateKey` (success / error-envelope / empty / key-change
+  reset); `testTestConnectionReportsAccess` UI test green; registry contract still holds
+  (`TornEndpointTests`, 11 endpoints incl. `key.info`).
 - ISC-20: `xcodebuild test -only-testing:MacTornUITests` (3 UI tests) green ×4 consecutive
   runs; `-only-testing:MacTornTests/UITestHarnessTests` (7) green; `bash
   scripts/coverage-gate.sh TestResults.xcresult 80` → PASSED (critical modules 84–100%);
