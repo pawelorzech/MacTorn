@@ -71,6 +71,9 @@
 		AAA00033 /* TimeSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10033 /* TimeSource.swift */; };
 		AAA00034 /* PollingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10034 /* PollingCoordinator.swift */; };
 		BBB00027 /* PollingCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10027 /* PollingCoordinatorTests.swift */; };
+		AAA00035 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10035 /* Diagnostics.swift */; };
+		AAA00036 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10036 /* DiagnosticsView.swift */; };
+		BBB00028 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10028 /* DiagnosticsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -157,6 +160,9 @@
 		AAA10033 /* TimeSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSource.swift; sourceTree = "<group>"; };
 		AAA10034 /* PollingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinator.swift; sourceTree = "<group>"; };
 		BBB10027 /* PollingCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinatorTests.swift; sourceTree = "<group>"; };
+		AAA10035 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		AAA10036 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		BBB10028 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -252,6 +258,7 @@
 				AAA10020 /* WatchlistView.swift */,
 				AAA10029 /* ForumWatchView.swift */,
 				AAA10021 /* PropertiesView.swift */,
+				AAA10036 /* DiagnosticsView.swift */,
 				AAA30006 /* Components */,
 			);
 			path = Views;
@@ -281,6 +288,7 @@
 				AAA10028 /* NetworkMonitor.swift */,
 				AAA10032 /* NotificationCoordinator.swift */,
 				AAA10034 /* PollingCoordinator.swift */,
+				AAA10035 /* Diagnostics.swift */,
 				3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */,
 			);
 			path = Utilities;
@@ -367,6 +375,7 @@
 				BBB10022 /* AppStatePerformanceTests.swift */,
 				BBB10026 /* NotificationCoordinatorTests.swift */,
 				BBB10027 /* PollingCoordinatorTests.swift */,
+				BBB10028 /* DiagnosticsTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -539,6 +548,8 @@
 				AAA00032 /* NotificationCoordinator.swift in Sources */,
 				AAA00033 /* TimeSource.swift in Sources */,
 				AAA00034 /* PollingCoordinator.swift in Sources */,
+				AAA00035 /* Diagnostics.swift in Sources */,
+				AAA00036 /* DiagnosticsView.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
 				AAA00023 /* CreditsView.swift in Sources */,
 				AAA00024 /* TransparencyEnvironment.swift in Sources */,
@@ -582,6 +593,7 @@
 				BBB00025 /* TornAPIErrorTests.swift in Sources */,
 				BBB00026 /* NotificationCoordinatorTests.swift in Sources */,
 				BBB00027 /* PollingCoordinatorTests.swift in Sources */,
+				BBB00028 /* DiagnosticsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

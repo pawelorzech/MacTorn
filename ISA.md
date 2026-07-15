@@ -139,9 +139,16 @@ tracked backlog with deferral reasons.
   release, OC ready, bounty, price alert, forum, bar threshold) through the
   coordinator's epoch dedup. *(Deferred: coordinator primitives are built + tested;
   this is mechanical wiring per category with a test each.)*
-- [ ] ISC-19: Etap F — Diagnostics screen (versions, network, last result/latency/size
-  per endpoint, retry state, request/record counters) + "Copy sanitized report".
-  *(Deferred: depends on D's counters; registry supplies the endpoint rows.)*
+- [x] ISC-19: Etap F — Diagnostics screen (app/macOS/arch, network + notification
+  permission, key present + required access, last refresh, request/record counters from
+  PollingCoordinator, and per-endpoint outcome/latency/size from `EndpointHealthTracker`)
+  reachable from Settings, with a **"Copy sanitized report"** that carries none of: key,
+  full URLs, player name/ID, money, stats, faction/company names, or raw payloads.
+  Verified by `DiagnosticsTests` (PII-safety of `sanitizedText()`).
+- [ ] ISC-19.1: Etap F (full instrumentation, F-02) — extend outcome/latency/size health
+  to every endpoint (fast poll is the reference implementation); event-driven endpoints
+  (market/forum/stocks) currently populate on first use. *(Deferred: mechanical per-site
+  timing, low value vs. risk right now.)*
 - [ ] ISC-20: Etap G — deterministic UI-test harness (`--uitesting`, fixture selection,
   fake clock/keychain/connectivity) + real UI tests; remove `continue-on-error` and
   `|| echo "optional"`; coverage gate ≥80% on critical modules. *(Deferred: large;

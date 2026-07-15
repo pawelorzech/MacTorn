@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage(SentryManager.enabledKey) private var sentryEnabled: Bool = false
     @State private var inputKey: String = ""
     @State private var showCredits: Bool = false
+    @State private var showDiagnostics: Bool = false
     @State private var availableBrowsers: [PreferredBrowser] = PreferredBrowser.availableBrowsers()
 
     private let developerID = TornConstants.developerID
@@ -289,6 +290,20 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(.accentColor)
+
+                    Button {
+                        showDiagnostics = true
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "stethoscope")
+                                .font(.caption2)
+                            Text("Diagnostics")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+                    .accessibilityIdentifier("settings.diagnostics")
                 }
 
                 if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
@@ -304,6 +319,9 @@ struct SettingsView: View {
         .onAppear {
             inputKey = appState.apiKey
             refreshAvailableBrowsers()
+        }
+        .sheet(isPresented: $showDiagnostics) {
+            DiagnosticsView(appState: appState)
         }
         .alert("Launch at Login Error", isPresented: Binding(
             get: { appState.launchAtLogin.errorMessage != nil },
