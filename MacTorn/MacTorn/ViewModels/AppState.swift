@@ -1113,8 +1113,11 @@ class AppState {
     /// On success, publishes the real access level/type, the owner's id, and per-endpoint
     /// availability so onboarding can show exactly what the key unlocks and disable the
     /// modules it can't serve. All error paths surface a sanitized, PII-free message.
-    func validateKey() async {
-        let trimmed = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// - Parameter keyOverride: validate this key instead of the saved `apiKey` (used by
+    ///   onboarding's Test Connection, so it can check a just-typed key without persisting
+    ///   it — persisting would flip the view off the Settings screen before the result shows).
+    func validateKey(_ keyOverride: String? = nil) async {
+        let trimmed = (keyOverride ?? apiKey).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             keyValidation = .failure("Enter your Torn API key first.")
             return

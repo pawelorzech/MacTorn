@@ -58,9 +58,11 @@ struct SettingsView: View {
                 .uiTestID("uitest.saveKey")
 
                 Button {
+                    // Validate the typed key WITHOUT saving it — saving would set apiKey,
+                    // which flips ContentView off the Settings screen during onboarding
+                    // before the result panel is seen. Falls back to the saved key.
                     let typed = inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !typed.isEmpty { appState.apiKey = typed }
-                    Task { await appState.validateKey() }
+                    Task { await appState.validateKey(typed.isEmpty ? nil : typed) }
                 } label: {
                     if appState.keyValidation == .validating {
                         HStack(spacing: 6) {

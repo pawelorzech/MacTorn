@@ -105,4 +105,25 @@ final class MacTornUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
                       "A valid key should report its access level after Test Connection")
     }
+
+    /// During onboarding, Test Connection validates the typed key WITHOUT saving it, so the
+    /// result stays visible on the Settings screen instead of flipping to the tab UI.
+    func testOnboardingTestConnectionKeepsSettingsVisible() throws {
+        let app = launch(fixture: "full", apiKey: nil)
+        _ = window(app)
+
+        let keyField = app.secureTextFields["uitest.apiKeyField"]
+        XCTAssertTrue(keyField.waitForExistence(timeout: 10), "Key field should be shown at onboarding")
+        keyField.click()
+        keyField.typeText("sample-typed-value")
+
+        app.buttons["uitest.testConnection"].click()
+
+        XCTAssertTrue(app.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
+                      "Result should appear after Test Connection")
+        XCTAssertTrue(keyField.exists,
+                      "Test Connection must not save the key / leave the onboarding screen")
+        XCTAssertFalse(app.buttons["uitest.tab.Status"].exists,
+                       "The signed-in tab UI must not appear from a mere Test Connection")
+    }
 }
