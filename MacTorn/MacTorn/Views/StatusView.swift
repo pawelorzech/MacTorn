@@ -140,6 +140,8 @@ struct StatusView: View {
                 .foregroundColor(.secondary)
         }
         .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .uiTestID("uitest.error")
     }
     
     // MARK: - Travel

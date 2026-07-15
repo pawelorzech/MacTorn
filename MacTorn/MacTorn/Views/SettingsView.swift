@@ -47,6 +47,7 @@ struct SettingsView: View {
             VStack(spacing: 8) {
                 SecureField("Torn API Key", text: $inputKey)
                     .textFieldStyle(.roundedBorder)
+                    .uiTestID("uitest.apiKeyField")
 
                 Button("Save & Connect") {
                     appState.apiKey = inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -54,6 +55,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(inputKey.isEmpty)
+                .uiTestID("uitest.saveKey")
 
                 Link("Get API Key from Torn",
                      destination: URL(string: "https://www.torn.com/preferences.php#tab=api")!)

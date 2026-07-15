@@ -69,11 +69,13 @@
 		BBB00025 /* TornAPIErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10025 /* TornAPIErrorTests.swift */; };
 		BBB00026 /* NotificationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10026 /* NotificationCoordinatorTests.swift */; };
 		AAA00033 /* TimeSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10033 /* TimeSource.swift */; };
+		AAA00039 /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10039 /* UITestSupport.swift */; };
 		AAA00034 /* PollingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10034 /* PollingCoordinator.swift */; };
 		BBB00027 /* PollingCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10027 /* PollingCoordinatorTests.swift */; };
 		AAA00035 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10035 /* Diagnostics.swift */; };
 		AAA00036 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10036 /* DiagnosticsView.swift */; };
 		BBB00028 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10028 /* DiagnosticsTests.swift */; };
+		BBB00030 /* UITestHarnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10030 /* UITestHarnessTests.swift */; };
 		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
 		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
 		BBB00029 /* NextActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10029 /* NextActionTests.swift */; };
@@ -161,11 +163,13 @@
 		BBB10025 /* TornAPIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIErrorTests.swift; sourceTree = "<group>"; };
 		BBB10026 /* NotificationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinatorTests.swift; sourceTree = "<group>"; };
 		AAA10033 /* TimeSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSource.swift; sourceTree = "<group>"; };
+		AAA10039 /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
 		AAA10034 /* PollingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinator.swift; sourceTree = "<group>"; };
 		BBB10027 /* PollingCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinatorTests.swift; sourceTree = "<group>"; };
 		AAA10035 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
 		AAA10036 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BBB10028 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
+		BBB10030 /* UITestHarnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHarnessTests.swift; sourceTree = "<group>"; };
 		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
 		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
 		BBB10029 /* NextActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionTests.swift; sourceTree = "<group>"; };
@@ -317,6 +321,7 @@
 			children = (
 				AAA10025 /* TransparencyEnvironment.swift */,
 				AAA10033 /* TimeSource.swift */,
+				AAA10039 /* UITestSupport.swift */,
 			);
 			path = Helpers;
 			sourceTree = "<group>";
@@ -385,6 +390,7 @@
 				BBB10027 /* PollingCoordinatorTests.swift */,
 				BBB10028 /* DiagnosticsTests.swift */,
 				BBB10029 /* NextActionTests.swift */,
+				BBB10030 /* UITestHarnessTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -556,6 +562,7 @@
 				AAA00031 /* TornAPIError.swift in Sources */,
 				AAA00032 /* NotificationCoordinator.swift in Sources */,
 				AAA00033 /* TimeSource.swift in Sources */,
+				AAA00039 /* UITestSupport.swift in Sources */,
 				AAA00034 /* PollingCoordinator.swift in Sources */,
 				AAA00035 /* Diagnostics.swift in Sources */,
 				AAA00036 /* DiagnosticsView.swift in Sources */,
@@ -605,6 +612,7 @@
 				BBB00026 /* NotificationCoordinatorTests.swift in Sources */,
 				BBB00027 /* PollingCoordinatorTests.swift in Sources */,
 				BBB00028 /* DiagnosticsTests.swift in Sources */,
+				BBB00030 /* UITestHarnessTests.swift in Sources */,
 				BBB00029 /* NextActionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
