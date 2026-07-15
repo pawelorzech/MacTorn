@@ -86,6 +86,20 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    /// Current system authorization state, for the Diagnostics screen (Etap F). Maps
+    /// the `UNAuthorizationStatus` enum to a short human-readable string.
+    func authorizationStatusDescription() async -> String {
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized: return "authorized"
+        case .denied: return "denied"
+        case .notDetermined: return "not requested"
+        case .provisional: return "provisional"
+        case .ephemeral: return "ephemeral"
+        @unknown default: return "unknown"
+        }
+    }
+
     func send(title: String, body: String, type: NotificationType, customURL: URL? = nil) {
         let content = UNMutableNotificationContent()
         content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)

@@ -254,6 +254,9 @@ class AppState {
     /// through it; diagnostics read from it.
     @ObservationIgnored let pollingCoordinator: PollingCoordinator
 
+    /// Per-endpoint last-result/latency/size health (Etap F, Diagnostics).
+    @ObservationIgnored let endpointHealth: EndpointHealthTracker
+
     /// Chain timeout (seconds remaining) below which the "Chain Expiring!" alert arms.
     static let chainWarningThreshold = 60
 
@@ -266,6 +269,7 @@ class AppState {
         self.defaults = defaults
         self.notificationCoordinator = NotificationCoordinator(defaults: defaults)
         self.pollingCoordinator = PollingCoordinator(time: time)
+        self.endpointHealth = EndpointHealthTracker(time: time)
 
         // F-01 migration: lift any pre-existing plaintext key out of UserDefaults
         // into the Keychain on first launch of the new build, then clear the
@@ -1044,6 +1048,41 @@ class AppState {
         }
     }
 
+    /// Record the outcome of a request for the Diagnostics screen (Etap F).
+    private func recordHealth(_ endpointID: String, outcome: EndpointOutcome, since start: Date, bytes: Int, errorClass: String? = nil) {
+        endpointHealth.record(endpointID: endpointID,
+                              outcome: outcome,
+                              latencyMs: Int(Date().timeIntervalSince(start) * 1000),
+                              responseBytes: bytes,
+                              errorClass: errorClass)
+    }
+
+    /// Assemble a PII-safe diagnostics snapshot (Etap F). Async because the notification
+    /// authorization state is read from the system.
+    func makeDiagnosticsReport() async -> DiagnosticsReport {
+        let notif = await NotificationManager.shared.authorizationStatusDescription()
+        var recordsByCategory: [String: Int] = [:]
+        for (category, count) in pollingCoordinator.recordsPerDayByCategory() {
+            recordsByCategory[category.rawValue] = count
+        }
+        return DiagnosticsReport(
+            appVersion: DiagnosticsEnvironment.appVersion,
+            build: DiagnosticsEnvironment.build,
+            osVersion: DiagnosticsEnvironment.osVersion,
+            architecture: DiagnosticsEnvironment.architecture,
+            isOnline: connectivity.isConnected,
+            notificationPermission: notif,
+            lastSuccessfulRefresh: lastUpdated,
+            lastErrorSummary: errorMsg,
+            keyPresent: !apiKey.isEmpty,
+            requiredAccessLevel: TornEndpointRegistry.requiredAccessLevel.label,
+            requestsLastMinute: pollingCoordinator.requestsInLastMinute,
+            requestsLastDay: pollingCoordinator.requestsInLastDay,
+            recordsPerDayByCategory: recordsByCategory,
+            endpoints: endpointHealth.all
+        )
+    }
+
     // MARK: - Fetch Data
     func fetchData() {
         guard connectivity.isConnected else {
@@ -1132,6 +1171,7 @@ class AppState {
                     await activityResult
 
                     logger.info("Data fetch completed successfully")
+                    self.recordHealth("user.fast", outcome: .ok, since: startTime, bytes: data.count)
 
                 case 403, 404:
                     await MainActor.run {
@@ -1139,18 +1179,28 @@ class AppState {
                         self.data = nil
                     }
                     logger.error("HTTP \(httpResponse.statusCode): Invalid API Key")
+                    self.recordHealth("user.fast", outcome: .error, since: startTime, bytes: data.count, errorClass: "permanentKey")
                 default:
                     await MainActor.run {
                         self.errorMsg = "HTTP Error: \(httpResponse.statusCode)"
                     }
                     logger.error("HTTP Error: \(httpResponse.statusCode)")
+                    self.recordHealth("user.fast", outcome: .error, since: startTime, bytes: data.count, errorClass: "temporaryBackend")
                 }
             } catch {
-                if Task.isCancelled { return }
+                if Task.isCancelled {
+                    self.recordHealth("user.fast", outcome: .cancelled, since: startTime, bytes: 0)
+                    return
+                }
+                let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
                 await MainActor.run {
                     self.errorMsg = "Network error: \(error.localizedDescription)"
                 }
                 logger.error("Network error: \(error.localizedDescription)")
+                self.recordHealth("user.fast",
+                                  outcome: mapped?.classification == .offline ? .offline : .error,
+                                  since: startTime, bytes: 0,
+                                  errorClass: mapped?.classification.rawValue ?? "transport")
             }
         }
     }
