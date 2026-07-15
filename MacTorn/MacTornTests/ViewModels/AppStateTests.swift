@@ -707,4 +707,66 @@ final class AppStateTests: XCTestCase {
         if case .traveling = appState.menuBarDisplay { /* ok */ }
         else { XCTFail("Expected .traveling to win, got \(appState.menuBarDisplay)") }
     }
+
+    // MARK: - ISC-15.1: daily-row-limit pauses only the offending row source
+
+    /// A code-14 "daily read limit" on the fan-out pauses the row-based sources
+    /// (`user.activity`, `faction.news`) but NOT the point-in-time `faction.basic` that
+    /// drives the chain alert.
+    func testDailyRowLimitPausesOnlyRowSources() async throws {
+        let clock = MutableTimeSource()
+        let mock = MockNetworkSession()
+        try mock.setTornAPIError(code: 14, message: "Daily read limit reached")
+        let state = AppState(session: mock,
+                             connectivity: ControllableConnectivity(connected: true),
+                             defaults: .createMockDefaults(),
+                             time: clock)
+        state.apiKey = "sample-value"
+
+        state.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertTrue(state.isRowSourcePaused("user.activity"), "activity should pause on code 14")
+        XCTAssertTrue(state.isRowSourcePaused("faction.news"), "faction news should pause on code 14")
+        XCTAssertFalse(state.isRowSourcePaused("faction.basic"),
+                       "point-in-time faction/chain must keep running")
+        state.stopPolling()
+    }
+
+    /// The pause re-arms once its window elapses (driven by the injected clock).
+    func testRowSourcePauseReArmsAfterWindow() async throws {
+        let clock = MutableTimeSource()
+        let mock = MockNetworkSession()
+        try mock.setTornAPIError(code: 14, message: "Daily read limit reached")
+        let state = AppState(session: mock,
+                             connectivity: ControllableConnectivity(connected: true),
+                             defaults: .createMockDefaults(),
+                             time: clock)
+        state.apiKey = "sample-value"
+
+        state.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertTrue(state.isRowSourcePaused("user.activity"))
+
+        clock.advance(3601)   // just past the 1 h pause window
+        XCTAssertFalse(state.isRowSourcePaused("user.activity"), "pause should re-arm after the window")
+        state.stopPolling()
+    }
+
+    // MARK: - F-02: endpoint health across the poll fan-out
+
+    /// A successful poll records health for every fan-out endpoint, not just the fast poll.
+    func testFetchDataRecordsHealthForFanOutEndpoints() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        for id in ["user.fast", "faction.basic", "user.v2", "user.activity",
+                   "faction.rankedwars", "faction.news"] {
+            XCTAssertEqual(appState.endpointHealth.latest(for: id)?.outcome, .ok,
+                           "health should be recorded (ok) for \(id)")
+        }
+    }
 }
