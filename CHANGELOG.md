@@ -39,8 +39,22 @@ the full plan and deferred backlog live in [`ISA.md`](ISA.md).
 - **`ISA.md`** — system-of-record for the audit program with the full A–L backlog and
   deferral reasons.
 
+### Added — Etap D (polling budget + reconnect)
+- **API budget accounting** (`PollingCoordinator`): every request-issuing path records
+  against a rolling requests/min + requests/day count and per-category rows/day (driven
+  by the typed registry), with a conservative 60/min hard cap that no path bypasses. This
+  makes the usage that caused error 14 (v1.9.2) measurable and bounded.
+- **Immediate refresh on reconnect.** After a network outage, MacTorn refreshes once as
+  soon as connectivity returns (on the genuine down→up edge) instead of waiting up to a
+  full refresh interval.
+- **Shared testable clock** (`TimeSource`) behind the budget windows — also the clock the
+  upcoming "Next Action" timeline will use.
+- The **15s** refresh option is now labelled **"15s aggressive"** with a note that Torn
+  may serve cached data for ~30s, so 15s can spend API budget for no fresher data.
+
 ### Notes
-- 41 new unit tests (294 total, all green). No existing feature behaviour changed.
+- 55 new unit tests since `main` (308 total, all green). No existing feature behaviour
+  changed. CI's Release build was also un-broken (Xcode 16 for `Package.resolved` v3).
 
 ## [1.9.2] - 2026-07-15
 
