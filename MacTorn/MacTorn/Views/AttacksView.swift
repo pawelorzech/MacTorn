@@ -7,6 +7,15 @@ struct AttacksView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                ModuleStateView(
+                    state: appState.presentationState(
+                        endpointIDs: ["user.fast", "user.activity"],
+                        hasContent: appState.battleStats != nil || appState.recentAttacks != nil,
+                        staleAfter: 360
+                    ),
+                    onRetry: appState.refreshNow
+                )
+
                 // Battle Stats
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {

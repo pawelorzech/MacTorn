@@ -9,7 +9,7 @@ import Foundation
 // The "Copy sanitized diagnostic report" text is assembled only from these safe fields.
 
 /// Outcome of the most recent call to an endpoint.
-enum EndpointOutcome: String, Equatable, Sendable {
+enum EndpointOutcome: String, Equatable, Hashable, Sendable {
     case ok
     case error
     case offline
@@ -57,6 +57,105 @@ final class EndpointHealthTracker {
     /// All tracked endpoints, ordered by the registry's display order.
     var all: [EndpointHealth] {
         TornEndpointRegistry.all.compactMap { health[$0.id] }
+    }
+}
+
+// MARK: - Module presentation state
+
+/// A compact, PII-free state shared by every feature screen. It deliberately keeps
+/// "has cached content" separate from endpoint health so a transient failure can label
+/// existing data as stale instead of replacing it with an empty error screen.
+struct ModulePresentationState: Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        case loading
+        case empty
+        case fresh
+        case stale
+        case offline
+        case permission
+        case rateLimited
+        case error
+    }
+
+    enum Recovery: Equatable, Sendable {
+        case none
+        case retry
+        case settings
+    }
+
+    let kind: Kind
+    let hasContent: Bool
+    let updatedAt: Date?
+    let recovery: Recovery
+
+    static func resolve(health: [EndpointHealth],
+                        hasContent: Bool,
+                        isLoading: Bool,
+                        fallbackError: String?,
+                        now: Date = Date(),
+                        staleAfter: TimeInterval) -> ModulePresentationState {
+        if isLoading, !hasContent {
+            return ModulePresentationState(kind: .loading, hasContent: false,
+                                           updatedAt: newestDate(in: health), recovery: .none)
+        }
+
+        let updatedAt = newestDate(in: health)
+        let errorClasses = Set(health.compactMap(\.errorClass))
+        let outcomes = Set(health.map(\.outcome))
+
+        if outcomes.contains(.offline) || fallbackError == "No internet connection" {
+            return ModulePresentationState(kind: .offline, hasContent: hasContent,
+                                           updatedAt: updatedAt, recovery: .retry)
+        }
+        if !errorClasses.isDisjoint(with: ["permanentKey", "insufficientPermissions"]) {
+            return ModulePresentationState(kind: .permission, hasContent: hasContent,
+                                           updatedAt: updatedAt, recovery: .settings)
+        }
+        if !errorClasses.isDisjoint(with: ["rateLimit", "dailyRowLimit"]) {
+            return ModulePresentationState(kind: .rateLimited, hasContent: hasContent,
+                                           updatedAt: updatedAt, recovery: .retry)
+        }
+        if outcomes.contains(.error) {
+            return ModulePresentationState(kind: hasContent ? .stale : .error,
+                                           hasContent: hasContent, updatedAt: updatedAt,
+                                           recovery: .retry)
+        }
+
+        if let updatedAt, now.timeIntervalSince(updatedAt) > staleAfter {
+            return ModulePresentationState(kind: .stale, hasContent: hasContent,
+                                           updatedAt: updatedAt, recovery: .retry)
+        }
+        if hasContent {
+            return ModulePresentationState(kind: .fresh, hasContent: true,
+                                           updatedAt: updatedAt, recovery: .none)
+        }
+        if fallbackError != nil {
+            return ModulePresentationState(kind: .error, hasContent: false,
+                                           updatedAt: updatedAt, recovery: .retry)
+        }
+        return ModulePresentationState(kind: .empty, hasContent: false,
+                                       updatedAt: updatedAt, recovery: .retry)
+    }
+
+    private static func newestDate(in health: [EndpointHealth]) -> Date? {
+        health.map(\.at).max()
+    }
+}
+
+extension AppState {
+    /// Resolves a module's visible status from the same PII-safe endpoint health that
+    /// powers Diagnostics. `staleAfter` is module-specific because activity/faction
+    /// endpoints intentionally poll more slowly than live bars.
+    func presentationState(endpointIDs: [String],
+                           hasContent: Bool,
+                           staleAfter: TimeInterval) -> ModulePresentationState {
+        ModulePresentationState.resolve(
+            health: endpointIDs.compactMap { endpointHealth.latest(for: $0) },
+            hasContent: hasContent,
+            isLoading: isLoading,
+            fallbackError: errorMsg,
+            staleAfter: staleAfter
+        )
     }
 }
 

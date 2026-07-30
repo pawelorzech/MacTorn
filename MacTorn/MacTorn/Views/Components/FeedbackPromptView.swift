@@ -7,7 +7,7 @@ struct FeedbackPromptView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "heart.fill")
-                .font(.system(size: 32))
+                .font(.title)
                 .foregroundStyle(
                     LinearGradient(
                         colors: [.pink, .red],

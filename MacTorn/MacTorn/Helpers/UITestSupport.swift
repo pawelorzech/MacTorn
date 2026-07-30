@@ -49,6 +49,10 @@ enum FixtureScenario: String {
     /// Every endpoint returns an empty (but valid) JSON object — used to assert the
     /// onboarding / empty states render without a decode crash.
     case empty
+    /// Two synthetic identities selected by the request's fake key. A repeated request
+    /// for account A is deliberately delayed and ignores task cancellation so XCUITest
+    /// can prove that a stale A response never flashes after switching to B.
+    case accountSwitch
 }
 
 enum UITestConfiguration {
@@ -56,6 +60,7 @@ enum UITestConfiguration {
     static let fixtureKey = "-uitest-fixture"   // value: FixtureScenario.rawValue
     static let apiKeyKey = "-uitest-apikey"     // value: seeded key ("" / absent ⇒ onboarding)
     static let onlineKey = "-uitest-online"     // value: "1" (default) / "0"
+    static let windowHeightKey = "-uitest-window-height"
 
     /// True only when the process was launched with `--uitesting`.
     static var isActive: Bool {
@@ -77,6 +82,10 @@ enum UITestConfiguration {
     static var seededAPIKey: String { argValue(apiKeyKey) ?? "" }
 
     static var startsOnline: Bool { argValue(onlineKey) != "0" }
+    static var windowHeight: CGFloat {
+        let requested = argValue(windowHeightKey).flatMap(Double.init) ?? 640
+        return CGFloat(min(max(requested, 640), 1_000))
+    }
 
     /// In-memory Keychain backing store, consulted by `KeychainStore` while a UI test
     /// runs so the app process never reads or writes the real login Keychain.
@@ -113,12 +122,35 @@ enum UITestConfiguration {
 /// network. Routing is by URL so the fast user call, faction, and the v2 endpoints
 /// each get an appropriate, decodable body.
 final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
+    static let accountAKey = "fixture-account-a"
+    static let accountBKey = "fixture-account-b"
+
     private let scenario: FixtureScenario
+    private let requestCountQueue = DispatchQueue(label: "com.mactorn.uitests.fixture-counts")
+    private var accountAFastRequestCount = 0
 
     init(scenario: FixtureScenario) { self.scenario = scenario }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let url = request.url
+        if scenario == .accountSwitch,
+           Self.isFastUserURL(url),
+           Self.apiKey(in: url) == Self.accountAKey {
+            let requestNumber = requestCountQueue.sync {
+                accountAFastRequestCount += 1
+                return accountAFastRequestCount
+            }
+            if requestNumber > 1 {
+                // A continuation backed by asyncAfter is intentionally non-cancellable.
+                // This models a transport that still delivers A after AppState cancelled it.
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 3) {
+                        continuation.resume()
+                    }
+                }
+            }
+        }
+
         let body = Self.body(for: url, scenario: scenario)
         let response = HTTPURLResponse(url: url ?? URL(string: "https://api.torn.com")!,
                                        statusCode: 200,
@@ -133,7 +165,7 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
     /// the app's `try?`-guarded overlays decode into "no extra data" cleanly.
     static func body(for url: URL?, scenario: FixtureScenario) -> Data {
         let s = url?.absoluteString ?? ""
-        let isFastUser = s.contains("api.torn.com/user/") && s.contains("bars")
+        let isFastUser = isFastUserURL(url)
         let isKeyInfo = s.contains("/key/info")
 
         let json: [String: Any]
@@ -144,12 +176,34 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             json = keyInfoResponse()
         case (_, true, .full):
             json = fullUserResponse()
+        case (_, true, .accountSwitch):
+            switch apiKey(in: url) {
+            case accountAKey:
+                json = fullUserResponse(name: "Fixture Account A", playerID: 100_001)
+            case accountBKey:
+                json = fullUserResponse(name: "Fixture Account B", playerID: 200_002)
+            default:
+                json = invalidKeyEnvelope
+            }
         case (_, true, .invalidKey):
             json = invalidKeyEnvelope
         default:
             json = [:]
         }
         return (try? JSONSerialization.data(withJSONObject: json)) ?? Data("{}".utf8)
+    }
+
+    private static func isFastUserURL(_ url: URL?) -> Bool {
+        let value = url?.absoluteString ?? ""
+        return value.contains("api.torn.com/user/") && value.contains("bars")
+    }
+
+    private static func apiKey(in url: URL?) -> String? {
+        guard let url,
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        return components.queryItems?.first(where: { $0.name == "key" })?.value
     }
 
     /// A full-access `/key/info` response granting every selection MacTorn requests, so
@@ -185,9 +239,10 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
     /// A healthy, fully-populated fast-user response. Mirrors the shape of the unit
     /// suite's `TornAPIFixtures.validFullResponse()` (kept in sync by construction —
     /// same keys), with `server_time = now` so live countdowns anchor to the run.
-    static func fullUserResponse() -> [String: Any] { [
-        "name": "TestPlayer",
-        "player_id": 123456,
+    static func fullUserResponse(name: String = "TestPlayer",
+                                 playerID: Int = 123456) -> [String: Any] { [
+        "name": name,
+        "player_id": playerID,
         "server_time": Int(Date().timeIntervalSince1970),
         "energy": ["current": 100, "maximum": 150, "increment": 5, "interval": 300, "ticktime": 60, "fulltime": 600],
         "nerve": ["current": 50, "maximum": 60, "increment": 1, "interval": 300, "ticktime": 120, "fulltime": 1800],
@@ -240,25 +295,32 @@ struct UITestRootView: View {
                 ContentView()
                     .environment(appState)
                     .environment(\.reduceTransparency, reduceTransparency)
-                    .frame(width: 320, height: 640)
+                    .frame(width: 320, height: UITestConfiguration.windowHeight)
             } else {
                 EmptyView()
             }
         }
-        .background(UITestWindowConfigurator(active: UITestConfiguration.isActive))
+        .background(
+            UITestWindowConfigurator(
+                active: UITestConfiguration.isActive,
+                height: UITestConfiguration.windowHeight
+            )
+        )
     }
 }
 
 /// Grabs the enclosing `NSWindow` to either front it (UI test) or close it (normal Debug).
 private struct UITestWindowConfigurator: NSViewRepresentable {
     let active: Bool
+    let height: CGFloat
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         DispatchQueue.main.async { [weak view] in
             guard let window = view?.window else { return }
             if active {
-                window.setContentSize(NSSize(width: 320, height: 640))
+                window.title = "MacTorn UI Tests"
+                window.setContentSize(NSSize(width: 320, height: height))
                 window.center()
                 window.makeKeyAndOrderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)

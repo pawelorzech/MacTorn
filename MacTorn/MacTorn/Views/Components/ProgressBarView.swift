@@ -63,7 +63,11 @@ struct ProgressBarView: View {
                 }
             }
             .frame(height: 10)
+            .accessibilityHidden(true)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue("\(current) of \(maximum), \(Int(progress * 100)) percent")
     }
 }
 

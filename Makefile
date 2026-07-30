@@ -1,7 +1,12 @@
 # MacTorn Makefile
 # Run tests and build commands for local development
 
-.PHONY: test test-unit test-ui build clean coverage coverage-gate help release release-signed hooks scan
+.PHONY: test test-unit test-ui test-all build analyze clean coverage coverage-gate help \
+	release verify-release release-signed diagnose-xctest hooks scan quick-test watch \
+	open test-summary
+
+RELEASE_DERIVED_DATA ?= DerivedData/Release
+RELEASE_APP := $(RELEASE_DERIVED_DATA)/Build/Products/Release/MacTorn.app
 
 # Default target
 help:
@@ -10,8 +15,11 @@ help:
 	@echo "  make test            - Run all unit tests"
 	@echo "  make test-ui         - Run UI tests"
 	@echo "  make build           - Build the app in Debug mode"
+	@echo "  make analyze         - Run Xcode static analysis"
 	@echo "  make release         - Build the app in Release mode (ad-hoc signed, dev only)"
+	@echo "  make verify-release  - Verify universal architectures and strict ad-hoc signature"
 	@echo "  make release-signed  - Build Release signed with Developer ID (set DEVELOPER_ID)"
+	@echo "  make diagnose-xctest - Collect read-only local XCTest runner diagnostics"
 	@echo "  make clean           - Clean build artifacts"
 	@echo "  make coverage        - Run tests with code coverage"
 	@echo "  make coverage-gate   - Enforce >=80% coverage on critical modules"
@@ -64,7 +72,17 @@ build:
 		CODE_SIGN_IDENTITY="-" \
 		CODE_SIGNING_REQUIRED=NO
 
-# Build Release (Universal Binary for Intel + Apple Silicon, ad-hoc signed)
+# Run Xcode static analysis
+analyze:
+	xcodebuild analyze \
+		-project MacTorn/MacTorn.xcodeproj \
+		-scheme MacTorn \
+		-configuration Debug \
+		-destination 'platform=macOS' \
+		CODE_SIGN_IDENTITY="-" \
+		CODE_SIGNING_REQUIRED=NO
+
+# Build Release (Universal Binary for Intel + Apple Silicon, strict ad-hoc signed)
 # This is fine for local development. For distribution use `release-signed` below.
 release:
 	xcodebuild build \
@@ -72,10 +90,24 @@ release:
 		-scheme MacTorn \
 		-configuration Release \
 		-destination 'generic/platform=macOS' \
+		-derivedDataPath '$(RELEASE_DERIVED_DATA)' \
 		ARCHS="arm64 x86_64" \
 		ONLY_ACTIVE_ARCH=NO \
+		CODE_SIGN_STYLE=Manual \
 		CODE_SIGN_IDENTITY="-" \
-		CODE_SIGNING_REQUIRED=NO
+		CODE_SIGNING_ALLOWED=YES \
+		CODE_SIGNING_REQUIRED=YES
+
+# Verify that the local Release gate produced both architectures and only an ad-hoc signature.
+verify-release:
+	@test -d '$(RELEASE_APP)' || { echo "Release app not found: $(RELEASE_APP). Run 'make release' first."; exit 2; }
+	@archs="$$(lipo -archs '$(RELEASE_APP)/Contents/MacOS/MacTorn')"; \
+		echo "Architectures: $$archs"; \
+		printf '%s\n' "$$archs" | grep -qw arm64; \
+		printf '%s\n' "$$archs" | grep -qw x86_64
+	codesign --verify --deep --strict --verbose=2 '$(RELEASE_APP)'
+	@codesign -dv --verbose=4 '$(RELEASE_APP)' 2>&1 | grep -q '^Signature=adhoc$$'
+	@echo "Release verification passed: universal and strict ad-hoc signed."
 
 # Build Release signed with Developer ID (Universal Binary). Required for distribution
 # so users can verify the publisher. Notarization is a follow-up — without it, Gatekeeper
@@ -178,6 +210,11 @@ hooks:
 scan:
 	@command -v gitleaks >/dev/null 2>&1 || { echo "❌ gitleaks not found. Install with: brew install gitleaks"; exit 1; }
 	gitleaks git --no-banner --redact -v --config .gitleaks.toml
+
+# Collect environment and service state without restarting or killing XCTest services.
+# Pass RESULT_BUNDLE=/path/to/result.xcresult to include its test summary.
+diagnose-xctest:
+	bash scripts/diagnose-xctest.sh '$(RESULT_BUNDLE)'
 
 # Show test summary
 test-summary:

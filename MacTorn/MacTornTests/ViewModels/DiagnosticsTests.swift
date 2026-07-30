@@ -86,4 +86,76 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertFalse(DiagnosticsEnvironment.osVersion.isEmpty)
         XCTAssertTrue(["arm64", "x86_64", "unknown"].contains(DiagnosticsEnvironment.architecture))
     }
+
+    // MARK: Module presentation state
+
+    func testModuleStateKeepsCachedContentVisibleOnError() {
+        let now = Date(timeIntervalSince1970: 2_000)
+        let state = ModulePresentationState.resolve(
+            health: [
+                EndpointHealth(endpointID: "user.fast", outcome: .error, latencyMs: 10,
+                               responseBytes: 0, at: now, errorClass: "temporaryBackend")
+            ],
+            hasContent: true, isLoading: false, fallbackError: nil,
+            now: now, staleAfter: 120
+        )
+
+        XCTAssertEqual(state.kind, .stale)
+        XCTAssertTrue(state.hasContent)
+        XCTAssertEqual(state.recovery, .retry)
+    }
+
+    func testModuleStateRoutesPermissionFailureToSettings() {
+        let now = Date(timeIntervalSince1970: 2_000)
+        let state = ModulePresentationState.resolve(
+            health: [
+                EndpointHealth(endpointID: "faction.basic", outcome: .error, latencyMs: 10,
+                               responseBytes: 0, at: now, errorClass: "insufficientPermissions")
+            ],
+            hasContent: false, isLoading: false, fallbackError: nil,
+            now: now, staleAfter: 120
+        )
+
+        XCTAssertEqual(state.kind, .permission)
+        XCTAssertEqual(state.recovery, .settings)
+    }
+
+    func testModuleStateMarksOldSuccessfulDataStale() {
+        let now = Date(timeIntervalSince1970: 2_000)
+        let state = ModulePresentationState.resolve(
+            health: [
+                EndpointHealth(endpointID: "user.fast", outcome: .ok, latencyMs: 10,
+                               responseBytes: 100, at: now.addingTimeInterval(-121), errorClass: nil)
+            ],
+            hasContent: true, isLoading: false, fallbackError: nil,
+            now: now, staleAfter: 120
+        )
+
+        XCTAssertEqual(state.kind, .stale)
+        XCTAssertEqual(state.updatedAt, now.addingTimeInterval(-121))
+    }
+
+    func testModuleStateDistinguishesLoadingEmptyAndFresh() {
+        let now = Date(timeIntervalSince1970: 2_000)
+        let loading = ModulePresentationState.resolve(
+            health: [], hasContent: false, isLoading: true, fallbackError: nil,
+            now: now, staleAfter: 120
+        )
+        let empty = ModulePresentationState.resolve(
+            health: [], hasContent: false, isLoading: false, fallbackError: nil,
+            now: now, staleAfter: 120
+        )
+        let fresh = ModulePresentationState.resolve(
+            health: [
+                EndpointHealth(endpointID: "user.fast", outcome: .ok, latencyMs: 10,
+                               responseBytes: 100, at: now, errorClass: nil)
+            ],
+            hasContent: true, isLoading: false, fallbackError: nil,
+            now: now, staleAfter: 120
+        )
+
+        XCTAssertEqual(loading.kind, .loading)
+        XCTAssertEqual(empty.kind, .empty)
+        XCTAssertEqual(fresh.kind, .fresh)
+    }
 }

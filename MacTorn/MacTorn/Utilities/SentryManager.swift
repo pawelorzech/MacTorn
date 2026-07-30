@@ -25,12 +25,17 @@ enum SentryManager {
 
     /// Call once at app launch. Starts the SDK only if the user has opted in.
     static func startIfEnabled() {
-        guard isEnabled else { return }
+        guard shouldStart(isEnabled: isEnabled, isUITesting: UITestConfiguration.isActive) else {
+            return
+        }
         start()
     }
 
     /// Apply current toggle state. Call after the user flips the Settings switch.
     static func applyState() {
+        // UI tests use fixture-backed networking and must remain completely hermetic,
+        // including when a test happens to exercise the Settings toggle.
+        guard !UITestConfiguration.isActive else { return }
         if isEnabled {
             start()
         } else if isStarted {
@@ -46,31 +51,41 @@ enum SentryManager {
         let release = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
 
         SentrySDK.start { options in
-            options.dsn = dsn
-            options.releaseName = "mactorn@\(release)"
-            options.environment = Self.environment()
-
-            // Crash + errors only — no perf, no profiling, no replays.
-            options.tracesSampleRate = 0.0
-
-            // PII hygiene: never send IP, device name, etc.
-            options.sendDefaultPii = false
-
-            // Strip API keys from URLs in events + breadcrumbs.
-            options.beforeSend = { event in scrub(event) }
-            options.beforeBreadcrumb = { crumb in scrub(crumb) }
-
-            // Redact URLs Sentry might capture from URLSession swizzling.
-            options.enableNetworkTracking = false
-            options.enableNetworkBreadcrumbs = false
-            // Torn API 5xx are upstream noise, not MacTorn bugs — don't auto-capture them.
-            options.enableCaptureFailedRequests = false
-            // AppHang detection produces only system-frame events for MenuBarExtra apps
-            // (CAFenceHandle, SkyLight display state) which are macOS doing its thing on
-            // wake/animate, not actionable MacTorn bugs. Crashes still captured.
-            options.enableAppHangTracking = false
+            configure(options, release: release, environment: Self.environment())
         }
         logger.info("Sentry started, release \(release)")
+    }
+
+    /// Pure startup policy, separated from `SentrySDK.start` so privacy and transport
+    /// invariants can be pinned without starting the SDK or making a network request.
+    static func configure(_ options: Options, release: String, environment: String) {
+        options.dsn = dsn
+        options.releaseName = "mactorn@\(release)"
+        options.environment = environment
+
+        // Crash + errors only — no perf, no profiling, no replays.
+        options.tracesSampleRate = 0.0
+
+        // PII hygiene: never send IP, device name, etc.
+        options.sendDefaultPii = false
+
+        // Strip API keys from URLs in events + breadcrumbs.
+        options.beforeSend = { event in scrub(event) }
+        options.beforeBreadcrumb = { crumb in scrub(crumb) }
+
+        // Redact URLs Sentry might capture from URLSession swizzling.
+        options.enableNetworkTracking = false
+        options.enableNetworkBreadcrumbs = false
+        // Torn API 5xx are upstream noise, not MacTorn bugs — don't auto-capture them.
+        options.enableCaptureFailedRequests = false
+        // AppHang detection produces only system-frame events for MenuBarExtra apps
+        // (CAFenceHandle, SkyLight display state) which are macOS doing its thing on
+        // wake/animate, not actionable MacTorn bugs. Crashes still captured.
+        options.enableAppHangTracking = false
+    }
+
+    static func shouldStart(isEnabled: Bool, isUITesting: Bool) -> Bool {
+        isEnabled && !isUITesting
     }
 
     private static func environment() -> String {

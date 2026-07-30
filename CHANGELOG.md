@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-07-30 — compact UX & resilience
+
+### Changed
+- **Status at a glance.** The oversized Next Action panel is now a compact single-row
+  summary, and the Status popover uses a fixed, denser layout so the important timers
+  remain visible without excessive scrolling.
+- **Settings by category.** Settings now opens one of six focused sections at a time
+  instead of presenting one long, deeply scrollable form.
+- **Current travel planning.** Destination times follow Torn's current official values
+  and can be calculated for either standard airport travel or a Private Island airstrip
+  with a pilot.
+- **Clearer navigation and commands.** Related destinations are grouped consistently,
+  common actions have keyboard shortcuts, and destructive actions expose Undo where
+  appropriate.
+- **Privacy-safe diagnostics.** Sentry was updated to 9.23 and diagnostics, feedback,
+  and account transitions were tightened to avoid leaking sensitive Torn data.
+
+### Added
+- **Freshness and recovery states** across live modules, including explicit loading,
+  stale-data, empty, permission, and retry states.
+- **Account-scoped sessions and snapshots** so switching API keys cannot retain data,
+  notifications, or pending work from the previous Torn account.
+- **Bounded service fan-out** for faction, market, forum, stocks, and user snapshots,
+  with focused service tests and deterministic persistence coverage.
+- **Accessibility and UX audit artifacts** with an implementation backlog and traceable
+  recommendations for the completed quality pass.
+
+### Fixed
+- Long-lived polling and notification state now resets safely when the active account
+  changes.
+- Input validation, semantic snapshot comparison, and endpoint error handling now
+  produce actionable recovery paths instead of ambiguous or duplicated UI states.
+- The monolithic `AppState` implementation was split into focused services and
+  extensions, reducing state coupling while preserving existing behavior.
+
+### Quality
+- Expanded unit, integration, UI-harness, and service coverage; reliability-critical
+  modules remain protected by the 80% line-coverage gate.
+- Release validation now checks a universal `arm64` + `x86_64` binary and strict
+  ad-hoc signing, matching the project's ad-hoc distribution policy.
+
 ## [1.10.0] — 2026-07-15 — reliability & product audit
 
 A large reliability + product pass (audit Etaps A–G, C, and follow-ups). Highlights: key

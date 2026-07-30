@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct MacTornApp: App {
     @State private var appState: AppState
+    @State private var navigation = AppNavigationState()
     @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
 
@@ -32,6 +33,7 @@ struct MacTornApp: App {
         MenuBarExtra {
             ContentView()
                 .environment(appState)
+                .environment(navigation)
                 .environment(\.reduceTransparency, reduceTransparency)
                 .onAppear {
                     updateAppearance()
@@ -43,6 +45,9 @@ struct MacTornApp: App {
             MenuBarLabel(appState: appState)
         }
         .menuBarExtraStyle(.window)
+        .commands {
+            MacTornCommands(appState: appState, navigation: navigation)
+        }
     }
 
     #if DEBUG
@@ -57,8 +62,9 @@ struct MacTornApp: App {
     // `UITestRootView` gates its content on `UITestConfiguration.isActive` and closes this
     // window on a normal (non-UI-test) Debug launch, so it is invisible outside UI tests.
     private var uiTestWindow: some Scene {
-        WindowGroup(id: "uitest-window") {
+        WindowGroup("MacTorn UI Tests", id: "uitest-window") {
             UITestRootView(appState: appState)
+                .environment(navigation)
         }
     }
     #endif
@@ -72,6 +78,49 @@ struct MacTornApp: App {
             NSApp.appearance = NSAppearance(named: .aqua)
         case .dark:
             NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
+    }
+}
+
+/// Native macOS command menu. The popover also exposes the same actions in its visible
+/// Commands menu, while these entries make the standard shortcuts discoverable and usable
+/// whenever MacTorn is the active application.
+struct MacTornCommands: Commands {
+    let appState: AppState
+    let navigation: AppNavigationState
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button(MacTornCommand.settings.title) {
+                navigation.showSettings()
+            }
+            .keyboardShortcut(
+                KeyEquivalent(MacTornCommand.settings.keyEquivalent),
+                modifiers: .command
+            )
+        }
+
+        CommandMenu("Commands") {
+            Button(MacTornCommand.refresh.title) {
+                appState.refreshNow()
+            }
+            .keyboardShortcut(
+                KeyEquivalent(MacTornCommand.refresh.keyEquivalent),
+                modifiers: .command
+            )
+            .disabled(appState.apiKey.isEmpty)
+
+            Divider()
+
+            ForEach(MacTornCommand.navigation) { command in
+                Button(command.title) {
+                    if let tab = command.tab {
+                        navigation.select(tab)
+                    }
+                }
+                .keyboardShortcut(KeyEquivalent(command.keyEquivalent), modifiers: .command)
+                .disabled(appState.apiKey.isEmpty)
+            }
         }
     }
 }

@@ -68,7 +68,9 @@ struct TornResponse: Codable {
     // Recent events sorted
     var recentEvents: [TornEvent] {
         guard let events = events else { return [] }
-        return events.values.sorted { $0.timestamp > $1.timestamp }
+        return events
+            .map { apiID, event in event.identified(by: apiID) }
+            .sorted { $0.timestamp > $1.timestamp }
     }
 }
 
@@ -256,6 +258,14 @@ enum TornDestination: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    enum FlightMethod: String, CaseIterable {
+        case standard = "Standard"
+        case airstrip = "Airstrip + pilot"
+    }
+
+    /// Torn documents up to 3% variance around the published base durations.
+    static let estimateVariancePercent = 3
+
     var flag: String {
         switch self {
         case .mexico: return "🇲🇽"
@@ -272,30 +282,58 @@ enum TornDestination: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Approximate flight time in minutes
-    var flightTimeMinutes: Int {
-        switch self {
-        case .mexico: return 26
-        case .caymanIslands: return 35
-        case .canada: return 41
-        case .hawaii: return 134
-        case .unitedKingdom: return 159
-        case .argentina: return 167
-        case .switzerland: return 175
-        case .japan: return 225
-        case .china: return 242
-        case .uae: return 271
-        case .southAfrica: return 297
+    /// Current one-way base duration published by Torn.
+    ///
+    /// Patch #438 (2026-06-23) reduced every travel method by 5.26%. These values
+    /// intentionally mirror the official table instead of deriving one method from
+    /// another, because Torn rounds each displayed duration independently.
+    /// Live flights never use this estimate: their countdown comes from the API's
+    /// `travel.timestamp`, `departed`, and `time_left` fields.
+    func flightTimeMinutes(method: FlightMethod = .standard) -> Int {
+        switch (self, method) {
+        case (.mexico, .standard): return 24
+        case (.caymanIslands, .standard): return 33
+        case (.canada, .standard): return 39
+        case (.hawaii, .standard): return 127
+        case (.unitedKingdom, .standard): return 151
+        case (.argentina, .standard): return 158
+        case (.switzerland, .standard): return 166
+        case (.japan, .standard): return 213
+        case (.china, .standard): return 229
+        case (.uae, .standard): return 257
+        case (.southAfrica, .standard): return 282
+        case (.mexico, .airstrip): return 17
+        case (.caymanIslands, .airstrip): return 23
+        case (.canada, .airstrip): return 27
+        case (.hawaii, .airstrip): return 89
+        case (.unitedKingdom, .airstrip): return 106
+        case (.argentina, .airstrip): return 111
+        case (.switzerland, .airstrip): return 116
+        case (.japan, .airstrip): return 149
+        case (.china, .airstrip): return 160
+        case (.uae, .airstrip): return 180
+        case (.southAfrica, .airstrip): return 197
         }
     }
 
-    var flightTimeFormatted: String {
-        let hours = flightTimeMinutes / 60
-        let minutes = flightTimeMinutes % 60
+    /// Compatibility accessor for callers that want the standard estimate.
+    var flightTimeMinutes: Int {
+        flightTimeMinutes()
+    }
+
+    func flightTimeFormatted(method: FlightMethod = .standard) -> String {
+        let duration = flightTimeMinutes(method: method)
+        let hours = duration / 60
+        let minutes = duration % 60
         if hours > 0 {
             return "\(hours)h \(minutes)m"
         }
         return "\(minutes)m"
+    }
+
+    /// Compatibility accessor for callers that want the standard estimate.
+    var flightTimeFormatted: String {
+        flightTimeFormatted()
     }
 
     var travelAgencyURL: URL {
@@ -389,8 +427,21 @@ struct TornEvent: Codable, Identifiable {
     let timestamp: Int
     let event: String
     let seen: Int?
-    
-    var id: Int { timestamp }
+    /// Dictionary key supplied by Torn. Two events can share a second-level timestamp,
+    /// so the timestamp alone is not a stable SwiftUI identity.
+    private var apiID: String? = nil
+
+    enum CodingKeys: String, CodingKey {
+        case timestamp, event, seen
+    }
+
+    var id: String { apiID ?? "\(timestamp):\(event)" }
+
+    func identified(by apiID: String) -> TornEvent {
+        var copy = self
+        copy.apiID = apiID
+        return copy
+    }
     
     var date: Date {
         Date(timeIntervalSince1970: TimeInterval(timestamp))

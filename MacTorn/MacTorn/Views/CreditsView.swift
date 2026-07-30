@@ -24,7 +24,7 @@ struct CreditsView: View {
             // Header
             VStack(spacing: 8) {
                 Image(systemName: "heart.fill")
-                    .font(.system(size: 36))
+                    .font(.largeTitle)
                     .foregroundStyle(
                         LinearGradient(
                             colors: [.pink, .red],

@@ -153,3 +153,99 @@ struct DiagnosticsView: View {
         }
     }
 }
+
+/// Shared, compact status for feature modules. Successful cached content stays visible
+/// during transient failures; this view only adds freshness and a recovery action.
+struct ModuleStateView: View {
+    let state: ModulePresentationState
+    let onRetry: () -> Void
+
+    @Environment(\.openMacTornSettings) private var openSettings
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if state.kind == .loading {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: icon)
+                    .foregroundStyle(color)
+                    .accessibilityHidden(true)
+            }
+
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(state.kind == .fresh ? Color.secondary : color)
+
+            Spacer(minLength: 4)
+
+            switch state.recovery {
+            case .retry:
+                Button("Retry", action: onRetry)
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.semibold))
+            case .settings:
+                Button("Settings") { openSettings() }
+                    .buttonStyle(.plain)
+                    .font(.caption2.weight(.semibold))
+            case .none:
+                EmptyView()
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(color.opacity(state.kind == .fresh ? 0.06 : 0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(label)
+    }
+
+    private var label: String {
+        switch state.kind {
+        case .loading:
+            return "Loading data"
+        case .empty:
+            return "No data yet"
+        case .fresh:
+            return state.updatedAt.map { "Updated \(relativeDate($0))" } ?? "Data available"
+        case .stale:
+            return state.updatedAt.map { "Stale · updated \(relativeDate($0))" } ?? "Data may be stale"
+        case .offline:
+            return state.hasContent ? "Offline · showing last data" : "No internet connection"
+        case .permission:
+            return state.hasContent ? "Permission changed · showing last data" : "API permission required"
+        case .rateLimited:
+            return state.hasContent ? "Rate limited · showing last data" : "Rate limited · retry shortly"
+        case .error:
+            return "Couldn’t refresh this module"
+        }
+    }
+
+    private var icon: String {
+        switch state.kind {
+        case .loading: return "clock"
+        case .empty: return "tray"
+        case .fresh: return "checkmark.circle.fill"
+        case .stale: return "clock.badge.exclamationmark"
+        case .offline: return "wifi.slash"
+        case .permission: return "lock.trianglebadge.exclamationmark"
+        case .rateLimited: return "hourglass"
+        case .error: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var color: Color {
+        switch state.kind {
+        case .fresh: return .green
+        case .loading, .empty: return .secondary
+        case .stale, .offline, .rateLimited: return .orange
+        case .permission, .error: return .red
+        }
+    }
+
+    private func relativeDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+}

@@ -7,6 +7,18 @@ struct FactionView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                ModuleStateView(
+                    state: appState.presentationState(
+                        endpointIDs: ["faction.basic", "faction.rankedwars", "faction.news", "user.v2"],
+                        hasContent: appState.factionData != nil
+                            || appState.organizedCrime != nil
+                            || !appState.rankedWars.isEmpty
+                            || !appState.factionNews.isEmpty,
+                        staleAfter: 360
+                    ),
+                    onRetry: appState.refreshNow
+                )
+
                 // Faction Info
                 VStack(alignment: .leading, spacing: 8) {
                     if let faction = appState.factionData {
@@ -363,7 +375,7 @@ struct ArmoryButton: View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Image(systemName: icon)
-                    .font(.system(size: 14))
+                    .font(.caption)
                 Text(title)
                     .font(.caption2)
             }

@@ -125,6 +125,22 @@ final class TornResponseTests: XCTestCase {
         XCTAssertEqual(events[2].timestamp, 1000) // Oldest last
     }
 
+    func testRecentEvents_sameTimestampRetainDistinctStableIds() throws {
+        let json: [String: Any] = [
+            "events": [
+                "event-a": ["timestamp": 3000, "event": "First", "seen": 0],
+                "event-b": ["timestamp": 3000, "event": "Second", "seen": 0]
+            ]
+        ]
+        let response = try JSONDecoder().decode(
+            TornResponse.self,
+            from: TornAPIFixtures.toData(json)
+        )
+
+        let ids = response.recentEvents.map(\.id)
+        XCTAssertEqual(Set(ids), Set(["event-a", "event-b"]))
+    }
+
     // MARK: - Error Response Tests
 
     func testDecoding_errorResponse() throws {
@@ -389,5 +405,51 @@ final class TornAPIErrorEnvelopeTests: XCTestCase {
     func testTopLevelErrorStringWithoutCode_returnsNil() {
         let json: [String: Any] = ["error": "some unrelated field"]
         XCTAssertNil(tornAPIErrorMessage(in: json))
+    }
+}
+
+// MARK: - Main user snapshot semantic contract
+
+final class UserSnapshotContractTests: XCTestCase {
+    private let requested = [
+        "basic", "bars", "cooldowns", "travel", "profile", "money",
+        "battlestats", "properties", "stocks",
+    ]
+
+    func testFullCapabilitiesAcceptARealSnapshot() {
+        XCTAssertTrue(UserSnapshotContract.isSatisfied(
+            by: TornAPIFixtures.validFullResponse(),
+            requestedSelections: requested,
+            grantedSelections: requested
+        ))
+    }
+
+    func testCustomProfileCapabilityDoesNotArbitrarilyRequireBars() {
+        let profileOnly: [String: Any] = [
+            "name": "CustomKeyPlayer",
+            "player_id": 42,
+        ]
+
+        XCTAssertTrue(UserSnapshotContract.isSatisfied(
+            by: profileOnly,
+            requestedSelections: requested,
+            grantedSelections: ["profile"]
+        ))
+    }
+
+    func testUnderprivilegedKeyWithoutRequestedCapabilitiesRejectsPayload() {
+        XCTAssertFalse(UserSnapshotContract.isSatisfied(
+            by: ["name": "Unexpected"],
+            requestedSelections: requested,
+            grantedSelections: []
+        ))
+    }
+
+    func testEmptyObjectIsNeverASuccessfulSnapshot() {
+        XCTAssertFalse(UserSnapshotContract.isSatisfied(
+            by: [:],
+            requestedSelections: requested,
+            grantedSelections: nil
+        ))
     }
 }

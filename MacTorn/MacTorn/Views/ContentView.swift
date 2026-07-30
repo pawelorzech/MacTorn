@@ -1,5 +1,31 @@
 import SwiftUI
 
+enum AppGroup: String, CaseIterable {
+    case now = "Now"
+    case account = "Account"
+    case watch = "Watch"
+
+    var icon: String {
+        switch self {
+        case .now: return "bolt.fill"
+        case .account: return "person.crop.circle"
+        case .watch: return "eye.fill"
+        }
+    }
+
+    var tabs: [AppTab] {
+        switch self {
+        case .now: return [.status, .travel, .attacks]
+        case .account: return [.money, .faction]
+        case .watch: return [.watchlist, .forums]
+        }
+    }
+
+    var defaultTab: AppTab {
+        tabs[0]
+    }
+}
+
 enum AppTab: String, CaseIterable {
     case status = "Status"
     case travel = "Travel"
@@ -20,28 +46,49 @@ enum AppTab: String, CaseIterable {
         case .forums: return "bubble.left.and.bubble.right.fill"
         }
     }
+
+    var group: AppGroup {
+        switch self {
+        case .status, .travel, .attacks: return .now
+        case .money, .faction: return .account
+        case .watchlist, .forums: return .watch
+        }
+    }
+}
+
+private enum NavigationFocus: Hashable {
+    case group(AppGroup)
+    case tab(AppTab)
+    case settings
+    case commands
+    case quit
 }
 
 struct ContentView: View {
     @Environment(AppState.self) private var appState
+    @Environment(AppNavigationState.self) private var navigation
     @Environment(\.reduceTransparency) private var reduceTransparency
-    @State private var showSettings = false
-    @State private var currentTab: AppTab = .status
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
+    @FocusState private var navigationFocus: NavigationFocus?
     @State private var showSentryOptIn = false
-    
+
     var body: some View {
 
         ZStack {
             VStack(spacing: 0) {
-                if appState.apiKey.isEmpty || showSettings {
-                    SettingsView()
+                if appState.apiKey.isEmpty || navigation.isShowingSettings {
+                    SettingsView {
+                        _ = navigation.dismissSettings(hasConfiguredAccount: !appState.apiKey.isEmpty)
+                    }
                         .environment(appState)
                 } else {
                     // Header with last updated
                     headerView
                     
-                    // Tab bar
-                    tabBar
+                    // Two-level navigation: three stable groups and only the active
+                    // group's modules. Every destination is at most two actions away.
+                    groupBar
+                    modulePicker
                     
                     Divider()
                     
@@ -88,7 +135,11 @@ struct ContentView: View {
                 SentryOptInPromptView(isPresented: $showSentryOptIn)
             }
         }
-        .frame(width: 320)
+        .frame(width: 320, height: 640, alignment: .top)
+        .environment(\.openMacTornSettings, OpenMacTornSettingsAction {
+            navigation.showSettings()
+        })
+        .onExitCommand(perform: handleEscape)
         .onAppear {
             appState.startPolling()
             appState.startForumPolling()
@@ -117,32 +168,91 @@ struct ContentView: View {
         .padding(.top, 8)
     }
     
-    // MARK: - Tab Bar
-    private var tabBar: some View {
-        HStack(spacing: 4) {
-            ForEach(AppTab.allCases, id: \.self) { tab in
+    // MARK: - Navigation
+    private var currentGroup: AppGroup {
+        currentTab.group
+    }
+
+    private var selectedBackgroundOpacity: Double {
+        reduceTransparency || colorSchemeContrast == .increased ? 0.35 : 0.16
+    }
+
+    private var groupBar: some View {
+        HStack(spacing: 6) {
+            ForEach(AppGroup.allCases, id: \.self) { group in
                 Button {
-                    currentTab = tab
+                    guard currentGroup != group else { return }
+                    navigation.select(group.defaultTab)
                 } label: {
-                    VStack(spacing: 2) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 14))
-                        Text(tab.rawValue)
-                            .font(.system(size: 8))
+                    Label {
+                        Text(group.rawValue)
+                            .font(.caption.weight(.semibold))
+                    } icon: {
+                        Image(systemName: group.icon)
+                            .font(.caption)
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(currentTab == tab ? Color.accentColor.opacity(reduceTransparency ? 0.3 : 0.2) : Color.clear)
+                    .padding(.vertical, 7)
+                    .background(currentGroup == group
+                                ? Color.accentColor.opacity(selectedBackgroundOpacity)
+                                : Color.clear)
                     .cornerRadius(6)
-                    .contentShape(Rectangle()) // Make entire area clickable
+                    .contentShape(Rectangle())
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(navigationFocus == .group(group)
+                                    ? Color.accentColor
+                                    : Color.clear,
+                                    lineWidth: 2)
+                    }
                 }
                 .buttonStyle(.plain)
-                .foregroundColor(currentTab == tab ? .accentColor : .secondary)
-                .uiTestID("uitest.tab.\(tab.rawValue)")
+                .focused($navigationFocus, equals: .group(group))
+                .foregroundColor(currentGroup == group ? .accentColor : .secondary)
+                .accessibilityLabel("\(group.rawValue) group")
+                .accessibilityAddTraits(currentGroup == group ? .isSelected : [])
+                .uiTestID("uitest.group.\(group.rawValue)")
             }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.top, 5)
+        .padding(.bottom, 3)
+    }
+
+    private var modulePicker: some View {
+        HStack(spacing: 6) {
+            ForEach(currentGroup.tabs, id: \.self) { tab in
+                Button {
+                    navigation.select(tab)
+                } label: {
+                    Text(tab.rawValue)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .background(currentTab == tab
+                                    ? Color.accentColor.opacity(selectedBackgroundOpacity)
+                                    : Color.secondary.opacity(reduceTransparency ? 0.12 : 0.06))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 5)
+                                .stroke(moduleBorderColor(for: tab),
+                                        lineWidth: navigationFocus == .tab(tab) ? 2 : 1)
+                        }
+                        .cornerRadius(5)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focused($navigationFocus, equals: .tab(tab))
+                .foregroundColor(currentTab == tab ? .accentColor : .secondary)
+                .accessibilityLabel(tab.rawValue)
+                .accessibilityAddTraits(currentTab == tab ? .isSelected : [])
+                .uiTestID("uitest.tab.\(tab.rawValue)")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(currentGroup.rawValue) modules")
+        .padding(.horizontal, 8)
+        .padding(.bottom, 5)
     }
     
     // MARK: - Tab Content
@@ -185,25 +295,98 @@ struct ContentView: View {
     private var footerView: some View {
         HStack {
             if !appState.apiKey.isEmpty {
-                Button(showSettings ? "Back" : "Settings") {
-                    showSettings.toggle()
+                Button(navigation.isShowingSettings ? "Back" : "Settings") {
+                    navigation.toggleSettings()
                 }
                 .buttonStyle(.plain)
+                .focused($navigationFocus, equals: .settings)
                 .foregroundColor(.secondary)
                 .uiTestID("uitest.openSettings")
             }
             
             Spacer()
-            
+
+            commandMenu
+
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.plain)
+            .focused($navigationFocus, equals: .quit)
             .foregroundColor(.secondary)
         }
         .font(.caption)
         .padding(.horizontal)
         .padding(.bottom, 8)
+    }
+
+    private var commandMenu: some View {
+        Menu {
+            commandButton(.refresh)
+
+            Divider()
+
+            ForEach(MacTornCommand.navigation) { command in
+                commandButton(command)
+            }
+
+            Divider()
+
+            commandButton(.settings)
+        } label: {
+            Label("Commands", systemImage: "command")
+                .labelStyle(.titleAndIcon)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .focused($navigationFocus, equals: .commands)
+        .accessibilityLabel("Commands")
+        .accessibilityHint("Refresh, open Settings, or go directly to a module")
+    }
+
+    private func commandButton(_ command: MacTornCommand) -> some View {
+        Button(command.title) {
+            perform(command)
+        }
+        .keyboardShortcut(KeyEquivalent(command.keyEquivalent), modifiers: .command)
+        .disabled(command != .settings && appState.apiKey.isEmpty)
+    }
+
+    private func perform(_ command: MacTornCommand) {
+        switch command {
+        case .refresh:
+            appState.refreshNow()
+        case .settings:
+            navigation.showSettings()
+        default:
+            if let tab = command.tab {
+                navigation.select(tab)
+            }
+        }
+    }
+
+    private func handleEscape() {
+        if showSentryOptIn {
+            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+            UserDefaults.standard.set(version, forKey: SentryManager.promptShownKey)
+            showSentryOptIn = false
+            return
+        }
+        if appState.showFeedbackPrompt {
+            appState.feedbackDismissed()
+            return
+        }
+        _ = navigation.dismissSettings(hasConfiguredAccount: !appState.apiKey.isEmpty)
+    }
+
+    private func moduleBorderColor(for tab: AppTab) -> Color {
+        if navigationFocus == .tab(tab) {
+            return .accentColor
+        }
+        if currentTab == tab && colorSchemeContrast == .increased {
+            return .accentColor
+        }
+        return .clear
     }
     
     private func checkSentryOptInPrompt() {
@@ -221,4 +404,8 @@ struct ContentView: View {
         formatter.timeStyle = .short
         return formatter
     }()
+
+    private var currentTab: AppTab {
+        navigation.selectedTab
+    }
 }

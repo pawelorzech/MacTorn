@@ -7,6 +7,14 @@ struct MoneyView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                ModuleStateView(
+                    state: appState.presentationState(
+                        endpointIDs: ["user.fast"],
+                        hasContent: appState.moneyData != nil,
+                        staleAfter: 120
+                    ),
+                    onRetry: appState.refreshNow
+                )
 
                 // MARK: - Cash Section
                 VStack(alignment: .leading, spacing: 8) {
@@ -254,7 +262,7 @@ struct ActionButton: View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon)
-                    .font(.system(size: 16))
+                    .font(.body)
                 Text(title)
                     .font(.caption2)
             }
