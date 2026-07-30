@@ -51,16 +51,16 @@ final class MacTornUITests: XCTestCase {
     /// With no API key, the app must present onboarding (the key entry), not the tabs.
     func testOnboardingWithoutKeyShowsKeyEntry() throws {
         let app = launch(fixture: "empty", apiKey: nil)
-        _ = window(app)
+        let win = window(app)
 
-        let keyField = app.descendants(matching: .any)["uitest.apiKeyField"]
+        let keyField = win.descendants(matching: .any)["uitest.apiKeyField"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 10),
                       "API-key field should be shown when no key is configured")
 
         // The tab bar belongs to the signed-in UI and must be absent during onboarding.
-        XCTAssertFalse(app.buttons["uitest.tab.Status"].exists,
+        XCTAssertFalse(win.buttons["uitest.tab.Status"].exists,
                        "Tabs must not be shown before a key is entered")
-        XCTAssertFalse(app.buttons["uitest.group.Now"].exists,
+        XCTAssertFalse(win.buttons["uitest.group.Now"].exists,
                        "Navigation groups must not be shown before a key is entered")
     }
 
@@ -69,41 +69,41 @@ final class MacTornUITests: XCTestCase {
     /// Every module stays reachable in at most two actions: group, then module.
     func testGroupedNavigationSwitchesContentAndPreservesSelectedState() throws {
         let app = launch(fixture: "full", apiKey: "sample-full-user")
-        _ = window(app)
+        let win = window(app)
 
-        let nowGroup = app.buttons["uitest.group.Now"]
+        let nowGroup = win.buttons["uitest.group.Now"]
         XCTAssertTrue(nowGroup.waitForExistence(timeout: 10), "Now group should exist")
         XCTAssertTrue(nowGroup.isSelected, "Now should be the selected group by default")
 
-        let statusTab = app.buttons["uitest.tab.Status"]
+        let statusTab = win.buttons["uitest.tab.Status"]
         XCTAssertTrue(statusTab.waitForExistence(timeout: 10), "Status tab should exist")
         XCTAssertTrue(statusTab.isSelected, "Status should be selected by default")
 
         // Status content is the default.
-        XCTAssertTrue(app.descendants(matching: .any)["uitest.tabContent.Status"].waitForExistence(timeout: 10),
+        XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Status"].waitForExistence(timeout: 10),
                       "Status content should be shown by default")
 
         // One action selects Watch and its default module, Watchlist.
-        let watchGroup = app.buttons["uitest.group.Watch"]
+        let watchGroup = win.buttons["uitest.group.Watch"]
         watchGroup.click()
-        XCTAssertTrue(app.descendants(matching: .any)["uitest.tabContent.Watchlist"].waitForExistence(timeout: 10),
+        XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Watchlist"].waitForExistence(timeout: 10),
                       "Watchlist should be the Watch group's default module")
         XCTAssertTrue(watchGroup.isSelected, "Watch group should report selected in AX")
-        XCTAssertTrue(app.buttons["uitest.tab.Watchlist"].isSelected,
+        XCTAssertTrue(win.buttons["uitest.tab.Watchlist"].isSelected,
                       "Watchlist should report selected in AX")
 
         // A second action reaches the other module in the active group.
-        app.buttons["uitest.tab.Forums"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["uitest.tabContent.Forums"].waitForExistence(timeout: 10),
+        win.buttons["uitest.tab.Forums"].click()
+        XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Forums"].waitForExistence(timeout: 10),
                       "Forums content should be shown from the Watch module picker")
-        XCTAssertTrue(app.buttons["uitest.tab.Forums"].isSelected,
+        XCTAssertTrue(win.buttons["uitest.tab.Forums"].isSelected,
                       "Forums should report selected in AX")
 
         // Account is also one action away and defaults to Money.
-        app.buttons["uitest.group.Account"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["uitest.tabContent.Money"].waitForExistence(timeout: 10),
+        win.buttons["uitest.group.Account"].click()
+        XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Money"].waitForExistence(timeout: 10),
                       "Money should be the Account group's default module")
-        XCTAssertTrue(app.buttons["uitest.tab.Money"].isSelected,
+        XCTAssertTrue(win.buttons["uitest.tab.Money"].isSelected,
                       "Money should report selected in AX")
     }
 
@@ -120,7 +120,7 @@ final class MacTornUITests: XCTestCase {
                        "The compact UI-test surface should remain 320 pt wide")
 
         let groupIDs = ["Now", "Account", "Watch"]
-        let groups = groupIDs.map { app.buttons["uitest.group.\($0)"] }
+        let groups = groupIDs.map { win.buttons["uitest.group.\($0)"] }
         for group in groups {
             XCTAssertTrue(group.waitForExistence(timeout: 10))
             assertContained(group, in: win)
@@ -128,7 +128,7 @@ final class MacTornUITests: XCTestCase {
         assertDoNotOverlap(groups)
 
         let nowModules = ["Status", "Travel", "Attacks"].map {
-            app.buttons["uitest.tab.\($0)"]
+            win.buttons["uitest.tab.\($0)"]
         }
         for module in nowModules {
             XCTAssertTrue(module.waitForExistence(timeout: 10))
@@ -142,7 +142,7 @@ final class MacTornUITests: XCTestCase {
     /// focus still require the manual system-level matrix documented in the QA report.
     func testAllModulesAndSettingsExposeStableAXContract() throws {
         let app = launch(fixture: "full", apiKey: "sample-ax-user")
-        _ = window(app)
+        let win = window(app)
 
         let groups: [(name: String, modules: [String])] = [
             ("Now", ["Status", "Travel", "Attacks"]),
@@ -151,20 +151,20 @@ final class MacTornUITests: XCTestCase {
         ]
 
         for group in groups {
-            let groupButton = app.buttons["uitest.group.\(group.name)"]
+            let groupButton = win.buttons["uitest.group.\(group.name)"]
             XCTAssertTrue(groupButton.waitForExistence(timeout: 10))
             XCTAssertEqual(groupButton.label, "\(group.name) group")
             groupButton.click()
             assertBecomesSelected(groupButton)
 
             for module in group.modules {
-                let moduleButton = app.buttons["uitest.tab.\(module)"]
+                let moduleButton = win.buttons["uitest.tab.\(module)"]
                 XCTAssertTrue(moduleButton.waitForExistence(timeout: 10))
                 XCTAssertEqual(moduleButton.label, module)
                 moduleButton.click()
                 assertBecomesSelected(moduleButton)
                 XCTAssertTrue(
-                    app.descendants(matching: .any)["uitest.tabContent.\(module)"]
+                    win.descendants(matching: .any)["uitest.tabContent.\(module)"]
                         .waitForExistence(timeout: 10),
                     "\(module) content should be reachable through its AX identifier"
                 )
@@ -175,21 +175,21 @@ final class MacTornUITests: XCTestCase {
         // On macOS, SwiftUI's accessibilityValue is available to assistive
         // technologies but is omitted from XCUI's snapshot for these `Other`
         // elements; spoken values remain part of the manual VoiceOver matrix.
-        app.buttons["uitest.group.Now"].click()
-        app.buttons["uitest.tab.Status"].click()
-        let refresh = app.buttons["Refresh Torn data"]
+        win.buttons["uitest.group.Now"].click()
+        win.buttons["uitest.tab.Status"].click()
+        let refresh = win.buttons["Refresh Torn data"]
         XCTAssertTrue(refresh.waitForExistence(timeout: 10))
         XCTAssertEqual(refresh.label, "Refresh Torn data")
 
         let expectedProgressLabels = ["Energy", "Nerve", "Happy", "Life"]
-        let statusScroll = app.scrollViews["uitest.tabContent.Status"]
+        let statusScroll = win.scrollViews["uitest.tabContent.Status"]
         XCTAssertTrue(statusScroll.waitForExistence(timeout: 10))
         XCTAssertLessThanOrEqual(
             statusScroll.frame.height,
             481,
             "Status should stay a compact, bounded surface"
         )
-        let nextAction = app.descendants(matching: .any)["uitest.nextAction"]
+        let nextAction = win.descendants(matching: .any)["uitest.nextAction"]
         XCTAssertTrue(nextAction.waitForExistence(timeout: 10))
         XCTAssertLessThanOrEqual(
             nextAction.frame.height,
@@ -205,12 +205,12 @@ final class MacTornUITests: XCTestCase {
             XCTAssertEqual(element.label, label)
         }
 
-        app.buttons["uitest.openSettings"].click()
-        let keyField = app.secureTextFields["uitest.apiKeyField"]
+        win.buttons["uitest.openSettings"].click()
+        let keyField = win.secureTextFields["uitest.apiKeyField"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 10))
         XCTAssertEqual(keyField.label, "Torn API Key")
-        XCTAssertEqual(app.buttons["uitest.saveKey"].label, "Save & Connect")
-        XCTAssertEqual(app.buttons["uitest.testConnection"].label, "Test Connection")
+        XCTAssertEqual(win.buttons["uitest.saveKey"].label, "Save & Connect")
+        XCTAssertEqual(win.buttons["uitest.testConnection"].label, "Test Connection")
 
         let settingsSections: [(id: String, title: String)] = [
             ("account", "Account"),
@@ -221,14 +221,14 @@ final class MacTornUITests: XCTestCase {
             ("diagnostics", "Diagnostics & About"),
         ]
         for section in settingsSections {
-            let button = app.buttons["settings.section.\(section.id)"]
+            let button = win.buttons["settings.section.\(section.id)"]
             XCTAssertTrue(button.waitForExistence(timeout: 10))
             XCTAssertTrue(button.isHittable)
             XCTAssertEqual(button.label, section.title)
             button.click()
             assertBecomesSelected(button)
             XCTAssertTrue(
-                app.descendants(matching: .any)["uitest.settingsContent.\(section.id)"]
+                win.descendants(matching: .any)["uitest.settingsContent.\(section.id)"]
                     .waitForExistence(timeout: 10),
                 "\(section.title) should replace the current Settings section"
             )
@@ -244,30 +244,30 @@ final class MacTornUITests: XCTestCase {
             fixture: "accountSwitch",
             apiKey: "fixture-account-a"
         )
-        _ = window(app)
+        let win = window(app)
 
-        let accountA = app.staticTexts["Fixture Account A"]
+        let accountA = win.staticTexts["Fixture Account A"]
         XCTAssertTrue(accountA.waitForExistence(timeout: 10), "Fixture account A should load")
 
         // Start the deliberately delayed second A request, then switch while it is in flight.
-        app.buttons["Refresh Torn data"].click()
-        app.buttons["uitest.openSettings"].click()
+        win.buttons["Refresh Torn data"].click()
+        win.buttons["uitest.openSettings"].click()
 
-        let keyField = app.secureTextFields["uitest.apiKeyField"]
+        let keyField = win.secureTextFields["uitest.apiKeyField"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 10))
         keyField.click()
         keyField.typeKey("a", modifierFlags: .command)
         keyField.typeText("fixture-account-b")
-        app.buttons["uitest.saveKey"].click()
+        win.buttons["uitest.saveKey"].click()
 
         // During the new account's initial load ContentView disables interaction. Wait
         // for the fixture B response, then return to Status.
-        let back = app.buttons["uitest.openSettings"]
+        let back = win.buttons["uitest.openSettings"]
         expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: back)
         waitForExpectations(timeout: 10)
         back.click()
 
-        let accountB = app.staticTexts["Fixture Account B"]
+        let accountB = win.staticTexts["Fixture Account B"]
         XCTAssertTrue(accountB.waitForExistence(timeout: 10), "Fixture account B should load")
 
         // The non-cancellable A response arrives after 3 seconds. Sample beyond that
@@ -286,9 +286,9 @@ final class MacTornUITests: XCTestCase {
     /// leave the user on a blank screen.
     func testInvalidKeySurfacesError() throws {
         let app = launch(fixture: "invalidKey", apiKey: "sample-bad-user")
-        _ = window(app)
+        let win = window(app)
 
-        let error = app.descendants(matching: .any)["uitest.error"]
+        let error = win.descendants(matching: .any)["uitest.error"]
         XCTAssertTrue(error.waitForExistence(timeout: 15),
                       "An invalid key should surface a visible error message")
     }
@@ -301,18 +301,18 @@ final class MacTornUITests: XCTestCase {
             fixture: "full",
             apiKey: "sample-connection-user"
         )
-        _ = window(app)
+        let win = window(app)
 
         // Open Settings from the signed-in footer, then run Test Connection.
-        let settings = app.buttons["uitest.openSettings"]
+        let settings = win.buttons["uitest.openSettings"]
         XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings button should exist")
         settings.click()
 
-        let testButton = app.buttons["uitest.testConnection"]
+        let testButton = win.buttons["uitest.testConnection"]
         XCTAssertTrue(testButton.waitForExistence(timeout: 10), "Test Connection button should exist")
         testButton.click()
 
-        XCTAssertTrue(app.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
+        XCTAssertTrue(win.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
                       "A valid key should report its access level after Test Connection")
     }
 
@@ -320,20 +320,20 @@ final class MacTornUITests: XCTestCase {
     /// result stays visible on the Settings screen instead of flipping to the tab UI.
     func testOnboardingTestConnectionKeepsSettingsVisible() throws {
         let app = launch(fixture: "full", apiKey: nil)
-        _ = window(app)
+        let win = window(app)
 
-        let keyField = app.secureTextFields["uitest.apiKeyField"]
+        let keyField = win.secureTextFields["uitest.apiKeyField"]
         XCTAssertTrue(keyField.waitForExistence(timeout: 10), "Key field should be shown at onboarding")
         keyField.click()
         keyField.typeText("sample-typed-value")
 
-        app.buttons["uitest.testConnection"].click()
+        win.buttons["uitest.testConnection"].click()
 
-        XCTAssertTrue(app.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
+        XCTAssertTrue(win.descendants(matching: .any)["uitest.keyValidationSuccess"].waitForExistence(timeout: 15),
                       "Result should appear after Test Connection")
         XCTAssertTrue(keyField.exists,
                       "Test Connection must not save the key / leave the onboarding screen")
-        XCTAssertFalse(app.buttons["uitest.tab.Status"].exists,
+        XCTAssertFalse(win.buttons["uitest.tab.Status"].exists,
                        "The signed-in tab UI must not appear from a mere Test Connection")
     }
 
