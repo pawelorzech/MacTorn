@@ -4,10 +4,16 @@ struct WatchlistView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
     @State private var showAddItem = false
+    @State private var recentlyRemoved: RemovedWatchlistItem?
+    @State private var undoDismissTask: Task<Void, Never>?
     
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                ModuleStateView(state: moduleState) {
+                    appState.refreshWatchlistPrices()
+                }
+
                 // Watchlist Header
                 HStack {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -25,6 +31,7 @@ struct WatchlistView: View {
                             .foregroundColor(.blue)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Refresh watched prices")
                     
                     Button {
                         withAnimation {
@@ -35,6 +42,7 @@ struct WatchlistView: View {
                             .foregroundColor(showAddItem ? .red : .green)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(showAddItem ? "Close add item panel" : "Add watched item")
                 }
                 
                 // Add Item Section (inline)
@@ -89,7 +97,7 @@ struct WatchlistView: View {
                         WatchlistPriceRow(item: item) {
                             openURL("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
                         } onRemove: {
-                            appState.removeFromWatchlist(item.id)
+                            removeWithUndo(item)
                         } onSetThreshold: { threshold in
                             if let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) {
                                 appState.watchlistItems[index].priceThreshold = threshold
@@ -98,6 +106,13 @@ struct WatchlistView: View {
                             }
                         }
                     }
+                }
+
+                if let recentlyRemoved {
+                    UndoBanner(message: "\(recentlyRemoved.item.name) removed") {
+                        undoRemoval()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 
                 Divider()
@@ -119,6 +134,10 @@ struct WatchlistView: View {
         .task {
             appState.refreshWatchlistPrices()
         }
+        .onDisappear {
+            undoDismissTask?.cancel()
+            recentlyRemoved = nil
+        }
     }
     
     private let popularItems = [
@@ -129,12 +148,55 @@ struct WatchlistView: View {
         ("Energy Drink", 261),
         ("First Aid Kit", 68)
     ]
+
+    private var moduleState: ModulePresentationState {
+        appState.presentationState(
+            endpointIDs: ["market.item"],
+            hasContent: !appState.watchlistItems.isEmpty,
+            staleAfter: 180
+        )
+    }
     
     private func openURL(_ urlString: String) {
         if let url = URL(string: urlString) {
             BrowserManager.shared.open(url)
         }
     }
+
+    private func removeWithUndo(_ item: WatchlistItem) {
+        guard let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) else {
+            return
+        }
+        let removedItem = appState.watchlistItems[index]
+
+        undoDismissTask?.cancel()
+        appState.removeFromWatchlist(item.id)
+        withAnimation {
+            recentlyRemoved = RemovedWatchlistItem(item: removedItem, index: index)
+        }
+        undoDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation {
+                recentlyRemoved = nil
+            }
+        }
+    }
+
+    private func undoRemoval() {
+        guard let recentlyRemoved else { return }
+
+        undoDismissTask?.cancel()
+        appState.restoreWatchlistItem(recentlyRemoved.item, at: recentlyRemoved.index)
+        withAnimation {
+            self.recentlyRemoved = nil
+        }
+    }
+}
+
+private struct RemovedWatchlistItem {
+    let item: WatchlistItem
+    let index: Int
 }
 
 // MARK: - Watchlist Price Row
@@ -147,6 +209,11 @@ struct WatchlistPriceRow: View {
 
     @State private var showThresholdPopover = false
     @State private var thresholdText = ""
+    @State private var thresholdError: String?
+
+    private var thresholdValue: Int? {
+        PositiveIntegerInput.value(from: thresholdText)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -162,6 +229,7 @@ struct WatchlistPriceRow: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Open \(item.name) in Item Market")
 
                 Spacer()
 
@@ -195,7 +263,7 @@ struct WatchlistPriceRow: View {
                         if item.priceDifference > 0 {
                             HStack(spacing: 2) {
                                 Image(systemName: "arrow.up")
-                                    .font(.system(size: 8))
+                                    .font(.caption2)
                                 Text("+\(formatPrice(item.priceDifference))")
                                     .font(.caption2.monospacedDigit())
                             }
@@ -207,6 +275,7 @@ struct WatchlistPriceRow: View {
                 // Bell button for price threshold
                 Button {
                     thresholdText = item.priceThreshold.map { String($0) } ?? ""
+                    thresholdError = nil
                     showThresholdPopover = true
                 } label: {
                     Image(systemName: item.priceThreshold != nil ? "bell.fill" : "bell")
@@ -214,6 +283,9 @@ struct WatchlistPriceRow: View {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(item.priceThreshold != nil
+                                    ? "Edit price alert for \(item.name)"
+                                    : "Set price alert for \(item.name)")
                 .popover(isPresented: $showThresholdPopover) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Alert when below:")
@@ -222,11 +294,19 @@ struct WatchlistPriceRow: View {
                         TextField("Price", text: $thresholdText)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 120)
-                            .onSubmit {
-                                let value = Int(thresholdText)
-                                onSetThreshold(value)
-                                showThresholdPopover = false
+                            .onChange(of: thresholdText) { _, newValue in
+                                thresholdError = PositiveIntegerInput.errorMessage(for: newValue)
                             }
+                            .onSubmit {
+                                submitThreshold()
+                            }
+
+                        if let thresholdError {
+                            Text(thresholdError)
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                                .accessibilityLabel("Price threshold error: \(thresholdError)")
+                        }
 
                         HStack(spacing: 8) {
                             Button("Clear") {
@@ -237,12 +317,11 @@ struct WatchlistPriceRow: View {
                             .foregroundColor(.secondary)
 
                             Button("Set") {
-                                let value = Int(thresholdText)
-                                onSetThreshold(value)
-                                showThresholdPopover = false
+                                submitThreshold()
                             }
                             .buttonStyle(.plain)
                             .foregroundColor(.blue)
+                            .disabled(thresholdValue == nil)
                         }
                     }
                     .padding(12)
@@ -255,6 +334,7 @@ struct WatchlistPriceRow: View {
                         .font(.caption)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(item.name) from price watch")
             }
 
             // Threshold indicator
@@ -281,5 +361,74 @@ struct WatchlistPriceRow: View {
             return String(format: "$%.0fK", Double(price) / 1_000)
         }
         return "$\(price)"
+    }
+
+    private func submitThreshold() {
+        guard let thresholdValue else {
+            thresholdError = PositiveIntegerInput.errorMessage(for: thresholdText)
+            return
+        }
+
+        onSetThreshold(thresholdValue)
+        thresholdError = nil
+        showThresholdPopover = false
+    }
+}
+
+enum PositiveIntegerInput {
+    static func value(from input: String) -> Int? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Int(trimmed), value > 0 else { return nil }
+        return value
+    }
+
+    static func errorMessage(for input: String) -> String? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard value(from: input) == nil else { return nil }
+        if trimmed.isEmpty {
+            return "Enter a price."
+        }
+        if let value = Int(trimmed), value <= 0 {
+            return "Price must be greater than zero."
+        }
+        return "Enter a whole number."
+    }
+}
+
+struct UndoBanner: View {
+    let message: String
+    let onUndo: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(message)
+                .font(.caption)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button("Undo", action: onUndo)
+                .buttonStyle(.borderless)
+                .font(.caption.bold())
+                .accessibilityLabel("Undo \(message)")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.accentColor.opacity(0.14))
+        .cornerRadius(6)
+    }
+}
+
+extension AppState {
+    @discardableResult
+    func restoreWatchlistItem(_ item: WatchlistItem, at originalIndex: Int) -> Bool {
+        guard !watchlistItems.contains(where: { $0.id == item.id }) else {
+            return false
+        }
+
+        let insertionIndex = min(max(originalIndex, 0), watchlistItems.count)
+        watchlistItems.insert(item, at: insertionIndex)
+        saveWatchlist()
+        return true
     }
 }

@@ -3,6 +3,90 @@ import XCTest
 
 final class TravelTests: XCTestCase {
 
+    // MARK: - Current travel duration table
+
+    func testStandardFlightTimesMatchTornPatch438Table() {
+        let expected: [TornDestination: Int] = [
+            .mexico: 24,
+            .caymanIslands: 33,
+            .canada: 39,
+            .hawaii: 127,
+            .unitedKingdom: 151,
+            .argentina: 158,
+            .switzerland: 166,
+            .japan: 213,
+            .china: 229,
+            .uae: 257,
+            .southAfrica: 282,
+        ]
+
+        XCTAssertEqual(TornDestination.allCases.count, expected.count)
+        for destination in TornDestination.allCases {
+            XCTAssertEqual(
+                destination.flightTimeMinutes(method: .standard),
+                expected[destination],
+                "Outdated standard time for \(destination.rawValue)"
+            )
+        }
+    }
+
+    func testAirstripFlightTimesMatchTornPatch438Table() {
+        let expected: [TornDestination: Int] = [
+            .mexico: 17,
+            .caymanIslands: 23,
+            .canada: 27,
+            .hawaii: 89,
+            .unitedKingdom: 106,
+            .argentina: 111,
+            .switzerland: 116,
+            .japan: 149,
+            .china: 160,
+            .uae: 180,
+            .southAfrica: 197,
+        ]
+
+        XCTAssertEqual(TornDestination.allCases.count, expected.count)
+        for destination in TornDestination.allCases {
+            XCTAssertEqual(
+                destination.flightTimeMinutes(method: .airstrip),
+                expected[destination],
+                "Outdated airstrip time for \(destination.rawValue)"
+            )
+        }
+    }
+
+    func testFlightTimeFormattingUsesSelectedMethod() {
+        XCTAssertEqual(TornDestination.mexico.flightTimeFormatted(method: .standard), "24m")
+        XCTAssertEqual(TornDestination.hawaii.flightTimeFormatted(method: .airstrip), "1h 29m")
+        XCTAssertEqual(TornDestination.southAfrica.flightTimeFormatted(method: .standard), "4h 42m")
+    }
+
+    func testPublishedEstimateSemanticsRemainExplicit() {
+        XCTAssertEqual(TornDestination.FlightMethod.standard.rawValue, "Standard")
+        XCTAssertEqual(TornDestination.FlightMethod.airstrip.rawValue, "Airstrip + pilot")
+        XCTAssertEqual(TornDestination.estimateVariancePercent, 3)
+    }
+
+    func testActiveFlightProgressUsesAPITimestampsNotQuickTravelEstimate() throws {
+        let now = Int(Date().timeIntervalSince1970)
+        let json: [String: Any] = [
+            "destination": TornDestination.japan.rawValue,
+            "timestamp": now + 600,
+            "departed": now - 900,
+            // Deliberately inconsistent with the timestamps. The timestamp remains
+            // authoritative while present; static Quick Travel tables are not involved.
+            "time_left": 12,
+        ]
+        let travel = try decode(Travel.self, from: json)
+
+        let remaining = travel.remainingSeconds(from: Date())
+        XCTAssertGreaterThanOrEqual(remaining, 598)
+        XCTAssertLessThanOrEqual(remaining, 600)
+
+        let progress = travel.flightProgress(from: Date())
+        XCTAssertEqual(progress, 0.6, accuracy: 0.002)
+    }
+
     // MARK: - isAbroad Tests
 
     func testIsAbroad_inTorn() throws {

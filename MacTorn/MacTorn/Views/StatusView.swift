@@ -7,9 +7,18 @@ struct StatusView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 // Header
                 headerSection
+
+                ModuleStateView(
+                    state: appState.presentationState(
+                        endpointIDs: ["user.fast", "user.v2", "user.activity"],
+                        hasContent: appState.data != nil,
+                        staleAfter: 120
+                    ),
+                    onRetry: appState.refreshNow
+                )
 
                 // Next Action timeline (Etap J) — the single most useful glance.
                 if appState.data != nil {
@@ -67,9 +76,9 @@ struct StatusView: View {
                 // Quick Links
                 quickLinksSection
             }
-            .padding()
+            .padding(12)
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .frame(height: 480)
     }
     
     // MARK: - Header
@@ -104,6 +113,7 @@ struct StatusView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(.secondary)
+                    .accessibilityLabel("Refresh Torn data")
                 }
             }
         }
@@ -278,7 +288,7 @@ struct StatusView: View {
                 } label: {
                     HStack(spacing: 2) {
                         Image(systemName: "globe")
-                            .font(.system(size: 8))
+                            .font(.caption2)
                         Text("TRI Hub")
                             .font(.caption2)
                     }

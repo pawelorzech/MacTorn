@@ -5,10 +5,17 @@ struct ForumWatchView: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
     @State private var showAddThread = false
     @State private var threadInput = ""
+    @State private var threadInputError: String?
+    @State private var recentlyRemoved: RemovedWatchedThread?
+    @State private var undoDismissTask: Task<Void, Never>?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                ModuleStateView(state: moduleState) {
+                    appState.refreshForumWatch()
+                }
+
                 // Header
                 HStack {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
@@ -25,6 +32,7 @@ struct ForumWatchView: View {
                             .foregroundColor(.blue)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Refresh watched threads")
 
                     Button {
                         withAnimation {
@@ -35,6 +43,7 @@ struct ForumWatchView: View {
                             .foregroundColor(showAddThread ? .red : .green)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(showAddThread ? "Close add thread form" : "Add watched thread")
                 }
 
                 // Add Thread Section
@@ -48,6 +57,9 @@ struct ForumWatchView: View {
                             TextField("forums.php...t=12345 or 12345", text: $threadInput)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
+                                .onChange(of: threadInput) { _, _ in
+                                    threadInputError = nil
+                                }
                                 .onSubmit {
                                     addThread()
                                 }
@@ -57,7 +69,14 @@ struct ForumWatchView: View {
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
-                            .disabled(threadInput.isEmpty)
+                            .disabled(threadInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+
+                        if let threadInputError {
+                            Text(threadInputError)
+                                .font(.caption2)
+                                .foregroundStyle(.red)
+                                .accessibilityLabel("Thread input error: \(threadInputError)")
                         }
                     }
                     .padding(8)
@@ -104,10 +123,17 @@ struct ForumWatchView: View {
                                 appState.toggleThreadNotifications(thread.id)
                             },
                             onRemove: {
-                                appState.removeWatchedThread(thread.id)
+                                removeWithUndo(thread)
                             }
                         )
                     }
+                }
+
+                if let recentlyRemoved {
+                    UndoBanner(message: "\(recentlyRemoved.thread.title) removed") {
+                        undoRemoval()
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 Divider()
@@ -128,12 +154,31 @@ struct ForumWatchView: View {
             .padding()
         }
         .fixedSize(horizontal: false, vertical: true)
+        .onDisappear {
+            undoDismissTask?.cancel()
+            recentlyRemoved = nil
+        }
+    }
+
+    private var moduleState: ModulePresentationState {
+        appState.presentationState(
+            endpointIDs: ["forum.thread"],
+            hasContent: !appState.watchedThreads.isEmpty,
+            staleAfter: TimeInterval(max(appState.forumWatchConfig.pollingIntervalSeconds, 180))
+        )
     }
 
     private func addThread() {
-        guard !threadInput.isEmpty else { return }
-        appState.addWatchedThread(input: threadInput)
+        guard appState.parseThreadInput(threadInput) != nil else {
+            threadInputError = "Enter a positive thread ID or Torn forum URL."
+            return
+        }
+        guard appState.addWatchedThread(input: threadInput) else {
+            threadInputError = "This thread is already being watched."
+            return
+        }
         threadInput = ""
+        threadInputError = nil
         withAnimation {
             showAddThread = false
         }
@@ -148,6 +193,41 @@ struct ForumWatchView: View {
             BrowserManager.shared.open(url)
         }
     }
+
+    private func removeWithUndo(_ thread: WatchedThread) {
+        guard let index = appState.watchedThreads.firstIndex(where: { $0.id == thread.id }) else {
+            return
+        }
+        let removedThread = appState.watchedThreads[index]
+
+        undoDismissTask?.cancel()
+        appState.removeWatchedThread(thread.id)
+        withAnimation {
+            recentlyRemoved = RemovedWatchedThread(thread: removedThread, index: index)
+        }
+        undoDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 6_000_000_000)
+            guard !Task.isCancelled else { return }
+            withAnimation {
+                recentlyRemoved = nil
+            }
+        }
+    }
+
+    private func undoRemoval() {
+        guard let recentlyRemoved else { return }
+
+        undoDismissTask?.cancel()
+        appState.restoreWatchedThread(recentlyRemoved.thread, at: recentlyRemoved.index)
+        withAnimation {
+            self.recentlyRemoved = nil
+        }
+    }
+}
+
+private struct RemovedWatchedThread {
+    let thread: WatchedThread
+    let index: Int
 }
 
 // MARK: - Forum Thread Row
@@ -207,6 +287,9 @@ struct ForumThreadRow: View {
             }
             .buttonStyle(.plain)
             .help(thread.notificationsEnabled ? "Notifications on" : "Notifications off")
+            .accessibilityLabel(thread.notificationsEnabled
+                                ? "Disable notifications for \(thread.title)"
+                                : "Enable notifications for \(thread.title)")
 
             // Remove button
             Button {
@@ -217,10 +300,25 @@ struct ForumThreadRow: View {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Remove \(thread.title) from watched threads")
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
         .background(Color.gray.opacity(reduceTransparency ? 0.3 : 0.05))
         .cornerRadius(4)
+    }
+}
+
+extension AppState {
+    @discardableResult
+    func restoreWatchedThread(_ thread: WatchedThread, at originalIndex: Int) -> Bool {
+        guard !watchedThreads.contains(where: { $0.id == thread.id }) else {
+            return false
+        }
+
+        let insertionIndex = min(max(originalIndex, 0), watchedThreads.count)
+        watchedThreads.insert(thread, at: insertionIndex)
+        saveForumWatch()
+        return true
     }
 }

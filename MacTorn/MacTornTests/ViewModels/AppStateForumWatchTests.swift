@@ -53,13 +53,16 @@ final class AppStateForumWatchTests: XCTestCase {
         XCTAssertNil(appState.parseThreadInput("abc"))
         XCTAssertNil(appState.parseThreadInput(""))
         XCTAssertNil(appState.parseThreadInput("https://www.torn.com/forums.php"))
+        XCTAssertNil(appState.parseThreadInput("0"))
+        XCTAssertNil(appState.parseThreadInput("-42"))
+        XCTAssertNil(appState.parseThreadInput("https://www.torn.com/forums.php?t=0"))
     }
 
     // MARK: - Add Thread Tests
 
     func testAddWatchedThread_addsThread() {
         appState.apiKey = "valid_key"
-        appState.addWatchedThread(input: "12345")
+        XCTAssertTrue(appState.addWatchedThread(input: "12345"))
 
         XCTAssertEqual(appState.watchedThreads.count, 1)
         XCTAssertEqual(appState.watchedThreads.first?.id, 12345)
@@ -68,15 +71,15 @@ final class AppStateForumWatchTests: XCTestCase {
 
     func testAddWatchedThread_preventsDuplicate() {
         appState.apiKey = "valid_key"
-        appState.addWatchedThread(input: "12345")
-        appState.addWatchedThread(input: "12345")
+        XCTAssertTrue(appState.addWatchedThread(input: "12345"))
+        XCTAssertFalse(appState.addWatchedThread(input: "12345"))
 
         XCTAssertEqual(appState.watchedThreads.count, 1)
     }
 
     func testAddWatchedThread_invalidInput() {
         appState.apiKey = "valid_key"
-        appState.addWatchedThread(input: "invalid")
+        XCTAssertFalse(appState.addWatchedThread(input: "invalid"))
 
         XCTAssertTrue(appState.watchedThreads.isEmpty)
     }
@@ -112,6 +115,46 @@ final class AppStateForumWatchTests: XCTestCase {
         appState.removeWatchedThread(999)
 
         XCTAssertEqual(appState.watchedThreads.count, 1)
+    }
+
+    func testRestoreWatchedThread_restoresFullModelAtOriginalIndexAndPersists() {
+        let removed = WatchedThread(
+            id: 222,
+            title: "Important faction thread",
+            notificationsEnabled: false,
+            lastKnownPostCount: 42,
+            lastChecked: Date(timeIntervalSince1970: 5_678),
+            error: "Previous error",
+            isFactionThread: true
+        )
+        appState.watchedThreads = [
+            WatchedThread(id: 111, title: "Thread A"),
+            WatchedThread(id: 333, title: "Thread C")
+        ]
+
+        XCTAssertTrue(appState.restoreWatchedThread(removed, at: 1))
+
+        XCTAssertEqual(appState.watchedThreads.map(\.id), [111, 222, 333])
+        let restored = appState.watchedThreads[1]
+        XCTAssertEqual(restored.title, removed.title)
+        XCTAssertEqual(restored.notificationsEnabled, removed.notificationsEnabled)
+        XCTAssertEqual(restored.lastKnownPostCount, removed.lastKnownPostCount)
+        XCTAssertEqual(restored.lastChecked, removed.lastChecked)
+        XCTAssertEqual(restored.error, removed.error)
+        XCTAssertEqual(restored.isFactionThread, removed.isFactionThread)
+
+        let reloaded = AppState(session: mockSession, defaults: testDefaults)
+        XCTAssertEqual(reloaded.watchedThreads.map(\.id), [111, 222, 333])
+        XCTAssertEqual(reloaded.watchedThreads[1].lastKnownPostCount, removed.lastKnownPostCount)
+        XCTAssertEqual(reloaded.watchedThreads[1].isFactionThread, removed.isFactionThread)
+    }
+
+    func testRestoreWatchedThread_doesNotDuplicateExistingThread() {
+        let thread = WatchedThread(id: 111, title: "Thread A")
+        appState.watchedThreads = [thread]
+
+        XCTAssertFalse(appState.restoreWatchedThread(thread, at: 0))
+        XCTAssertEqual(appState.watchedThreads.map(\.id), [111])
     }
 
     // MARK: - Toggle Notifications Tests
@@ -160,6 +203,15 @@ final class AppStateForumWatchTests: XCTestCase {
         XCTAssertFalse(appState.forumWatchConfig.factionForumAutoMonitor)
     }
 
+    func testLoadForumWatch_normalizesUnsafePollingInterval() throws {
+        let unsafe = ForumWatchConfig(pollingIntervalSeconds: 0)
+        testDefaults.set(try JSONEncoder().encode(unsafe), forKey: "forumWatchConfig")
+
+        let newAppState = AppState(session: mockSession, defaults: testDefaults)
+
+        XCTAssertEqual(newAppState.forumWatchConfig.pollingIntervalSeconds, 180)
+    }
+
     // MARK: - v2 Error Envelope Contract (forum endpoint)
 
     /// The forum endpoint is v2 (`/v2/forum/{threadId}/thread`). Torn's v2 error
@@ -174,7 +226,7 @@ final class AppStateForumWatchTests: XCTestCase {
         try await Task.sleep(nanoseconds: 800_000_000)
 
         let thread = appState.watchedThreads.first
-        XCTAssertEqual(thread?.error, "Too many requests",
+        XCTAssertEqual(thread?.error, "Too many requests — backing off.",
                        "v2 forum error envelope must be surfaced, not parsed as an 'Unknown' thread")
         XCTAssertNotEqual(thread?.title, "Unknown",
                           "on a v2 error the thread title must not be corrupted to 'Unknown'")

@@ -11,7 +11,7 @@ struct SentryOptInPromptView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: "ladybug.fill")
-                .font(.system(size: 32))
+                .font(.title)
                 .foregroundColor(.purple)
 
             Text("Help fix MacTorn bugs")

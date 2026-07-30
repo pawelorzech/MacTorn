@@ -1,85 +1,51 @@
 import SwiftUI
 
-/// The Next Action timeline card (Etap J): the single soonest event, prominently, plus a
-/// list of what follows. Counts down live via `TimelineView` off a shared clock — no
-/// extra timers or API calls. Hidden categories are filtered by AppState.
+/// A compact "what now" strip. Status already shows bars and cooldowns in detail, so this
+/// surface deliberately avoids repeating the full timeline.
 struct NextActionView: View {
     @Environment(AppState.self) private var appState
     var reduceTransparency: Bool = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
-            let events = appState.nextEvents(now: context.date)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "flag.checkered")
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                    Text("Next Action")
-                        .font(.caption.bold())
-                        .foregroundStyle(.secondary)
-                }
-
-                if let nearest = events.first {
-                    nearestRow(nearest)
-                    if events.count > 1 {
-                        Divider().opacity(0.5)
-                        VStack(spacing: 4) {
-                            ForEach(events.dropFirst().prefix(6)) { event in
-                                upcomingRow(event)
-                            }
-                        }
-                    }
-                } else {
-                    Text("Nothing pending — you're all caught up.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if let nearest = appState.nextEvents(now: context.date).first {
+                nearestRow(nearest)
             }
-            .padding(10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.accentColor.opacity(reduceTransparency ? 0.14 : 0.08))
-            )
         }
     }
 
     private func nearestRow(_ event: NextEvent) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 9) {
             Image(systemName: event.systemImage)
-                .font(.title3)
+                .font(.body.weight(.semibold))
                 .foregroundStyle(.tint)
-                .frame(width: 24)
+                .frame(width: 20)
                 .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(event.title).font(.subheadline.weight(.semibold))
-                Text(event.isReady ? "ready now" : "in \(Self.formatETA(event.eta))")
-                    .font(.caption).foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Next")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(event.title)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
             }
+
             Spacer()
+
             Text(event.isReady ? "now" : Self.formatETA(event.eta))
-                .font(.system(.body, design: .monospaced).weight(.semibold))
+                .font(.caption.monospacedDigit().weight(.semibold))
                 .foregroundStyle(event.isReady ? Color.green : Color.primary)
         }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.accentColor.opacity(reduceTransparency ? 0.14 : 0.08))
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Next: \(event.title), \(event.isReady ? "ready now" : "in \(Self.formatETA(event.eta))")")
-    }
-
-    private func upcomingRow(_ event: NextEvent) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: event.systemImage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 18)
-                .accessibilityHidden(true)
-            Text(event.title).font(.caption)
-            Spacer()
-            Text(event.isReady ? "now" : Self.formatETA(event.eta))
-                .font(.caption.monospaced())
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(event.title), \(event.isReady ? "ready now" : "in \(Self.formatETA(event.eta))")")
+        .uiTestID("uitest.nextAction")
     }
 
     /// Compact human countdown: "45s", "4:32", "2h 05m", "1d 3h".

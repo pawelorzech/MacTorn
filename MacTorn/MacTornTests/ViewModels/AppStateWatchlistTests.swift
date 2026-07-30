@@ -98,6 +98,67 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertEqual(appState.watchlistItems.count, 1) // Should still have 1 item
     }
 
+    func testRestoreWatchlistItem_restoresFullModelAtOriginalIndexAndPersists() {
+        let removed = WatchlistItem(
+            id: 456,
+            name: "Donator Pack",
+            lowestPrice: 9_000_000,
+            lowestPriceQuantity: 3,
+            secondLowestPrice: 9_500_000,
+            lastUpdated: Date(timeIntervalSince1970: 1_234),
+            error: "Previous error",
+            priceThreshold: 8_500_000,
+            lastAlertedPrice: 8_400_000
+        )
+        appState.watchlistItems = [
+            WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1_000, lowestPriceQuantity: 5, secondLowestPrice: 1_100, lastUpdated: nil, error: nil),
+            WatchlistItem(id: 789, name: "Vicodin", lowestPrice: 800, lowestPriceQuantity: 2, secondLowestPrice: 850, lastUpdated: nil, error: nil)
+        ]
+
+        XCTAssertTrue(appState.restoreWatchlistItem(removed, at: 1))
+
+        XCTAssertEqual(appState.watchlistItems.map(\.id), [123, 456, 789])
+        let restored = appState.watchlistItems[1]
+        XCTAssertEqual(restored.name, removed.name)
+        XCTAssertEqual(restored.lowestPrice, removed.lowestPrice)
+        XCTAssertEqual(restored.lowestPriceQuantity, removed.lowestPriceQuantity)
+        XCTAssertEqual(restored.secondLowestPrice, removed.secondLowestPrice)
+        XCTAssertEqual(restored.lastUpdated, removed.lastUpdated)
+        XCTAssertEqual(restored.error, removed.error)
+        XCTAssertEqual(restored.priceThreshold, removed.priceThreshold)
+        XCTAssertEqual(restored.lastAlertedPrice, removed.lastAlertedPrice)
+
+        let reloaded = AppState(session: mockSession, defaults: testDefaults)
+        XCTAssertEqual(reloaded.watchlistItems.map(\.id), [123, 456, 789])
+        XCTAssertEqual(reloaded.watchlistItems[1].priceThreshold, removed.priceThreshold)
+        XCTAssertEqual(reloaded.watchlistItems[1].lastAlertedPrice, removed.lastAlertedPrice)
+    }
+
+    func testRestoreWatchlistItem_doesNotDuplicateExistingItem() {
+        let item = WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1_000, lowestPriceQuantity: 5, secondLowestPrice: 1_100, lastUpdated: nil, error: nil)
+        appState.watchlistItems = [item]
+
+        XCTAssertFalse(appState.restoreWatchlistItem(item, at: 0))
+        XCTAssertEqual(appState.watchlistItems.map(\.id), [123])
+    }
+
+    func testPositiveIntegerInput_acceptsOnlyPositiveInts() {
+        XCTAssertEqual(PositiveIntegerInput.value(from: " 42 "), 42)
+        XCTAssertNil(PositiveIntegerInput.value(from: ""))
+        XCTAssertNil(PositiveIntegerInput.value(from: "0"))
+        XCTAssertNil(PositiveIntegerInput.value(from: "-1"))
+        XCTAssertNil(PositiveIntegerInput.value(from: "1.5"))
+        XCTAssertNil(PositiveIntegerInput.value(from: "abc"))
+    }
+
+    func testPositiveIntegerInput_explainsInvalidInput() {
+        XCTAssertEqual(PositiveIntegerInput.errorMessage(for: ""), "Enter a price.")
+        XCTAssertEqual(PositiveIntegerInput.errorMessage(for: "0"), "Price must be greater than zero.")
+        XCTAssertEqual(PositiveIntegerInput.errorMessage(for: "-5"), "Price must be greater than zero.")
+        XCTAssertEqual(PositiveIntegerInput.errorMessage(for: "1.5"), "Enter a whole number.")
+        XCTAssertNil(PositiveIntegerInput.errorMessage(for: "2500"))
+    }
+
     // MARK: - Persistence Tests
 
     func testSaveWatchlist_persists() {
@@ -143,6 +204,68 @@ final class AppStateWatchlistTests: XCTestCase {
         let requestedURLStrings = mockSession.requestedURLs.map { $0.absoluteString }
         XCTAssertTrue(requestedURLStrings.contains { $0.contains("123") })
         XCTAssertTrue(requestedURLStrings.contains { $0.contains("456") })
+    }
+
+    func testRefreshWatchlistPricesLimitsConcurrencyToFour() async throws {
+        let probe = try ConcurrencyProbeNetworkSession(
+            json: TornAPIFixtures.marketItemSuccess,
+            delayNanoseconds: 120_000_000
+        )
+        let state = AppState(
+            session: probe,
+            connectivity: ControllableConnectivity(),
+            defaults: .createMockDefaults()
+        )
+        state.apiKey = "valid_key"
+        state.watchlistItems = (1...12).map {
+            WatchlistItem(
+                id: $0,
+                name: "Item \($0)",
+                lowestPrice: 0,
+                lowestPriceQuantity: 0,
+                secondLowestPrice: 0,
+                lastUpdated: nil,
+                error: nil
+            )
+        }
+
+        state.refreshWatchlistPrices()
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        XCTAssertEqual(probe.requestCount, 12)
+        XCTAssertEqual(probe.maximumConcurrentRequests, 4)
+    }
+
+    func testAccountSwitchCancelsQueuedWatchlistRequests() async throws {
+        let probe = try ConcurrencyProbeNetworkSession(
+            json: TornAPIFixtures.marketItemSuccess,
+            delayNanoseconds: 300_000_000
+        )
+        let state = AppState(
+            session: probe,
+            connectivity: ControllableConnectivity(),
+            defaults: .createMockDefaults()
+        )
+        state.apiKey = "account_a"
+        state.watchlistItems = (1...20).map {
+            WatchlistItem(
+                id: $0,
+                name: "Item \($0)",
+                lowestPrice: 0,
+                lowestPriceQuantity: 0,
+                secondLowestPrice: 0,
+                lastUpdated: nil,
+                error: nil
+            )
+        }
+
+        state.refreshWatchlistPrices()
+        try await Task.sleep(nanoseconds: 80_000_000)
+        state.apiKey = "account_b"
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertLessThanOrEqual(probe.requestCount, 4)
+        XCTAssertTrue(state.watchlistItems.allSatisfy { $0.lastUpdated == nil })
     }
 
     // MARK: - Price Update Tests
@@ -327,6 +450,11 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertFalse(stored.hasSuffix(" "), "trailing whitespace not trimmed")
     }
 
+    func testAddToWatchlist_rejectsWhitespaceOnlyName() {
+        appState.addToWatchlist(itemId: 123, name: "   \n ")
+        XCTAssertTrue(appState.watchlistItems.isEmpty)
+    }
+
     // MARK: - v2 Error Envelope Contract (market endpoint)
 
     /// The market endpoint is v2 (`/v2/market/{id}`). Torn's v2 error envelope is
@@ -340,7 +468,7 @@ final class AppStateWatchlistTests: XCTestCase {
         appState.addToWatchlist(itemId: 123, name: "Xanax")
         try await Task.sleep(nanoseconds: 800_000_000)
 
-        XCTAssertEqual(appState.watchlistItems.first?.error, "Too many requests",
+        XCTAssertEqual(appState.watchlistItems.first?.error, "Too many requests — backing off.",
                        "v2 market error envelope must be surfaced, not swallowed as 'No listings'")
     }
 
@@ -353,5 +481,49 @@ final class AppStateWatchlistTests: XCTestCase {
 
         XCTAssertEqual(appState.watchlistItems.first?.error, "Incorrect key",
                        "v2 incorrect-key error must surface")
+    }
+}
+
+private final class ConcurrencyProbeNetworkSession: NetworkSession, @unchecked Sendable {
+    private let responseData: Data
+    private let delayNanoseconds: UInt64
+    private let lock = NSLock()
+    private var activeRequests = 0
+    private var recordedRequestCount = 0
+    private var recordedMaximum = 0
+
+    init(json: [String: Any], delayNanoseconds: UInt64) throws {
+        self.responseData = try JSONSerialization.data(withJSONObject: json)
+        self.delayNanoseconds = delayNanoseconds
+    }
+
+    var requestCount: Int {
+        lock.withLock { recordedRequestCount }
+    }
+
+    var maximumConcurrentRequests: Int {
+        lock.withLock { recordedMaximum }
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        lock.withLock {
+            recordedRequestCount += 1
+            activeRequests += 1
+            recordedMaximum = max(recordedMaximum, activeRequests)
+        }
+        defer {
+            lock.withLock {
+                activeRequests -= 1
+            }
+        }
+
+        try await Task.sleep(nanoseconds: delayNanoseconds)
+        let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://api.torn.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (responseData, response)
     }
 }

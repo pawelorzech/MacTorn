@@ -82,10 +82,28 @@ struct FlyingStatusView: View {
 struct TravelView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
+    // Deliberately separate from the legacy `privateIsland` preference: owning or
+    // renting a PI does not prove that its Airstrip upgrade exists or that a pilot
+    // is currently hired.
+    @AppStorage("travelFlightMethod")
+    private var flightMethodRawValue = TornDestination.FlightMethod.standard.rawValue
+
+    private var selectedFlightMethod: TornDestination.FlightMethod {
+        TornDestination.FlightMethod(rawValue: flightMethodRawValue) ?? .standard
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                ModuleStateView(
+                    state: appState.presentationState(
+                        endpointIDs: ["user.fast"],
+                        hasContent: appState.data?.travel != nil,
+                        staleAfter: 120
+                    ),
+                    onRetry: appState.refreshNow
+                )
+
                 // Travel Status Section
                 travelStatusSection
 
@@ -198,6 +216,18 @@ struct TravelView: View {
                 Text("Quick Travel")
                     .font(.subheadline.bold())
                     .foregroundColor(.secondary)
+                Spacer()
+                if !isAbroad {
+                    Picker("Estimate method", selection: $flightMethodRawValue) {
+                        ForEach(TornDestination.FlightMethod.allCases, id: \.self) { method in
+                            Text(method.rawValue).tag(method.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .accessibilityLabel("Quick Travel estimate method")
+                    .help("Airstrip estimates require both the Airstrip upgrade and a hired pilot.")
+                }
             }
 
             if isAbroad {
@@ -228,6 +258,22 @@ struct TravelView: View {
                         destinationButton(destination)
                     }
                 }
+
+                if selectedFlightMethod == .airstrip {
+                    Text("Requires a Private Island Airstrip upgrade and a currently hired pilot.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Text(
+                    "Current Torn base estimates; actual flights can vary by "
+                        + "±\(TornDestination.estimateVariancePercent)%. "
+                        + "Active-flight countdowns use API arrival data."
+                )
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -244,7 +290,9 @@ struct TravelView: View {
                         .font(.caption)
                         .lineLimit(1)
                 }
-                Text("~\(destination.flightTimeFormatted)")
+                Text(
+                    "~\(destination.flightTimeFormatted(method: selectedFlightMethod))"
+                )
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -254,6 +302,9 @@ struct TravelView: View {
             .cornerRadius(8)
         }
         .buttonStyle(.plain)
+        .accessibilityHint(
+            "Estimated with \(selectedFlightMethod.rawValue.lowercased()) travel"
+        )
     }
 
     // MARK: - Pre-Arrival Alerts Section

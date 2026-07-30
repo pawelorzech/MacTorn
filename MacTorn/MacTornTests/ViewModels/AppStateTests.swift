@@ -69,12 +69,18 @@ final class AppStateTests: XCTestCase {
         let mock = MockNetworkSession()
         let app = AppState(session: mock, connectivity: conn, defaults: .createMockDefaults())
         app.apiKey = "bad_key"
+        app.keyValidation = .validating
+        app.moneyData = MoneyData(cash: 42)
         try mock.setSuccessResponse(json: ["code": 2, "error": "Incorrect key"]) // HTTP 200 + Torn envelope
         app.startPolling()
         try await Task.sleep(nanoseconds: 1_000_000_000)
         XCTAssertTrue(app.keyHalted, "a code-2 error must halt polling")
         XCTAssertNil(app.data)
+        XCTAssertNil(app.moneyData, "revoked credentials must not leave stale account data visible")
         XCTAssertNotNil(app.errorMsg)
+        guard case .failure = app.keyValidation else {
+            return XCTFail("a permanently rejected key must invalidate prior validation")
+        }
         app.stopPolling()
     }
 
@@ -84,6 +90,83 @@ final class AppStateTests: XCTestCase {
         app.keyHalted = true
         app.apiKey = "fresh_key"   // didSet clears the halt
         XCTAssertFalse(app.keyHalted)
+    }
+
+    func testChangingKeyClearsPreviouslyAuthenticatedAccountData() throws {
+        let app = AppState(session: MockNetworkSession(),
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults())
+        app.apiKey = "account_a"
+        app.data = try JSONDecoder().decode(
+            TornResponse.self,
+            from: TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
+        )
+        app.moneyData = MoneyData(cash: 1_000, vault: 2_000)
+        app.activityEvents = try XCTUnwrap(app.data?.recentEvents)
+        app.lastUpdated = Date()
+
+        app.apiKey = "account_b"
+
+        XCTAssertNil(app.data)
+        XCTAssertNil(app.moneyData)
+        XCTAssertTrue(app.activityEvents.isEmpty)
+        XCTAssertNil(app.lastUpdated)
+        XCTAssertEqual(app.menuBarDisplay, .fallbackIcon)
+    }
+
+    func testResponseFromPreviousKeyCannotOverwriteCurrentAccount() async throws {
+        let delayed = try NonCooperativeDelayedNetworkSession(
+            json: TornAPIFixtures.validFullResponse(),
+            delay: 0.25
+        )
+        let app = AppState(session: delayed,
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults())
+        app.apiKey = "account_a"
+        app.fetchData()
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        app.apiKey = "account_b"
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertNil(app.data, "a non-cooperative response for account A must be discarded")
+        XCTAssertNil(app.lastUpdated)
+        XCTAssertFalse(app.isLoading)
+    }
+
+    func testKeyValidationFromPreviousKeyCannotOverwriteCurrentAccount() async throws {
+        let delayed = try NonCooperativeDelayedNetworkSession(
+            json: [
+                "info": [
+                    "access": [
+                        "level": 4, "type": "Full Access",
+                        "faction": true, "company": false
+                    ],
+                    "user": [
+                        "id": 42, "faction_id": 100,
+                        "company_id": NSNull()
+                    ],
+                    "selections": [
+                        "user": [], "faction": [], "market": [],
+                        "property": [], "torn": [], "racing": [],
+                        "forum": [], "key": ["info"], "company": []
+                    ]
+                ]
+            ],
+            delay: 0.25
+        )
+        let app = AppState(session: delayed,
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults())
+        app.apiKey = "account_a"
+        let validation = Task { await app.validateKey() }
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        app.apiKey = "account_b"
+        await validation.value
+
+        XCTAssertEqual(app.keyValidation, .idle)
+        XCTAssertNil(app.keyInfo)
     }
 
     func testHaltedPollingIssuesNoRequests() {
@@ -151,6 +234,91 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.data?.playerId, 123456)
         XCTAssertNil(appState.errorMsg)
         XCTAssertNotNil(appState.lastUpdated)
+    }
+
+    func testMalformedResponseDoesNotAdvanceLastSuccessfulRefresh() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: ["energy": "not-an-object"])
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertNil(appState.lastUpdated)
+        XCTAssertEqual(appState.errorMsg, "Failed to decode user data")
+        XCTAssertEqual(appState.endpointHealth.latest(for: "user.fast")?.outcome, .error)
+    }
+
+    func testEmptyResponsePreservesLastGoodSnapshotAndTimestamp() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let goodSnapshot = try XCTUnwrap(appState.data)
+        let goodTimestamp = try XCTUnwrap(appState.lastUpdated)
+
+        try mockSession.setSuccessResponse(json: [:])
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertEqual(appState.data?.playerId, goodSnapshot.playerId)
+        XCTAssertEqual(appState.data?.name, goodSnapshot.name)
+        XCTAssertEqual(appState.lastUpdated, goodTimestamp)
+        XCTAssertEqual(appState.errorMsg, "Failed to decode user data")
+        XCTAssertEqual(appState.endpointHealth.latest(for: "user.fast")?.outcome, .error)
+    }
+
+    func testNetworkErrorMessageNeverEchoesSensitiveLocalizedDescription() async throws {
+        appState.apiKey = "valid_key"
+        let secret = "TOP_SECRET_API_KEY"
+        mockSession.setNetworkError(
+            NSError(domain: "test", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "failed https://api.torn.com/user/?key=\(secret)"
+            ])
+        )
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertNotNil(appState.errorMsg)
+        XCTAssertFalse(appState.errorMsg?.contains(secret) == true)
+    }
+
+    func testAllRequestPathsRespectInjectedHardCap() async throws {
+        let coordinator = PollingCoordinator(hardCapPerMinute: 1)
+        let mock = MockNetworkSession()
+        try mock.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
+        let app = AppState(session: mock,
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults(),
+                           pollingCoordinator: coordinator)
+        app.apiKey = "valid_key"
+
+        await app.validateKey()
+        let countAtCap = mock.requestedURLs.count
+        app.addToWatchlist(itemId: 206, name: "Xanax")
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertEqual(countAtCap, 1)
+        XCTAssertEqual(mock.requestedURLs.count, 1,
+                       "market refresh must not bypass the shared per-minute cap")
+        XCTAssertEqual(app.watchlistItems.first?.error, "Request limit reached")
+    }
+
+    func testInvalidPersistedRefreshIntervalFallsBackToSafeDefault() {
+        let defaults = UserDefaults.createMockDefaults()
+        defaults.set(0, forKey: "refreshInterval")
+
+        let app = AppState(session: MockNetworkSession(), defaults: defaults)
+
+        XCTAssertEqual(app.refreshInterval, 30)
+    }
+
+    func testRuntimeRefreshIntervalRejectsUnsafeValue() {
+        appState.refreshInterval = -1
+
+        XCTAssertEqual(appState.refreshInterval, 30)
+        XCTAssertEqual(testDefaults.integer(forKey: "refreshInterval"), 30)
     }
 
     func testFetchData_parsesAllBars() async throws {
@@ -459,7 +627,9 @@ final class AppStateTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "API Error: Too many requests")
+        XCTAssertEqual(appState.errorMsg, "Too many requests — backing off.")
+        XCTAssertEqual(mockSession.requestedURLs.count, 1,
+                       "a rate-limited main response must not fan out optional requests")
     }
 
     // MARK: - Network Error Tests
@@ -472,8 +642,7 @@ final class AppStateTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertNotNil(appState.errorMsg)
-        XCTAssertTrue(appState.errorMsg?.contains("Network error") ?? false)
+        XCTAssertEqual(appState.errorMsg, "Network request failed. Please try again.")
     }
 
     // MARK: - HTTP Error Tests
@@ -715,8 +884,7 @@ final class AppStateTests: XCTestCase {
     /// drives the chain alert.
     func testDailyRowLimitPausesOnlyRowSources() async throws {
         let clock = MutableTimeSource()
-        let mock = MockNetworkSession()
-        try mock.setTornAPIError(code: 14, message: "Daily read limit reached")
+        let mock = try DailyRowLimitNetworkSession()
         let state = AppState(session: mock,
                              connectivity: ControllableConnectivity(connected: true),
                              defaults: .createMockDefaults(),
@@ -736,8 +904,7 @@ final class AppStateTests: XCTestCase {
     /// The pause re-arms once its window elapses (driven by the injected clock).
     func testRowSourcePauseReArmsAfterWindow() async throws {
         let clock = MutableTimeSource()
-        let mock = MockNetworkSession()
-        try mock.setTornAPIError(code: 14, message: "Daily read limit reached")
+        let mock = try DailyRowLimitNetworkSession()
         let state = AppState(session: mock,
                              connectivity: ControllableConnectivity(connected: true),
                              defaults: .createMockDefaults(),
@@ -757,15 +924,20 @@ final class AppStateTests: XCTestCase {
 
     /// A successful poll records health for every fan-out endpoint, not just the fast poll.
     func testFetchDataRecordsHealthForFanOutEndpoints() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
+        let session = try FanOutSuccessNetworkSession()
+        let state = AppState(
+            session: session,
+            connectivity: ControllableConnectivity(connected: true),
+            defaults: .createMockDefaults()
+        )
+        state.apiKey = "valid_key"
 
-        appState.fetchData()
+        state.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
         for id in ["user.fast", "faction.basic", "user.v2", "user.activity",
                    "faction.rankedwars", "faction.news"] {
-            XCTAssertEqual(appState.endpointHealth.latest(for: id)?.outcome, .ok,
+            XCTAssertEqual(state.endpointHealth.latest(for: id)?.outcome, .ok,
                            "health should be recorded (ok) for \(id)")
         }
     }
@@ -808,5 +980,136 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(relaunched.shouldNotifyOCReady(ready5), "dedup persists across restart")
         let ready6 = OrganizedCrime2(id: 6, name: "New OC", readyAt: now - 10)
         XCTAssertTrue(relaunched.shouldNotifyOCReady(ready6), "a new OC id re-arms")
+    }
+}
+
+/// Simulates URLSession work that completes even after its caller is cancelled. This
+/// proves account isolation does not rely on cooperative task cancellation.
+private final class NonCooperativeDelayedNetworkSession: NetworkSession, @unchecked Sendable {
+    private let responseData: Data
+    private let delay: TimeInterval
+
+    init(json: [String: Any], delay: TimeInterval) throws {
+        self.responseData = try JSONSerialization.data(withJSONObject: json)
+        self.delay = delay
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + delay) {
+                let response = HTTPURLResponse(
+                    url: request.url ?? URL(string: "https://api.torn.com")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                continuation.resume(returning: (self.responseData, response))
+            }
+        }
+    }
+}
+
+/// Returns a successful point-in-time poll while applying Torn code 14 only to the two
+/// row-based fan-out endpoints. A code-14 envelope on `user.fast` is not representative:
+/// that endpoint requests no row selections and now correctly stops fan-out on any main
+/// error rather than issuing more requests into a limited API.
+private final class DailyRowLimitNetworkSession: NetworkSession, @unchecked Sendable {
+    private let userFastData: Data
+    private let factionBasicData: Data
+    private let userV2Data: Data
+    private let rankedWarsData: Data
+    private let dailyLimitData: Data
+
+    init() throws {
+        userFastData = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
+        factionBasicData = try TornAPIFixtures.toData([
+            "name": "Test Faction",
+            "ID": 123,
+            "respect": 456,
+            "chain": ["current": 0, "max": 0, "timeout": 0, "cooldown": 0]
+        ])
+        userV2Data = try TornAPIFixtures.toData([:])
+        rankedWarsData = try TornAPIFixtures.toData(["rankedwars": []])
+        dailyLimitData = try TornAPIFixtures.toData([
+            "error": ["code": 14, "error": "Daily read limit reached"]
+        ])
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let url = request.url ?? URL(string: "https://api.torn.com")!
+        let selections = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "selections" })?
+            .value ?? ""
+
+        let data: Data
+        if url.path.contains("/v2/faction/news") {
+            data = dailyLimitData
+        } else if url.path.contains("/v2/faction/rankedwars") {
+            data = rankedWarsData
+        } else if url.path == "/v2/user" {
+            data = userV2Data
+        } else if url.pathComponents.contains("faction") {
+            data = factionBasicData
+        } else if selections.contains("events") {
+            data = dailyLimitData
+        } else {
+            data = userFastData
+        }
+
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (data, response)
+    }
+}
+
+/// Returns the correct successful schema for every endpoint in the poll fan-out.
+/// A single generic user payload is intentionally insufficient now that each extracted
+/// service owns strict semantic decoding for its endpoint.
+private final class FanOutSuccessNetworkSession: NetworkSession, @unchecked Sendable {
+    private let userData: Data
+    private let factionBasicData: Data
+    private let userV2Data: Data
+    private let rankedWarsData: Data
+    private let factionNewsData: Data
+
+    init() throws {
+        userData = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
+        factionBasicData = try TornAPIFixtures.toData([
+            "name": "Test Faction",
+            "ID": 123,
+            "respect": 456,
+            "chain": ["current": 0, "max": 0, "timeout": 0, "cooldown": 0],
+        ])
+        userV2Data = try TornAPIFixtures.toData([:])
+        rankedWarsData = try TornAPIFixtures.toData(TornAPIFixtures.rankedWarsResponse())
+        factionNewsData = try TornAPIFixtures.toData(TornAPIFixtures.factionNewsResponse)
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let url = request.url ?? URL(string: "https://api.torn.com")!
+        let data: Data
+        if url.path.contains("/v2/faction/news") {
+            data = factionNewsData
+        } else if url.path.contains("/v2/faction/rankedwars") {
+            data = rankedWarsData
+        } else if url.path == "/v2/user" {
+            data = userV2Data
+        } else if url.pathComponents.contains("faction") {
+            data = factionBasicData
+        } else {
+            data = userData
+        }
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (data, response)
     }
 }

@@ -15,6 +15,17 @@
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA10003 /* Assets.xcassets */; };
 		AAA00004 /* TornModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10004 /* TornModels.swift */; };
 		AAA00005 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10005 /* AppState.swift */; };
+		AAA00041 /* AccountSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10041 /* AccountSessionStore.swift */; };
+		AAA00042 /* UserSnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10042 /* UserSnapshotService.swift */; };
+		AAA00043 /* MarketWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10043 /* MarketWatchService.swift */; };
+		AAA00044 /* ForumWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10044 /* ForumWatchService.swift */; };
+		AAA00045 /* FactionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10045 /* FactionService.swift */; };
+		AAA00046 /* AppState+MarketForum.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10046 /* AppState+MarketForum.swift */; };
+		AAA00047 /* AppState+NotificationsFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10047 /* AppState+NotificationsFeedback.swift */; };
+		AAA00048 /* AppState+PersistenceStocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10048 /* AppState+PersistenceStocks.swift */; };
+		AAA00049 /* AppState+LiveNextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10049 /* AppState+LiveNextAction.swift */; };
+		AAA00050 /* AppState+PollingUserFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10050 /* AppState+PollingUserFetch.swift */; };
+		AAA00051 /* AppState+FactionFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10051 /* AppState+FactionFetch.swift */; };
 		AAA00006 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10006 /* SettingsView.swift */; };
 		AAA00007 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10007 /* StatusView.swift */; };
 		AAA00008 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10008 /* ProgressBarView.swift */; };
@@ -78,6 +89,11 @@
 		AAA00036 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10036 /* DiagnosticsView.swift */; };
 		BBB00028 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10028 /* DiagnosticsTests.swift */; };
 		BBB00030 /* UITestHarnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10030 /* UITestHarnessTests.swift */; };
+		BBB00032 /* AccountSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10032 /* AccountSessionStoreTests.swift */; };
+		BBB00033 /* UserSnapshotServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10033 /* UserSnapshotServiceTests.swift */; };
+		BBB00034 /* MarketWatchServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10034 /* MarketWatchServiceTests.swift */; };
+		BBB00035 /* ForumWatchServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10035 /* ForumWatchServiceTests.swift */; };
+		BBB00036 /* FactionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10036 /* FactionServiceTests.swift */; };
 		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
 		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
 		BBB00029 /* NextActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10029 /* NextActionTests.swift */; };
@@ -108,6 +124,17 @@
 		AAA10003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AAA10004 /* TornModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornModels.swift; sourceTree = "<group>"; };
 		AAA10005 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		AAA10041 /* AccountSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionStore.swift; sourceTree = "<group>"; };
+		AAA10042 /* UserSnapshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSnapshotService.swift; sourceTree = "<group>"; };
+		AAA10043 /* MarketWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketWatchService.swift; sourceTree = "<group>"; };
+		AAA10044 /* ForumWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchService.swift; sourceTree = "<group>"; };
+		AAA10045 /* FactionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionService.swift; sourceTree = "<group>"; };
+		AAA10046 /* AppState+MarketForum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+MarketForum.swift"; sourceTree = "<group>"; };
+		AAA10047 /* AppState+NotificationsFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+NotificationsFeedback.swift"; sourceTree = "<group>"; };
+		AAA10048 /* AppState+PersistenceStocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+PersistenceStocks.swift"; sourceTree = "<group>"; };
+		AAA10049 /* AppState+LiveNextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+LiveNextAction.swift"; sourceTree = "<group>"; };
+		AAA10050 /* AppState+PollingUserFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+PollingUserFetch.swift"; sourceTree = "<group>"; };
+		AAA10051 /* AppState+FactionFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+FactionFetch.swift"; sourceTree = "<group>"; };
 		AAA10006 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AAA10007 /* StatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusView.swift; sourceTree = "<group>"; };
 		AAA10008 /* ProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBarView.swift; sourceTree = "<group>"; };
@@ -174,6 +201,11 @@
 		AAA10036 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BBB10028 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
 		BBB10030 /* UITestHarnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHarnessTests.swift; sourceTree = "<group>"; };
+		BBB10032 /* AccountSessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionStoreTests.swift; sourceTree = "<group>"; };
+		BBB10033 /* UserSnapshotServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSnapshotServiceTests.swift; sourceTree = "<group>"; };
+		BBB10034 /* MarketWatchServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketWatchServiceTests.swift; sourceTree = "<group>"; };
+		BBB10035 /* ForumWatchServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchServiceTests.swift; sourceTree = "<group>"; };
+		BBB10036 /* FactionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionServiceTests.swift; sourceTree = "<group>"; };
 		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
 		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
 		BBB10029 /* NextActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionTests.swift; sourceTree = "<group>"; };
@@ -254,6 +286,17 @@
 			isa = PBXGroup;
 			children = (
 				AAA10005 /* AppState.swift */,
+				AAA10041 /* AccountSessionStore.swift */,
+				AAA10042 /* UserSnapshotService.swift */,
+				AAA10043 /* MarketWatchService.swift */,
+				AAA10044 /* ForumWatchService.swift */,
+				AAA10045 /* FactionService.swift */,
+				AAA10046 /* AppState+MarketForum.swift */,
+				AAA10047 /* AppState+NotificationsFeedback.swift */,
+				AAA10048 /* AppState+PersistenceStocks.swift */,
+				AAA10049 /* AppState+LiveNextAction.swift */,
+				AAA10050 /* AppState+PollingUserFetch.swift */,
+				AAA10051 /* AppState+FactionFetch.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -397,6 +440,11 @@
 				BBB10028 /* DiagnosticsTests.swift */,
 				BBB10029 /* NextActionTests.swift */,
 				BBB10030 /* UITestHarnessTests.swift */,
+				BBB10032 /* AccountSessionStoreTests.swift */,
+				BBB10033 /* UserSnapshotServiceTests.swift */,
+				BBB10034 /* MarketWatchServiceTests.swift */,
+				BBB10035 /* ForumWatchServiceTests.swift */,
+				BBB10036 /* FactionServiceTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -548,6 +596,17 @@
 				AAA00002 /* ContentView.swift in Sources */,
 				AAA00004 /* TornModels.swift in Sources */,
 				AAA00005 /* AppState.swift in Sources */,
+				AAA00041 /* AccountSessionStore.swift in Sources */,
+				AAA00042 /* UserSnapshotService.swift in Sources */,
+				AAA00043 /* MarketWatchService.swift in Sources */,
+				AAA00044 /* ForumWatchService.swift in Sources */,
+				AAA00045 /* FactionService.swift in Sources */,
+				AAA00046 /* AppState+MarketForum.swift in Sources */,
+				AAA00047 /* AppState+NotificationsFeedback.swift in Sources */,
+				AAA00048 /* AppState+PersistenceStocks.swift in Sources */,
+				AAA00049 /* AppState+LiveNextAction.swift in Sources */,
+				AAA00050 /* AppState+PollingUserFetch.swift in Sources */,
+				AAA00051 /* AppState+FactionFetch.swift in Sources */,
 				AAA00006 /* SettingsView.swift in Sources */,
 				AAA00007 /* StatusView.swift in Sources */,
 				AAA00008 /* ProgressBarView.swift in Sources */,
@@ -622,6 +681,11 @@
 				BBB00028 /* DiagnosticsTests.swift in Sources */,
 				BBB00030 /* UITestHarnessTests.swift in Sources */,
 				BBB00029 /* NextActionTests.swift in Sources */,
+				BBB00032 /* AccountSessionStoreTests.swift in Sources */,
+				BBB00033 /* UserSnapshotServiceTests.swift in Sources */,
+				BBB00034 /* MarketWatchServiceTests.swift in Sources */,
+				BBB00035 /* ForumWatchServiceTests.swift in Sources */,
+				BBB00036 /* FactionServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -793,7 +857,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.10.0;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -820,7 +884,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.10.0;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -837,7 +901,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.10.0;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -855,7 +919,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.10.0;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -872,7 +936,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.10.0;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -889,7 +953,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.10.0;
+				MARKETING_VERSION = 1.11.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
