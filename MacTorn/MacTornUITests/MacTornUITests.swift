@@ -141,7 +141,7 @@ final class MacTornUITests: XCTestCase {
     /// Pins the AX contract for all seven modules and Settings. Audio order and keyboard
     /// focus still require the manual system-level matrix documented in the QA report.
     func testAllModulesAndSettingsExposeStableAXContract() throws {
-        let app = launch(fixture: "full", apiKey: "sample-ax-user", windowHeight: 1000)
+        let app = launch(fixture: "full", apiKey: "sample-ax-user")
         _ = window(app)
 
         let groups: [(name: String, modules: [String])] = [
@@ -242,8 +242,7 @@ final class MacTornUITests: XCTestCase {
     func testAccountSwitchNeverFlashesStaleIdentity() throws {
         let app = launch(
             fixture: "accountSwitch",
-            apiKey: "fixture-account-a",
-            windowHeight: 900
+            apiKey: "fixture-account-a"
         )
         _ = window(app)
 
@@ -300,8 +299,7 @@ final class MacTornUITests: XCTestCase {
     func testTestConnectionReportsAccess() throws {
         let app = launch(
             fixture: "full",
-            apiKey: "sample-connection-user",
-            windowHeight: 900
+            apiKey: "sample-connection-user"
         )
         _ = window(app)
 
