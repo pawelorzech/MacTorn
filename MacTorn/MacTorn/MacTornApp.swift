@@ -62,7 +62,7 @@ struct MacTornApp: App {
     // `UITestRootView` gates its content on `UITestConfiguration.isActive` and closes this
     // window on a normal (non-UI-test) Debug launch, so it is invisible outside UI tests.
     private var uiTestWindow: some Scene {
-        WindowGroup(id: "uitest-window") {
+        WindowGroup("MacTorn UI Tests", id: "uitest-window") {
             UITestRootView(appState: appState)
                 .environment(navigation)
         }

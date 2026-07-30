@@ -41,7 +41,7 @@ final class MacTornUITests: XCTestCase {
 
     /// The single UI-test window. Waits for it so tests don't race the launch.
     private func window(_ app: XCUIApplication) -> XCUIElement {
-        let win = app.windows.firstMatch
+        let win = app.windows["MacTorn UI Tests"]
         XCTAssertTrue(win.waitForExistence(timeout: 15), "UI-test window never appeared")
         return win
     }

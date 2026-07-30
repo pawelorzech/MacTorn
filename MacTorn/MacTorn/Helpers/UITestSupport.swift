@@ -319,6 +319,7 @@ private struct UITestWindowConfigurator: NSViewRepresentable {
         DispatchQueue.main.async { [weak view] in
             guard let window = view?.window else { return }
             if active {
+                window.title = "MacTorn UI Tests"
                 window.setContentSize(NSSize(width: 320, height: height))
                 window.center()
                 window.makeKeyAndOrderFront(nil)
