@@ -130,7 +130,6 @@ struct WatchlistView: View {
             }
             .padding()
         }
-        .fixedSize(horizontal: false, vertical: true)
         .task {
             appState.refreshWatchlistPrices()
         }

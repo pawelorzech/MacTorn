@@ -139,7 +139,6 @@ struct FactionView: View {
             }
             .padding()
         }
-        .fixedSize(horizontal: false, vertical: true)
     }
     
     private func chainColor(remaining: Int) -> Color {

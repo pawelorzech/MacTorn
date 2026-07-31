@@ -78,7 +78,7 @@ struct StatusView: View {
             }
             .padding(12)
         }
-        .frame(height: 480)
+        .frame(maxHeight: 480)
     }
     
     // MARK: - Header

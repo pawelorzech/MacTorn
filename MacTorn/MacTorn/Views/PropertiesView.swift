@@ -7,6 +7,15 @@ struct PropertiesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
+                ModuleStateView(
+                    state: appState.presentationState(
+                        endpointIDs: ["user.fast"],
+                        hasContent: appState.propertiesData != nil,
+                        staleAfter: 120
+                    ),
+                    onRetry: appState.refreshNow
+                )
+
                 // Property Info
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
@@ -14,6 +23,12 @@ struct PropertiesView: View {
                             .foregroundColor(.brown)
                         Text("Properties")
                             .font(.caption.bold())
+                        Spacer()
+                        if let properties = appState.propertiesData, !properties.isEmpty {
+                            Text("Market: \(formatMoney(properties.reduce(0) { $0 + $1.marketprice }))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
                     }
                     
                     if let properties = appState.propertiesData, !properties.isEmpty {
@@ -47,13 +62,21 @@ struct PropertiesView: View {
             }
             .padding()
         }
-        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("account.properties")
     }
     
     private func openURL(_ urlString: String) {
         if let url = URL(string: urlString) {
             BrowserManager.shared.open(url)
         }
+    }
+
+    private func formatMoney(_ amount: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "$"
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
     }
 }
 

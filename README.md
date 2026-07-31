@@ -39,11 +39,11 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 - Pre-arrival notifications (configurable: 2min, 1min, 30sec, 10sec)
 - Country flags for all destinations
 
-### 💰 Money / Net Worth Tab
-- **Net worth dashboard**: Cash, Vault, Cayman, Properties, Stocks at a glance
-- Property vault breakdown (per-property)
-- Stock holdings with cost basis
-- Total tracked net worth
+### 💰 Account
+- **Money**: Cash, Vault, Cayman, total tracked net worth, and quick actions
+- **Properties**: Dedicated property cards with market value, cost, happy, and rental status
+- **Stocks**: Dedicated, scrollable holdings list with market value and cost basis
+- **Faction**: Faction status, chain, Organized Crime, wars, news, and armory actions
 - Quick actions: Send Money, Bazaar, Bank
 
 ### ⚔️ Attacks Tab
@@ -90,7 +90,7 @@ MacTorn respects macOS accessibility settings:
 ## Installation
 
 1. Download the latest release from [Releases](https://github.com/pawelorzech/MacTorn/releases)
-2. Unzip and drag `MacTorn.app` to your Applications folder
+2. Open the DMG and drag `MacTorn.app` to your Applications folder
 3. Open MacTorn from Applications
 4. Enter your [Torn API Key](https://www.torn.com/preferences.php#tab=api)
 

@@ -121,7 +121,6 @@ struct AttacksView: View {
             }
             .padding()
         }
-        .fixedSize(horizontal: false, vertical: true)
     }
     
     private func formatStat(_ value: Int) -> String {

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.11.1] — 2026-07-31 — focused account views
+
+### Changed
+- **Account is split into focused modules.** Money, Properties, Stocks, and Faction
+  now have separate destinations under the existing Account group, keeping the
+  financial overview readable without merging every holding into one long screen.
+- **Money is a glanceable summary.** Cash, total tracked value, and quick actions
+  remain together, while detailed property and stock holdings live in their own views.
+
+### Fixed
+- Module scroll views now stay inside the compact popover instead of expanding to
+  their full content height, so long lists remain scrollable and the footer stays
+  reachable on smaller displays.
+
+### Quality
+- Added a compact-window UI regression covering four Account modules at 320×480,
+  a 24-row Stocks fixture, footer visibility, and scrolling to the final action.
+
 ## [1.11.0] — 2026-07-30 — compact UX & resilience
 
 ### Changed

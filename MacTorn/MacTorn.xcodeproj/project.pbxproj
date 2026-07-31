@@ -41,6 +41,7 @@
 		AAA00018 /* FactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10019 /* FactionView.swift */; };
 		AAA00019 /* WatchlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10020 /* WatchlistView.swift */; };
 		AAA00020 /* PropertiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10021 /* PropertiesView.swift */; };
+		AAA00052 /* StocksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10052 /* StocksView.swift */; };
 		AAA00021 /* NetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10022 /* NetworkSession.swift */; };
 		AAA00022 /* TravelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10023 /* TravelView.swift */; };
 		AAA00023 /* CreditsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10024 /* CreditsView.swift */; };
@@ -151,6 +152,7 @@
 		AAA10019 /* FactionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionView.swift; sourceTree = "<group>"; };
 		AAA10020 /* WatchlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistView.swift; sourceTree = "<group>"; };
 		AAA10021 /* PropertiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesView.swift; sourceTree = "<group>"; };
+		AAA10052 /* StocksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StocksView.swift; sourceTree = "<group>"; };
 		AAA10022 /* NetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSession.swift; sourceTree = "<group>"; };
 		AAA10023 /* TravelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelView.swift; sourceTree = "<group>"; };
 		AAA10024 /* CreditsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditsView.swift; sourceTree = "<group>"; };
@@ -315,6 +317,7 @@
 				AAA10020 /* WatchlistView.swift */,
 				AAA10029 /* ForumWatchView.swift */,
 				AAA10021 /* PropertiesView.swift */,
+				AAA10052 /* StocksView.swift */,
 				AAA10036 /* DiagnosticsView.swift */,
 				AAA30006 /* Components */,
 			);
@@ -622,6 +625,7 @@
 				AAA00018 /* FactionView.swift in Sources */,
 				AAA00019 /* WatchlistView.swift in Sources */,
 				AAA00020 /* PropertiesView.swift in Sources */,
+				AAA00052 /* StocksView.swift in Sources */,
 				AAA00021 /* NetworkSession.swift in Sources */,
 				AAA00030 /* TornEndpoint.swift in Sources */,
 				AAA00031 /* TornAPIError.swift in Sources */,
@@ -857,7 +861,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.11.0;
+				MARKETING_VERSION = 1.11.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -884,7 +888,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.11.0;
+				MARKETING_VERSION = 1.11.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -901,7 +905,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.0;
+				MARKETING_VERSION = 1.11.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -919,7 +923,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.0;
+				MARKETING_VERSION = 1.11.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -936,7 +940,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.0;
+				MARKETING_VERSION = 1.11.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -953,7 +957,7 @@
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.0;
+				MARKETING_VERSION = 1.11.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

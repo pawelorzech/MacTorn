@@ -123,7 +123,6 @@ struct TravelView: View {
             }
             .padding()
         }
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     // MARK: - Travel Status Section

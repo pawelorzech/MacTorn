@@ -254,6 +254,19 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
         "chain": ["current": 0, "maximum": 10, "timeout": 0, "cooldown": 0],
         "money_onhand": 1_000_000,
         "points": 10,
+        // Deliberately long: compact-window UI tests use this list to prove the
+        // module scrolls to its bottom instead of expanding beyond the footer.
+        "stocks": Dictionary(
+            uniqueKeysWithValues: (1...24).map { stockID in
+                (
+                    String(stockID),
+                    [
+                        "stock_id": stockID,
+                        "total_shares": stockID * 100_000,
+                    ]
+                )
+            }
+        ),
     ] }
 }
 

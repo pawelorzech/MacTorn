@@ -16,7 +16,7 @@ enum AppGroup: String, CaseIterable {
     var tabs: [AppTab] {
         switch self {
         case .now: return [.status, .travel, .attacks]
-        case .account: return [.money, .faction]
+        case .account: return [.money, .properties, .stocks, .faction]
         case .watch: return [.watchlist, .forums]
         }
     }
@@ -30,6 +30,8 @@ enum AppTab: String, CaseIterable {
     case status = "Status"
     case travel = "Travel"
     case money = "Money"
+    case properties = "Properties"
+    case stocks = "Stocks"
     case attacks = "Attacks"
     case faction = "Faction"
     case watchlist = "Watchlist"
@@ -40,6 +42,8 @@ enum AppTab: String, CaseIterable {
         case .status: return "chart.bar.fill"
         case .travel: return "airplane"
         case .money: return "dollarsign.circle.fill"
+        case .properties: return "house.fill"
+        case .stocks: return "chart.line.uptrend.xyaxis"
         case .attacks: return "bolt.shield.fill"
         case .faction: return "person.3.fill"
         case .watchlist: return "chart.line.uptrend.xyaxis"
@@ -50,7 +54,7 @@ enum AppTab: String, CaseIterable {
     var group: AppGroup {
         switch self {
         case .status, .travel, .attacks: return .now
-        case .money, .faction: return .account
+        case .money, .properties, .stocks, .faction: return .account
         case .watchlist, .forums: return .watch
         }
     }
@@ -275,6 +279,12 @@ struct ContentView: View {
                 .environment(appState)
         case .money:
             MoneyView()
+                .environment(appState)
+        case .properties:
+            PropertiesView()
+                .environment(appState)
+        case .stocks:
+            StocksView()
                 .environment(appState)
         case .attacks:
             AttacksView()

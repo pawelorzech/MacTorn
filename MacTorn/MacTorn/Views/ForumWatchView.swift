@@ -153,7 +153,6 @@ struct ForumWatchView: View {
             }
             .padding()
         }
-        .fixedSize(horizontal: false, vertical: true)
         .onDisappear {
             undoDismissTask?.cancel()
             recentlyRemoved = nil

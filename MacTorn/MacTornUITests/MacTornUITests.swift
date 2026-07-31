@@ -138,7 +138,56 @@ final class MacTornUITests: XCTestCase {
         assertDoNotOverlap(nowModules)
     }
 
-    /// Pins the AX contract for all seven modules and Settings. Audio order and keyboard
+    /// Financial data is split into focused Account modules, and the longest one
+    /// remains scrollable without pushing the footer outside a short display.
+    func testAccountModulesFitAndStocksScrollInShortWindow() throws {
+        let app = launch(
+            fixture: "full",
+            apiKey: "sample-short-window-user",
+            windowHeight: 480
+        )
+        let win = window(app)
+
+        win.buttons["uitest.group.Account"].click()
+
+        let accountModules = ["Money", "Properties", "Stocks", "Faction"].map {
+            win.buttons["uitest.tab.\($0)"]
+        }
+        for module in accountModules {
+            XCTAssertTrue(module.waitForExistence(timeout: 10))
+            XCTAssertTrue(module.isHittable)
+            assertContained(module, in: win)
+        }
+        assertDoNotOverlap(accountModules)
+
+        XCTAssertTrue(
+            win.buttons["Send Money"].isHittable,
+            "Money should remain a glanceable single-screen summary"
+        )
+
+        win.buttons["uitest.tab.Stocks"].click()
+        let stocksScroll = win.scrollViews["uitest.tabContent.Stocks"]
+        XCTAssertTrue(stocksScroll.waitForExistence(timeout: 10))
+        assertContained(stocksScroll, in: win)
+
+        let footer = win.buttons["uitest.openSettings"]
+        XCTAssertTrue(footer.isHittable, "The fixed footer should remain reachable")
+
+        let stockMarket = win.buttons["Stock Market"]
+        XCTAssertFalse(
+            stockMarket.isHittable,
+            "The long fixture should start with its bottom action outside the viewport"
+        )
+        for _ in 0..<12 where !stockMarket.isHittable {
+            stocksScroll.swipeUp()
+        }
+        XCTAssertTrue(
+            stockMarket.isHittable,
+            "The bottom of a long Stocks module should be reachable by scrolling"
+        )
+    }
+
+    /// Pins the AX contract for all nine modules and Settings. Audio order and keyboard
     /// focus still require the manual system-level matrix documented in the QA report.
     func testAllModulesAndSettingsExposeStableAXContract() throws {
         let app = launch(fixture: "full", apiKey: "sample-ax-user")
@@ -146,7 +195,7 @@ final class MacTornUITests: XCTestCase {
 
         let groups: [(name: String, modules: [String])] = [
             ("Now", ["Status", "Travel", "Attacks"]),
-            ("Account", ["Money", "Faction"]),
+            ("Account", ["Money", "Properties", "Stocks", "Faction"]),
             ("Watch", ["Watchlist", "Forums"]),
         ]
 

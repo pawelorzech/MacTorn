@@ -148,7 +148,7 @@ final class UITestHarnessTests: XCTestCase {
 
     func testNavigationGroupMappingsAndDefaults() {
         XCTAssertEqual(AppGroup.now.tabs, [.status, .travel, .attacks])
-        XCTAssertEqual(AppGroup.account.tabs, [.money, .faction])
+        XCTAssertEqual(AppGroup.account.tabs, [.money, .properties, .stocks, .faction])
         XCTAssertEqual(AppGroup.watch.tabs, [.watchlist, .forums])
 
         for group in AppGroup.allCases {
@@ -164,7 +164,7 @@ final class UITestHarnessTests: XCTestCase {
 
         XCTAssertEqual(Set(commands.compactMap(\.tab)), Set(AppTab.allCases))
         XCTAssertEqual(Set(commands.map(\.keyEquivalent)).count, AppTab.allCases.count)
-        XCTAssertEqual(commands.map(\.keyEquivalent), Array("1234567"))
+        XCTAssertEqual(commands.map(\.keyEquivalent), Array("123456789"))
     }
 
     func testGlobalCommandShortcutsRemainConventional() {

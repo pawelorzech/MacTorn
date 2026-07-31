@@ -12,6 +12,8 @@ enum MacTornCommand: String, CaseIterable, Identifiable {
     case travel
     case attacks
     case money
+    case properties
+    case stocks
     case faction
     case watchlist
     case forums
@@ -26,6 +28,8 @@ enum MacTornCommand: String, CaseIterable, Identifiable {
         case .travel: return "Go to Travel"
         case .attacks: return "Go to Attacks"
         case .money: return "Go to Money"
+        case .properties: return "Go to Properties"
+        case .stocks: return "Go to Stocks"
         case .faction: return "Go to Faction"
         case .watchlist: return "Go to Watchlist"
         case .forums: return "Go to Forums"
@@ -40,9 +44,11 @@ enum MacTornCommand: String, CaseIterable, Identifiable {
         case .travel: return "2"
         case .attacks: return "3"
         case .money: return "4"
-        case .faction: return "5"
-        case .watchlist: return "6"
-        case .forums: return "7"
+        case .properties: return "5"
+        case .stocks: return "6"
+        case .faction: return "7"
+        case .watchlist: return "8"
+        case .forums: return "9"
         }
     }
 
@@ -52,6 +58,8 @@ enum MacTornCommand: String, CaseIterable, Identifiable {
         case .travel: return .travel
         case .attacks: return .attacks
         case .money: return .money
+        case .properties: return .properties
+        case .stocks: return .stocks
         case .faction: return .faction
         case .watchlist: return .watchlist
         case .forums: return .forums
