@@ -83,9 +83,13 @@ For community discussion and feedback, see the [Torn forums thread](https://www.
 
 MacTorn respects macOS accessibility settings:
 
-- **Reduce Transparency**: When enabled in System Settings → Accessibility → Display, the app uses solid backgrounds instead of translucent materials for better readability
+- **Reduce Transparency**: Follows System Settings → Accessibility → Display → Reduce transparency automatically, switching to solid backgrounds. Settings also has an "Always reduce transparency" switch to force it on regardless of the system setting.
+- **Reduce Motion**: Panel and undo-banner animations are suppressed when System Settings → Accessibility → Display → Reduce motion is on.
+- **VoiceOver**: The menu bar label announces its meaning ("Traveling to Japan, arriving in 2 minutes 35 seconds") rather than reading out the raw emoji, and progress bars expose a label plus a percentage value.
 - **Light & Dark Mode**: Full support for both appearance modes with optimized contrast
 - **Color-coded indicators**: Status bars and badges use distinct colors that work well in both modes
+
+Accessibility work in progress — not yet complete: several module tabs (Attacks, Faction, Money, Properties, Stocks) still expose their rows as unlabelled elements, and attack results are conveyed by icon and colour without a text equivalent. See `AUDIT_REPORT.md`.
 
 ## Installation
 
