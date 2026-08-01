@@ -59,7 +59,7 @@ for file in "${CRITICAL_FILES[@]}"; do
   fi
 
   # Compare as floats via awk (bash can't do decimals).
-  if awk "BEGIN { exit !($pct < $THRESHOLD) }"; then
+  if awk -v pct="$pct" -v threshold="$THRESHOLD" 'BEGIN { exit !(pct < threshold) }'; then
     printf 'FAIL     %-32s %6s%% (< %s%%)\n' "$file" "$pct" "$THRESHOLD"
     failed=1
   else

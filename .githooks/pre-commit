@@ -6,10 +6,14 @@
 
 set -euo pipefail
 
+# Fail closed. A missing scanner used to `exit 0` with a warning, so on a machine
+# where gitleaks was never installed (or was removed) `make hooks` left a hook that
+# looked installed but checked nothing — and the warning scrolls past unread.
 if ! command -v gitleaks >/dev/null 2>&1; then
-  echo "⚠️  gitleaks not installed — skipping secret scan."
-  echo "    Install with: brew install gitleaks"
-  exit 0
+  echo "🛑 Commit blocked: gitleaks is not installed, so staged changes were NOT scanned."
+  echo "    • Install it:      brew install gitleaks"
+  echo "    • Or skip once:    git commit --no-verify   (you take responsibility)"
+  exit 1
 fi
 
 if ! gitleaks git --staged --no-banner --redact --config .gitleaks.toml; then

@@ -26,11 +26,19 @@ keywords = ["api_key", "apikey", "tornapikey", "torn_api_key"]
 
 [allowlist]
 description = "Globally ignored paths and values"
-# Documentation and lockfiles never contain live credentials.
+# Binary assets can't carry a reviewable secret in text form.
 paths = [
   '''(.*?)(png|jpg|jpeg|gif|svg|ico|pdf)$''',
 ]
-# Obvious placeholders used throughout the codebase, docs and tests.
+# Placeholders must match the WHOLE detected secret, not merely appear somewhere on
+# the line. The previous pattern was substring-based, so any line containing the word
+# "example" (a comment, a URL, a doc sentence) silenced the finding on that line —
+# including a real key sitting next to it. (Audit finding S-05.)
+regexTarget = "match"
 regexes = [
-  '''(?i)(your[_-]?api[_-]?key|placeholder|example|dummy|sample|xxxx+|0{8,}|1234567890)''',
+  '''(?i)^your[_-]?api[_-]?key$''',
+  '''(?i)^(placeholder|dummy|sample|example)$''',
+  '''^x{4,}$''',
+  '''^0{8,}$''',
+  '''^1234567890$''',
 ]
