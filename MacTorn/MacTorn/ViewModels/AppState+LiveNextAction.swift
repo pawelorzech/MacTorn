@@ -107,18 +107,22 @@ extension AppState {
         var snapshot = NextActionSnapshot(now: nowUnix)
 
         if let bars = data?.bars {
-            snapshot.energyFullAt = barFullAt(bars.energy, nowUnix: nowUnix)
-            snapshot.nerveFullAt = barFullAt(bars.nerve, nowUnix: nowUnix)
-            snapshot.happyFullAt = barFullAt(bars.happy, nowUnix: nowUnix)
-            snapshot.lifeFullAt = barFullAt(bars.life, nowUnix: nowUnix)
+            snapshot.energyFullAt = barFullAt(bars.energy)
+            snapshot.nerveFullAt = barFullAt(bars.nerve)
+            snapshot.happyFullAt = barFullAt(bars.happy)
+            snapshot.lifeFullAt = barFullAt(bars.life)
         }
         if let cd = cooldownEnds {
             snapshot.drugReadyAt = cd.drugEndsAt > 0 ? cd.drugEndsAt : nil
             snapshot.medicalReadyAt = cd.medicalEndsAt > 0 ? cd.medicalEndsAt : nil
             snapshot.boosterReadyAt = cd.boosterEndsAt > 0 ? cd.boosterEndsAt : nil
         }
-        if let travel = data?.travel, travel.isTraveling, travelSecondsRemaining > 0 {
-            snapshot.travelArrivalAt = nowUnix + travelSecondsRemaining
+        if let travel = data?.travel, travel.isTraveling {
+            if let timestamp = travel.timestamp, timestamp > 0 {
+                snapshot.travelArrivalAt = timestamp
+            } else if let timeLeft = travel.timeLeft, timeLeft > 0 {
+                snapshot.travelArrivalAt = Int(lastFetchTime.timeIntervalSince1970) + timeLeft
+            }
         }
         if let status = data?.status {
             if status.isInHospital { snapshot.hospitalReleaseAt = status.until }
@@ -139,9 +143,9 @@ extension AppState {
         return snapshot
     }
 
-    private func barFullAt(_ bar: Bar, nowUnix: Int) -> Int? {
+    private func barFullAt(_ bar: Bar) -> Int? {
         guard bar.current < bar.maximum, let full = bar.fulltime, full > 0 else { return nil }
-        return nowUnix + full
+        return Int(lastFetchTime.timeIntervalSince1970) + full
     }
 
     func nextEvents(now: Date = Date()) -> [NextEvent] {

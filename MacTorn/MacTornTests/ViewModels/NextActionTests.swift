@@ -83,4 +83,67 @@ final class NextActionTests: XCTestCase {
             XCTAssertFalse(category.systemImage.isEmpty)
         }
     }
+
+    @MainActor
+    func testAppStateMakeNextActionSnapshot_barFulltimeCountsDownAsTimeAdvances() throws {
+        let mockSession = MockNetworkSession()
+        let appState = AppState(session: mockSession)
+        
+        let fetchTime = Date(timeIntervalSince1970: 1_700_000_000)
+        appState.lastFetchTime = fetchTime
+        let dict: [String: Any] = [
+            "energy": ["current": 100, "maximum": 150, "fulltime": 600],
+            "nerve": ["current": 50, "maximum": 50, "fulltime": 0],
+            "life": ["current": 100, "maximum": 100, "fulltime": 0],
+            "happy": ["current": 500, "maximum": 500, "fulltime": 0]
+        ]
+        let jsonData = try JSONSerialization.data(withJSONObject: dict)
+        appState.data = try JSONDecoder().decode(TornResponse.self, from: jsonData)
+
+        // At fetch time (t = 0), energy full ETA is 600s
+        let eventsAtT0 = appState.nextEvents(now: fetchTime)
+        XCTAssertEqual(eventsAtT0.count, 1)
+        XCTAssertEqual(eventsAtT0.first?.category, .energy)
+        XCTAssertEqual(eventsAtT0.first?.eta, 600)
+
+        // 300s later (t = 300), without re-fetching, energy full ETA must count down to 300s
+        let t300 = fetchTime.addingTimeInterval(300)
+        let eventsAtT300 = appState.nextEvents(now: t300)
+        XCTAssertEqual(eventsAtT300.count, 1)
+        XCTAssertEqual(eventsAtT300.first?.category, .energy)
+        XCTAssertEqual(eventsAtT300.first?.eta, 300)
+
+        // 600s later (t = 600), energy is full, so event should be dropped
+        let t600 = fetchTime.addingTimeInterval(600)
+        let eventsAtT600 = appState.nextEvents(now: t600)
+        XCTAssertTrue(eventsAtT600.isEmpty)
+    }
+
+    @MainActor
+    func testAppStateMakeNextActionSnapshot_travelArrivalAnchoredToFetchTime() throws {
+        let mockSession = MockNetworkSession()
+        let appState = AppState(session: mockSession)
+
+        let fetchTime = Date(timeIntervalSince1970: 1_700_000_000)
+        appState.lastFetchTime = fetchTime
+        let dict: [String: Any] = [
+            "travel": [
+                "destination": "Mexico",
+                "timestamp": 1_700_000_120,
+                "departed": 1_700_000_000,
+                "time_left": 120
+            ]
+        ]
+        let jsonData = try JSONSerialization.data(withJSONObject: dict)
+        appState.data = try JSONDecoder().decode(TornResponse.self, from: jsonData)
+
+        let eventsAtT0 = appState.nextEvents(now: fetchTime)
+        XCTAssertEqual(eventsAtT0.first?.category, .travel)
+        XCTAssertEqual(eventsAtT0.first?.eta, 120)
+
+        let t50 = fetchTime.addingTimeInterval(50)
+        let eventsAtT50 = appState.nextEvents(now: t50)
+        XCTAssertEqual(eventsAtT50.first?.category, .travel)
+        XCTAssertEqual(eventsAtT50.first?.eta, 70)
+    }
 }
