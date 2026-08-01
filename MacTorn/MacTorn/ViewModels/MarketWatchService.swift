@@ -49,17 +49,41 @@ final class MarketWatchService: MarketWatchServicing {
         self.session = session
     }
 
+    /// Set when a stored blob exists but could not be decoded. While true, `save()`
+    /// refuses to write — otherwise the first background price refresh would overwrite
+    /// a recoverable blob with the empty in-memory list and destroy the user's watchlist
+    /// permanently (audit finding D-01). Any deliberate user edit clears the flag.
+    @ObservationIgnored private var loadFailed = false
+
+    private static let storageKey = "watchlist"
+
     func load() {
-        guard let data = defaults.data(forKey: "watchlist"),
-              let decoded = try? JSONDecoder().decode([WatchlistItem].self, from: data) else {
+        guard let data = defaults.data(forKey: Self.storageKey) else {
+            // No key at all — a legitimate first run, not a failure.
+            loadFailed = false
             return
         }
+        guard let decoded = try? JSONDecoder().decode([WatchlistItem].self, from: data) else {
+            // The blob is there but unreadable (corruption, or a model change in a
+            // newer build). Keep it: a later app version may still be able to read it.
+            loadFailed = true
+            defaults.set(data, forKey: "\(Self.storageKey).unreadable")
+            return
+        }
+        loadFailed = false
         items = decoded
     }
 
     func save() {
+        guard !loadFailed else { return }
         guard let data = try? JSONEncoder().encode(items) else { return }
-        defaults.set(data, forKey: "watchlist")
+        defaults.set(data, forKey: Self.storageKey)
+    }
+
+    /// A deliberate user edit takes ownership of the list, so persistence resumes even
+    /// if the previous blob was unreadable.
+    private func allowPersistenceAfterUserEdit() {
+        loadFailed = false
     }
 
     func add(itemID: Int, name: String) -> Bool {
@@ -82,12 +106,14 @@ final class MarketWatchService: MarketWatchServicing {
                 error: nil
             )
         )
+        allowPersistenceAfterUserEdit()
         save()
         return true
     }
 
     func remove(itemID: Int) {
         items.removeAll { $0.id == itemID }
+        allowPersistenceAfterUserEdit()
         save()
     }
 
@@ -95,6 +121,7 @@ final class MarketWatchService: MarketWatchServicing {
         guard !items.contains(where: { $0.id == item.id }) else { return false }
         let insertionIndex = min(max(originalIndex, 0), items.count)
         items.insert(item, at: insertionIndex)
+        allowPersistenceAfterUserEdit()
         save()
         return true
     }

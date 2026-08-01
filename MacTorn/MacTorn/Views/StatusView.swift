@@ -36,7 +36,7 @@ struct StatusView: View {
                 }
                 
                 // Chain status
-                if let chain = appState.data?.chain, let fetchTime = appState.lastUpdated {
+                if let chain = appState.liveChain, let fetchTime = appState.lastUpdated {
                     ChainView(chain: chain, fetchTime: fetchTime)
                 }
                 

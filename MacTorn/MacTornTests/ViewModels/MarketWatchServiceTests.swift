@@ -141,3 +141,68 @@ final class MarketWatchServiceTests: XCTestCase {
         )
     }
 }
+
+// MARK: - Corrupted-store protection (audit 2026-08-01, D-01)
+//
+// An unreadable blob used to be indistinguishable from "no data yet": `load()` bailed
+// silently leaving an empty list, and the first background price refresh called `save()`
+// and overwrote the recoverable blob with `[]`. The user's watchlist was then gone
+// permanently — even downgrading the app could not bring it back.
+
+@MainActor
+final class MarketWatchCorruptStoreTests: XCTestCase {
+
+    private func makeService(_ defaults: UserDefaults) -> MarketWatchService {
+        MarketWatchService(defaults: defaults, session: MockNetworkSession())
+    }
+
+    func testUnreadableBlobIsNotOverwrittenByABackgroundSave() throws {
+        let defaults = UserDefaults.createMockDefaults()
+        let corrupt = Data("{not json at all".utf8)
+        defaults.set(corrupt, forKey: "watchlist")
+
+        let service = makeService(defaults)
+        service.load()
+        XCTAssertTrue(service.items.isEmpty, "nothing could be decoded")
+
+        service.save()   // this is what the price-refresh loop does on its own schedule
+
+        XCTAssertEqual(defaults.data(forKey: "watchlist"), corrupt,
+                       "the recoverable blob must survive — overwriting it destroys the list")
+    }
+
+    func testUnreadableBlobIsPreservedUnderARecoveryKey() {
+        let defaults = UserDefaults.createMockDefaults()
+        let corrupt = Data("{not json at all".utf8)
+        defaults.set(corrupt, forKey: "watchlist")
+
+        makeService(defaults).load()
+
+        XCTAssertEqual(defaults.data(forKey: "watchlist.unreadable"), corrupt,
+                       "a copy is kept so the data can be recovered by hand")
+    }
+
+    func testFirstRunWithNoStoredBlobStillPersists() {
+        let defaults = UserDefaults.createMockDefaults()
+        let service = makeService(defaults)
+        service.load()   // no key at all — a legitimate first run, not a failure
+
+        XCTAssertTrue(service.add(itemID: 206, name: "Xanax"))
+        XCTAssertNotNil(defaults.data(forKey: "watchlist"),
+                        "a clean first run must still save normally")
+    }
+
+    func testDeliberateUserEditTakesOwnershipAndResumesPersistence() throws {
+        let defaults = UserDefaults.createMockDefaults()
+        defaults.set(Data("{not json at all".utf8), forKey: "watchlist")
+
+        let service = makeService(defaults)
+        service.load()
+        XCTAssertTrue(service.add(itemID: 206, name: "Xanax"))
+
+        let reloaded = makeService(defaults)
+        reloaded.load()
+        XCTAssertEqual(reloaded.items.map(\.id), [206],
+                       "once the user edits the list, writes must resume")
+    }
+}

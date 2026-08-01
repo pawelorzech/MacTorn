@@ -42,10 +42,17 @@ struct AttacksView: View {
                             Text(formatStat(stats.total))
                                 .font(.caption.bold())
                         }
-                    } else {
+                    } else if appState.lastUpdated == nil {
                         Text("Loading stats...")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    } else {
+                        // Battle stats need a key with the right access; a finished
+                        // refresh without them is a permission answer, not progress.
+                        Text("No battle stats. Your API key may not have access.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding()

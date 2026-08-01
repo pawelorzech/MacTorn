@@ -5,7 +5,10 @@ struct MacTornApp: App {
     @State private var appState: AppState
     @State private var navigation = AppNavigationState()
     @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
+    /// In-app override. The *effective* value also honours the macOS system setting —
+    /// see `TransparencyPolicy`.
     @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
+    @State private var systemAccessibility = SystemAccessibilitySettings()
 
     #if DEBUG
     // Promotes the accessory app to a regular window when launched under `--uitesting`,
@@ -34,7 +37,10 @@ struct MacTornApp: App {
             ContentView()
                 .environment(appState)
                 .environment(navigation)
-                .environment(\.reduceTransparency, reduceTransparency)
+                .environment(\.reduceTransparency,
+                              TransparencyPolicy.effective(
+                                system: systemAccessibility.reduceTransparency,
+                                userOverride: reduceTransparency))
                 .onAppear {
                     updateAppearance()
                 }
@@ -140,21 +146,25 @@ struct MenuBarLabel: View {
     var body: some View {
         Group {
             switch appState.menuBarDisplay {
-            case .traveling(let flag, let seconds):
-                Text("✈️\(flag)\(formatShortTime(seconds))")
-            case .hospitalAbroad(let flag, let seconds):
-                Text("🏥\(flag)\(formatShortTime(seconds))")
+            case .traveling(let destination, let seconds):
+                Text("✈️\(Self.flag(for: destination))\(formatShortTime(seconds))")
+            case .hospitalAbroad(let destination, let seconds):
+                Text("🏥\(Self.flag(for: destination))\(formatShortTime(seconds))")
             case .hospitalAtHome(let seconds):
                 Text("🏥\(formatShortTime(seconds))")
             case .jail(let seconds):
                 Text("🚓\(formatShortTime(seconds))")
-            case .cooldown(let emoji, let seconds):
-                Text("\(emoji)\(formatShortTime(seconds))")
+            case .cooldown(let kind, let seconds):
+                Text("\(kind.emoji)\(formatShortTime(seconds))")
             case .fallbackIcon:
                 Image(systemName: menuBarIcon)
             }
         }
         .transaction { $0.animation = nil }
+        // The menu-bar label is the only surface of this app that is always on screen.
+        // Without this, VoiceOver reads the raw glyphs ("airplane, flag of United
+        // Kingdom, 2 colon 35") instead of the state they stand for.
+        .accessibilityLabel(appState.menuBarDisplay.accessibilityDescription)
         #if DEBUG
         // The menu-bar label renders at launch even for an accessory app, so it's the one
         // reliable place to explicitly open the UI-test window (a MenuBarExtra's own content
@@ -191,6 +201,12 @@ struct MenuBarLabel: View {
 
     private func flagForDestination(_ destination: String) -> String {
         TornDestination.flag(for: destination)
+    }
+
+    /// Presentation-only mapping. `MenuBarDisplay` carries the destination *name*; the
+    /// flag glyph is derived here so the model stays speakable (see `MenuBarDisplay`).
+    private static func flag(for destination: String?) -> String {
+        TornDestination.flag(for: destination ?? "?")
     }
 
     private func formatShortTime(_ seconds: Int) -> String {

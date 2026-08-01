@@ -71,9 +71,19 @@ struct FactionView: View {
                             Text("Faction")
                                 .font(.caption.bold())
                         }
-                        Text("Loading faction data...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                        // "Loading" only while nothing has ever arrived. Once a refresh
+                        // has completed, absent faction data is a *state*, not progress
+                        // — a player with no faction sat on "Loading…" forever.
+                        if appState.lastUpdated == nil {
+                            Text("Loading faction data...")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            Text("No faction data. You may not be in a faction, or your API key has no faction access.")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
                 .padding()

@@ -80,10 +80,17 @@ struct MoneyView: View {
                             }
                         }
                         .frame(maxWidth: .infinity)
-                    } else {
+                    } else if appState.lastUpdated == nil {
                         Text("Loading...")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    } else {
+                        // A completed refresh with no money data means the key can't
+                        // read it — say so instead of spinning "Loading…" forever.
+                        Text("No money data. Your API key may not have access.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding()

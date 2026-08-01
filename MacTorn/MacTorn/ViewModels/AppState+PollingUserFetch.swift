@@ -287,20 +287,12 @@ extension AppState {
                         )
                     }
 
-                case 403, 404:
-                    await MainActor.run {
-                        guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
-                        self.errorMsg = "Invalid API Key"
-                        self.data = nil
-                    }
-                    self.logger.error("HTTP \(response.statusCode): Invalid API Key")
-                    self.recordHealth(
-                        "user.fast",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: data.count,
-                        errorClass: "permanentKey"
-                    )
+                // NOTE: 403/404 is deliberately NOT treated as a bad key. Torn reports a
+                // rejected key as HTTP 200 with an `error` envelope, which is classified
+                // above by `handlePermanentKeyError`. A transport-level 403/404 comes from
+                // the edge/CDN, so it is transient — telling the user "Invalid API Key"
+                // sent them off to regenerate a perfectly good key, and wiping `data`
+                // blanked every panel until the next poll (audit finding C-02).
                 default:
                     await MainActor.run {
                         guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
@@ -378,7 +370,6 @@ extension AppState {
         previousBars = decoded.bars
         previousCooldowns = decoded.cooldowns
         previousTravel = decoded.travel
-        previousChain = decoded.chain
         previousStatus = decoded.status
 
         moneyData = payload.money

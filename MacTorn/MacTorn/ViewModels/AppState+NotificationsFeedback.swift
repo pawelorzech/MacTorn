@@ -38,9 +38,9 @@ extension AppState {
             scheduleTravelNotifications(for: currentTravel)
         }
 
-        if chainExpiringShouldFire(newData.chain), let chain = newData.chain {
-            NotificationManager.shared.send(title: "Chain Expiring! ⚠️", body: "Chain timeout in \(chain.timeoutRemaining) seconds!", type: .chainExpiring)
-        }
+        // The chain check does NOT live here: chain data arrives on the faction
+        // endpoint, not in this user snapshot. It fires from `checkChainNotification()`
+        // at the point the faction payload lands. See audit finding C-01.
 
         if let prevStatus = previousStatus, let currentStatus = newData.status {
             if (prevStatus.isInHospital || prevStatus.isInJail) && currentStatus.isOkay {
@@ -57,6 +57,19 @@ extension AppState {
     /// (timeout jumps back up), the chain ends, or the chain drops — so a fresh danger
     /// window alerts again. The latch is persisted, so a relaunch mid-window is silent.
     /// `internal` for `@testable` regression coverage.
+    /// Fires the chain-expiring alert. Called from the faction fetch, immediately after
+    /// a fresh chain payload is published — chain data enters the system there, so that
+    /// is where the edge must be evaluated. Safe to call on every faction poll: the
+    /// persistent edge latch inside `chainExpiringShouldFire` collapses repeats.
+    func checkChainNotification() {
+        guard let chain = liveChain, chainExpiringShouldFire(chain) else { return }
+        NotificationManager.shared.send(
+            title: "Chain Expiring! ⚠️",
+            body: "Chain timeout in \(chain.timeoutRemaining) seconds!",
+            type: .chainExpiring
+        )
+    }
+
     func chainExpiringShouldFire(_ chain: Chain?) -> Bool {
         let inDanger = (chain?.isActive == true)
             && chain!.timeoutRemaining > 0

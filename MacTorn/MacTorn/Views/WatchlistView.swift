@@ -3,7 +3,9 @@ import SwiftUI
 struct WatchlistView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddItem = false
+    @State private var addItemError: String?
     @State private var recentlyRemoved: RemovedWatchlistItem?
     @State private var undoDismissTask: Task<Void, Never>?
     
@@ -34,7 +36,7 @@ struct WatchlistView: View {
                     .accessibilityLabel("Refresh watched prices")
                     
                     Button {
-                        withAnimation {
+                        withAnimation(reduceMotion ? nil : .default) {
                             showAddItem.toggle()
                         }
                     } label: {
@@ -52,12 +54,26 @@ struct WatchlistView: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         
+                        if let addItemError {
+                            Text(addItemError)
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityLabel("Add item error: \(addItemError)")
+                        }
+
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
                             ForEach(popularItems, id: \.1) { item in
                                 Button {
-                                    appState.addToWatchlist(itemId: item.1, name: item.0)
-                                    withAnimation {
-                                        showAddItem = false
+                                    // Keep the panel open and say why when the add is
+                                    // refused — closing it looked identical to success.
+                                    if appState.addToWatchlist(itemId: item.1, name: item.0) {
+                                        addItemError = nil
+                                        withAnimation(reduceMotion ? nil : .default) {
+                                            showAddItem = false
+                                        }
+                                    } else {
+                                        addItemError = "\(item.0) is already on your watchlist."
                                     }
                                 } label: {
                                     Text(item.0)
@@ -112,7 +128,9 @@ struct WatchlistView: View {
                     UndoBanner(message: "\(recentlyRemoved.item.name) removed") {
                         undoRemoval()
                     }
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(reduceMotion
+                                ? .opacity
+                                : .move(edge: .top).combined(with: .opacity))
                 }
                 
                 Divider()
@@ -170,13 +188,13 @@ struct WatchlistView: View {
 
         undoDismissTask?.cancel()
         appState.removeFromWatchlist(item.id)
-        withAnimation {
+        withAnimation(reduceMotion ? nil : .default) {
             recentlyRemoved = RemovedWatchlistItem(item: removedItem, index: index)
         }
         undoDismissTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 6_000_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation {
+            withAnimation(reduceMotion ? nil : .default) {
                 recentlyRemoved = nil
             }
         }
@@ -187,7 +205,7 @@ struct WatchlistView: View {
 
         undoDismissTask?.cancel()
         appState.restoreWatchlistItem(recentlyRemoved.item, at: recentlyRemoved.index)
-        withAnimation {
+        withAnimation(reduceMotion ? nil : .default) {
             self.recentlyRemoved = nil
         }
     }

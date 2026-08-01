@@ -66,15 +66,14 @@ extension AppState {
         guard let data = data else { return .fallbackIcon }
 
         if let travel = data.travel, travel.isTraveling {
-            let flag = TornDestination.flag(for: travel.destination ?? "?")
-            return .traveling(flag: flag, seconds: travel.remainingSeconds(from: lastFetchTime))
+            return .traveling(destination: travel.destination,
+                              seconds: travel.remainingSeconds(from: lastFetchTime))
         }
 
         if let status = data.status, status.isInHospital {
             let secs = status.timeRemaining
             if let travel = data.travel, travel.isAbroad {
-                let flag = TornDestination.flag(for: travel.destination ?? "?")
-                return .hospitalAbroad(flag: flag, seconds: secs)
+                return .hospitalAbroad(destination: travel.destination, seconds: secs)
             }
             return .hospitalAtHome(seconds: secs)
         }
@@ -85,7 +84,7 @@ extension AppState {
 
         if let ends = cooldownEnds,
            let soonest = ends.soonestActive() {
-            return .cooldown(emoji: soonest.kind.emoji, seconds: soonest.seconds)
+            return .cooldown(kind: soonest.kind, seconds: soonest.seconds)
         }
 
         return .fallbackIcon
@@ -134,7 +133,7 @@ extension AppState {
         if let ready = organizedCrime?.readyAt, ready > 0 {
             snapshot.ocReadyAt = ready
         }
-        if let chain = data?.chain, chain.isActive, let timeout = chain.timeout, timeout > 0 {
+        if let chain = liveChain, chain.isActive, let timeout = chain.timeout, timeout > 0 {
             snapshot.chainTimeoutAt = timeout
         }
         if let refills, !refills.unclaimed.isEmpty {

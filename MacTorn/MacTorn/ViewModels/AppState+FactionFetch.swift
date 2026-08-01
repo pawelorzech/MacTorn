@@ -17,6 +17,10 @@ extension AppState {
             switch result {
             case .success(let payload, let responseBytes):
                 factionService.publishBasic(payload)
+                // Chain data enters the app here — evaluate the expiry edge now, while
+                // it is fresh. (Audit C-01: this used to be checked against the user
+                // snapshot's `chain`, which Torn never populates.)
+                checkChainNotification()
                 logger.info("Faction data fetched")
                 recordHealth("faction.basic", outcome: .ok, since: startTime, bytes: responseBytes)
 

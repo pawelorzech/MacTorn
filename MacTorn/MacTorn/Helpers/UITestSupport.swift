@@ -251,7 +251,10 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
         "cooldowns": ["drug": 0, "medical": 0, "booster": 0],
         "travel": ["destination": "Torn", "timestamp": 0, "departed": 0, "time_left": 0],
         "status": ["description": "Okay", "details": "", "state": "Okay", "until": 0],
-        "chain": ["current": 0, "maximum": 10, "timeout": 0, "cooldown": 0],
+        // NOTE: no "chain" key here on purpose. Torn's v1 `user` endpoint does not
+        // return one, and this fixture used to invent it — which is exactly what hid
+        // audit finding C-01 (the chain alert read the user snapshot and was therefore
+        // dead in production). Chain lives on the faction fixture, like the real API.
         "money_onhand": 1_000_000,
         "points": 10,
         // Deliberately long: compact-window UI tests use this list to prove the

@@ -193,29 +193,58 @@ final class AppStateTests: XCTestCase {
         XCTAssertNil(appState.data)
     }
 
-    func testFetchData_invalidAPIKey_HTTP403() async throws {
-        appState.apiKey = "invalid_key"
-        mockSession.setHTTPError(statusCode: 403)
+    // These two used to assert `errorMsg == "Invalid API Key"` and `data == nil` for a
+    // transport-level 403/404. That contract was wrong and is now inverted (audit
+    // finding C-02): Torn reports a rejected key as HTTP 200 with an `error` envelope,
+    // handled by `handlePermanentKeyError`. A 403/404 comes from the edge/CDN and is
+    // transient — blaming the key sent users off to regenerate a working one, and
+    // clearing `data` blanked every panel until the next poll.
 
+    func testHTTP403IsTreatedAsTransientAndKeepsTheLastGoodSnapshot() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
         appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertNotNil(appState.data, "precondition: a good snapshot is on screen")
 
-        // Wait for async completion
+        mockSession.setHTTPError(statusCode: 403)
+        appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "Invalid API Key")
-        XCTAssertNil(appState.data)
+        XCTAssertEqual(appState.errorMsg, "HTTP Error: 403",
+                       "an edge/CDN rejection must not be reported as a bad key")
+        XCTAssertNotNil(appState.data,
+                        "a transient HTTP error must not wipe the last good snapshot")
+        XCTAssertFalse(appState.keyHalted, "polling must keep running")
     }
 
-    func testFetchData_invalidAPIKey_HTTP404() async throws {
-        appState.apiKey = "invalid_key"
-        mockSession.setHTTPError(statusCode: 404)
-
+    func testHTTP404IsTreatedAsTransientAndKeepsTheLastGoodSnapshot() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
         appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertNotNil(appState.data)
 
-        // Wait for async completion
+        mockSession.setHTTPError(statusCode: 404)
+        appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "Invalid API Key")
+        XCTAssertEqual(appState.errorMsg, "HTTP Error: 404")
+        XCTAssertNotNil(appState.data)
+        XCTAssertFalse(appState.keyHalted)
+    }
+
+    /// The genuine bad-key path is unchanged and still halts — pinned here so the
+    /// relaxation above cannot quietly swallow a real credential failure.
+    func testTornErrorEnvelopeStillHaltsOnBadKey() async throws {
+        appState.apiKey = "bad_key"
+        try mockSession.setSuccessResponse(json: ["code": 2, "error": "Incorrect key"])
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertTrue(appState.keyHalted)
+        XCTAssertNil(appState.data)
     }
 
     // MARK: - Fetch Success Tests
@@ -793,10 +822,12 @@ final class AppStateTests: XCTestCase {
     func testMenuBarDisplay_traveling() async throws {
         try await fetch(fixture(travel: TornAPIFixtures.travelTraveling))
 
-        guard case .traveling(let flag, let seconds) = appState.menuBarDisplay else {
+        guard case .traveling(let destination, let seconds) = appState.menuBarDisplay else {
             return XCTFail("Expected .traveling, got \(appState.menuBarDisplay)")
         }
-        XCTAssertEqual(flag, "🇯🇵")
+        XCTAssertEqual(destination, "Japan")
+        // The rendered glyph is derived from the name, so the menu bar still shows the flag.
+        XCTAssertEqual(TornDestination.flag(for: destination ?? ""), "🇯🇵")
         XCTAssertGreaterThan(seconds, 0)
         XCTAssertLessThanOrEqual(seconds, 600)
     }
@@ -811,10 +842,11 @@ final class AppStateTests: XCTestCase {
         ]
         try await fetch(fixture(travel: abroad, status: hospital))
 
-        guard case .hospitalAbroad(let flag, let seconds) = appState.menuBarDisplay else {
+        guard case .hospitalAbroad(let destination, let seconds) = appState.menuBarDisplay else {
             return XCTFail("Expected .hospitalAbroad, got \(appState.menuBarDisplay)")
         }
-        XCTAssertEqual(flag, "🇲🇽")
+        XCTAssertEqual(destination, "Mexico")
+        XCTAssertEqual(TornDestination.flag(for: destination ?? ""), "🇲🇽")
         XCTAssertGreaterThan(seconds, 500)
         XCTAssertLessThanOrEqual(seconds, 600)
     }
@@ -851,10 +883,11 @@ final class AppStateTests: XCTestCase {
         // Medical (60s) is soonest — drug 300, booster 1200
         try await fetch(fixture(cooldowns: ["drug": 300, "booster": 1200, "medical": 60]))
 
-        guard case .cooldown(let emoji, let seconds) = appState.menuBarDisplay else {
+        guard case .cooldown(let kind, let seconds) = appState.menuBarDisplay else {
             return XCTFail("Expected .cooldown, got \(appState.menuBarDisplay)")
         }
-        XCTAssertEqual(emoji, "🩹") // medical
+        XCTAssertEqual(kind, .medical)
+        XCTAssertEqual(kind.emoji, "🩹")
         XCTAssertGreaterThan(seconds, 50)
         XCTAssertLessThanOrEqual(seconds, 60)
     }
@@ -1111,5 +1144,196 @@ private final class FanOutSuccessNetworkSession: NetworkSession, @unchecked Send
             headerFields: nil
         )!
         return (data, response)
+    }
+}
+
+// MARK: - Menu-bar accessibility (audit 2026-08-01, A-01)
+//
+// The menu-bar label is the only always-visible surface of this app. `MenuBarDisplay`
+// used to carry presentation glyphs only (flag emoji, cooldown emoji), which left no
+// name for VoiceOver to speak. These tests pin the spoken form of every case.
+
+final class MenuBarAccessibilityTests: XCTestCase {
+
+    func testSpokenDurationDropsEmptyLeadingComponents() {
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(0), "0 seconds")
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(1), "1 second")
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(45), "45 seconds")
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(60), "1 minute")
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(155), "2 minutes 35 seconds")
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(3600), "1 hour")
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(3840), "1 hour 4 minutes")
+    }
+
+    func testNegativeDurationDoesNotProduceNegativeSpeech() {
+        XCTAssertEqual(MenuBarDisplay.spokenDuration(-30), "0 seconds")
+    }
+
+    func testEveryCaseSpeaksItsMeaningNotItsGlyph() {
+        let cases: [MenuBarDisplay] = [
+            .traveling(destination: "Japan", seconds: 155),
+            .hospitalAbroad(destination: "Mexico", seconds: 600),
+            .hospitalAtHome(seconds: 300),
+            .jail(seconds: 90),
+            .cooldown(kind: .medical, seconds: 60),
+            .fallbackIcon
+        ]
+
+        for display in cases {
+            let spoken = display.accessibilityDescription
+            XCTAssertFalse(spoken.isEmpty, "\(display) has no spoken form")
+            // No case may fall back to reading out a bare glyph.
+            for glyph in ["🇯🇵", "🇲🇽", "✈️", "🏥", "🚓", "💊", "🧪", "🩹"] {
+                XCTAssertFalse(spoken.contains(glyph),
+                               "\(display) leaks glyph \(glyph) into speech: \(spoken)")
+            }
+        }
+    }
+
+    func testSpokenFormsNameTheDestinationAndCooldownKind() {
+        XCTAssertEqual(MenuBarDisplay.traveling(destination: "Japan", seconds: 155)
+            .accessibilityDescription,
+                       "Traveling to Japan, arriving in 2 minutes 35 seconds")
+        XCTAssertEqual(MenuBarDisplay.hospitalAbroad(destination: "Mexico", seconds: 600)
+            .accessibilityDescription,
+                       "In hospital in Mexico, 10 minutes remaining")
+        XCTAssertEqual(MenuBarDisplay.cooldown(kind: .drug, seconds: 60)
+            .accessibilityDescription,
+                       "Drug cooldown, 1 minute remaining")
+    }
+
+    func testUnknownDestinationStillSpeaksSomethingUseful() {
+        let spoken = MenuBarDisplay.traveling(destination: nil, seconds: 30)
+            .accessibilityDescription
+        XCTAssertEqual(spoken, "Traveling, arriving in 30 seconds")
+        XCTAssertFalse(spoken.contains("Unknown"))
+        XCTAssertFalse(spoken.contains("nil"))
+    }
+}
+
+// MARK: - Browser open policy (audit 2026-08-01, S-01)
+//
+// `BrowserManager.open` used to fall through to `NSWorkspace.shared.open` for every
+// non-http scheme, so a remotely-supplied string (GitHub release `html_url`) could
+// reach an arbitrary registered URL handler. Only web URLs may leave this app.
+
+final class BrowserManagerPolicyTests: XCTestCase {
+
+    func testAcceptsOnlyWebURLs() {
+        XCTAssertTrue(BrowserManager.isWebURL(URL(string: "https://www.torn.com/")!))
+        XCTAssertTrue(BrowserManager.isWebURL(URL(string: "http://example.com/x?y=1")!))
+        XCTAssertTrue(BrowserManager.isWebURL(URL(string: "HTTPS://WWW.TORN.COM/")!))
+    }
+
+    func testRejectsNonWebSchemes() {
+        let hostile = [
+            "file:///Applications/Calculator.app",
+            "ssh://user@host",
+            "ftp://example.com/x",
+            "x-apple-helpbook://blah",
+            "javascript:alert(1)",
+            "mailto:someone@example.com",
+            "custom-scheme://do-something"
+        ]
+        for raw in hostile {
+            guard let url = URL(string: raw) else { continue }
+            XCTAssertFalse(BrowserManager.isWebURL(url), "\(raw) must not be openable")
+        }
+    }
+
+    func testRejectsWebSchemeWithoutHost() {
+        XCTAssertFalse(BrowserManager.isWebURL(URL(string: "https://")!))
+        XCTAssertFalse(BrowserManager.isWebURL(URL(string: "http:///path")!))
+    }
+}
+
+// MARK: - Chain alert source of truth (audit 2026-08-01, C-01)
+//
+// The chain-expiring alert, the Next Action chain entry and the Status chain card all
+// read `data?.chain` — the *user* snapshot. Torn's v1 `user` endpoint has no `chain`
+// selection and `user.fast` never asked for one, so that field was permanently nil in
+// production and all three surfaces were dead. The DEBUG UI fixture invented the key,
+// which is why every test stayed green. These tests pin the real wiring.
+
+@MainActor
+final class ChainSourceTests: XCTestCase {
+
+    private func makeAppState() -> AppState {
+        AppState(session: MockNetworkSession(),
+                 connectivity: ControllableConnectivity(connected: true),
+                 defaults: .createMockDefaults())
+    }
+
+    func testUserFastEndpointDoesNotRequestChain() throws {
+        let userFast = try XCTUnwrap(TornEndpointRegistry.all.first { $0.id == "user.fast" })
+        XCTAssertFalse(userFast.selections.contains("chain"),
+                       "Torn's v1 user endpoint has no chain selection — the alert must not depend on it")
+        let factionBasic = try XCTUnwrap(TornEndpointRegistry.all.first { $0.id == "faction.basic" })
+        XCTAssertTrue(factionBasic.selections.contains("chain"),
+                      "chain is faction data — this is the endpoint that carries it")
+    }
+
+    func testLiveChainIsNilUntilFactionDataArrives() {
+        let app = makeAppState()
+        XCTAssertNil(app.liveChain, "no faction payload yet — nothing to report")
+    }
+
+    func testLiveChainMirrorsFactionPayload() throws {
+        let app = makeAppState()
+        let timeout = Int(Date().timeIntervalSince1970) + 30
+        app.factionService.publishBasic(
+            FactionData(name: "Test", factionId: 1, respect: 10,
+                        chain: FactionChain(current: 25, max: 100, timeout: timeout, cooldown: 0))
+        )
+
+        let chain = try XCTUnwrap(app.liveChain, "faction chain must surface as the live chain")
+        XCTAssertEqual(chain.current, 25)
+        XCTAssertEqual(chain.maximum, 100)
+        XCTAssertEqual(chain.timeout, timeout, "timeout is an absolute Unix timestamp on both models")
+        XCTAssertTrue(chain.isActive)
+        XCTAssertGreaterThan(chain.timeoutRemaining, 0)
+    }
+
+    func testChainAlertFiresFromFactionDataInsideDangerWindow() {
+        let app = makeAppState()
+        let soon = Int(Date().timeIntervalSince1970) + 30   // < chainWarningThreshold (60)
+        app.factionService.publishBasic(
+            FactionData(chain: FactionChain(current: 25, max: 100, timeout: soon, cooldown: 0))
+        )
+
+        XCTAssertTrue(app.chainExpiringShouldFire(app.liveChain),
+                      "a chain sourced from faction data must arm the alert")
+        XCTAssertFalse(app.chainExpiringShouldFire(app.liveChain),
+                       "the persistent edge latch must collapse repeats on later polls")
+    }
+
+    func testChainAlertStaysSilentOutsideDangerWindow() {
+        let app = makeAppState()
+        let far = Int(Date().timeIntervalSince1970) + 600
+        app.factionService.publishBasic(
+            FactionData(chain: FactionChain(current: 25, max: 100, timeout: far, cooldown: 0))
+        )
+        XCTAssertFalse(app.chainExpiringShouldFire(app.liveChain))
+    }
+
+    func testInactiveChainNeverFires() {
+        let app = makeAppState()
+        app.factionService.publishBasic(
+            FactionData(chain: FactionChain(current: 0, max: 100, timeout: 0, cooldown: 0))
+        )
+        let chain = app.liveChain
+        XCTAssertEqual(chain?.isActive, false, "current == 0 is not an active chain")
+        XCTAssertFalse(app.chainExpiringShouldFire(chain))
+    }
+
+    func testNextActionTimelineTakesChainFromFactionData() {
+        let app = makeAppState()
+        let timeout = Int(Date().timeIntervalSince1970) + 300
+        app.factionService.publishBasic(
+            FactionData(chain: FactionChain(current: 25, max: 100, timeout: timeout, cooldown: 0))
+        )
+        let snapshot = app.makeNextActionSnapshot()
+        XCTAssertEqual(snapshot.chainTimeoutAt, timeout,
+                       "the Next Action timeline must see the faction-sourced chain")
     }
 }

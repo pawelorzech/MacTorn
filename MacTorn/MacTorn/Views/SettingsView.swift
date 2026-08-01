@@ -244,6 +244,15 @@ struct SettingsView: View {
                 .focused($settingsFocus, equals: .apiKey)
                 .accessibilityLabel("Torn API Key")
                 .uiTestID("uitest.apiKeyField")
+                // A validation result belongs to the key it was run against. Editing the
+                // field invalidates it — otherwise a green "✓ Full Access · ID 123456"
+                // from key A stays on screen under a freshly-typed key B, and the user
+                // saves B believing it was verified.
+                .onChange(of: inputKey) { _, _ in
+                    if appState.keyValidation != .idle {
+                        appState.keyValidation = .idle
+                    }
+                }
 
             HStack(spacing: 8) {
                 Button("Save & Connect") {
@@ -251,7 +260,9 @@ struct SettingsView: View {
                     appState.refreshNow()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(trimmedInputKey.isEmpty)
+                // Also gated on `isLoading`: without it, three quick clicks fired three
+                // refreshes in an app that otherwise budgets every single API request.
+                .disabled(trimmedInputKey.isEmpty || appState.isLoading)
                 .uiTestID("uitest.saveKey")
 
                 Button {
@@ -372,8 +383,13 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Toggle("Reduce Transparency", isOn: $reduceTransparency)
+            Toggle("Always reduce transparency", isOn: $reduceTransparency)
                 .toggleStyle(.switch)
+                .help("MacTorn already follows System Settings → Accessibility → "
+                      + "Display → Reduce transparency. Turn this on to use solid "
+                      + "backgrounds even when that system setting is off.")
+                .accessibilityHint("Forces solid backgrounds regardless of the system "
+                                   + "Reduce transparency setting")
         }
     }
 

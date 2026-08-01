@@ -69,6 +69,13 @@ class AppState {
         set {
             guard accountSession.updateAPIKey(newValue) else { return }
             resetAccountScopedState()
+            // Dedup latches are per-account facts (this chain already alerted, this OC
+            // was already announced). Switching accounts must forget them. This is done
+            // here rather than in `resetAccountScopedState()` on purpose: that method is
+            // also called on a transient permanent-key error, where clearing the latches
+            // would re-fire alerts the user has already seen. (Audit finding C-03.)
+            notificationCoordinator.reset()
+            notifiedBountyKeys = []
             if newValue.isEmpty {
                 stopPolling()
                 stopForumPolling()
@@ -132,6 +139,26 @@ class AppState {
     var unreadMessages: Int = 0
     var factionData: FactionData? {
         factionService.basic
+    }
+
+    /// The live chain — sourced from the **faction** endpoint, which is the only place
+    /// Torn actually returns it.
+    ///
+    /// The chain alert, the Next Action entry and the Status card all used to read
+    /// `data?.chain` (the *user* snapshot). Torn's v1 `user` endpoint has no `chain`
+    /// selection and `user.fast` never requested one, so that field was permanently
+    /// `nil` in production and all three surfaces were dead. Only the DEBUG UI-test
+    /// fixture ever populated it, which is why the tests stayed green. See audit
+    /// finding C-01 (2026-08-01).
+    ///
+    /// Both `Chain.timeout` and `FactionChain.timeout` are absolute Unix timestamps,
+    /// so the mapping is a straight field copy — no unit conversion.
+    var liveChain: Chain? {
+        guard let chain = factionService.basic?.chain else { return nil }
+        return Chain(current: chain.current,
+                     maximum: chain.max,
+                     timeout: chain.timeout,
+                     cooldown: chain.cooldown)
     }
     var propertiesData: [PropertyInfo]?
     var stocksData: [StockHolding] = []
@@ -209,7 +236,6 @@ class AppState {
     @ObservationIgnored var previousBars: Bars?
     @ObservationIgnored var previousCooldowns: Cooldowns?
     @ObservationIgnored var previousTravel: Travel?
-    @ObservationIgnored var previousChain: Chain?
     @ObservationIgnored var previousStatus: Status?
     @ObservationIgnored var notifiedBountyKeys: Set<String> = []
     /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
@@ -348,7 +374,6 @@ class AppState {
         previousBars = nil
         previousCooldowns = nil
         previousTravel = nil
-        previousChain = nil
         previousStatus = nil
         notifiedBountyKeys = []
         lastFactionV2Fetch = nil

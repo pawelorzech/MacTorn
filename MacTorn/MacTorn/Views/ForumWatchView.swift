@@ -3,6 +3,7 @@ import SwiftUI
 struct ForumWatchView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddThread = false
     @State private var threadInput = ""
     @State private var threadInputError: String?
@@ -35,7 +36,7 @@ struct ForumWatchView: View {
                     .accessibilityLabel("Refresh watched threads")
 
                     Button {
-                        withAnimation {
+                        withAnimation(reduceMotion ? nil : .default) {
                             showAddThread.toggle()
                         }
                     } label: {
@@ -133,7 +134,9 @@ struct ForumWatchView: View {
                     UndoBanner(message: "\(recentlyRemoved.thread.title) removed") {
                         undoRemoval()
                     }
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .transition(reduceMotion
+                                ? .opacity
+                                : .move(edge: .top).combined(with: .opacity))
                 }
 
                 Divider()
@@ -178,7 +181,7 @@ struct ForumWatchView: View {
         }
         threadInput = ""
         threadInputError = nil
-        withAnimation {
+        withAnimation(reduceMotion ? nil : .default) {
             showAddThread = false
         }
     }
@@ -201,13 +204,13 @@ struct ForumWatchView: View {
 
         undoDismissTask?.cancel()
         appState.removeWatchedThread(thread.id)
-        withAnimation {
+        withAnimation(reduceMotion ? nil : .default) {
             recentlyRemoved = RemovedWatchedThread(thread: removedThread, index: index)
         }
         undoDismissTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 6_000_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation {
+            withAnimation(reduceMotion ? nil : .default) {
                 recentlyRemoved = nil
             }
         }
@@ -218,7 +221,7 @@ struct ForumWatchView: View {
 
         undoDismissTask?.cancel()
         appState.restoreWatchedThread(recentlyRemoved.thread, at: recentlyRemoved.index)
-        withAnimation {
+        withAnimation(reduceMotion ? nil : .default) {
             self.recentlyRemoved = nil
         }
     }

@@ -12,14 +12,22 @@ extension AppState {
         marketWatchService.save()
     }
 
-    func addToWatchlist(itemId: Int, name: String) {
+    /// Adds an item to the price watchlist.
+    ///
+    /// Returns `false` when the item was rejected (already watched, or an invalid id).
+    /// The result is deliberately part of the contract: the add panel used to close on
+    /// every tap regardless of outcome, so tapping an item that was already on the list
+    /// looked exactly like success — the panel vanished and nothing changed.
+    @discardableResult
+    func addToWatchlist(itemId: Int, name: String) -> Bool {
         guard marketWatchService.add(itemID: itemId, name: name) else {
             logger.warning("addToWatchlist rejected invalid or duplicate item \(itemId)")
-            return
+            return false
         }
         Task {
             await fetchItemPrice(itemId: itemId)
         }
+        return true
     }
 
     func removeFromWatchlist(_ itemId: Int) {

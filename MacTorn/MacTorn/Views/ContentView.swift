@@ -76,42 +76,56 @@ struct ContentView: View {
     @FocusState private var navigationFocus: NavigationFocus?
     @State private var showSentryOptIn = false
 
+    /// The very first fetch, before any data has ever arrived. Only during this window
+    /// is the module content made inert; every later refresh keeps the UI live because
+    /// the previous snapshot is still on screen.
+    private var isBlockingInitialLoad: Bool {
+        appState.isLoading && appState.lastUpdated == nil
+    }
+
     var body: some View {
 
         ZStack {
             VStack(spacing: 0) {
-                if appState.apiKey.isEmpty || navigation.isShowingSettings {
-                    SettingsView {
-                        _ = navigation.dismissSettings(hasConfiguredAccount: !appState.apiKey.isEmpty)
+                Group {
+                    if appState.apiKey.isEmpty || navigation.isShowingSettings {
+                        SettingsView {
+                            _ = navigation.dismissSettings(hasConfiguredAccount: !appState.apiKey.isEmpty)
+                        }
+                            .environment(appState)
+                    } else {
+                        // Header with last updated
+                        headerView
+
+                        // Two-level navigation: three stable groups and only the active
+                        // group's modules. Every destination is at most two actions away.
+                        groupBar
+                        modulePicker
+
+                        Divider()
+
+                        // Content based on selected tab
+                        tabContent
                     }
-                        .environment(appState)
-                } else {
-                    // Header with last updated
-                    headerView
-                    
-                    // Two-level navigation: three stable groups and only the active
-                    // group's modules. Every destination is at most two actions away.
-                    groupBar
-                    modulePicker
-                    
-                    Divider()
-                    
-                    // Content based on selected tab
-                    tabContent
                 }
-                
+                // Only the *content* is inert while the first load runs. The footer sits
+                // outside this modifier on purpose: it holds Settings and Quit, and
+                // disabling those left the user with no way out of a slow or hung first
+                // fetch (URLSession's default timeout is 60 s) short of force-quitting.
+                .disabled(isBlockingInitialLoad)
+
                 Divider()
                     .padding(.vertical, 4)
-                
-                // Footer buttons
+
+                // Footer buttons — always interactive, see above.
                 footerView
             }
-            .disabled(appState.isLoading && appState.lastUpdated == nil) // Disable interaction if initial loading
             
             // Loading Overlay
-            if appState.isLoading && appState.lastUpdated == nil {
+            if isBlockingInitialLoad {
                 (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.4))
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+                    .allowsHitTesting(false)
 
                 VStack(spacing: 12) {
                     ProgressView()
@@ -120,6 +134,7 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
+                .allowsHitTesting(false)
             }
 
             // Feedback Prompt Overlay
