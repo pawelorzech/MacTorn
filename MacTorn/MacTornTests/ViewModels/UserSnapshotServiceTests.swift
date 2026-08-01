@@ -115,4 +115,64 @@ final class UserSnapshotServiceTests: XCTestCase {
         }
         XCTAssertTrue(error.haltsCategoryOnly)
     }
+
+    func testParsePropertiesSortsDeterministicallyByPropertyId() async throws {
+        let service = UserSnapshotService(session: MockNetworkSession())
+        let data = try TornAPIFixtures.toData([
+            "name": "TestPlayer",
+            "player_id": 1,
+            "bars": [
+                "energy": ["current": 10, "maximum": 10],
+                "nerve": ["current": 10, "maximum": 10],
+                "life": ["current": 10, "maximum": 10],
+                "happy": ["current": 10, "maximum": 10]
+            ],
+            "properties": [
+                "100": ["property_id": 100, "property": "Castle", "cost": 500],
+                "10": ["property_id": 10, "property": "Shack", "cost": 100],
+                "50": ["property_id": 50, "property": "Ranch", "cost": 300]
+            ]
+        ])
+
+        let result = await service.parseSnapshot(
+            data: data,
+            requestedSelections: ["basic", "bars", "properties"],
+            grantedSelections: nil
+        )
+
+        guard case .success(let payload, _) = result, let properties = payload.properties else {
+            return XCTFail("Expected properties in payload")
+        }
+        XCTAssertEqual(properties.map(\.id), [10, 50, 100])
+    }
+
+    func testParseStocksSortsDeterministicallyByStockId() async throws {
+        let service = UserSnapshotService(session: MockNetworkSession())
+        let data = try TornAPIFixtures.toData([
+            "name": "TestPlayer",
+            "player_id": 1,
+            "bars": [
+                "energy": ["current": 10, "maximum": 10],
+                "nerve": ["current": 10, "maximum": 10],
+                "life": ["current": 10, "maximum": 10],
+                "happy": ["current": 10, "maximum": 10]
+            ],
+            "stocks": [
+                "25": ["stock_id": 25, "total_shares": 500],
+                "3": ["stock_id": 3, "total_shares": 100],
+                "12": ["stock_id": 12, "total_shares": 200]
+            ]
+        ])
+
+        let result = await service.parseSnapshot(
+            data: data,
+            requestedSelections: ["basic", "bars", "stocks"],
+            grantedSelections: nil
+        )
+
+        guard case .success(let payload, _) = result else {
+            return XCTFail("Expected stocks in payload")
+        }
+        XCTAssertEqual(payload.stocks.map(\.stockId), [3, 12, 25])
+    }
 }

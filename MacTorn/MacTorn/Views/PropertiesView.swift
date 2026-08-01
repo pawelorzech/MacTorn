@@ -32,7 +32,7 @@ struct PropertiesView: View {
                     }
                     
                     if let properties = appState.propertiesData, !properties.isEmpty {
-                        ForEach(Array(properties.enumerated()), id: \.offset) { index, property in
+                        ForEach(properties) { property in
                             PropertyCard(property: property)
                         }
                     } else {

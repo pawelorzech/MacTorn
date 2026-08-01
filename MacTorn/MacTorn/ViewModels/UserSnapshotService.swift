@@ -261,7 +261,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
                 rented: rented != nil,
                 rentDaysLeft: rented?["days_left"] as? Int
             )
-        }
+        }.sorted { $0.id < $1.id }
     }
 
     private static func parseStocks(_ json: [String: Any]) -> [StockHolding] {
@@ -271,7 +271,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
                 return nil
             }
             return try? JSONDecoder().decode(StockHolding.self, from: data)
-        }
+        }.sorted { $0.stockId < $1.stockId }
     }
 }
 
