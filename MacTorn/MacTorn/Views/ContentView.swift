@@ -46,7 +46,7 @@ enum AppTab: String, CaseIterable {
         case .stocks: return "chart.line.uptrend.xyaxis"
         case .attacks: return "bolt.shield.fill"
         case .faction: return "person.3.fill"
-        case .watchlist: return "chart.line.uptrend.xyaxis"
+        case .watchlist: return "tag.fill"
         case .forums: return "bubble.left.and.bubble.right.fill"
         }
     }

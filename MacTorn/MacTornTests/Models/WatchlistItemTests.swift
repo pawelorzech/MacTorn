@@ -3,6 +3,10 @@ import XCTest
 
 final class WatchlistItemTests: XCTestCase {
 
+    func testWatchlistTabUsesTagIcon() {
+        XCTAssertEqual(AppTab.watchlist.icon, "tag.fill")
+    }
+
     // MARK: - priceDifference Tests
 
     func testPriceDifference_normalCase() {
