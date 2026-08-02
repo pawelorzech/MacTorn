@@ -158,4 +158,49 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(empty.kind, .empty)
         XCTAssertEqual(fresh.kind, .fresh)
     }
+
+    // MARK: - lastErrorSummary must never leak the raw Torn server string (issue #58)
+
+    /// `DiagnosticsReport.lastErrorSummary`'s own doc comment promises "a `TornAPIError`
+    /// classification or a short fixed message, never a raw server string." Today
+    /// `AppState.makeDiagnosticsReport()` fills it straight from `errorMsg`, which for
+    /// `.permanentKey` / `.insufficientPermissions` / `.temporaryBackend` is
+    /// `TornAPIError.userMessage` — the TORN SERVER's own message, merely
+    /// control-character-stripped and length-capped. That report text is copied to the
+    /// clipboard and pasted into public GitHub issues, so a server string ends up in the
+    /// egress channel the doc comment says it never will.
+    func testLastErrorSummaryNeverLeaksRawServerMessage() async {
+        let appState = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
+        defer { appState.stopPolling() }
+
+        // A distinctive "server" message that would never appear in one of the app's
+        // own fixed classification strings by coincidence.
+        let rawServerText = "unique_marker_torn_server_says_key_paused_by_owner_9f3a"
+        appState.errorMsg = TornAPIError.permanentKey(code: 18, message: rawServerText).userMessage
+
+        let report = await appState.makeDiagnosticsReport()
+
+        XCTAssertNotEqual(
+            report.lastErrorSummary, rawServerText,
+            "lastErrorSummary must never carry the raw Torn server string verbatim"
+        )
+
+        let allowedSummaries: Set<String> = [
+            TornErrorClass.permanentKey.rawValue,
+            TornErrorClass.insufficientPermissions.rawValue,
+            TornErrorClass.rateLimit.rawValue,
+            TornErrorClass.dailyRowLimit.rawValue,
+            TornErrorClass.temporaryBackend.rawValue,
+            TornErrorClass.offline.rawValue,
+            TornErrorClass.transport.rawValue,
+            TornErrorClass.malformedResponse.rawValue,
+            TornErrorClass.cancelled.rawValue,
+        ]
+        if let summary = report.lastErrorSummary {
+            XCTAssertTrue(
+                allowedSummaries.contains(summary),
+                "lastErrorSummary must be one of the app's own fixed classifications, got: \(summary)"
+            )
+        }
+    }
 }
