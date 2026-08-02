@@ -36,7 +36,7 @@ struct MoneyView: View {
                                     .font(.headline.monospacedDigit())
                                     .foregroundColor(.green)
                             }
-                            .accessibilityElement(children: .combine)
+                            .accessibilityElement(children: .ignore)
                             .accessibilityLabel("On Hand: \(formatMoney(money.cash))")
                             .uiTestID("uitest.money.cash")
 
@@ -49,7 +49,7 @@ struct MoneyView: View {
                                 Text(formatMoney(money.vault))
                                     .font(.headline.monospacedDigit())
                             }
-                            .accessibilityElement(children: .combine)
+                            .accessibilityElement(children: .ignore)
                             .accessibilityLabel("Vault: \(formatMoney(money.vault))")
                             .uiTestID("uitest.money.vault")
                         }
@@ -63,7 +63,7 @@ struct MoneyView: View {
                                     Text(formatMoney(money.cayman))
                                         .font(.headline.monospacedDigit())
                                 }
-                                .accessibilityElement(children: .combine)
+                                .accessibilityElement(children: .ignore)
                                 .accessibilityLabel("Cayman: \(formatMoney(money.cayman))")
                                 .uiTestID("uitest.money.cayman")
                                 Spacer()
@@ -80,7 +80,7 @@ struct MoneyView: View {
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
-                            .accessibilityElement(children: .combine)
+                            .accessibilityElement(children: .ignore)
                             .accessibilityLabel("Points: \(money.points)")
                             .uiTestID("uitest.money.points")
 
@@ -91,7 +91,7 @@ struct MoneyView: View {
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
-                            .accessibilityElement(children: .combine)
+                            .accessibilityElement(children: .ignore)
                             .accessibilityLabel("Tokens: \(money.tokens)")
                             .uiTestID("uitest.money.tokens")
                         }
@@ -135,7 +135,7 @@ struct MoneyView: View {
                     .padding()
                     .background(Color.green.opacity(reduceTransparency ? 0.35 : 0.12))
                     .cornerRadius(8)
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("Total Tracked: \(formatMoney(totalTracked))")
                     .uiTestID("uitest.money.totalTracked")
                 }

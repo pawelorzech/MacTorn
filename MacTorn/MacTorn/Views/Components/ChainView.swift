@@ -29,7 +29,7 @@ struct ChainView: View {
                 .padding(8)
                 .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
                 .cornerRadius(8)
-                .accessibilityElement(children: .combine)
+                .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
                     "Chain \(chain.current ?? 0)/\(chain.maximum ?? 0), " +
                     "\(urgencyDescription(for: remaining)), \(formatTime(remaining)) remaining"
@@ -45,7 +45,7 @@ struct ChainView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Chain on cooldown")
             .uiTestID("uitest.chain.cooldown")
         }

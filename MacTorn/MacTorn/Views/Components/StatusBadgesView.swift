@@ -22,7 +22,7 @@ struct StatusBadgesView: View {
                     .padding(.vertical, 4)
                     .background(Color.red.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("In hospital, \(formatTime(status.timeRemaining)) remaining")
                     .uiTestID("uitest.status.hospital")
                 }
@@ -42,7 +42,7 @@ struct StatusBadgesView: View {
                     .padding(.vertical, 4)
                     .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("In jail, \(formatTime(status.timeRemaining)) remaining")
                     .uiTestID("uitest.status.jail")
                 }
