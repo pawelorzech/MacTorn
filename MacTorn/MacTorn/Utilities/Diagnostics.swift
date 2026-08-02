@@ -7,6 +7,17 @@ import Foundation
 // outcomes, latencies, byte counts, budget counters and OS/app versions — never the API
 // key, full URLs, player name/ID, money, stats, faction/company names, or raw payloads.
 // The "Copy sanitized diagnostic report" text is assembled only from these safe fields.
+//
+// NOTE on "sanitized" — this word is used with two different meanings in the codebase,
+// which is exactly the confusion issue #58 was filed about:
+//   • `TornAPIError.sanitized(_:)` (Networking/TornAPIError.swift) means *string hygiene*:
+//     no control characters, capped at 120 chars. It says nothing about content — the
+//     result can still be the Torn server's own message, verbatim.
+//   • "Sanitized" here means *safe by construction*: every field on `DiagnosticsReport`
+//     is either a closed-vocabulary classification, a count, a bool, or an app-owned
+//     constant — never a hygiene-cleaned copy of free-text server output. In particular
+//     `lastErrorSummary` is a `TornErrorClass` raw value (or `nil`), never `errorMsg`'s
+//     free text, which for some error kinds carries the Torn server's own string.
 
 /// Outcome of the most recent call to an endpoint.
 enum EndpointOutcome: String, Equatable, Hashable, Sendable {
@@ -174,8 +185,11 @@ struct DiagnosticsReport: Equatable {
     let isOnline: Bool
     let notificationPermission: String
     let lastSuccessfulRefresh: Date?
-    /// Coarse, non-PII summary of the last error (a `TornAPIError` classification or a
-    /// short fixed message), never a raw server string.
+    /// Coarse, non-PII summary of the last error: a `TornErrorClass` raw value (e.g.
+    /// `"rateLimit"`), or `nil`. NEVER a raw server string, and never free text from
+    /// `AppState.errorMsg` — see `AppState.lastErrorClassificationSummary()`, the only
+    /// producer of this field, and the "sanitized" note at the top of this file
+    /// (issue #58).
     let lastErrorSummary: String?
 
     // Key (never the key itself)

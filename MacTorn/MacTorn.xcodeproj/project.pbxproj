@@ -95,6 +95,7 @@
 		BBB00034 /* MarketWatchServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10034 /* MarketWatchServiceTests.swift */; };
 		BBB00035 /* ForumWatchServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10035 /* ForumWatchServiceTests.swift */; };
 		BBB00036 /* FactionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10036 /* FactionServiceTests.swift */; };
+		BBB00037 /* UpdateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10037 /* UpdateManagerTests.swift */; };
 		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
 		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
 		BBB00029 /* NextActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10029 /* NextActionTests.swift */; };
@@ -208,6 +209,7 @@
 		BBB10034 /* MarketWatchServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketWatchServiceTests.swift; sourceTree = "<group>"; };
 		BBB10035 /* ForumWatchServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchServiceTests.swift; sourceTree = "<group>"; };
 		BBB10036 /* FactionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionServiceTests.swift; sourceTree = "<group>"; };
+		BBB10037 /* UpdateManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateManagerTests.swift; sourceTree = "<group>"; };
 		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
 		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
 		BBB10029 /* NextActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionTests.swift; sourceTree = "<group>"; };
@@ -425,6 +427,7 @@
 				BBB10024 /* TornEndpointTests.swift */,
 				BBB10031 /* KeyValidationTests.swift */,
 				BBB10025 /* TornAPIErrorTests.swift */,
+				BBB10037 /* UpdateManagerTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -690,6 +693,7 @@
 				BBB00034 /* MarketWatchServiceTests.swift in Sources */,
 				BBB00035 /* ForumWatchServiceTests.swift in Sources */,
 				BBB00036 /* FactionServiceTests.swift in Sources */,
+				BBB00037 /* UpdateManagerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

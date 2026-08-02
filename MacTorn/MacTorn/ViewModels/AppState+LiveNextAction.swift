@@ -165,7 +165,7 @@ extension AppState {
             isOnline: connectivity.isConnected,
             notificationPermission: notif,
             lastSuccessfulRefresh: lastUpdated,
-            lastErrorSummary: errorMsg,
+            lastErrorSummary: lastErrorClassificationSummary(),
             keyPresent: !apiKey.isEmpty,
             requiredAccessLevel: TornEndpointRegistry.requiredAccessLevel.label,
             requestsLastMinute: pollingCoordinator.requestsInLastMinute,
@@ -173,5 +173,32 @@ extension AppState {
             recordsPerDayByCategory: recordsByCategory,
             endpoints: endpointHealth.all
         )
+    }
+
+    /// Coarse, closed-vocabulary summary of the most recent failure — a `TornErrorClass`
+    /// raw value, or `nil` — never `errorMsg`'s free text (issue #58: `errorMsg` can be
+    /// the raw Torn server message verbatim for `.permanentKey` / `.insufficientPermissions`
+    /// / `.temporaryBackend`, and this report is copied to the clipboard and pasted into
+    /// public GitHub issues).
+    ///
+    /// Derived from `endpointHealth`, which already records a classification string per
+    /// endpoint on every failure (see `AppState+*Fetch.swift`), rather than from the
+    /// user-facing `errorMsg` string. If the most recent failure's `errorClass` isn't one
+    /// of the app's own `TornErrorClass` cases (e.g. an ad-hoc `"http404"`), it is mapped
+    /// to `.transport` instead of being echoed verbatim, so the result is always a member
+    /// of the closed set or `nil`.
+    private func lastErrorClassificationSummary() -> String? {
+        guard errorMsg != nil else { return nil }
+        guard connectivity.isConnected else { return TornErrorClass.offline.rawValue }
+
+        guard let mostRecentFailure = endpointHealth.all
+            .filter({ $0.outcome == .error })
+            .max(by: { $0.at < $1.at }),
+            let errorClass = mostRecentFailure.errorClass
+        else {
+            return nil
+        }
+
+        return TornErrorClass(rawValue: errorClass)?.rawValue ?? TornErrorClass.transport.rawValue
     }
 }

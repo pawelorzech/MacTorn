@@ -40,6 +40,8 @@ extension AppState {
     func stopPolling() {
         timerCancellable?.cancel()
         timerCancellable = nil
+        // Issue #56: an in-flight GitHub update-check must not outlive polling teardown.
+        updateCheckTask?.cancel()
     }
 
     func refreshNow() {
