@@ -260,9 +260,11 @@ struct SettingsView: View {
                     appState.refreshNow()
                 }
                 .buttonStyle(.borderedProminent)
-                // Also gated on `isLoading`: without it, three quick clicks fired three
-                // refreshes in an app that otherwise budgets every single API request.
-                .disabled(trimmedInputKey.isEmpty || appState.isLoading)
+                // Block repeated refreshes for the current key, but still allow an
+                // account switch while its old request is in flight. Updating the key
+                // advances the account generation and cancels those stale tasks.
+                .disabled(trimmedInputKey.isEmpty
+                          || (appState.isLoading && trimmedInputKey == appState.apiKey))
                 .uiTestID("uitest.saveKey")
 
                 Button {
