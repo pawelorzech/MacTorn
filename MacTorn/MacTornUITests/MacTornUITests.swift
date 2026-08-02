@@ -407,8 +407,14 @@ final class MacTornUITests: XCTestCase {
             "Hospital badge label '\(hospitalBadge.label)' must say what state the player is in"
         )
 
-        let eventRow = win.descendants(matching: .any)["uitest.event.9002"]
-        XCTAssertTrue(eventRow.waitForExistence(timeout: 10),
+        // EventsView sits near the bottom of StatusView, outside the bounded
+        // 320x480 viewport, and XCUI cannot see what is not laid out. Scroll to it
+        // the same way testAccountModulesFitAndStocksScrollInShortWindow reaches
+        // the bottom of Stocks.
+        let eventRow = scrollToElement("uitest.event.9002",
+                                       in: win.scrollViews["uitest.tabContent.Status"],
+                                       within: win)
+        XCTAssertTrue(eventRow.exists,
                       "Each event row must be one combined accessibility element")
         XCTAssertTrue(
             eventRow.label.contains("You were mugged by Fixture Mugger for $500."),
@@ -420,19 +426,40 @@ final class MacTornUITests: XCTestCase {
         win.buttons["settings.section.diagnostics"].click()
         win.buttons["Credits"].click()
 
-        let developerRow = win.descendants(matching: .any)["uitest.credits.developer"]
-        XCTAssertTrue(developerRow.waitForExistence(timeout: 10),
+        // Credits is a long scrolling list in the same bounded surface.
+        let creditsScroll = win.scrollViews.firstMatch
+
+        let developerRow = scrollToElement("uitest.credits.developer", in: creditsScroll, within: win)
+        XCTAssertTrue(developerRow.exists,
                       "The developer credit must be one combined accessibility element")
         XCTAssertTrue(developerRow.label.contains("bombel"))
 
-        let factionRow = win.descendants(matching: .any)["uitest.credits.faction"]
-        XCTAssertTrue(factionRow.waitForExistence(timeout: 10))
+        let factionRow = scrollToElement("uitest.credits.faction", in: creditsScroll, within: win)
+        XCTAssertTrue(factionRow.exists)
         XCTAssertTrue(factionRow.label.contains("The Masters"))
 
-        let contributorRow = win.descendants(matching: .any)["uitest.credits.contributor.Greeney"]
-        XCTAssertTrue(contributorRow.waitForExistence(timeout: 10),
+        let contributorRow = scrollToElement("uitest.credits.contributor.Greeney",
+                                             in: creditsScroll, within: win)
+        XCTAssertTrue(contributorRow.exists,
                       "Even a contributor with no linked Torn profile needs a stable AX id")
         XCTAssertTrue(contributorRow.label.contains("Greeney"))
+    }
+
+    /// Returns the element with `identifier`, scrolling `scrollView` until it is laid
+    /// out. XCUI only sees what SwiftUI has actually realised, so anything below the
+    /// fold of this deliberately compact 320-pt surface is invisible until scrolled to.
+    private func scrollToElement(_ identifier: String,
+                                 in scrollView: XCUIElement,
+                                 within window: XCUIElement,
+                                 maxSwipes: Int = 12) -> XCUIElement {
+        let element = window.descendants(matching: .any)[identifier]
+        if element.waitForExistence(timeout: 3) { return element }
+        guard scrollView.waitForExistence(timeout: 5) else { return element }
+        for _ in 0..<maxSwipes {
+            scrollView.swipeUp()
+            if element.exists { return element }
+        }
+        return element
     }
 
     /// Compact list controls must remain easy to hit, while forum state that used to
