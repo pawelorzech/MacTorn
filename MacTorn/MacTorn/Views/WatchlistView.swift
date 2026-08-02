@@ -298,6 +298,8 @@ struct WatchlistPriceRow: View {
                     Image(systemName: item.priceThreshold != nil ? "bell.fill" : "bell")
                         .foregroundColor(item.priceThreshold != nil ? .yellow : .gray)
                         .font(.caption)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(item.priceThreshold != nil
@@ -349,6 +351,8 @@ struct WatchlistPriceRow: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.gray)
                         .font(.caption)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Remove \(item.name) from price watch")

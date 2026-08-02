@@ -320,6 +320,56 @@ final class MacTornUITests: XCTestCase {
         XCTAssertEqual(warProgress.label, "Ranked War lead progress")
     }
 
+    /// Compact list controls must remain easy to hit, while forum state that used to
+    /// live only in icons, colour and tooltips stays available without a mouse.
+    func testWatchListsExposeAccessibleControlsAndForumState() throws {
+        let app = launch(fixture: "watchAccessibility", apiKey: "sample-watch-a11y-user")
+        let win = window(app)
+
+        win.buttons["uitest.group.Watch"].click()
+
+        let priceAlert = win.buttons["Set price alert for Accessibility Item"]
+        let removeItem = win.buttons["Remove Accessibility Item from price watch"]
+        for control in [priceAlert, removeItem] {
+            XCTAssertTrue(control.waitForExistence(timeout: 10))
+            XCTAssertTrue(control.isHittable)
+            XCTAssertGreaterThanOrEqual(control.frame.width, 24)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 24)
+        }
+
+        win.buttons["uitest.tab.Forums"].click()
+
+        let errorText = win.staticTexts["Fixture forum unavailable."]
+        XCTAssertTrue(errorText.waitForExistence(timeout: 10),
+                      "Forum errors must be visible without hovering a tooltip")
+        XCTAssertTrue(
+            win.descendants(matching: .any)["Error: Fixture forum unavailable."]
+                .waitForExistence(timeout: 10),
+            "The warning icon must expose the error to VoiceOver"
+        )
+        XCTAssertTrue(
+            win.descendants(matching: .any)["Last checked successfully"]
+                .waitForExistence(timeout: 10),
+            "A successful check must not rely on a green icon alone"
+        )
+
+        let notificationsOn = win.buttons[
+            "Notifications on for Unavailable forum thread. Disable notifications"
+        ]
+        let notificationsOff = win.buttons[
+            "Notifications off for Healthy forum thread. Enable notifications"
+        ]
+        let removeThread = win.buttons[
+            "Remove Unavailable forum thread from watched threads"
+        ]
+        for control in [notificationsOn, notificationsOff, removeThread] {
+            XCTAssertTrue(control.waitForExistence(timeout: 10))
+            XCTAssertTrue(control.isHittable)
+            XCTAssertGreaterThanOrEqual(control.frame.width, 24)
+            XCTAssertGreaterThanOrEqual(control.frame.height, 24)
+        }
+    }
+
     // MARK: - Account isolation (T15 fixture preparation)
 
     /// A delayed, cancellation-ignoring response for synthetic account A must never

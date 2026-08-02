@@ -68,6 +68,7 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertEqual(FixtureScenario(rawValue: "empty"), .empty)
         XCTAssertEqual(FixtureScenario(rawValue: "accountSwitch"), .accountSwitch)
         XCTAssertEqual(FixtureScenario(rawValue: "accessibility"), .accessibility)
+        XCTAssertEqual(FixtureScenario(rawValue: "watchAccessibility"), .watchAccessibility)
         XCTAssertNil(FixtureScenario(rawValue: "nonsense"))
     }
 
