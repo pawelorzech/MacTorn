@@ -164,18 +164,22 @@ struct ModuleStateView: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            if state.kind == .loading {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                Image(systemName: icon)
-                    .foregroundStyle(color)
-                    .accessibilityHidden(true)
-            }
+            HStack(spacing: 6) {
+                if state.kind == .loading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: icon)
+                        .foregroundStyle(color)
+                        .accessibilityHidden(true)
+                }
 
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(state.kind == .fresh ? Color.secondary : color)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(state.kind == .fresh ? Color.secondary : color)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(label)
 
             Spacer(minLength: 4)
 
@@ -184,10 +188,12 @@ struct ModuleStateView: View {
                 Button("Retry", action: onRetry)
                     .buttonStyle(.plain)
                     .font(.caption2.weight(.semibold))
+                    .uiTestID("uitest.moduleState.recovery")
             case .settings:
                 Button("Settings") { openSettings() }
                     .buttonStyle(.plain)
                     .font(.caption2.weight(.semibold))
+                    .uiTestID("uitest.moduleState.recovery")
             case .none:
                 EmptyView()
             }
@@ -196,8 +202,7 @@ struct ModuleStateView: View {
         .padding(.vertical, 5)
         .background(color.opacity(state.kind == .fresh ? 0.06 : 0.12))
         .clipShape(RoundedRectangle(cornerRadius: 6))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(label)
+        .accessibilityElement(children: .contain)
     }
 
     private var label: String {

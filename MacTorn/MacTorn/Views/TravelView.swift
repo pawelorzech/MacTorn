@@ -70,6 +70,10 @@ struct FlyingStatusView: View {
                     }
                 }
                 .frame(height: 8)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Flight progress")
+                .accessibilityValue("\(Int(progress * 100)) percent")
+                .uiTestID("uitest.travel.progress")
             }
         }
         .padding()
