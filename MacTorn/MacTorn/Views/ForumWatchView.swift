@@ -241,7 +241,7 @@ struct ForumThreadRow: View {
     let onRemove: () -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(alignment: .top, spacing: 6) {
             // Faction badge
             if thread.isFactionThread {
                 Image(systemName: "person.3.fill")
@@ -250,16 +250,25 @@ struct ForumThreadRow: View {
             }
 
             // Thread title (clickable)
-            Button {
-                onOpen()
-            } label: {
-                Text(thread.title)
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .foregroundColor(.primary)
+            VStack(alignment: .leading, spacing: 2) {
+                Button {
+                    onOpen()
+                } label: {
+                    Text(thread.title)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .foregroundColor(.primary)
+                }
+                .buttonStyle(.plain)
+
+                if let error = thread.error {
+                    Text(error)
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .buttonStyle(.plain)
 
             Spacer()
 
@@ -269,6 +278,7 @@ struct ForumThreadRow: View {
                     .font(.caption2)
                     .foregroundColor(.yellow)
                     .help(error)
+                    .accessibilityLabel("Error: \(error)")
             }
 
             // Last checked indicator
@@ -277,6 +287,7 @@ struct ForumThreadRow: View {
                     .font(.caption2)
                     .foregroundColor(.green)
                     .opacity(0.5)
+                    .accessibilityLabel("Last checked successfully")
             }
 
             // Notification toggle
@@ -286,12 +297,14 @@ struct ForumThreadRow: View {
                 Image(systemName: thread.notificationsEnabled ? "bell.fill" : "bell.slash")
                     .font(.caption)
                     .foregroundColor(thread.notificationsEnabled ? .blue : .secondary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(thread.notificationsEnabled ? "Notifications on" : "Notifications off")
             .accessibilityLabel(thread.notificationsEnabled
-                                ? "Disable notifications for \(thread.title)"
-                                : "Enable notifications for \(thread.title)")
+                                ? "Notifications on for \(thread.title). Disable notifications"
+                                : "Notifications off for \(thread.title). Enable notifications")
 
             // Remove button
             Button {
@@ -300,6 +313,8 @@ struct ForumThreadRow: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .frame(width: 24, height: 24)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Remove \(thread.title) from watched threads")
