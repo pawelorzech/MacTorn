@@ -34,6 +34,22 @@ extension AppState {
         marketWatchService.remove(itemID: itemId)
     }
 
+    /// Parses the raw text from the watchlist's Item ID field. Mirrors
+    /// `parseThreadInput` — numeric, positive only.
+    func parseItemIdInput(_ input: String) -> Int? {
+        PositiveIntegerInput.value(from: input)
+    }
+
+    /// Adds a watchlist item from raw text input. There is no local item-name
+    /// database (unlike forum threads, whose titles come back from the API on the
+    /// first fetch), so this seeds a placeholder name; `fetchItemPrice` only ever
+    /// updates price fields, never the name.
+    @discardableResult
+    func addToWatchlist(input: String) -> Bool {
+        guard let itemId = parseItemIdInput(input) else { return false }
+        return addToWatchlist(itemId: itemId, name: "Item #\(itemId)")
+    }
+
     func refreshWatchlistPrices() {
         accountSession.startTask(.watchlist) {
             await self.fetchWatchlistPrices()

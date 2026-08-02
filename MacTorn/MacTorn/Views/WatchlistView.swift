@@ -5,6 +5,7 @@ struct WatchlistView: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddItem = false
+    @State private var itemIdInput = ""
     @State private var addItemError: String?
     @State private var recentlyRemoved: RemovedWatchlistItem?
     @State private var undoDismissTask: Task<Void, Never>?
@@ -60,6 +61,25 @@ struct WatchlistView: View {
                                 .foregroundColor(.orange)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .accessibilityLabel("Add item error: \(addItemError)")
+                        }
+
+                        HStack {
+                            TextField("Item ID", text: $itemIdInput)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption)
+                                .onChange(of: itemIdInput) { _, _ in
+                                    addItemError = nil
+                                }
+                                .onSubmit {
+                                    addItemByID()
+                                }
+
+                            Button("Add") {
+                                addItemByID()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
 
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
@@ -177,6 +197,22 @@ struct WatchlistView: View {
     private func openURL(_ urlString: String) {
         if let url = URL(string: urlString) {
             BrowserManager.shared.open(url)
+        }
+    }
+
+    private func addItemByID() {
+        guard appState.parseItemIdInput(itemIdInput) != nil else {
+            addItemError = "Enter a positive item ID."
+            return
+        }
+        guard appState.addToWatchlist(input: itemIdInput) else {
+            addItemError = "This item is already on your watchlist."
+            return
+        }
+        itemIdInput = ""
+        addItemError = nil
+        withAnimation(reduceMotion ? nil : .default) {
+            showAddItem = false
         }
     }
 
