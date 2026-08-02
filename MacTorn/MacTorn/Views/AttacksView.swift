@@ -43,7 +43,7 @@ struct AttacksView: View {
                             Text(formatStat(stats.total))
                                 .font(.caption.bold())
                         }
-                        .accessibilityElement(children: .combine)
+                        .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Total: \(formatStat(stats.total))")
                         .uiTestID("uitest.battleStats.total")
                     } else if appState.lastUpdated == nil {
@@ -196,7 +196,7 @@ struct StatItem: View {
         .padding(.vertical, 4)
         .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
         .cornerRadius(4)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label): \(value)")
         .uiTestID("uitest.battleStats.\(label)")
     }

@@ -108,7 +108,7 @@ struct CreditsView: View {
             .frame(maxWidth: .infinity)
             .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Created by \(developer.name)")
             .uiTestID("uitest.credits.developer")
         }
@@ -145,7 +145,7 @@ struct CreditsView: View {
             .frame(maxWidth: .infinity)
             .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Faction: \(factionName)")
             .uiTestID("uitest.credits.faction")
         }
@@ -200,7 +200,7 @@ struct CreditsView: View {
             }
             .buttonStyle(.plain)
             .foregroundColor(.accentColor)
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Contributor: \(contributor.name)")
             .uiTestID("uitest.credits.contributor.\(contributor.name)")
         } else {
@@ -210,7 +210,7 @@ struct CreditsView: View {
                     .foregroundColor(.primary)
                 Spacer()
             }
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("Contributor: \(contributor.name)")
             .uiTestID("uitest.credits.contributor.\(contributor.name)")
         }

@@ -32,7 +32,7 @@ struct EventsView: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
-                    .accessibilityElement(children: .combine)
+                    .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(event.cleanEvent), \(timeAgo(event.timestamp)) ago")
                     .uiTestID("uitest.event.\(event.id)")
                 }

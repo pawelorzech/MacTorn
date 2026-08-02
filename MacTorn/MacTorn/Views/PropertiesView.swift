@@ -162,7 +162,7 @@ struct PropertyCard: View {
         .padding()
         .background(Color.brown.opacity(reduceTransparency ? 0.25 : 0.05))
         .cornerRadius(8)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityDescription)
         .uiTestID("uitest.property.\(property.id)")
     }
