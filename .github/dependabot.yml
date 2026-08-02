@@ -1,0 +1,17 @@
+version: 2
+updates:
+  # Swift Package Manager dependencies (currently just Sentry Cocoa).
+  # Keeps CVE status current automatically instead of relying on manual audits
+  # (see GitHub issue #61).
+  - package-ecosystem: "swift"
+    directory: "/MacTorn"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions workflow dependencies.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5

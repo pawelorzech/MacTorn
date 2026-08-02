@@ -100,6 +100,25 @@ Accessibility work in progress — not yet complete: several module tabs (Attack
 
 > **Note**: If you download an unsigned build, macOS Gatekeeper may block it. Right-click the app and select "Open", or go to System Settings → Privacy & Security → Open Anyway.
 
+### Verifying your download
+
+MacTorn is **not** notarized or signed with a paid Apple Developer ID (a deliberate
+tradeoff — that program costs money and this is a free hobby project), so macOS
+itself won't vouch for the binary the way it does for signed, notarized apps. A
+SHA-256 checksum lets you confirm
+the file you downloaded is byte-for-byte the one published in the release, without
+relying on Gatekeeper:
+
+1. Copy the `SHA-256` hash listed in the [release notes](https://github.com/pawelorzech/MacTorn/releases) for the version you downloaded.
+2. Run this in Terminal against the file you downloaded:
+   ```
+   shasum -a 256 ~/Downloads/MacTorn.dmg
+   ```
+3. Compare the printed hash to the one in the release notes — they must match exactly.
+
+This does **not** replace notarization: it proves the file wasn't corrupted or swapped
+in transit, not that Apple has vetted the publisher.
+
 ## Requirements
 
 - macOS 14.0 (Sonoma) or later

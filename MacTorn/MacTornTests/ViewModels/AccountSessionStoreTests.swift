@@ -89,13 +89,16 @@ final class AccountSessionStoreTests: XCTestCase {
             source.contains("kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock"),
             "KeychainStore must keep writing kSecAttrAccessibleAfterFirstUnlock so polling/notifications survive a locked Mac"
         )
+        // These match the assignment expressions, not bare identifiers: the comment above
+        // the production code deliberately names both rejected alternatives in prose, and
+        // a substring search would make documenting the choice fail the test that guards it.
         XCTAssertFalse(
-            source.contains("kSecAttrAccessibleWhenUnlocked"),
-            "KeychainStore must not switch to kSecAttrAccessibleWhenUnlocked — that breaks background polling while locked"
+            source.contains("kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlocked"),
+            "KeychainStore must not switch to the WhenUnlocked accessibility class — that breaks background polling while locked"
         )
         XCTAssertFalse(
-            source.contains("kSecAttrSynchronizable"),
-            "KeychainStore must not set kSecAttrSynchronizable — the API key must never sync to iCloud Keychain"
+            source.contains("kSecAttrSynchronizable as String:"),
+            "KeychainStore must not set the synchronizable attribute — the API key must never sync to iCloud Keychain"
         )
     }
 
