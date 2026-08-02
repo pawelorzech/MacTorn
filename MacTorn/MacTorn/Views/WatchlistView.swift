@@ -197,13 +197,18 @@ struct WatchlistView: View {
     }
 
     private func addItemByID() {
-        guard appState.parseItemIdInput(itemIdInput) != nil else {
+        switch appState.addToWatchlist(input: itemIdInput) {
+        case .notANumber:
             addItemError = "Enter a positive item ID."
             return
-        }
-        guard appState.addToWatchlist(input: itemIdInput) else {
+        case .outOfRange(let maximum):
+            addItemError = "Item IDs go up to \(maximum - 1)."
+            return
+        case .alreadyWatched:
             addItemError = "This item is already on your watchlist."
             return
+        case .added:
+            break
         }
         itemIdInput = ""
         addItemError = nil

@@ -485,35 +485,57 @@ final class AppStateWatchlistTests: XCTestCase {
     }
 
     func testAddToWatchlistByInput_validNumericIdIsAcceptedAndAdded() {
-        XCTAssertTrue(appState.addToWatchlist(input: "206"))
+        XCTAssertEqual(appState.addToWatchlist(input: "206"), .added(itemId: 206))
         XCTAssertEqual(appState.watchlistItems.count, 1)
         XCTAssertEqual(appState.watchlistItems.first?.id, 206)
     }
 
     func testAddToWatchlistByInput_rejectsNonNumericInput() {
-        XCTAssertFalse(appState.addToWatchlist(input: "abc"))
+        XCTAssertEqual(appState.addToWatchlist(input: "abc"), .notANumber)
         XCTAssertTrue(appState.watchlistItems.isEmpty)
     }
 
     func testAddToWatchlistByInput_rejectsEmptyInput() {
-        XCTAssertFalse(appState.addToWatchlist(input: ""))
+        XCTAssertEqual(appState.addToWatchlist(input: ""), .notANumber)
         XCTAssertTrue(appState.watchlistItems.isEmpty)
     }
 
     func testAddToWatchlistByInput_rejectsZero() {
-        XCTAssertFalse(appState.addToWatchlist(input: "0"))
+        XCTAssertEqual(appState.addToWatchlist(input: "0"), .notANumber)
         XCTAssertTrue(appState.watchlistItems.isEmpty)
     }
 
     func testAddToWatchlistByInput_rejectsNegative() {
-        XCTAssertFalse(appState.addToWatchlist(input: "-1"))
+        XCTAssertEqual(appState.addToWatchlist(input: "-1"), .notANumber)
         XCTAssertTrue(appState.watchlistItems.isEmpty)
     }
 
     func testAddToWatchlistByInput_rejectsDuplicateId() {
-        XCTAssertTrue(appState.addToWatchlist(input: "206"))
-        XCTAssertFalse(appState.addToWatchlist(input: "206"))
+        XCTAssertEqual(appState.addToWatchlist(input: "206"), .added(itemId: 206))
+        XCTAssertEqual(appState.addToWatchlist(input: "206"), .alreadyWatched)
         XCTAssertEqual(appState.watchlistItems.count, 1)
+    }
+
+    /// An id above Torn's item range must report *why* it was rejected. It used to
+    /// come back as a bare `false`, which the panel rendered as "already on your
+    /// watchlist" — a statement about an item the user had never added.
+    func testAddToWatchlistByInput_rejectsOutOfRangeIdAsOutOfRangeNotDuplicate() {
+        let outcome = appState.addToWatchlist(input: "200000")
+        XCTAssertEqual(outcome, .outOfRange(maximum: MarketWatchService.maximumItemID))
+        XCTAssertNotEqual(outcome, .alreadyWatched)
+        XCTAssertTrue(appState.watchlistItems.isEmpty)
+    }
+
+    /// The boundary itself is exclusive, and one below it is a normal add.
+    func testAddToWatchlistByInput_boundaryIsExclusive() {
+        XCTAssertEqual(
+            appState.addToWatchlist(input: String(MarketWatchService.maximumItemID)),
+            .outOfRange(maximum: MarketWatchService.maximumItemID)
+        )
+        XCTAssertEqual(
+            appState.addToWatchlist(input: String(MarketWatchService.maximumItemID - 1)),
+            .added(itemId: MarketWatchService.maximumItemID - 1)
+        )
     }
 
     // MARK: - Price-Alert Threshold Clear Undo (GitHub #54)

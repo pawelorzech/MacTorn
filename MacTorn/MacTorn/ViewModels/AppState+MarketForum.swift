@@ -40,14 +40,39 @@ extension AppState {
         PositiveIntegerInput.value(from: input)
     }
 
+    /// Why an Item ID typed into the watchlist panel was rejected.
+    ///
+    /// `addToWatchlist(input:)` used to answer this with a bare `Bool`, which left the
+    /// UI unable to tell "out of range" from "duplicate" — so an id of 200000 was
+    /// reported to the user as "already on your watchlist", which was simply untrue.
+    enum WatchlistAddOutcome: Equatable {
+        case added(itemId: Int)
+        /// Empty, non-numeric, zero or negative.
+        case notANumber
+        /// Numeric and positive, but outside the range Torn item ids occupy.
+        case outOfRange(maximum: Int)
+        case alreadyWatched
+    }
+
     /// Adds a watchlist item from raw text input. There is no local item-name
     /// database (unlike forum threads, whose titles come back from the API on the
     /// first fetch), so this seeds a placeholder name; `fetchItemPrice` only ever
     /// updates price fields, never the name.
-    @discardableResult
-    func addToWatchlist(input: String) -> Bool {
-        guard let itemId = parseItemIdInput(input) else { return false }
-        return addToWatchlist(itemId: itemId, name: "Item #\(itemId)")
+    func addToWatchlist(input: String) -> WatchlistAddOutcome {
+        guard let itemId = parseItemIdInput(input) else { return .notANumber }
+        guard itemId < MarketWatchService.maximumItemID else {
+            return .outOfRange(maximum: MarketWatchService.maximumItemID)
+        }
+        guard !watchlistItems.contains(where: { $0.id == itemId }) else {
+            return .alreadyWatched
+        }
+        guard addToWatchlist(itemId: itemId, name: "Item #\(itemId)") else {
+            // The service applies the same bounds we just checked, so reaching here
+            // means those two definitions drifted apart.
+            logger.error("addToWatchlist(input:) passed its own checks but the service still rejected \(itemId)")
+            return .notANumber
+        }
+        return .added(itemId: itemId)
     }
 
     func refreshWatchlistPrices() {
