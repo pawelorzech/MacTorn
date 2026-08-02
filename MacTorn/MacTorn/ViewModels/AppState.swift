@@ -253,6 +253,16 @@ class AppState {
     @ObservationIgnored var lastForumFetchAt: Date?
     @ObservationIgnored var pendingPriceAlerts: [(name: String, price: Int)] = []
 
+    /// Monotonic identity for accepted user snapshot polls. Deferred cleanup from an
+    /// older, cancelled poll must never mutate the loading state owned by a newer one.
+    @ObservationIgnored var pollSequence: UInt = 0
+
+    /// Manual refresh debounce is account-generation scoped: saving a different API
+    /// key must be able to fetch immediately even if the previous account just did.
+    @ObservationIgnored var lastManualRefreshAt: Date?
+    @ObservationIgnored var lastManualRefreshGeneration: UInt?
+    static let manualRefreshMinInterval: TimeInterval = 3
+
     // Stocks metadata backoff: ladder of seconds applied between retries after failures.
     // Last value is the cap and is used for any further failure beyond the ladder length.
     // Reset to 0 (= no backoff active) on success or when metadata is freshly cached.

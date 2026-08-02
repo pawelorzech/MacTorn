@@ -7,19 +7,22 @@ extension AppState {
 
     // MARK: - Polling
 
-    func startPolling(force: Bool = false) {
+    func startPolling() {
         guard !keyHalted else {
             logger.warning("startPolling skipped: polling halted on a permanent key error")
             return
         }
-        if !force,
-           timerCancellable != nil,
-           Date().timeIntervalSince(lastFetchTime) < Double(refreshInterval) / 2 {
+        if timerCancellable != nil,
+           time.now.timeIntervalSince(lastFetchTime) < Double(refreshInterval) / 2 {
             return
         }
         timerCancellable?.cancel()
         fetchData()
         triggerStocksMetadataFetchIfNeeded()
+        installPollingTimer()
+    }
+
+    private func installPollingTimer() {
         timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -40,7 +43,29 @@ extension AppState {
     }
 
     func refreshNow() {
-        startPolling(force: true)
+        guard !keyHalted else {
+            logger.warning("refreshNow skipped: polling halted on a permanent key error")
+            return
+        }
+
+        let identity = accountSession.identity
+        if lastManualRefreshGeneration == identity.generation,
+           let lastManualRefreshAt {
+            let elapsed = time.now.timeIntervalSince(lastManualRefreshAt)
+            if elapsed >= 0, elapsed < Self.manualRefreshMinInterval {
+                return
+            }
+        }
+
+        // `fetchData` performs connectivity/key/budget validation synchronously. Only
+        // accepted requests consume the debounce, so an offline attempt cannot delay
+        // the immediate refresh triggered when connectivity returns.
+        guard fetchData() else { return }
+        lastManualRefreshAt = time.now
+        lastManualRefreshGeneration = identity.generation
+        if timerCancellable == nil {
+            installPollingTimer()
+        }
     }
 
     func isRowSourcePaused(_ endpointID: String) -> Bool {
@@ -179,30 +204,33 @@ extension AppState {
 
     // MARK: - Fetch Data
 
-    func fetchData() {
+    @discardableResult
+    func fetchData() -> Bool {
         guard connectivity.isConnected else {
             if errorMsg != "No internet connection" {
                 errorMsg = "No internet connection"
                 logger.warning("Fetch aborted: No internet connection")
             }
-            return
+            return false
         }
 
         let requestedKey = apiKey
         guard !requestedKey.isEmpty else {
             errorMsg = "API Key required"
             logger.warning("Fetch aborted: API Key required")
-            return
+            return false
         }
 
         guard let url = TornAPI.url(for: requestedKey) else {
             errorMsg = "Invalid URL"
             logger.error("Fetch aborted: Invalid URL")
-            return
+            return false
         }
 
-        guard reserveRequest("user.fast") else { return }
+        guard reserveRequest("user.fast") else { return false }
 
+        pollSequence &+= 1
+        let myPollSequence = pollSequence
         isLoading = true
         errorMsg = nil
         let generation = accountSession.identity.generation
@@ -218,7 +246,8 @@ extension AppState {
                     if elapsed < 0.5 {
                         try? await Task.sleep(nanoseconds: UInt64((0.5 - elapsed) * 1_000_000_000))
                     }
-                    if self.isCurrentAccount(requestedKey, generation: generation) {
+                    if self.isCurrentAccount(requestedKey, generation: generation),
+                       self.pollSequence == myPollSequence {
                         self.isLoading = false
                     }
                 }
@@ -313,6 +342,15 @@ extension AppState {
                     return
                 }
                 let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+                if mapped?.classification == .offline,
+                   self.lastManualRefreshGeneration == generation,
+                   self.pollSequence == myPollSequence {
+                    // NWPath can briefly remain "online" after transport already failed.
+                    // Re-open the current account's debounce only when this is still the
+                    // latest poll, so stale failures cannot mutate newer refresh state.
+                    self.lastManualRefreshAt = nil
+                    self.lastManualRefreshGeneration = nil
+                }
                 await MainActor.run {
                     guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
                     self.errorMsg = mapped?.userMessage ?? "Network request failed. Please try again."
@@ -327,6 +365,7 @@ extension AppState {
                 )
             }
         }
+        return true
     }
 
     private func parseDataInBackground(data: Data, apiKey: String, generation: UInt) async -> Bool {
@@ -379,7 +418,7 @@ extension AppState {
         stocksData = payload.stocks
 
         lastUpdated = Date()
-        lastFetchTime = Date()
+        lastFetchTime = time.now
         errorMsg = nil
 
         manageLiveTimer()

@@ -797,6 +797,220 @@ final class AppStateTests: XCTestCase {
         XCTAssertNotNil(appState.data)
     }
 
+    func testRefreshNow_debouncesBurstAndAcceptsBoundaryAtThreeSeconds() {
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let clock = MutableTimeSource(start)
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: ControllableConnectivity(connected: true),
+            defaults: .createMockDefaults(),
+            time: clock
+        )
+        app.apiKey = "debounce-\(UUID().uuidString)"
+
+        app.refreshNow()
+        XCTAssertEqual(app.pollSequence, 1)
+
+        app.refreshNow()
+        XCTAssertEqual(app.pollSequence, 1, "a held shortcut must not start another poll")
+
+        clock.advance(2.999)
+        app.refreshNow()
+        XCTAssertEqual(app.pollSequence, 1, "the debounce remains closed before 3 seconds")
+
+        clock.set(start.addingTimeInterval(3))
+        app.refreshNow()
+        XCTAssertEqual(app.pollSequence, 2, "the boundary at 3 seconds accepts a new poll")
+        app.stopPolling()
+    }
+
+    func testRefreshNow_newAccountBypassesPreviousAccountsDebounce() {
+        let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: ControllableConnectivity(connected: true),
+            defaults: .createMockDefaults(),
+            time: clock
+        )
+        app.apiKey = "account-a-\(UUID().uuidString)"
+        app.refreshNow()
+        XCTAssertEqual(app.pollSequence, 1)
+
+        app.apiKey = "account-b-\(UUID().uuidString)"
+        app.refreshNow()
+
+        XCTAssertEqual(app.pollSequence, 2,
+                       "saving a different key must refresh immediately at the same clock instant")
+        app.stopPolling()
+    }
+
+    func testOfflineRefreshDoesNotConsumeDebounceBeforeReconnect() {
+        let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
+        let connectivity = ControllableConnectivity(connected: false)
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: connectivity,
+            defaults: .createMockDefaults(),
+            time: clock
+        )
+        app.apiKey = "offline-\(UUID().uuidString)"
+
+        app.refreshNow()
+        XCTAssertEqual(app.pollSequence, 0, "an offline attempt never starts a poll")
+
+        connectivity.restore()
+        XCTAssertEqual(app.pollSequence, 1,
+                       "the connectivity callback must refresh immediately without waiting 3 seconds")
+        app.stopPolling()
+    }
+
+    func testOfflineTransportFailureReopensDebounceForReconnect() async throws {
+        let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
+        let connectivity = ControllableConnectivity(connected: true)
+        let service = ControlledHTTPErrorUserSnapshotService()
+        let firstStarted = expectation(description: "manual poll started")
+        let reconnectStarted = expectation(description: "reconnect poll started")
+        service.onLoad = { index in
+            if index == 0 { firstStarted.fulfill() }
+            if index == 1 { reconnectStarted.fulfill() }
+        }
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: connectivity,
+            defaults: .createMockDefaults(),
+            time: clock,
+            userSnapshotService: service
+        )
+        app.apiKey = "transport-offline-\(UUID().uuidString)"
+
+        app.refreshNow()
+        await fulfillment(of: [firstStarted], timeout: 1)
+        service.fail(index: 0, error: URLError(.notConnectedToInternet))
+
+        for _ in 0..<50 where app.errorMsg != TornAPIError.offline.userMessage {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(app.errorMsg, TornAPIError.offline.userMessage)
+
+        connectivity.goOffline()
+        connectivity.restore()
+        XCTAssertEqual(app.pollSequence, 2,
+                       "a real transport-offline failure must not debounce the reconnect callback")
+        await fulfillment(of: [reconnectStarted], timeout: 1)
+        service.complete(index: 1)
+        app.stopPolling()
+    }
+
+    func testLatestAutomaticOfflineFailureReopensSupersededManualDebounce() async throws {
+        let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
+        let connectivity = ControllableConnectivity(connected: true)
+        let service = ControlledHTTPErrorUserSnapshotService()
+        let manualStarted = expectation(description: "manual poll started")
+        let automaticStarted = expectation(description: "automatic poll started")
+        let reconnectStarted = expectation(description: "reconnect poll started")
+        service.onLoad = { index in
+            if index == 0 { manualStarted.fulfill() }
+            if index == 1 { automaticStarted.fulfill() }
+            if index == 2 { reconnectStarted.fulfill() }
+        }
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: connectivity,
+            defaults: .createMockDefaults(),
+            time: clock,
+            userSnapshotService: service
+        )
+        app.apiKey = "superseded-offline-\(UUID().uuidString)"
+
+        app.refreshNow()
+        await fulfillment(of: [manualStarted], timeout: 1)
+        app.fetchData()
+        await fulfillment(of: [automaticStarted], timeout: 1)
+        service.fail(index: 1, error: URLError(.notConnectedToInternet))
+
+        for _ in 0..<50 where app.errorMsg != TornAPIError.offline.userMessage {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertEqual(app.errorMsg, TornAPIError.offline.userMessage)
+
+        connectivity.goOffline()
+        connectivity.restore()
+        XCTAssertEqual(app.pollSequence, 3,
+                       "the latest automatic failure must reopen the superseded manual debounce")
+        await fulfillment(of: [reconnectStarted], timeout: 1)
+
+        service.complete(index: 0)
+        service.complete(index: 2)
+        app.stopPolling()
+    }
+
+    func testRefreshNowDoesNotReplaceTheAutomaticPollingTimer() throws {
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: ControllableConnectivity(connected: true),
+            defaults: .createMockDefaults()
+        )
+        app.apiKey = "timer-\(UUID().uuidString)"
+        app.startPolling()
+        let timer = try XCTUnwrap(app.timerCancellable)
+
+        app.refreshNow()
+
+        XCTAssertTrue(app.timerCancellable === timer,
+                      "manual refresh must not cancel and recreate the automatic timer")
+        app.stopPolling()
+    }
+
+    func testRefreshNowRestoresMissingAutomaticTimerAfterKeyIsSaved() {
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: ControllableConnectivity(connected: true),
+            defaults: .createMockDefaults()
+        )
+        app.apiKey = "timer-restore-\(UUID().uuidString)"
+        XCTAssertNil(app.timerCancellable)
+
+        app.refreshNow()
+
+        XCTAssertNotNil(app.timerCancellable,
+                        "saving a key after polling was stopped must resume automatic polling")
+        app.stopPolling()
+    }
+
+    func testCancelledPollCleanupCannotHideNewerPollSpinner() async throws {
+        let service = ControlledHTTPErrorUserSnapshotService()
+        let firstStarted = expectation(description: "first poll started")
+        let secondStarted = expectation(description: "second poll started")
+        service.onLoad = { index in
+            if index == 0 { firstStarted.fulfill() }
+            if index == 1 { secondStarted.fulfill() }
+        }
+        let app = AppState(
+            session: MockNetworkSession(),
+            connectivity: ControllableConnectivity(connected: true),
+            defaults: .createMockDefaults(),
+            userSnapshotService: service
+        )
+        app.apiKey = "spinner-\(UUID().uuidString)"
+
+        app.fetchData()
+        await fulfillment(of: [firstStarted], timeout: 1)
+        app.fetchData()
+        await fulfillment(of: [secondStarted], timeout: 1)
+
+        service.complete(index: 0)
+
+        try await Task.sleep(nanoseconds: 600_000_000)
+        XCTAssertTrue(app.isLoading,
+                      "the first poll's delayed cleanup must not hide the second poll's spinner")
+
+        service.complete(index: 1)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertFalse(app.isLoading, "the current poll must still clear loading on its error path")
+        XCTAssertEqual(app.pollSequence, 2)
+        app.stopPolling()
+    }
+
     // MARK: - Menu Bar Display Tests
 
     /// Helper: build a fixture from `validFullResponse` with a custom travel/status/cooldowns slice.
@@ -1013,6 +1227,60 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(relaunched.shouldNotifyOCReady(ready5), "dedup persists across restart")
         let ready6 = OrganizedCrime2(id: 6, name: "New OC", readyAt: now - 10)
         XCTAssertTrue(relaunched.shouldNotifyOCReady(ready6), "a new OC id re-arms")
+    }
+}
+
+/// Holds each request until the test completes it. A cancelled request can therefore
+/// finish after its replacement started, reproducing issue #71 deterministically.
+private final class ControlledHTTPErrorUserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
+    typealias LoadContinuation = CheckedContinuation<UserHTTPResponse, Error>
+
+    private let lock = NSLock()
+    private var loadIndex = 0
+    private var continuations: [Int: LoadContinuation] = [:]
+    var onLoad: (@Sendable (Int) -> Void)?
+
+    func load(_ url: URL) async throws -> UserHTTPResponse {
+        let index = lock.withLock {
+            let index = loadIndex
+            loadIndex += 1
+            return index
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            lock.withLock {
+                continuations[index] = continuation
+            }
+            onLoad?(index)
+        }
+    }
+
+    func complete(index: Int) {
+        let continuation = lock.withLock { continuations.removeValue(forKey: index) }
+        precondition(continuation != nil, "No pending load at index \(index)")
+        continuation?.resume(returning: UserHTTPResponse(data: Data(), statusCode: 503))
+    }
+
+    func fail(index: Int, error: Error) {
+        let continuation = lock.withLock { continuations.removeValue(forKey: index) }
+        precondition(continuation != nil, "No pending load at index \(index)")
+        continuation?.resume(throwing: error)
+    }
+
+    func parseSnapshot(
+        data: Data,
+        requestedSelections: [String],
+        grantedSelections: [String]?
+    ) async -> UserServiceResult<UserSnapshotPayload> {
+        .malformed(responseBytes: data.count)
+    }
+
+    func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload> {
+        .malformed(responseBytes: 0)
+    }
+
+    func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
+        .malformed(responseBytes: 0)
     }
 }
 
