@@ -265,7 +265,7 @@ struct ForumThreadRow: View {
                 if let error = thread.error {
                     Text(error)
                         .font(.caption2)
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
