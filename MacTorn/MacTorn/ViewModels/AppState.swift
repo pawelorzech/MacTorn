@@ -222,6 +222,10 @@ class AppState {
     @ObservationIgnored let launchAtLogin = LaunchAtLoginManager()
     @ObservationIgnored let shortcutsManager = ShortcutsManager()
     @ObservationIgnored let updateManager = UpdateManager.shared
+    /// Handle for the in-flight (if any) update-check `Task` started by
+    /// `checkForAppUpdates()`. Cancelled alongside polling teardown (issue #56) so an
+    /// in-flight GitHub request doesn't outlive the `AppState` that started it.
+    @ObservationIgnored var updateCheckTask: Task<Void, Never>?
 
     // MARK: - Networking (Dependency Injection for Testing)
     @ObservationIgnored let session: NetworkSession

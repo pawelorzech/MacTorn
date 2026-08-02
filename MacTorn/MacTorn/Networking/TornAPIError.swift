@@ -12,8 +12,10 @@ import Foundation
 //     and looks like a hang. (Etap C: codes 2, 16, 18.)
 //   • dailyRowLimit → pause ONLY the row-based category that tripped it (error 14),
 //     while bars/cooldowns/countdowns keep running.
-//   • rateLimit / temporaryBackend / offline / transport → retry with exponential
-//     backoff + jitter (RetryPolicy below).
+//   • rateLimit / temporaryBackend / offline / transport → surfaced to the UI; no
+//     built-in retry layer. At the app's 15-120s poll cadence the next timer tick
+//     recovers on its own, and a second retry layer would double traffic in an app
+//     that guards its Torn API budget.
 //   • malformed / cancelled → non-retryable, not the server's fault.
 //
 // Reference: Torn API error codes (https://www.torn.com/swagger — "Common errors").
@@ -82,16 +84,6 @@ enum TornAPIError: Error, Equatable, Sendable {
         }
     }
 
-    /// Should the caller keep retrying (with backoff) on its own schedule?
-    var isRetryable: Bool {
-        switch classification {
-        case .rateLimit, .temporaryBackend, .offline, .transport:
-            return true
-        case .permanentKey, .insufficientPermissions, .dailyRowLimit, .malformedResponse, .cancelled:
-            return false
-        }
-    }
-
     /// A key/permission problem that should halt *all* affected requests until the
     /// user fixes their key (Etap C: codes 2, 16, 18). Prevents an infinite loop of
     /// doomed requests.
@@ -108,6 +100,16 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// Short, PII-safe message for the UI. The underlying Torn message is a fixed
     /// server string, but it is still sanitized (control chars stripped, length
     /// capped) so a MITM'd/compromised response cannot inject multi-line UI.
+    ///
+    /// NOTE on "sanitized": `sanitized(_:)` below only means *string-hygiene* — no
+    /// control characters, capped at 120 chars — as a defence against UI spoofing.
+    /// It says nothing about the *content* of the string: for `.permanentKey`,
+    /// `.insufficientPermissions` and `.temporaryBackend` this can still be the raw
+    /// Torn server message verbatim (hygiene-cleaned, not classification-only). That
+    /// is a different, stricter guarantee from `DiagnosticsReport`'s use of
+    /// "sanitized" (see `Diagnostics.swift`), which means "built only from fields
+    /// that are safe by construction" — free-text `userMessage` values are exactly
+    /// what `DiagnosticsReport.lastErrorSummary` must NOT carry (issue #58).
     var userMessage: String {
         switch self {
         case let .permanentKey(_, message):
@@ -169,34 +171,5 @@ enum TornAPIError: Error, Equatable, Sendable {
         default:
             return .transport(detail: urlError.code.rawValue.description)
         }
-    }
-}
-
-// MARK: - Retry Policy (exponential backoff + jitter)
-
-/// Exponential backoff schedule for retryable errors. Ladder 2s → 5s → 15s → 30s →
-/// 60s, then capped at 5 minutes for any further attempt (Etap B). Jitter is applied
-/// per attempt to avoid a thundering herd; the jitter fraction is injected so tests
-/// stay deterministic.
-struct RetryPolicy: Equatable, Sendable {
-    let ladder: [TimeInterval]
-    let cap: TimeInterval
-
-    static let standard = RetryPolicy(ladder: [2, 5, 15, 30, 60], cap: 300)
-
-    /// Base (pre-jitter) delay for a 0-indexed attempt. Beyond the ladder, the cap.
-    func baseDelay(attempt: Int) -> TimeInterval {
-        guard attempt >= 0 else { return min(ladder.first ?? cap, cap) }
-        let raw = attempt < ladder.count ? ladder[attempt] : cap
-        return min(raw, cap)
-    }
-
-    /// "Equal jitter": the delay lands in `[base/2, base]`. `jitter` is a caller-supplied
-    /// fraction in `[0, 1]` (e.g. `Double.random(in: 0...1)` in production). At `0` the
-    /// delay is `base/2`; at `1` it is `base`. Never exceeds the cap.
-    func delay(attempt: Int, jitter: Double) -> TimeInterval {
-        let base = baseDelay(attempt: attempt)
-        let clamped = min(max(jitter, 0), 1)
-        return base * (0.5 + 0.5 * clamped)
     }
 }
