@@ -86,8 +86,12 @@ final class MarketWatchService: MarketWatchServicing {
         loadFailed = false
     }
 
+    /// Upper bound for Torn item ids. Exposed so the UI can tell the user *why* an id
+    /// was rejected instead of guessing; see `AppState.WatchlistAddOutcome`.
+    static let maximumItemID = 100_000
+
     func add(itemID: Int, name: String) -> Bool {
-        guard itemID > 0, itemID < 100_000 else { return false }
+        guard itemID > 0, itemID < Self.maximumItemID else { return false }
         let trimmed = String(
             name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(64)
         )

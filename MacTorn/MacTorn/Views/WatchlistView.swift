@@ -5,8 +5,9 @@ struct WatchlistView: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddItem = false
+    @State private var itemIdInput = ""
     @State private var addItemError: String?
-    @State private var recentlyRemoved: RemovedWatchlistItem?
+    @State private var pendingUndo: PendingWatchlistUndo?
     @State private var undoDismissTask: Task<Void, Never>?
     
     var body: some View {
@@ -62,6 +63,25 @@ struct WatchlistView: View {
                                 .accessibilityLabel("Add item error: \(addItemError)")
                         }
 
+                        HStack {
+                            TextField("Item ID", text: $itemIdInput)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption)
+                                .onChange(of: itemIdInput) { _, _ in
+                                    addItemError = nil
+                                }
+                                .onSubmit {
+                                    addItemByID()
+                                }
+
+                            Button("Add") {
+                                addItemByID()
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                            .disabled(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
                             ForEach(popularItems, id: \.1) { item in
                                 Button {
@@ -89,7 +109,7 @@ struct WatchlistView: View {
                         }
                     }
                     .padding(8)
-                    .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
+                    .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                 }
 
@@ -115,18 +135,14 @@ struct WatchlistView: View {
                         } onRemove: {
                             removeWithUndo(item)
                         } onSetThreshold: { threshold in
-                            if let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) {
-                                appState.watchlistItems[index].priceThreshold = threshold
-                                appState.watchlistItems[index].lastAlertedPrice = nil
-                                appState.saveWatchlist()
-                            }
+                            setThreshold(threshold, for: item)
                         }
                     }
                 }
 
-                if let recentlyRemoved {
-                    UndoBanner(message: "\(recentlyRemoved.item.name) removed") {
-                        undoRemoval()
+                if let pendingUndo {
+                    UndoBanner(message: pendingUndo.message) {
+                        undoPending()
                     }
                     .transition(reduceMotion
                                 ? .opacity
@@ -153,10 +169,10 @@ struct WatchlistView: View {
         }
         .onDisappear {
             undoDismissTask?.cancel()
-            recentlyRemoved = nil
+            pendingUndo = nil
         }
     }
-    
+
     private let popularItems = [
         ("Xanax", 206),
         ("FHC", 367),
@@ -180,40 +196,115 @@ struct WatchlistView: View {
         }
     }
 
+    private func addItemByID() {
+        switch appState.addToWatchlist(input: itemIdInput) {
+        case .notANumber:
+            addItemError = "Enter a positive item ID."
+            return
+        case .outOfRange(let maximum):
+            addItemError = "Item IDs go up to \(maximum - 1)."
+            return
+        case .alreadyWatched:
+            addItemError = "This item is already on your watchlist."
+            return
+        case .added:
+            break
+        }
+        itemIdInput = ""
+        addItemError = nil
+        withAnimation(reduceMotion ? nil : .default) {
+            showAddItem = false
+        }
+    }
+
     private func removeWithUndo(_ item: WatchlistItem) {
         guard let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) else {
             return
         }
         let removedItem = appState.watchlistItems[index]
 
+        scheduleUndo(.itemRemoved(item: removedItem, index: index)) {
+            appState.removeFromWatchlist(item.id)
+        }
+    }
+
+    /// Clearing a price-alert threshold reuses the exact same Undo banner and
+    /// six-second timer as item removal (GitHub #54) — only setting a threshold
+    /// (a non-nil value) skips Undo, since that isn't a destructive action.
+    private func setThreshold(_ threshold: Int?, for item: WatchlistItem) {
+        guard let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) else {
+            return
+        }
+
+        guard threshold == nil else {
+            appState.watchlistItems[index].priceThreshold = threshold
+            appState.watchlistItems[index].lastAlertedPrice = nil
+            appState.saveWatchlist()
+            return
+        }
+
+        let previousThreshold = appState.watchlistItems[index].priceThreshold
+        let previousAlertedPrice = appState.watchlistItems[index].lastAlertedPrice
+        scheduleUndo(.thresholdCleared(
+            itemId: item.id,
+            name: item.name,
+            threshold: previousThreshold,
+            lastAlertedPrice: previousAlertedPrice
+        )) {
+            appState.watchlistItems[index].priceThreshold = nil
+            appState.watchlistItems[index].lastAlertedPrice = nil
+            appState.saveWatchlist()
+        }
+    }
+
+    /// Shared Undo primitive: performs `action`, shows the banner for `pending`,
+    /// and schedules its six-second dismissal. Both item removal and threshold
+    /// clearing route through this so there is exactly one Undo mechanism.
+    private func scheduleUndo(_ pending: PendingWatchlistUndo, action: () -> Void) {
         undoDismissTask?.cancel()
-        appState.removeFromWatchlist(item.id)
+        action()
         withAnimation(reduceMotion ? nil : .default) {
-            recentlyRemoved = RemovedWatchlistItem(item: removedItem, index: index)
+            pendingUndo = pending
         }
         undoDismissTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 6_000_000_000)
             guard !Task.isCancelled else { return }
             withAnimation(reduceMotion ? nil : .default) {
-                recentlyRemoved = nil
+                pendingUndo = nil
             }
         }
     }
 
-    private func undoRemoval() {
-        guard let recentlyRemoved else { return }
+    private func undoPending() {
+        guard let pendingUndo else { return }
 
         undoDismissTask?.cancel()
-        appState.restoreWatchlistItem(recentlyRemoved.item, at: recentlyRemoved.index)
+        switch pendingUndo {
+        case .itemRemoved(let item, let index):
+            appState.restoreWatchlistItem(item, at: index)
+        case .thresholdCleared(let itemId, _, let threshold, let lastAlertedPrice):
+            appState.restoreWatchlistThreshold(itemId: itemId, threshold: threshold, lastAlertedPrice: lastAlertedPrice)
+        }
         withAnimation(reduceMotion ? nil : .default) {
-            self.recentlyRemoved = nil
+            self.pendingUndo = nil
         }
     }
 }
 
-private struct RemovedWatchlistItem {
-    let item: WatchlistItem
-    let index: Int
+/// The two destructive watchlist actions that can be undone via the shared
+/// six-second Undo banner (GitHub #49 item removal, GitHub #54 threshold clear).
+private enum PendingWatchlistUndo {
+    case itemRemoved(item: WatchlistItem, index: Int)
+    case thresholdCleared(itemId: Int, name: String, threshold: Int?, lastAlertedPrice: Int?)
+
+    var message: String {
+        switch self {
+        case .itemRemoved(let item, _):
+            return "\(item.name) removed"
+        case .thresholdCleared(_, let name, _, _):
+            return "\(name) price alert cleared"
+        }
+    }
 }
 
 // MARK: - Watchlist Price Row
@@ -296,7 +387,7 @@ struct WatchlistPriceRow: View {
                     showThresholdPopover = true
                 } label: {
                     Image(systemName: item.priceThreshold != nil ? "bell.fill" : "bell")
-                        .foregroundColor(item.priceThreshold != nil ? .yellow : .gray)
+                        .foregroundColor(item.priceThreshold != nil ? .yellow : .secondary)
                         .font(.caption)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
@@ -349,7 +440,7 @@ struct WatchlistPriceRow: View {
                 // Remove button
                 Button(action: onRemove) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                         .font(.caption)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
@@ -371,7 +462,7 @@ struct WatchlistPriceRow: View {
             }
         }
         .padding(8)
-        .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
+        .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
         .cornerRadius(6)
     }
 
@@ -449,6 +540,21 @@ extension AppState {
 
         let insertionIndex = min(max(originalIndex, 0), watchlistItems.count)
         watchlistItems.insert(item, at: insertionIndex)
+        saveWatchlist()
+        return true
+    }
+
+    /// Restores a previously-captured price-alert threshold, mirroring
+    /// `restoreWatchlistItem` so the price-alert Clear button can share the same
+    /// Undo mechanism as item removal (GitHub #54).
+    @discardableResult
+    func restoreWatchlistThreshold(itemId: Int, threshold: Int?, lastAlertedPrice: Int?) -> Bool {
+        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else {
+            return false
+        }
+
+        watchlistItems[index].priceThreshold = threshold
+        watchlistItems[index].lastAlertedPrice = lastAlertedPrice
         saveWatchlist()
         return true
     }

@@ -41,7 +41,7 @@ struct ProgressBarView: View {
                 ZStack(alignment: .leading) {
                     // Background track
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(reduceTransparency ? 0.5 : 0.3))
+                        .fill(Color.secondary.opacity(reduceTransparency ? 0.5 : 0.3))
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)
                                 .stroke(color.opacity(reduceTransparency ? 0.5 : 0.3), lineWidth: 1)

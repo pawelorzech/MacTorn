@@ -81,7 +81,7 @@ struct ForumWatchView: View {
                         }
                     }
                     .padding(8)
-                    .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
+                    .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                 }
 
@@ -321,7 +321,7 @@ struct ForumThreadRow: View {
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
-        .background(Color.gray.opacity(reduceTransparency ? 0.3 : 0.05))
+        .background(Color.secondary.opacity(reduceTransparency ? 0.3 : 0.05))
         .cornerRadius(4)
     }
 }
