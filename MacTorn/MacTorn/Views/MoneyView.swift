@@ -21,6 +21,7 @@ struct MoneyView: View {
                     HStack {
                         Image(systemName: "dollarsign.circle.fill")
                             .foregroundColor(.green)
+                            .accessibilityHidden(true)
                         Text("Cash")
                             .font(.caption.bold())
                     }
@@ -35,6 +36,9 @@ struct MoneyView: View {
                                     .font(.headline.monospacedDigit())
                                     .foregroundColor(.green)
                             }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("On Hand: \(formatMoney(money.cash))")
+                            .uiTestID("uitest.money.cash")
 
                             Spacer()
 
@@ -45,6 +49,9 @@ struct MoneyView: View {
                                 Text(formatMoney(money.vault))
                                     .font(.headline.monospacedDigit())
                             }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Vault: \(formatMoney(money.vault))")
+                            .uiTestID("uitest.money.vault")
                         }
 
                         if money.cayman > 0 {
@@ -56,6 +63,9 @@ struct MoneyView: View {
                                     Text(formatMoney(money.cayman))
                                         .font(.headline.monospacedDigit())
                                 }
+                                .accessibilityElement(children: .combine)
+                                .accessibilityLabel("Cayman: \(formatMoney(money.cayman))")
+                                .uiTestID("uitest.money.cayman")
                                 Spacer()
                             }
                         }
@@ -70,6 +80,9 @@ struct MoneyView: View {
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Points: \(money.points)")
+                            .uiTestID("uitest.money.points")
 
                             VStack {
                                 Text("\(money.tokens)")
@@ -78,6 +91,9 @@ struct MoneyView: View {
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
+                            .accessibilityElement(children: .combine)
+                            .accessibilityLabel("Tokens: \(money.tokens)")
+                            .uiTestID("uitest.money.tokens")
                         }
                         .frame(maxWidth: .infinity)
                     } else if appState.lastUpdated == nil {
@@ -108,6 +124,7 @@ struct MoneyView: View {
                     HStack {
                         Image(systemName: "sum")
                             .foregroundColor(.green)
+                            .accessibilityHidden(true)
                         Text("Total Tracked")
                             .font(.caption.bold())
                         Spacer()
@@ -118,6 +135,9 @@ struct MoneyView: View {
                     .padding()
                     .background(Color.green.opacity(reduceTransparency ? 0.35 : 0.12))
                     .cornerRadius(8)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Total Tracked: \(formatMoney(totalTracked))")
+                    .uiTestID("uitest.money.totalTracked")
                 }
 
                 // MARK: - Action Buttons
@@ -168,6 +188,7 @@ struct ActionButton: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.body)
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(.caption2)
             }

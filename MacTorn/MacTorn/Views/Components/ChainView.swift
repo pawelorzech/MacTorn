@@ -15,6 +15,7 @@ struct ChainView: View {
                     HStack {
                         Image(systemName: "link")
                             .foregroundColor(color)
+                            .accessibilityHidden(true)
                         Text("Chain: \(chain.current ?? 0)/\(chain.maximum ?? 0)")
                             .font(.caption.bold())
 
@@ -28,15 +29,25 @@ struct ChainView: View {
                 .padding(8)
                 .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
                 .cornerRadius(8)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(
+                    "Chain \(chain.current ?? 0)/\(chain.maximum ?? 0), " +
+                    "\(urgencyDescription(for: remaining)), \(formatTime(remaining)) remaining"
+                )
+                .uiTestID("uitest.chain")
             }
         } else if chain.isOnCooldown {
             HStack {
                 Image(systemName: "clock")
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
                 Text("Chain Cooldown")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Chain on cooldown")
+            .uiTestID("uitest.chain.cooldown")
         }
     }
 
@@ -47,6 +58,18 @@ struct ChainView: View {
             return .orange
         }
         return .green
+    }
+
+    /// Puts the colour-only urgency bucket (red/orange/green) into words so
+    /// VoiceOver users get the same "how worried should I be" signal sighted
+    /// users read from the badge colour alone.
+    private func urgencyDescription(for remaining: Int) -> String {
+        if remaining < 60 {
+            return "critical"
+        } else if remaining < 180 {
+            return "warning"
+        }
+        return "healthy"
     }
 
     private func formatTime(_ seconds: Int) -> String {

@@ -21,10 +21,11 @@ struct AttacksView: View {
                     HStack {
                         Image(systemName: "figure.martial.arts")
                             .foregroundColor(.red)
+                            .accessibilityHidden(true)
                         Text("Battle Stats")
                             .font(.caption.bold())
                     }
-                    
+
                     if let stats = appState.battleStats {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                             StatItem(label: "Strength", value: formatStat(stats.strength), color: .red)
@@ -32,9 +33,9 @@ struct AttacksView: View {
                             StatItem(label: "Speed", value: formatStat(stats.speed), color: .green)
                             StatItem(label: "Dexterity", value: formatStat(stats.dexterity), color: .orange)
                         }
-                        
+
                         Divider()
-                        
+
                         HStack {
                             Text("Total:")
                                 .font(.caption)
@@ -42,6 +43,9 @@ struct AttacksView: View {
                             Text(formatStat(stats.total))
                                 .font(.caption.bold())
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Total: \(formatStat(stats.total))")
+                        .uiTestID("uitest.battleStats.total")
                     } else if appState.lastUpdated == nil {
                         Text("Loading stats...")
                             .font(.caption)
@@ -64,6 +68,7 @@ struct AttacksView: View {
                     HStack {
                         Image(systemName: "bolt.shield.fill")
                             .foregroundColor(.orange)
+                            .accessibilityHidden(true)
                         Text("Recent Attacks")
                             .font(.caption.bold())
                     }
@@ -191,5 +196,8 @@ struct StatItem: View {
         .padding(.vertical, 4)
         .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
         .cornerRadius(4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
+        .uiTestID("uitest.battleStats.\(label)")
     }
 }

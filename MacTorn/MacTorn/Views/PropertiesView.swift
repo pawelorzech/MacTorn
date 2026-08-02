@@ -21,6 +21,7 @@ struct PropertiesView: View {
                     HStack {
                         Image(systemName: "house.fill")
                             .foregroundColor(.brown)
+                            .accessibilityHidden(true)
                         Text("Properties")
                             .font(.caption.bold())
                         Spacer()
@@ -40,6 +41,7 @@ struct PropertiesView: View {
                             Image(systemName: "house.slash")
                                 .font(.title2)
                                 .foregroundColor(.secondary)
+                                .accessibilityHidden(true)
                             Text("No properties found")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -138,6 +140,7 @@ struct PropertyCard: View {
                 HStack {
                     Image(systemName: "face.smiling")
                         .font(.caption2)
+                        .accessibilityHidden(true)
                     Text("\(property.happy) happy")
                         .font(.caption2)
                     Spacer()
@@ -149,6 +152,7 @@ struct PropertyCard: View {
                 HStack {
                     Image(systemName: "clock")
                         .font(.caption2)
+                        .accessibilityHidden(true)
                     Text("Rent ends in \(days) days")
                         .font(.caption2)
                 }
@@ -158,8 +162,40 @@ struct PropertyCard: View {
         .padding()
         .background(Color.brown.opacity(reduceTransparency ? 0.25 : 0.05))
         .cornerRadius(8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityDescription)
+        .uiTestID("uitest.property.\(property.id)")
     }
-    
+
+    /// Colour-only meaning (the "rented out" badge, the <=3-day rent-countdown
+    /// urgency) folded into text so VoiceOver users get the same information
+    /// sighted users read from colour alone.
+    private var accessibilityDescription: String {
+        var parts: [String] = [property.propertyType]
+
+        if !property.status.isEmpty {
+            parts.append(property.status)
+        }
+        if property.rented {
+            parts.append("rented out")
+        }
+
+        parts.append("market value \(formatMoney(property.marketprice))")
+        if property.cost > 0 {
+            parts.append("cost \(formatMoney(property.cost))")
+        }
+        if property.happy > 0 {
+            parts.append("\(property.happy) happy")
+        }
+        if let days = property.rentDaysLeft, days > 0 {
+            parts.append(days <= 3
+                ? "rent due in \(days) days, urgent"
+                : "rent due in \(days) days")
+        }
+
+        return parts.joined(separator: ", ")
+    }
+
     private func formatMoney(_ amount: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency

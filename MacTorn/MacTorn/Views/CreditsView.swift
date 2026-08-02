@@ -81,6 +81,7 @@ struct CreditsView: View {
             HStack(spacing: 6) {
                 Image(systemName: "hammer.fill")
                     .foregroundColor(.orange)
+                    .accessibilityHidden(true)
                 Text("Created by")
                     .font(.subheadline.bold())
             }
@@ -97,6 +98,7 @@ struct CreditsView: View {
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .accessibilityHidden(true)
                 }
                 .contentShape(Rectangle())
             }
@@ -106,6 +108,9 @@ struct CreditsView: View {
             .frame(maxWidth: .infinity)
             .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Created by \(developer.name)")
+            .uiTestID("uitest.credits.developer")
         }
     }
 
@@ -115,6 +120,7 @@ struct CreditsView: View {
             HStack(spacing: 6) {
                 Image(systemName: "shield.fill")
                     .foregroundColor(.blue)
+                    .accessibilityHidden(true)
                 Text("Faction")
                     .font(.subheadline.bold())
             }
@@ -129,6 +135,7 @@ struct CreditsView: View {
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .accessibilityHidden(true)
                 }
                 .contentShape(Rectangle())
             }
@@ -138,6 +145,9 @@ struct CreditsView: View {
             .frame(maxWidth: .infinity)
             .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
             .cornerRadius(8)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Faction: \(factionName)")
+            .uiTestID("uitest.credits.faction")
         }
     }
 
@@ -153,6 +163,7 @@ struct CreditsView: View {
             HStack(spacing: 6) {
                 Image(systemName: icon)
                     .foregroundColor(iconColor)
+                    .accessibilityHidden(true)
                 Text(title)
                     .font(.subheadline.bold())
             }
@@ -183,11 +194,15 @@ struct CreditsView: View {
                     Image(systemName: "arrow.up.right.square")
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                        .accessibilityHidden(true)
                 }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundColor(.accentColor)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Contributor: \(contributor.name)")
+            .uiTestID("uitest.credits.contributor.\(contributor.name)")
         } else {
             HStack {
                 Text(contributor.name)
@@ -195,6 +210,9 @@ struct CreditsView: View {
                     .foregroundColor(.primary)
                 Spacer()
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Contributor: \(contributor.name)")
+            .uiTestID("uitest.credits.contributor.\(contributor.name)")
         }
     }
 
