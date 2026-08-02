@@ -89,7 +89,7 @@ struct WatchlistView: View {
                         }
                     }
                     .padding(8)
-                    .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
+                    .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                 }
 
@@ -296,7 +296,7 @@ struct WatchlistPriceRow: View {
                     showThresholdPopover = true
                 } label: {
                     Image(systemName: item.priceThreshold != nil ? "bell.fill" : "bell")
-                        .foregroundColor(item.priceThreshold != nil ? .yellow : .gray)
+                        .foregroundColor(item.priceThreshold != nil ? .yellow : .secondary)
                         .font(.caption)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
@@ -349,7 +349,7 @@ struct WatchlistPriceRow: View {
                 // Remove button
                 Button(action: onRemove) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.gray)
+                        .foregroundColor(.secondary)
                         .font(.caption)
                         .frame(width: 24, height: 24)
                         .contentShape(Rectangle())
@@ -371,7 +371,7 @@ struct WatchlistPriceRow: View {
             }
         }
         .padding(8)
-        .background(Color.gray.opacity(reduceTransparency ? 0.4 : 0.1))
+        .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
         .cornerRadius(6)
     }
 
