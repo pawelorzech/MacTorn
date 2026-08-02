@@ -455,6 +455,118 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertTrue(appState.watchlistItems.isEmpty)
     }
 
+    // MARK: - Item ID Field (GitHub #49)
+    //
+    // These target a testable string-input entry point that mirrors
+    // ForumWatchView's `parseThreadInput` / `addWatchedThread(input:)` pair
+    // (AppState+MarketForum.swift ~194-205). Nothing named `parseItemIdInput`
+    // or `addToWatchlist(input:)` exists on AppState yet — the numeric-grid
+    // add path only takes an already-parsed `itemId: Int`. This file will
+    // not compile until the implementer adds those two entry points.
+
+    func testParseItemIdInput_acceptsPositiveNumericString() {
+        XCTAssertEqual(appState.parseItemIdInput("206"), 206)
+    }
+
+    func testParseItemIdInput_rejectsNonNumericString() {
+        XCTAssertNil(appState.parseItemIdInput("abc"))
+    }
+
+    func testParseItemIdInput_rejectsEmptyString() {
+        XCTAssertNil(appState.parseItemIdInput(""))
+    }
+
+    func testParseItemIdInput_rejectsZero() {
+        XCTAssertNil(appState.parseItemIdInput("0"))
+    }
+
+    func testParseItemIdInput_rejectsNegative() {
+        XCTAssertNil(appState.parseItemIdInput("-5"))
+    }
+
+    func testAddToWatchlistByInput_validNumericIdIsAcceptedAndAdded() {
+        XCTAssertTrue(appState.addToWatchlist(input: "206"))
+        XCTAssertEqual(appState.watchlistItems.count, 1)
+        XCTAssertEqual(appState.watchlistItems.first?.id, 206)
+    }
+
+    func testAddToWatchlistByInput_rejectsNonNumericInput() {
+        XCTAssertFalse(appState.addToWatchlist(input: "abc"))
+        XCTAssertTrue(appState.watchlistItems.isEmpty)
+    }
+
+    func testAddToWatchlistByInput_rejectsEmptyInput() {
+        XCTAssertFalse(appState.addToWatchlist(input: ""))
+        XCTAssertTrue(appState.watchlistItems.isEmpty)
+    }
+
+    func testAddToWatchlistByInput_rejectsZero() {
+        XCTAssertFalse(appState.addToWatchlist(input: "0"))
+        XCTAssertTrue(appState.watchlistItems.isEmpty)
+    }
+
+    func testAddToWatchlistByInput_rejectsNegative() {
+        XCTAssertFalse(appState.addToWatchlist(input: "-1"))
+        XCTAssertTrue(appState.watchlistItems.isEmpty)
+    }
+
+    func testAddToWatchlistByInput_rejectsDuplicateId() {
+        XCTAssertTrue(appState.addToWatchlist(input: "206"))
+        XCTAssertFalse(appState.addToWatchlist(input: "206"))
+        XCTAssertEqual(appState.watchlistItems.count, 1)
+    }
+
+    // MARK: - Price-Alert Threshold Clear Undo (GitHub #54)
+    //
+    // Removing a watchlist item already has a full Undo primitive at the
+    // AppState layer (`restoreWatchlistItem(_:at:)` in WatchlistView.swift,
+    // covered above). Clearing a price-alert threshold has no equivalent —
+    // `onSetThreshold(nil)` (WatchlistView.swift ~331-334) writes straight
+    // through with nothing captured to undo. These tests target a
+    // `restoreWatchlistThreshold(itemId:threshold:lastAlertedPrice:)`
+    // function that does not exist yet, mirroring `restoreWatchlistItem`'s
+    // shape so the View's six-second Undo banner can reuse the same
+    // mechanism for both flows as the issue requires. This file will not
+    // compile until the implementer adds it.
+
+    func testRestoreWatchlistThreshold_restoresPreviousThresholdAndAlertPrice() {
+        appState.watchlistItems = [
+            WatchlistItem(
+                id: 123,
+                name: "Xanax",
+                lowestPrice: 1000,
+                lowestPriceQuantity: 5,
+                secondLowestPrice: 1100,
+                lastUpdated: Date(),
+                error: nil,
+                priceThreshold: nil,
+                lastAlertedPrice: nil
+            )
+        ]
+
+        XCTAssertTrue(appState.restoreWatchlistThreshold(itemId: 123, threshold: 900, lastAlertedPrice: 850))
+
+        XCTAssertEqual(appState.watchlistItems.first?.priceThreshold, 900)
+        XCTAssertEqual(appState.watchlistItems.first?.lastAlertedPrice, 850)
+    }
+
+    func testRestoreWatchlistThreshold_returnsFalseForMissingItem() {
+        appState.watchlistItems = []
+
+        XCTAssertFalse(appState.restoreWatchlistThreshold(itemId: 999, threshold: 900, lastAlertedPrice: nil))
+    }
+
+    func testRestoreWatchlistThreshold_persistsAcrossReload() {
+        appState.watchlistItems = [
+            WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1000, lowestPriceQuantity: 5, secondLowestPrice: 1100, lastUpdated: nil, error: nil)
+        ]
+
+        XCTAssertTrue(appState.restoreWatchlistThreshold(itemId: 123, threshold: 750, lastAlertedPrice: nil))
+
+        let reloaded = AppState(session: mockSession, defaults: testDefaults)
+        XCTAssertEqual(reloaded.watchlistItems.first?.priceThreshold, 750)
+    }
+
     // MARK: - v2 Error Envelope Contract (market endpoint)
 
     /// The market endpoint is v2 (`/v2/market/{id}`). Torn's v2 error envelope is
