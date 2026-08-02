@@ -1,143 +1,154 @@
 # MacTorn
 
-A native macOS menu bar app for monitoring your **Torn** game status.
+Native, privacy-conscious macOS menu bar companion for [Torn](https://www.torn.com/).
+See live account state, upcoming timers, travel, faction activity, market prices, and
+forum updates without keeping the game open.
 
-![macOS](https://img.shields.io/badge/macOS-14.0+-blue)
-![Swift](https://img.shields.io/badge/Swift-5.0-orange)
-![Universal](https://img.shields.io/badge/Universal-Intel%20%2B%20Apple%20Silicon-purple)
-![License](https://img.shields.io/badge/License-MIT-green)
+[![Tests](https://github.com/pawelorzech/MacTorn/actions/workflows/tests.yml/badge.svg)](https://github.com/pawelorzech/MacTorn/actions/workflows/tests.yml)
+[![Latest release](https://img.shields.io/github/v/release/pawelorzech/MacTorn?sort=semver)](https://github.com/pawelorzech/MacTorn/releases/latest)
+![macOS 14+](https://img.shields.io/badge/macOS-14%2B-blue)
+![Universal](https://img.shields.io/badge/Universal-arm64%20%2B%20x86__64-purple)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 <p align="center">
-  <img src="app_light_1.png" alt="MacTorn Light Mode" width="320">
+  <img src="app_light_1.png" alt="MacTorn in light mode" width="320">
   &nbsp;&nbsp;
-  <img src="app_dark_1.png" alt="MacTorn Dark Mode" width="320">
+  <img src="app_dark_1.png" alt="MacTorn in dark mode" width="320">
 </p>
 
-## Documentation
+## Highlights
 
-For detailed documentation, visit the [MacTorn Wiki](https://github.com/pawelorzech/MacTorn/wiki).
-For community discussion and feedback, see the [Torn forums thread](https://www.torn.com/forums.php#/p=threads&f=67&t=16532308).
+- **Always-visible state:** the menu bar shows travel, hospital, jail, or the next
+  cooldown as a live countdown.
+- **Nine focused modules:** Status, Travel, Attacks, Money, Properties, Stocks,
+  Faction, Watchlist, and Forums are grouped into a compact 320 pt popover.
+- **Actionable notifications:** bar thresholds, cooldowns, landing, release, chain
+  expiry, Organized Crime readiness, bounties, item prices, forum posts, and updates.
+- **Budget-aware polling:** fast point-in-time data stays separate from throttled,
+  row-based feeds, with live request and row budgets in Diagnostics.
+- **Read-only by design:** MacTorn displays Torn data and opens Torn pages; it never
+  performs game actions through the API.
+- **Local-first security:** the API key lives in macOS Keychain, the app is sandboxed,
+  logs and diagnostics are redacted, and crash reporting is opt-in.
 
 ## Features
 
-### 📊 Status Tab
-- Live Energy, Nerve, Happy, Life bars with color-coded progress
-- Cooldown timers (Drug, Medical, Booster) with quick action buttons when ready
-- Daily refills remaining (energy/nerve) and in-progress education timer
-- Bounties-on-you badge (count + total reward)
-- Travel monitoring with arrival countdown
-- Chain timer with timeout warning
-- Hospital/Jail status badges
-- Unread messages badge
-- Events feed
-- 8 quick links
+### Now
 
-### ✈️ Travel Tab
-- **Live countdown timer** in menu bar during flight (✈️🏠 5:32)
-- Flight status with progress bar
-- Quick travel destination picker (all 11 Torn destinations)
-- Pre-arrival notifications (configurable: 2min, 1min, 30sec, 10sec)
-- Country flags for all destinations
+- **Status:** Energy, Nerve, Happy, and Life; cooldowns; Next Action timeline;
+  daily refills; education; hospital/jail state; bounties; unread messages; events;
+  chain status; and eight Torn quick links.
+- **Travel:** live flight and arrival countdowns, all 11 destinations, current
+  standard and Private Island airstrip estimates, pre-arrival alerts, and travel links.
+- **Attacks:** battle stats, total battle stat score, and recent attack outcomes with
+  direct links to relevant Torn pages.
 
-### 💰 Account
-- **Money**: Cash, Vault, Cayman, total tracked net worth, and quick actions
-- **Properties**: Dedicated property cards with market value, cost, happy, and rental status
-- **Stocks**: Dedicated, scrollable holdings list with market value and cost basis
-- **Faction**: Faction status, chain, Organized Crime, wars, news, and armory actions
-- Quick actions: Send Money, Bazaar, Bank
+### Account
 
-### ⚔️ Attacks Tab
-- Battle stats (Strength, Defense, Speed, Dexterity)
-- Recent attacks with W/L results
-- Quick actions: Attack, Hospital, Bounties
+- **Money:** cash, vault, Cayman, points, tokens, tracked total, and common money actions.
+- **Properties:** market value, cost, happy, ownership/rental state, and rental expiry.
+- **Stocks:** scrollable holdings with names, acronyms, market value, and cost basis.
+- **Faction:** faction and chain state, the player's Organized Crime 2.0 status,
+  active ranked war progress, recent faction news, and armory shortcuts.
 
-### 🏢 Faction Tab
-- Faction info and chain status
-- **Organized Crime timer** with live countdown and READY notifications
-- War status display
-- Armory quick-use buttons
+### Watch
 
-### 📈 Watchlist Tab
-- Track item prices (Latest API v2 support)
-- **Price alerts**: Set a threshold and get notified when price drops below it
-- Displays lowest market price AND quantity (e.g., `$4.2M x12`)
-- Price change indicators
-- Add/remove items from watchlist
+- **Watchlist:** Torn API v2 item-market prices, quantity at the lowest price,
+  price changes, threshold alerts, inline validation, and undo for destructive changes.
+- **Forums:** thread or faction-forum watching by URL/ID, per-thread notification
+  control, new-post alerts, and 2/3/5-minute polling options.
 
-### 💬 Forum Watch Tab
-- Watch specific forum threads for new posts (including faction forum threads)
-- Add threads by URL or thread ID
-- Per-thread notification toggle (alerts or bookmark-only mode)
-- Configurable polling interval (2m / 3m / 5m)
+### Quality of life
 
-### ⚙️ General
-- **🔄 Update Checker**: Automatically notifies you when a new version is available on GitHub.
-- **🔔 Smart Notifications**: Alerts for bar thresholds, cooldown ready, landing, chain expiring, Organized Crime ready, and release.
-- **🕒 Configurable Refresh**: Intervals (15s/30s/60s/2m).
-- **🩺 Diagnostics Screen**: Settings → Diagnostics shows live API request/row budgets, driven by the same endpoint registry as the table below.
-- **🐞 Opt-in Crash Reporting**: Off by default. Powered by Sentry with PII scrubbing; enable it in Settings. See [`SECURITY.md`](SECURITY.md).
-- **🚀 Launch at Login**: Start seamlessly with macOS.
-- **⚡️ Optimized Startup**: Non-blocking data fetching for instant UI responsiveness.
-
-## Accessibility
-
-MacTorn respects macOS accessibility settings:
-
-- **Reduce Transparency**: Follows System Settings → Accessibility → Display → Reduce transparency automatically, switching to solid backgrounds. Settings also has an "Always reduce transparency" switch to force it on regardless of the system setting.
-- **Reduce Motion**: Panel and undo-banner animations are suppressed when System Settings → Accessibility → Display → Reduce motion is on.
-- **VoiceOver**: The menu bar label announces its meaning ("Traveling to Japan, arriving in 2 minutes 35 seconds") rather than reading out the raw emoji, and progress bars expose a label plus a percentage value.
-- **Light & Dark Mode**: Full support for both appearance modes with optimized contrast
-- **Color-coded indicators**: Status bars and badges use distinct colors that work well in both modes
-
-Accessibility work in progress — not yet complete: several module tabs (Attacks, Faction, Money, Properties, Stocks) still expose their rows as unlabelled elements, and attack results are conveyed by icon and colour without a text equivalent. See `AUDIT_REPORT.md`.
+- Automatic update checks against GitHub Releases.
+- Launch at Login, preferred-browser selection, light/dark/system appearance, and
+  configurable main polling (15/30/60/120 seconds).
+- Explicit loading, stale-data, empty, permission, error, and retry states that keep
+  the last good snapshot visible when an optional endpoint fails.
+- Account-scoped state: changing the API key cancels in-flight work and clears data,
+  alerts, and pending state from the previous account.
 
 ## Installation
 
-1. Download the latest release from [Releases](https://github.com/pawelorzech/MacTorn/releases)
-2. Open the DMG and drag `MacTorn.app` to your Applications folder
-3. Open MacTorn from Applications
-4. Enter your [Torn API Key](https://www.torn.com/preferences.php#tab=api)
+1. Download the DMG from the [latest release](https://github.com/pawelorzech/MacTorn/releases/latest).
+2. Open it and drag **MacTorn.app** to **Applications**.
+3. Right-click MacTorn and choose **Open** on first launch.
+4. Enter a [Torn API key](https://www.torn.com/preferences.php#tab=api), then use
+   **Test Connection** to confirm its access.
 
-> **Note**: If you download an unsigned build, macOS Gatekeeper may block it. Right-click the app and select "Open", or go to System Settings → Privacy & Security → Open Anyway.
+### Requirements
 
-### Verifying your download
+- macOS 14 Sonoma or later.
+- Intel (`x86_64`) or Apple Silicon (`arm64`) Mac.
+- A **Limited Access** (or higher) Torn API key for every module. A Custom key can be
+  used, and Test Connection reports which features its selections unlock.
 
-MacTorn is **not** notarized or signed with a paid Apple Developer ID (a deliberate
-tradeoff — that program costs money and this is a free hobby project), so macOS
-itself won't vouch for the binary the way it does for signed, notarized apps. A
-SHA-256 checksum lets you confirm
-the file you downloaded is byte-for-byte the one published in the release, without
-relying on Gatekeeper:
+### Why macOS shows a warning
 
-1. Copy the `SHA-256` hash listed in the [release notes](https://github.com/pawelorzech/MacTorn/releases) for the version you downloaded.
-2. Run this in Terminal against the file you downloaded:
-   ```
-   shasum -a 256 ~/Downloads/MacTorn.dmg
-   ```
-3. Compare the printed hash to the one in the release notes — they must match exactly.
+Public builds are universal and ad-hoc signed, but they are not notarized with a paid
+Apple Developer ID. Gatekeeper therefore cannot identify the publisher. Right-clicking
+the app and choosing **Open** is the expected first-launch flow for this distribution
+model.
 
-This does **not** replace notarization: it proves the file wasn't corrupted or swapped
-in transit, not that Apple has vetted the publisher.
+### Verify the download
 
-## Requirements
+When the release notes include a SHA-256 checksum, compare it with the downloaded DMG:
 
-- macOS 14.0 (Sonoma) or later
-- **Universal Binary**: Supports both Intel (x86_64) and Apple Silicon (arm64) Macs
-- Torn API Key with **Limited Access** or higher (read-only). The exact selections MacTorn requests are listed in [API Data Usage](#api-data-usage) below.
+```bash
+shasum -a 256 ~/Downloads/MacTorn.dmg
+```
+
+The value must exactly match the checksum in the release notes. This detects a changed
+or corrupted artifact; it does not replace Apple notarization.
+
+## Privacy and security
+
+- The Torn API key is stored as a generic password in macOS Keychain and is migrated
+  away from legacy plaintext preferences automatically.
+- Torn account snapshots remain in memory; persisted preferences contain configuration,
+  watch items, and notification state rather than account stats or money.
+- The App Sandbox grants only outbound network access, and Hardened Runtime is enabled.
+- Request URLs, logs, notifications, and copied diagnostics are sanitized to avoid
+  exposing keys or Torn PII.
+- Sentry crash reporting is **off by default**. If enabled, performance tracing,
+  session replay, default PII, network breadcrumbs, and failed-request capture remain
+  disabled; URLs are redacted before an event can be sent.
+- Update checks contact GitHub Releases, but do not include Torn account data.
+
+See [SECURITY.md](SECURITY.md) for the supported-version policy, threat model summary,
+and private vulnerability-reporting channel.
+
+## Accessibility and keyboard control
+
+MacTorn follows system Reduce Transparency, Reduce Motion, Increase Contrast, and
+light/dark appearance settings. Its status surfaces expose semantic VoiceOver labels,
+including live menu bar state, progress values, financial rows, attacks, events, chain,
+and status badges. Long modules remain scrollable in the fixed-size popover.
+
+Keyboard commands are available from the app's **Commands** menu:
+
+| Shortcut | Action |
+| --- | --- |
+| `⌘R` | Refresh |
+| `⌘,` | Settings |
+| `⌘1` … `⌘9` | Status, Travel, Attacks, Money, Properties, Stocks, Faction, Watchlist, Forums |
+| `Esc` | Leave Settings / return to the current module |
+
+Automated accessibility and compact-window regressions run in CI. Manual validation
+with every macOS assistive setting remains an ongoing release-quality activity; see
+[IMPLEMENTATION_BACKLOG.md](IMPLEMENTATION_BACKLOG.md) for the explicit test matrix.
 
 ## API Data Usage
 
-In compliance with the [Torn API Terms of Service](https://www.torn.com/api.html), the
-table below shows every Torn API endpoint MacTorn calls and why. It is generated from
-the typed endpoint registry (`MacTorn/Networking/TornEndpoint.swift`,
-`TornEndpointRegistry.markdownTable()`) — the single source of truth that also builds
-the requests and the onboarding disclosure, so this list can't drift from what the app
-actually does.
+MacTorn's typed endpoint registry in
+[`MacTorn/Networking/TornEndpoint.swift`](MacTorn/MacTorn/Networking/TornEndpoint.swift)
+is the source of truth for request construction, onboarding disclosure, Diagnostics,
+and the table below.
 
-**Data shape** distinguishes *point-in-time* snapshots (bars, money, cooldowns — safe
-to poll frequently) from *row-based* cloud data (events, attacks, news, forum posts),
-which counts against Torn's 50,000-rows/day-per-category cap (error code 14). Row-based
-calls are throttled and hard-limited to stay well under that cap.
+**Point-in-time** data (bars, money, cooldowns) can be polled frequently. **Row-based**
+data (events, attacks, news, forum posts) counts against Torn's per-category daily row
+limit, so MacTorn throttles and hard-limits those calls. A daily row-limit error pauses
+only the affected feed; core live data continues updating.
 
 | Endpoint | API | Selections | Data | Cadence | Rows/call | Budget | Critical | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -153,39 +164,79 @@ calls are throttled and hard-limited to stay well under that cap.
 | Forum category threads | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Thread list of a watched forum category, to alert on new threads. |
 | Key info | v2 | — | point-in-time | On demand (Test Connection / key change) | — | core | no | One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read — used by onboarding's Test Connection. Never polled. |
 
-Your API key needs **Limited Access** or higher. Everything above is **read-only** —
-MacTorn never performs actions in Torn. See [`SECURITY.md`](SECURITY.md) for how your
-key and data are protected.
+All of these requests are read-only. MacTorn does not use the Torn API to submit game
+actions.
 
-## Configuration
+## Development
 
-### Refresh Interval
-Choose polling frequency: 15s, 30s, 60s, or 120s
-
-### Notifications
-MacTorn sends notifications for bar thresholds, cooldown ready, landing, chain expiring, Organized Crime ready, and release. Notification defaults are stored locally.
-
-### Updates
-The app checks for updates automatically on startup. If a new version is available, you'll see a notification in the **Settings** tab.
-
-## Building from Source
+The project is a native SwiftUI `MenuBarExtra` app targeting macOS 14. CI builds with
+Xcode 16.4, which is the reference toolchain for reproducible local results.
 
 ```bash
 git clone https://github.com/pawelorzech/MacTorn.git
-cd MacTorn/MacTorn
-open MacTorn.xcodeproj
+cd MacTorn
+make build
 ```
 
-Press `Cmd + R` to build and run.
+Open the project in Xcode with `make open`, or directly open
+`MacTorn/MacTorn.xcodeproj`.
 
-## Support the Developer
+### Common commands
 
-If you find MacTorn useful, send some Xanax or cash to **bombel** [[2362436](https://www.torn.com/profiles.php?XID=2362436)]!
+| Command | Purpose |
+| --- | --- |
+| `make test` | Unit tests |
+| `make test-ui` | Hermetic fixture-driven UI tests |
+| `make test-all` | Unit and UI tests |
+| `make coverage-gate` | Unit coverage plus the 80% critical-module gate |
+| `make analyze` | Xcode static analysis |
+| `make build` | Debug build |
+| `make release` | Universal, strict ad-hoc Release build for local use |
+| `make verify-release` | Verify `arm64`/`x86_64` slices and ad-hoc signature |
+| `make scan` | Scan Git history for secrets with gitleaks |
+
+Code signing is disabled for normal local builds and tests. `make release` deliberately
+uses strict ad-hoc signing; `make release-signed DEVELOPER_ID="…"` is available for a
+Developer ID workflow.
+
+### Architecture
+
+```text
+MacTornApp / ContentView
+└── AppState (@MainActor facade)
+    ├── AccountSessionStore       Keychain-backed account boundary
+    ├── UserSnapshotService       Core user snapshots and validation
+    ├── FactionService            Faction, chain, wars, and news
+    ├── MarketWatchService        Item prices and price alerts
+    ├── ForumWatchService         Watched threads and update detection
+    ├── PollingCoordinator        Request and row budgets
+    └── NotificationCoordinator   Persistent notification deduplication
+```
+
+Networking is injected through the `NetworkSession` protocol. Unit tests use routed
+fixtures and isolated preferences; the DEBUG-only UI harness uses an in-memory Keychain,
+fake networking, and controllable connectivity, so CI never reads a developer's real
+Torn account.
+
+CI runs unit tests and coverage, fixture UI tests, static analysis, and a verified
+universal ad-hoc Release build. Swift Package Manager currently resolves Sentry Cocoa as
+the only third-party runtime dependency.
+
+## Documentation and support
+
+- [Changelog](CHANGELOG.md)
+- [Security policy](SECURITY.md)
+- [Implementation status and remaining QA matrix](IMPLEMENTATION_BACKLOG.md)
+- [Project wiki](https://github.com/pawelorzech/MacTorn/wiki)
+- [Torn community thread](https://www.torn.com/forums.php#/p=threads&f=67&t=16532308)
+
+If MacTorn is useful to you, you can support **bombel**
+[[2362436](https://www.torn.com/profiles.php?XID=2362436)] in Torn.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MacTorn is available under the [MIT License](LICENSE).
 
 ---
 
-Made with ⚡ for the Torn community
+Made with ⚡ for the Torn community.
