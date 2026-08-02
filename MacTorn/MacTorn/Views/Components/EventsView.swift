@@ -9,10 +9,11 @@ struct EventsView: View {
             HStack {
                 Image(systemName: "bell.fill")
                     .foregroundColor(.blue)
+                    .accessibilityHidden(true)
                 Text("Recent Events")
                     .font(.caption.bold())
             }
-            
+
             if events.isEmpty {
                 Text("No recent events")
                     .font(.caption2)
@@ -22,6 +23,7 @@ struct EventsView: View {
                     HStack(alignment: .top, spacing: 6) {
                         Text("•")
                             .foregroundColor(.blue)
+                            .accessibilityHidden(true)
                         Text(event.cleanEvent)
                             .font(.caption2)
                             .lineLimit(2)
@@ -30,6 +32,9 @@ struct EventsView: View {
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("\(event.cleanEvent), \(timeAgo(event.timestamp)) ago")
+                    .uiTestID("uitest.event.\(event.id)")
                 }
             }
         }

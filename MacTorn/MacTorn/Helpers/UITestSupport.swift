@@ -146,6 +146,36 @@ enum UITestConfiguration {
                     respect: 1.25
                 )
             ]
+
+            // Properties: the fast-user fixture JSON deliberately omits the
+            // "properties" key (parseProperties(_:) then returns nil), so this
+            // assignment is never clobbered by the real (mocked) poll pipeline —
+            // same trick as recentAttacks above. Used by the a11y UI tests to
+            // pin PropertyCard's combined VoiceOver label (issue #45).
+            appState.propertiesData = [
+                PropertyInfo(
+                    id: 9101,
+                    propertyType: "Property",
+                    status: "Rented from Fixture Landlord",
+                    cost: 500_000,
+                    marketprice: 750_000,
+                    happy: 200,
+                    rented: true,
+                    rentDaysLeft: 2
+                )
+            ]
+
+            // Activity events: the activity-endpoint fixture JSON returns `[:]`
+            // for the `.accessibility` scenario (no "events" key), so this is
+            // never overwritten by fetchActivityData's `if let events = ...`
+            // guard — same non-clobbering trick as above. Used to pin
+            // EventsView's combined VoiceOver label (issue #45).
+            let fixtureEventJSON = Data("""
+            {"timestamp": \(now - 90), "event": "You were mugged by <a href=\\"#\\">Fixture Mugger</a> for $500."}
+            """.utf8)
+            if let fixtureEvent = try? JSONDecoder().decode(TornEvent.self, from: fixtureEventJSON) {
+                appState.activityEvents = [fixtureEvent.identified(by: "9002")]
+            }
         }
 
         if scenario == .watchAccessibility {
@@ -250,7 +280,7 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
         case (_, true, .full):
             json = fullUserResponse()
         case (_, true, .accessibility):
-            json = fullUserResponse(traveling: true)
+            json = fullUserResponse(traveling: true, hospitalized: true)
         case (_, true, .watchAccessibility):
             json = fullUserResponse()
         case (_, true, .accountSwitch):
@@ -322,7 +352,11 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
                 "name": "Fixture Faction",
                 "ID": 6_789,
                 "respect": 1_000,
-                "chain": ["current": 0, "max": 0, "timeout": 0, "cooldown": 0],
+                // Active chain, timeout ~150s out: lands in ChainView's "orange /
+                // warning" bucket (60..<180s remaining) so the a11y UI test can
+                // pin the combined chain-card VoiceOver label (issue #45) without
+                // racing the "red / critical" (<60s) edge as the test runs.
+                "chain": ["current": 5, "max": 10, "timeout": now + 150, "cooldown": 0],
             ]
         }
 
@@ -377,7 +411,8 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
     /// same keys), with `server_time = now` so live countdowns anchor to the run.
     static func fullUserResponse(name: String = "TestPlayer",
                                  playerID: Int = 123456,
-                                 traveling: Bool = false) -> [String: Any] {
+                                 traveling: Bool = false,
+                                 hospitalized: Bool = false) -> [String: Any] {
         let now = Int(Date().timeIntervalSince1970)
         return [
         "name": name,
@@ -391,7 +426,13 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
         "travel": traveling
             ? ["destination": "Japan", "timestamp": now + 300, "departed": now - 300, "time_left": 300]
             : ["destination": "Torn", "timestamp": 0, "departed": 0, "time_left": 0],
-        "status": ["description": "Okay", "details": "", "state": "Okay", "until": 0],
+        // `until` is regenerated relative to "now" on every poll (not anchored to a
+        // fixed wall-clock moment), so the ~2-minute remaining window stays roughly
+        // stable across repeated polls instead of counting down to zero mid-test.
+        "status": hospitalized
+            ? ["description": "In hospital", "details": "Hospitalized by Fixture Attacker",
+               "state": "Hospital", "until": now + 125]
+            : ["description": "Okay", "details": "", "state": "Okay", "until": 0],
         // NOTE: no "chain" key here on purpose. Torn's v1 `user` endpoint does not
         // return one, and this fixture used to invent it — which is exactly what hid
         // audit finding C-01 (the chain alert read the user snapshot and was therefore

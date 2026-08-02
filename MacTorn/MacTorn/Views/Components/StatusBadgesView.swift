@@ -11,6 +11,7 @@ struct StatusBadgesView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "cross.circle.fill")
                             .foregroundColor(.red)
+                            .accessibilityHidden(true)
                         Text("Hospital")
                             .font(.caption.bold())
                         Text(formatTime(status.timeRemaining))
@@ -21,12 +22,16 @@ struct StatusBadgesView: View {
                     .padding(.vertical, 4)
                     .background(Color.red.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("In hospital, \(formatTime(status.timeRemaining)) remaining")
+                    .uiTestID("uitest.status.hospital")
                 }
 
                 if status.isInJail {
                     HStack(spacing: 4) {
                         Image(systemName: "lock.fill")
                             .foregroundColor(.orange)
+                            .accessibilityHidden(true)
                         Text("Jail")
                             .font(.caption.bold())
                         Text(formatTime(status.timeRemaining))
@@ -37,6 +42,9 @@ struct StatusBadgesView: View {
                     .padding(.vertical, 4)
                     .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("In jail, \(formatTime(status.timeRemaining)) remaining")
+                    .uiTestID("uitest.status.jail")
                 }
             }
         }
