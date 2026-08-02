@@ -868,6 +868,7 @@ final class AppStateTests: XCTestCase {
         let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
         let connectivity = ControllableConnectivity(connected: true)
         let service = ControlledHTTPErrorUserSnapshotService()
+        defer { service.drain() }
         let firstStarted = expectation(description: "manual poll started")
         let reconnectStarted = expectation(description: "reconnect poll started")
         service.onLoad = { index in
@@ -905,6 +906,7 @@ final class AppStateTests: XCTestCase {
         let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
         let connectivity = ControllableConnectivity(connected: true)
         let service = ControlledHTTPErrorUserSnapshotService()
+        defer { service.drain() }
         let manualStarted = expectation(description: "manual poll started")
         let automaticStarted = expectation(description: "automatic poll started")
         let reconnectStarted = expectation(description: "reconnect poll started")
@@ -979,6 +981,7 @@ final class AppStateTests: XCTestCase {
 
     func testCancelledPollCleanupCannotHideNewerPollSpinner() async throws {
         let service = ControlledHTTPErrorUserSnapshotService()
+        defer { service.drain() }
         let firstStarted = expectation(description: "first poll started")
         let secondStarted = expectation(description: "second poll started")
         service.onLoad = { index in
@@ -1005,7 +1008,9 @@ final class AppStateTests: XCTestCase {
                       "the first poll's delayed cleanup must not hide the second poll's spinner")
 
         service.complete(index: 1)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        for _ in 0..<100 where app.isLoading {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
         XCTAssertFalse(app.isLoading, "the current poll must still clear loading on its error path")
         XCTAssertEqual(app.pollSequence, 2)
         app.stopPolling()
@@ -1257,14 +1262,31 @@ private final class ControlledHTTPErrorUserSnapshotService: UserSnapshotServicin
 
     func complete(index: Int) {
         let continuation = lock.withLock { continuations.removeValue(forKey: index) }
-        precondition(continuation != nil, "No pending load at index \(index)")
-        continuation?.resume(returning: UserHTTPResponse(data: Data(), statusCode: 503))
+        guard let continuation else {
+            XCTFail("No pending load at index \(index)")
+            return
+        }
+        continuation.resume(returning: UserHTTPResponse(data: Data(), statusCode: 503))
     }
 
     func fail(index: Int, error: Error) {
         let continuation = lock.withLock { continuations.removeValue(forKey: index) }
-        precondition(continuation != nil, "No pending load at index \(index)")
-        continuation?.resume(throwing: error)
+        guard let continuation else {
+            XCTFail("No pending load at index \(index)")
+            return
+        }
+        continuation.resume(throwing: error)
+    }
+
+    func drain() {
+        let pending = lock.withLock {
+            let pending = continuations.values
+            continuations.removeAll()
+            return Array(pending)
+        }
+        for continuation in pending {
+            continuation.resume(throwing: CancellationError())
+        }
     }
 
     func parseSnapshot(
