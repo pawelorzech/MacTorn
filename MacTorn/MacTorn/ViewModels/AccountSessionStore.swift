@@ -149,6 +149,15 @@ enum KeychainStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
+        // `kSecAttrAccessibleAfterFirstUnlock` is DELIBERATE, not an oversight.
+        // MacTorn must keep polling the Torn API, running countdown timers and posting
+        // notifications while the Mac is locked (menu bar apps run headless in that state).
+        // `kSecAttrAccessibleWhenUnlocked` would make the Keychain item unreadable while
+        // locked and silently break all of that background work — do not "fix" this to
+        // `WhenUnlocked`, even though it looks like the more conservative default.
+        //
+        // We also deliberately do NOT set `kSecAttrSynchronizable` here: the API key must
+        // stay device-local and never sync to iCloud Keychain.
         let updateAttributes: [String: Any] = [
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
