@@ -320,6 +320,121 @@ final class MacTornUITests: XCTestCase {
         XCTAssertEqual(warProgress.label, "Ranked War lead progress")
     }
 
+    /// Sibling of `testStatusSurfacesExposeDescriptiveVoiceOverSemantics` — covers the
+    /// batch-45 surfaces that test didn't reach: Battle Stats (AttacksView), Money,
+    /// Properties, the Status-tab Chain card + Hospital badge + Events row, and Credits.
+    /// Every one of these currently has zero accessibility modifiers, so VoiceOver
+    /// reads each `Text`/icon as an unrelated fragment instead of one sentence, and
+    /// colour-only meaning (rented badge, chain urgency, hospital state) never reaches
+    /// non-visual users. This test pins the combined label each element MUST expose
+    /// once issue #45 (and #44 for ChainView's `Color.gray`) is implemented.
+    func testFinancialAndEventSurfacesExposeDescriptiveVoiceOverSemantics() throws {
+        let app = launch(fixture: "accessibility", apiKey: "sample-ax-financial-user")
+        let win = window(app)
+
+        // MARK: Attacks — Battle Stats StatItem grid + Total row.
+        // The accessibility fixture's fast-user JSON carries no battlestats keys, so
+        // every stat decodes to its documented zero default — deterministic across
+        // every poll, not just the first.
+        win.buttons["uitest.tab.Attacks"].click()
+
+        let strengthStat = win.descendants(matching: .any)["uitest.battleStats.Strength"]
+        XCTAssertTrue(strengthStat.waitForExistence(timeout: 10),
+                      "Each battle-stat tile must be one combined accessibility element")
+        XCTAssertEqual(strengthStat.label, "Strength: 0",
+                       "The stat's value must be read together with its label, not as two separate fragments")
+
+        let totalStat = win.descendants(matching: .any)["uitest.battleStats.total"]
+        XCTAssertTrue(totalStat.waitForExistence(timeout: 10))
+        XCTAssertEqual(totalStat.label, "Total: 0")
+
+        // MARK: Money — Cash card rows.
+        win.buttons["uitest.group.Account"].click()
+        win.buttons["uitest.tab.Money"].click()
+
+        let cashRow = win.descendants(matching: .any)["uitest.money.cash"]
+        XCTAssertTrue(cashRow.waitForExistence(timeout: 10),
+                      "'On Hand' and its dollar value must combine into one sentence")
+        XCTAssertEqual(cashRow.label, "On Hand: $1,000,000")
+
+        let vaultRow = win.descendants(matching: .any)["uitest.money.vault"]
+        XCTAssertTrue(vaultRow.waitForExistence(timeout: 10))
+        XCTAssertEqual(vaultRow.label, "Vault: $0")
+
+        let pointsRow = win.descendants(matching: .any)["uitest.money.points"]
+        XCTAssertTrue(pointsRow.waitForExistence(timeout: 10))
+        XCTAssertEqual(pointsRow.label, "Points: 10")
+
+        let tokensRow = win.descendants(matching: .any)["uitest.money.tokens"]
+        XCTAssertTrue(tokensRow.waitForExistence(timeout: 10))
+        XCTAssertEqual(tokensRow.label, "Tokens: 0")
+
+        // MARK: Properties — PropertyCard. The "rented out" badge today is colour
+        // (orange text) only; the rent countdown's urgency (<=3 days => orange) is
+        // also colour-only. Both must be readable from the label text alone.
+        win.buttons["uitest.tab.Properties"].click()
+
+        let propertyCard = win.descendants(matching: .any)["uitest.property.9101"]
+        XCTAssertTrue(propertyCard.waitForExistence(timeout: 10),
+                      "A property card must be one combined accessibility element")
+        for expectedFragment in ["Property", "rented out", "$750,000", "$500,000", "200", "2 days"] {
+            XCTAssertTrue(
+                propertyCard.label.contains(expectedFragment),
+                "Property card label '\(propertyCard.label)' must mention '\(expectedFragment)'"
+            )
+        }
+
+        // MARK: Status tab — Chain card, Hospital badge, Events row.
+        win.buttons["uitest.group.Now"].click()
+        win.buttons["uitest.tab.Status"].click()
+
+        let chainCard = win.descendants(matching: .any)["uitest.chain"]
+        XCTAssertTrue(chainCard.waitForExistence(timeout: 10),
+                      "The chain card must be one combined accessibility element")
+        XCTAssertTrue(chainCard.label.contains("5/10"),
+                      "Chain label '\(chainCard.label)' must state current/maximum")
+        XCTAssertTrue(
+            chainCard.label.lowercased().contains("warning"),
+            "Chain label '\(chainCard.label)' must spell out the urgency the colour alone conveys " +
+            "(fixture times out in ~150s, the orange/warning bucket)"
+        )
+
+        let hospitalBadge = win.descendants(matching: .any)["uitest.status.hospital"]
+        XCTAssertTrue(hospitalBadge.waitForExistence(timeout: 10),
+                      "The hospital status badge must be one combined accessibility element")
+        XCTAssertTrue(
+            hospitalBadge.label.localizedCaseInsensitiveContains("hospital"),
+            "Hospital badge label '\(hospitalBadge.label)' must say what state the player is in"
+        )
+
+        let eventRow = win.descendants(matching: .any)["uitest.event.9002"]
+        XCTAssertTrue(eventRow.waitForExistence(timeout: 10),
+                      "Each event row must be one combined accessibility element")
+        XCTAssertTrue(
+            eventRow.label.contains("You were mugged by Fixture Mugger for $500."),
+            "Event row label '\(eventRow.label)' must carry the (HTML-stripped) event text"
+        )
+
+        // MARK: Credits — static rows reachable from Settings > Diagnostics & About.
+        win.buttons["uitest.openSettings"].click()
+        win.buttons["settings.section.diagnostics"].click()
+        win.buttons["Credits"].click()
+
+        let developerRow = win.descendants(matching: .any)["uitest.credits.developer"]
+        XCTAssertTrue(developerRow.waitForExistence(timeout: 10),
+                      "The developer credit must be one combined accessibility element")
+        XCTAssertTrue(developerRow.label.contains("bombel"))
+
+        let factionRow = win.descendants(matching: .any)["uitest.credits.faction"]
+        XCTAssertTrue(factionRow.waitForExistence(timeout: 10))
+        XCTAssertTrue(factionRow.label.contains("The Masters"))
+
+        let contributorRow = win.descendants(matching: .any)["uitest.credits.contributor.Greeney"]
+        XCTAssertTrue(contributorRow.waitForExistence(timeout: 10),
+                      "Even a contributor with no linked Torn profile needs a stable AX id")
+        XCTAssertTrue(contributorRow.label.contains("Greeney"))
+    }
+
     /// Compact list controls must remain easy to hit, while forum state that used to
     /// live only in icons, colour and tooltips stays available without a mouse.
     func testWatchListsExposeAccessibleControlsAndForumState() throws {
