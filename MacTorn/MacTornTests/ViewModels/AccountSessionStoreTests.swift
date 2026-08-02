@@ -56,6 +56,49 @@ final class AccountSessionStoreTests: XCTestCase {
         await fulfillment(of: [cancelled], timeout: 1)
     }
 
+    /// Regression pin for GitHub issue #62.
+    ///
+    /// `KeychainStore.set` deliberately writes the API key with
+    /// `kSecAttrAccessibleAfterFirstUnlock` so background polling, countdown timers and
+    /// notifications keep working while the Mac is locked, and deliberately never sets
+    /// `kSecAttrSynchronizable`, so the key never reaches iCloud Keychain.
+    ///
+    /// This is a source-literal check, not a live Keychain round-trip: a standalone probe
+    /// (`SecItemAdd` + `SecItemCopyMatching` with `kSecReturnAttributes`) confirmed that on
+    /// this machine's default (non-data-protection) Keychain, `kSecAttrAccessible` is never
+    /// echoed back on read — `AfterFirstUnlock` and `WhenUnlocked` are indistinguishable via
+    /// `SecItemCopyMatching`, with or without app sandboxing, so a live assertion would fail
+    /// unconditionally and prove nothing about which constant is actually in effect. Scanning
+    /// the source is therefore the only reliable way to pin the choice: if a future edit
+    /// "fixes" this to `kSecAttrAccessibleWhenUnlocked` (the more common default), or adds
+    /// `kSecAttrSynchronizable`, this test fails loudly instead of background polling (or key
+    /// sync) silently breaking.
+    func testKeychainStoreSourceKeepsAfterFirstUnlockAndNonSynchronizableAccessibility() throws {
+        let testFileURL = URL(fileURLWithPath: #filePath)
+        let sourceFileURL = testFileURL
+            .deletingLastPathComponent() // ViewModels
+            .deletingLastPathComponent() // MacTornTests
+            .deletingLastPathComponent() // MacTorn/ (Xcode project root, sibling of MacTorn/ and MacTornTests/)
+            .appendingPathComponent("MacTorn")
+            .appendingPathComponent("ViewModels")
+            .appendingPathComponent("AccountSessionStore.swift")
+
+        let source = try String(contentsOf: sourceFileURL, encoding: .utf8)
+
+        XCTAssertTrue(
+            source.contains("kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock"),
+            "KeychainStore must keep writing kSecAttrAccessibleAfterFirstUnlock so polling/notifications survive a locked Mac"
+        )
+        XCTAssertFalse(
+            source.contains("kSecAttrAccessibleWhenUnlocked"),
+            "KeychainStore must not switch to kSecAttrAccessibleWhenUnlocked — that breaks background polling while locked"
+        )
+        XCTAssertFalse(
+            source.contains("kSecAttrSynchronizable"),
+            "KeychainStore must not set kSecAttrSynchronizable — the API key must never sync to iCloud Keychain"
+        )
+    }
+
     private func makeDefaults() -> UserDefaults {
         let suiteName = "AccountSessionStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
