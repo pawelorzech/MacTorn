@@ -71,6 +71,17 @@ struct AttacksView: View {
                     if let attacks = appState.recentAttacks, !attacks.isEmpty,
                        let userId = appState.data?.playerId {
                         ForEach(attacks.prefix(5)) { attack in
+                            let result = attack.result.flatMap { $0.isEmpty ? nil : $0 }
+                                ?? "Result unavailable"
+                            let userWasAttacker = attack.wasAttacker(userId: userId)
+                            let opponentName = attack.opponentName(forUserId: userId)
+                            let direction = userWasAttacker
+                                ? "outgoing attack against"
+                                : "incoming attack from"
+                            let timeDescription = attack.timeAgo.isEmpty
+                                ? ""
+                                : ", \(attack.timeAgo) ago"
+
                             Button {
                                 if let opponentId = attack.opponentId(forUserId: userId),
                                    let url = URL(string: "https://www.torn.com/profiles.php?XID=\(opponentId)") {
@@ -81,15 +92,24 @@ struct AttacksView: View {
                                     Image(systemName: attack.resultIcon(forUserId: userId))
                                         .foregroundColor(attack.resultColor(forUserId: userId))
                                         .frame(width: 14)
+                                        .accessibilityHidden(true)
 
-                                    Image(systemName: attack.wasAttacker(userId: userId) ? "arrow.right" : "arrow.left")
+                                    Image(systemName: userWasAttacker ? "arrow.right" : "arrow.left")
                                         .font(.caption2)
-                                        .foregroundColor(attack.wasAttacker(userId: userId) ? .blue : .orange)
+                                        .foregroundColor(userWasAttacker ? .blue : .orange)
                                         .frame(width: 12)
+                                        .accessibilityHidden(true)
 
-                                    Text(attack.opponentName(forUserId: userId))
-                                        .font(.caption)
-                                        .lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        Text(opponentName)
+                                            .font(.caption)
+                                            .lineLimit(1)
+
+                                        Text(result)
+                                            .font(.caption2.weight(.medium))
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                    }
 
                                     Spacer()
 
@@ -100,6 +120,9 @@ struct AttacksView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("\(result), \(direction) \(opponentName)\(timeDescription)")
+                            .uiTestID("uitest.attack.\(attack.id)")
                         }
                     } else {
                         Text("No recent attacks")

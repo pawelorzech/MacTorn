@@ -244,18 +244,22 @@ struct OC2StatusView: View {
 
             // Your own progress in your slot, if you hold one
             if let pid = playerId, let progress = oc.myProgress(playerId: pid) {
+                let clampedProgress = min(max(progress, 0), 100)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Text("Your progress")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text("\(Int(progress))%")
+                        Text("\(Int(clampedProgress))%")
                             .font(.caption2.monospacedDigit())
                             .foregroundColor(.secondary)
                     }
-                    ProgressView(value: min(max(progress, 0), 100), total: 100)
+                    ProgressView(value: clampedProgress, total: 100)
                         .tint(.orange)
+                        .accessibilityLabel("Organized Crime progress")
+                        .accessibilityValue("\(Int(clampedProgress)) percent")
+                        .uiTestID("uitest.faction.ocProgress")
                 }
             }
         }
@@ -299,6 +303,8 @@ struct RankedWarView: View {
 
             if let mine, let opp {
                 let lead = mine.score - opp.score
+                let progressValue = min(max(lead, 0), war.target)
+                let progressTotal = max(war.target, 1)
                 HStack {
                     Text(mine.name)
                         .font(.caption.bold())
@@ -314,9 +320,12 @@ struct RankedWarView: View {
                         .lineLimit(1)
                 }
                 // War is won when a faction's *lead* reaches `target`.
-                ProgressView(value: Double(min(max(lead, 0), war.target)),
-                             total: Double(max(war.target, 1)))
+                ProgressView(value: Double(progressValue),
+                             total: Double(progressTotal))
                     .tint(lead >= 0 ? .green : .red)
+                    .accessibilityLabel("Ranked War lead progress")
+                    .accessibilityValue("\(formatNumber(progressValue)) of \(formatNumber(progressTotal))")
+                    .uiTestID("uitest.faction.warProgress")
                 Text(lead >= 0 ? "Leading by \(formatNumber(lead))" : "Behind by \(formatNumber(-lead))")
                     .font(.caption2)
                     .foregroundColor(lead >= 0 ? .green : .red)
