@@ -95,3 +95,6 @@ firebase-debug.log
 *.dmg
 *.pkg
 ExportOptions.plist
+
+# Riptide artifacts (cloud-synced)
+.humanlayer/tasks/
