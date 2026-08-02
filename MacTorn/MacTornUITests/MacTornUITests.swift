@@ -284,6 +284,42 @@ final class MacTornUITests: XCTestCase {
         }
     }
 
+    /// VoiceOver must receive the context hidden by icons, color, and unlabeled
+    /// progress bars. The fixture makes every affected surface deterministic.
+    func testStatusSurfacesExposeDescriptiveVoiceOverSemantics() throws {
+        let app = launch(fixture: "accessibility", apiKey: "sample-ax-semantics-user")
+        let win = window(app)
+
+        win.buttons["uitest.tab.Travel"].click()
+        let flightProgress = win.descendants(matching: .any)["uitest.travel.progress"]
+        XCTAssertTrue(flightProgress.waitForExistence(timeout: 10))
+        XCTAssertEqual(flightProgress.label, "Flight progress")
+        // macOS XCUITest exposes an empty `value` for these custom SwiftUI
+        // accessibility elements. Their VoiceOver values need a manual pass.
+
+        win.buttons["uitest.tab.Attacks"].click()
+        let attack = win.descendants(matching: .any)["uitest.attack.fixture-attack"]
+        XCTAssertTrue(attack.waitForExistence(timeout: 10))
+        XCTAssertTrue(attack.label.contains("Mugged"))
+        XCTAssertTrue(attack.label.contains("outgoing attack against Fixture Opponent"))
+
+        let incomingAttack = win.descendants(matching: .any)["uitest.attack.fixture-incoming-attack"]
+        XCTAssertTrue(incomingAttack.waitForExistence(timeout: 10))
+        XCTAssertTrue(incomingAttack.label.contains("Hospitalized"))
+        XCTAssertTrue(incomingAttack.label.contains("incoming attack from Fixture Aggressor"))
+
+        win.buttons["uitest.group.Account"].click()
+        win.buttons["uitest.tab.Faction"].click()
+
+        let ocProgress = win.descendants(matching: .any)["uitest.faction.ocProgress"]
+        XCTAssertTrue(ocProgress.waitForExistence(timeout: 10))
+        XCTAssertEqual(ocProgress.label, "Organized Crime progress")
+
+        let warProgress = win.descendants(matching: .any)["uitest.faction.warProgress"]
+        XCTAssertTrue(warProgress.waitForExistence(timeout: 10))
+        XCTAssertEqual(warProgress.label, "Ranked War lead progress")
+    }
+
     // MARK: - Account isolation (T15 fixture preparation)
 
     /// A delayed, cancellation-ignoring response for synthetic account A must never
@@ -340,6 +376,25 @@ final class MacTornUITests: XCTestCase {
         let error = win.descendants(matching: .any)["uitest.error"]
         XCTAssertTrue(error.waitForExistence(timeout: 15),
                       "An invalid key should surface a visible error message")
+
+        let recovery = win.descendants(matching: .any)["uitest.moduleState.recovery"]
+        XCTAssertTrue(recovery.waitForExistence(timeout: 10),
+                      "Module recovery action must remain a separate accessibility element")
+        XCTAssertEqual(recovery.label, "Settings")
+    }
+
+    func testOfflineModuleExposesRetryAsSeparateAccessibilityElement() throws {
+        let app = launch(
+            fixture: "empty",
+            apiKey: "sample-offline-user",
+            online: false
+        )
+        let win = window(app)
+
+        let recovery = win.descendants(matching: .any)["uitest.moduleState.recovery"]
+        XCTAssertTrue(recovery.waitForExistence(timeout: 10),
+                      "Retry must not be swallowed by the module status label")
+        XCTAssertEqual(recovery.label, "Retry")
     }
 
     // MARK: - Key validation (Etap C)

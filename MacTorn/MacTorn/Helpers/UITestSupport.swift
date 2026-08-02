@@ -53,6 +53,9 @@ enum FixtureScenario: String {
     /// for account A is deliberately delayed and ignores task cancellation so XCUITest
     /// can prove that a stale A response never flashes after switching to B.
     case accountSwitch
+    /// Rich, deterministic values for screen-reader contracts: an active flight,
+    /// a recent attack, and both faction progress bars.
+    case accessibility
 }
 
 enum UITestConfiguration {
@@ -109,10 +112,40 @@ enum UITestConfiguration {
         let session = FixtureNetworkSession(scenario: scenario)
         let connectivity = UITestConnectivity(connected: startsOnline)
 
-        return AppState(session: session,
-                        connectivity: connectivity,
-                        defaults: defaults,
-                        time: SystemTimeSource())
+        let appState = AppState(session: session,
+                                connectivity: connectivity,
+                                defaults: defaults,
+                                time: SystemTimeSource())
+
+        if scenario == .accessibility {
+            let now = Int(Date().timeIntervalSince1970)
+            appState.recentAttacks = [
+                AttackResult(
+                    code: "fixture-attack",
+                    timestampStarted: now - 150,
+                    timestampEnded: now - 120,
+                    attackerId: 123_456,
+                    attackerName: "TestPlayer",
+                    defenderId: 654_321,
+                    defenderName: "Fixture Opponent",
+                    result: "Mugged",
+                    respect: 2.5
+                ),
+                AttackResult(
+                    code: "fixture-incoming-attack",
+                    timestampStarted: now - 240,
+                    timestampEnded: now - 210,
+                    attackerId: 777_777,
+                    attackerName: "Fixture Aggressor",
+                    defenderId: 123_456,
+                    defenderName: "TestPlayer",
+                    result: "Hospitalized",
+                    respect: 1.25
+                )
+            ]
+        }
+
+        return appState
     }
 }
 
@@ -168,6 +201,11 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
         let isFastUser = isFastUserURL(url)
         let isKeyInfo = s.contains("/key/info")
 
+        if scenario == .accessibility,
+           let fixture = accessibilityResponse(for: url) {
+            return (try? JSONSerialization.data(withJSONObject: fixture)) ?? Data("{}".utf8)
+        }
+
         let json: [String: Any]
         switch (isKeyInfo, isFastUser, scenario) {
         case (true, _, .invalidKey):
@@ -176,6 +214,8 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             json = keyInfoResponse()
         case (_, true, .full):
             json = fullUserResponse()
+        case (_, true, .accessibility):
+            json = fullUserResponse(traveling: true)
         case (_, true, .accountSwitch):
             switch apiKey(in: url) {
             case accountAKey:
@@ -191,6 +231,65 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             json = [:]
         }
         return (try? JSONSerialization.data(withJSONObject: json)) ?? Data("{}".utf8)
+    }
+
+    private static func accessibilityResponse(for url: URL?) -> [String: Any]? {
+        let path = url?.path ?? ""
+        let now = Int(Date().timeIntervalSince1970)
+
+        if path == "/v2/user" {
+            return [
+                "organizedCrime": [
+                    "id": 101,
+                    "name": "Fixture Crime",
+                    "difficulty": 4,
+                    "status": "Planning",
+                    "created_at": now - 600,
+                    "ready_at": now + 3_600,
+                    "expired_at": now + 86_400,
+                    "executed_at": NSNull(),
+                    "slots": [
+                        [
+                            "position": "Muscle",
+                            "checkpoint_pass_rate": 80,
+                            "user": ["id": 123_456, "progress": 62, "joined_at": now - 600],
+                        ]
+                    ],
+                ],
+                "refills": ["energy": true, "nerve": true, "token": true, "special_count": 0],
+                "education": ["complete": [], "current": NSNull()],
+                "bounties": [],
+            ]
+        }
+
+        if path.contains("/v2/faction/rankedwars") {
+            return [
+                "rankedwars": [
+                    [
+                        "id": 202,
+                        "start": now - 7_200,
+                        "end": 0,
+                        "target": 1_000,
+                        "winner": NSNull(),
+                        "factions": [
+                            ["id": 6_789, "name": "Fixture Faction", "score": 1_250, "chain": 10],
+                            ["id": 9_876, "name": "Fixture Rivals", "score": 750, "chain": 5],
+                        ],
+                    ]
+                ]
+            ]
+        }
+
+        if path == "/faction/" || path == "/faction" {
+            return [
+                "name": "Fixture Faction",
+                "ID": 6_789,
+                "respect": 1_000,
+                "chain": ["current": 0, "max": 0, "timeout": 0, "cooldown": 0],
+            ]
+        }
+
+        return nil
     }
 
     private static func isFastUserURL(_ url: URL?) -> Bool {
@@ -240,16 +339,21 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
     /// suite's `TornAPIFixtures.validFullResponse()` (kept in sync by construction —
     /// same keys), with `server_time = now` so live countdowns anchor to the run.
     static func fullUserResponse(name: String = "TestPlayer",
-                                 playerID: Int = 123456) -> [String: Any] { [
+                                 playerID: Int = 123456,
+                                 traveling: Bool = false) -> [String: Any] {
+        let now = Int(Date().timeIntervalSince1970)
+        return [
         "name": name,
         "player_id": playerID,
-        "server_time": Int(Date().timeIntervalSince1970),
+        "server_time": now,
         "energy": ["current": 100, "maximum": 150, "increment": 5, "interval": 300, "ticktime": 60, "fulltime": 600],
         "nerve": ["current": 50, "maximum": 60, "increment": 1, "interval": 300, "ticktime": 120, "fulltime": 1800],
         "life": ["current": 7500, "maximum": 7500, "increment": 100, "interval": 300, "ticktime": 0, "fulltime": 0],
         "happy": ["current": 5000, "maximum": 10000, "increment": 50, "interval": 300, "ticktime": 100, "fulltime": 30000],
         "cooldowns": ["drug": 0, "medical": 0, "booster": 0],
-        "travel": ["destination": "Torn", "timestamp": 0, "departed": 0, "time_left": 0],
+        "travel": traveling
+            ? ["destination": "Japan", "timestamp": now + 300, "departed": now - 300, "time_left": 300]
+            : ["destination": "Torn", "timestamp": 0, "departed": 0, "time_left": 0],
         "status": ["description": "Okay", "details": "", "state": "Okay", "until": 0],
         // NOTE: no "chain" key here on purpose. Torn's v1 `user` endpoint does not
         // return one, and this fixture used to invent it — which is exactly what hid
@@ -270,7 +374,8 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
                 )
             }
         ),
-    ] }
+        ]
+    }
 }
 
 // MARK: - UI-test root view
