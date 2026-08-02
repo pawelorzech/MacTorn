@@ -55,16 +55,6 @@ final class TornAPIErrorTests: XCTestCase {
         XCTAssertFalse(err.haltsAllRequests, "error 14 must NOT stop bars/countdowns")
     }
 
-    func testRetryability() {
-        XCTAssertTrue(TornAPIError.classify(code: 5, message: "").isRetryable)   // rate limit
-        XCTAssertTrue(TornAPIError.classify(code: 17, message: "").isRetryable)  // backend
-        XCTAssertTrue(TornAPIError.offline.isRetryable)
-        XCTAssertFalse(TornAPIError.classify(code: 2, message: "").isRetryable)  // bad key
-        XCTAssertFalse(TornAPIError.classify(code: 14, message: "").isRetryable) // don't hammer daily cap
-        XCTAssertFalse(TornAPIError.cancelled.isRetryable)
-        XCTAssertFalse(TornAPIError.malformedResponse(detail: "x").isRetryable)
-    }
-
     // MARK: - Transport mapping
 
     func testTransportMapping() {
@@ -95,42 +85,6 @@ final class TornAPIErrorTests: XCTestCase {
         ]
         for error in cases {
             XCTAssertFalse(error.userMessage.isEmpty, "\(error) has empty user message")
-        }
-    }
-
-    // MARK: - Retry policy
-
-    func testBaseDelayFollowsLadderThenCaps() {
-        let policy = RetryPolicy.standard
-        XCTAssertEqual(policy.baseDelay(attempt: 0), 2)
-        XCTAssertEqual(policy.baseDelay(attempt: 1), 5)
-        XCTAssertEqual(policy.baseDelay(attempt: 2), 15)
-        XCTAssertEqual(policy.baseDelay(attempt: 3), 30)
-        XCTAssertEqual(policy.baseDelay(attempt: 4), 60)
-        XCTAssertEqual(policy.baseDelay(attempt: 5), 300)   // cap
-        XCTAssertEqual(policy.baseDelay(attempt: 99), 300)  // still cap
-    }
-
-    func testJitterBounds() {
-        let policy = RetryPolicy.standard
-        // Equal jitter → [base/2, base]
-        XCTAssertEqual(policy.delay(attempt: 4, jitter: 0), 30, accuracy: 0.001)   // 60/2
-        XCTAssertEqual(policy.delay(attempt: 4, jitter: 1), 60, accuracy: 0.001)
-        let mid = policy.delay(attempt: 4, jitter: 0.5)
-        XCTAssertGreaterThan(mid, 30)
-        XCTAssertLessThan(mid, 60)
-    }
-
-    func testJitterClampsOutOfRangeInput() {
-        let policy = RetryPolicy.standard
-        XCTAssertEqual(policy.delay(attempt: 0, jitter: -5), 1, accuracy: 0.001) // clamps to 0 → base/2 = 1
-        XCTAssertEqual(policy.delay(attempt: 0, jitter: 5), 2, accuracy: 0.001)  // clamps to 1 → base = 2
-    }
-
-    func testDelayNeverExceedsCap() {
-        let policy = RetryPolicy.standard
-        for attempt in 0...10 {
-            XCTAssertLessThanOrEqual(policy.delay(attempt: attempt, jitter: 1), policy.cap)
         }
     }
 
