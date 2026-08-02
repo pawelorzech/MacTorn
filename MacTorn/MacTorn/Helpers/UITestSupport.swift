@@ -56,6 +56,9 @@ enum FixtureScenario: String {
     /// Rich, deterministic values for screen-reader contracts: an active flight,
     /// a recent attack, and both faction progress bars.
     case accessibility
+    /// Deterministic Watchlist and Forum Watch rows used to verify compact control
+    /// hit areas and the non-visual state exposed to assistive technologies.
+    case watchAccessibility
 }
 
 enum UITestConfiguration {
@@ -145,6 +148,38 @@ enum UITestConfiguration {
             ]
         }
 
+        if scenario == .watchAccessibility {
+            appState.watchlistItems = [
+                WatchlistItem(
+                    id: 206,
+                    name: "Accessibility Item",
+                    lowestPrice: 4_200,
+                    lowestPriceQuantity: 2,
+                    secondLowestPrice: 4_300,
+                    lastUpdated: Date(),
+                    error: nil
+                )
+            ]
+            appState.watchedThreads = [
+                WatchedThread(
+                    id: 101,
+                    title: "Unavailable forum thread",
+                    notificationsEnabled: true,
+                    lastKnownPostCount: 3,
+                    lastChecked: Date(),
+                    error: "Fixture forum unavailable."
+                ),
+                WatchedThread(
+                    id: 102,
+                    title: "Healthy forum thread",
+                    notificationsEnabled: false,
+                    lastKnownPostCount: 8,
+                    lastChecked: Date(),
+                    error: nil
+                ),
+            ]
+        }
+
         return appState
     }
 }
@@ -216,6 +251,8 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             json = fullUserResponse()
         case (_, true, .accessibility):
             json = fullUserResponse(traveling: true)
+        case (_, true, .watchAccessibility):
+            json = fullUserResponse()
         case (_, true, .accountSwitch):
             switch apiKey(in: url) {
             case accountAKey:
