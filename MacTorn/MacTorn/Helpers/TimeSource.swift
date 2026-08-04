@@ -49,6 +49,12 @@ struct ServerClock: Equatable, Sendable {
     /// machine (minutes, even hours) is still honoured.
     static let maxPlausibleSkewSeconds = 86_400
 
+    /// Movement below this is jitter, not a clock correction — see `merged(with:)`.
+    /// The same window `CooldownEnds.merged` uses to pin cooldown end-timestamps: both
+    /// are damping the identical physical wobble (whole-second integers on both sides
+    /// of the subtraction, plus per-request latency), so they must not drift apart.
+    static let jitterToleranceSeconds = 3
+
     init(offset: Int) {
         self.offset = offset
     }
@@ -63,6 +69,29 @@ struct ServerClock: Equatable, Sendable {
         }
         let delta = anchor - Int(localNow.timeIntervalSince1970)
         self.offset = abs(delta) <= Self.maxPlausibleSkewSeconds ? delta : 0
+    }
+
+    /// Stabilises per-poll jitter in the derived offset — the offset's exact analogue of
+    /// `CooldownEnds.merged`, and for the same reason.
+    ///
+    /// `offset = server_time - Int(receiptTime)` is not a stable quantity even when
+    /// neither clock has moved: `server_time` is whole seconds, the local receipt is
+    /// truncated to whole seconds, and the gap between the two absorbs that poll's
+    /// network latency. So it wobbles by a second or three between polls. Since *every*
+    /// countdown is now measured as `deadline - serverNow`, an offset that wobbles makes
+    /// every countdown in the app — the menu bar included — tick backwards at each poll
+    /// boundary. That is precisely the visible jump `CooldownEnds.merged` exists to
+    /// prevent, so pinning `endsAt` while leaving `now` jittery would achieve nothing.
+    ///
+    /// Keep the pinned offset while the fresh derivation is within `toleranceSeconds`;
+    /// adopt anything beyond it, which is a genuine correction (the Mac's clock being
+    /// re-synced, or an anchor discarded as implausible collapsing us to `.synchronized`).
+    /// Because each poll compares against the *pinned* value rather than the previous
+    /// derivation, slow one-directional drift still crosses the window and is adopted —
+    /// the error is bounded by the tolerance, and nothing latches.
+    func merged(with fresh: ServerClock,
+                toleranceSeconds: Int = ServerClock.jitterToleranceSeconds) -> ServerClock {
+        abs(fresh.offset - offset) <= toleranceSeconds ? self : fresh
     }
 
     /// Torn's "now" for a given local instant.

@@ -187,7 +187,12 @@ struct CooldownEnds: Equatable {
     /// taken, drug applied, medical after hospitalisation) — we adopt the new value.
     /// A `0` on either side (cooldown inactive on one side) is taken from `other`
     /// so transitions in/out of active are immediate.
-    func merged(with other: CooldownEnds, toleranceSeconds: Int = 3) -> CooldownEnds {
+    ///
+    /// The tolerance is shared with `ServerClock.merged`, which damps the *other* half
+    /// of the same subtraction (issue #46): pinning `endsAt` while `now` still wobbles
+    /// poll to poll would give the jump back.
+    func merged(with other: CooldownEnds,
+                toleranceSeconds: Int = ServerClock.jitterToleranceSeconds) -> CooldownEnds {
         func pick(_ old: Int, _ new: Int) -> Int {
             if old == 0 || new == 0 { return new }
             return abs(new - old) <= toleranceSeconds ? old : new

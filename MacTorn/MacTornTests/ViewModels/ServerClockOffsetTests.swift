@@ -332,6 +332,214 @@ final class ServerClockOffsetTests: XCTestCase {
         XCTAssertEqual(try eta(.energy), 600,
                        "a relative fulltime must not be shifted by the clock offset")
     }
+
+    // MARK: - The offset must not itself be jittery (issue #46, review finding)
+    //
+    // `server_time` is whole seconds and the response takes real time to arrive, so the
+    // quantity `server_time - Int(localReceiptTime)` wobbles by a second or three between
+    // polls even when neither clock has moved. Re-deriving it from scratch every poll and
+    // then measuring EVERY countdown against it feeds that wobble into the menu bar: the
+    // number counts down for a minute and then jumps back UP at the poll boundary.
+    //
+    // This is the exact hazard `CooldownEnds.merged` was written for ("without smoothing,
+    // every poll causes a visible jump in the menu bar countdown") — and routing `now`
+    // through a jittery offset defeats that pin for every surface at once. So the offset
+    // gets the same treatment as `endsAt`: ignore sub-tolerance movement, track real
+    // corrections.
+    //
+    // Each test below runs the same shape — two polls 60 s of injected time apart, the
+    // second response's anchor 2 s "late" (ordinary network latency) — and asserts the
+    // countdown fell by exactly 60. Any implementation that lets latency reach `now`
+    // reports 62 and has visibly ticked backwards on screen.
+
+    /// The proof case from the review: 300 → 240 over a minute, never 242.
+    func testCooldownCountdownDoesNotJumpBackWhenTheAnchorJitters() async throws {
+        try await poll(serverTime: localNow,
+                       cooldowns: ["drug": 0, "booster": 0, "medical": 300])
+        XCTAssertEqual(app.serverClock.offset, 0, "first poll: anchor and receipt agree")
+        XCTAssertEqual(try eta(.medical), 300)
+
+        clock.advance(60)
+        try await poll(serverTime: localNow + 58,
+                       cooldowns: ["drug": 0, "booster": 0, "medical": 240])
+
+        XCTAssertEqual(app.serverClock.offset, 0,
+                       "2 s of request latency is jitter, not a clock correction — "
+                       + "re-deriving the offset from scratch reads it as -2")
+        XCTAssertEqual(try eta(.medical), 240,
+                       "the menu bar counted 300…241 over that minute; 242 is a visible "
+                       + "jump backwards on the app's only always-visible surface")
+        XCTAssertEqual(app.menuBarDisplay, .cooldown(kind: .medical, seconds: 240))
+    }
+
+    /// Travel carries an absolute arrival timestamp, so the deadline is provably
+    /// unchanged between the two polls — only `now` can move it.
+    func testTravelCountdownDoesNotJumpBackWhenTheAnchorJitters() async throws {
+        let arrival = localNow + 300
+        try await poll(serverTime: localNow,
+                       travel: travelSlice(arrivingAt: arrival,
+                                           departedAt: localNow - 300,
+                                           timeLeft: 300))
+        XCTAssertEqual(app.travelSecondsRemaining, 300)
+
+        clock.advance(60)
+        try await poll(serverTime: localNow + 58,
+                       travel: travelSlice(arrivingAt: arrival,
+                                           departedAt: localNow - 300,
+                                           timeLeft: 240))
+
+        XCTAssertEqual(app.travelSecondsRemaining, 240,
+                       "same arrival timestamp, 60 s later — the plane cannot get further away")
+        XCTAssertEqual(app.menuBarDisplay, .traveling(destination: "Mexico", seconds: 240))
+        XCTAssertEqual(try eta(.travel), 240)
+    }
+
+    func testHospitalCountdownDoesNotJumpBackWhenTheAnchorJitters() async throws {
+        let release = localNow + 300
+        try await poll(serverTime: localNow, status: hospitalSlice(until: release))
+        XCTAssertEqual(try eta(.hospital), 300)
+
+        clock.advance(60)
+        try await poll(serverTime: localNow + 58, status: hospitalSlice(until: release))
+
+        XCTAssertEqual(try eta(.hospital), 240,
+                       "`until` never moved, so the countdown can only fall")
+        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 240))
+    }
+
+    func testJailCountdownDoesNotJumpBackWhenTheAnchorJitters() async throws {
+        let release = localNow + 450
+        try await poll(serverTime: localNow, status: jailSlice(until: release))
+        XCTAssertEqual(try eta(.jail), 450)
+
+        clock.advance(60)
+        try await poll(serverTime: localNow + 58, status: jailSlice(until: release))
+
+        XCTAssertEqual(try eta(.jail), 390)
+        XCTAssertEqual(app.menuBarDisplay, .jail(seconds: 390))
+    }
+
+    /// Chain and OC deadlines arrive on their own endpoints, so they are re-published
+    /// verbatim after the second poll — identical absolute timestamps, nothing about
+    /// them changed. Only the shared "now" can move these numbers.
+    func testChainAndOrganizedCrimeCountdownsDoNotJumpBackWhenTheAnchorJitters() async throws {
+        let chainTimeout = localNow + 180
+        let ocReadyAt = localNow + 240
+
+        try await poll(serverTime: localNow)
+        publishChain(timeout: chainTimeout)
+        app.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
+                                             status: "Planning", readyAt: ocReadyAt)
+        XCTAssertEqual(try eta(.chain), 180)
+        XCTAssertEqual(try eta(.organizedCrime), 240)
+
+        clock.advance(60)
+        try await poll(serverTime: localNow + 58)
+        publishChain(timeout: chainTimeout)
+        app.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
+                                             status: "Planning", readyAt: ocReadyAt)
+
+        XCTAssertEqual(try eta(.chain), 120,
+                       "the chain lapses at a fixed server instant — 122 is a jump backwards")
+        XCTAssertEqual(try eta(.organizedCrime), 180,
+                       "ready_at is a fixed server instant — 182 is a jump backwards")
+    }
+
+    /// Damping must not become latching. Four seconds is past the tolerance the cooldown
+    /// pin already uses, so it is a real correction and has to be adopted — otherwise a
+    /// Mac whose clock is being nudged would silently keep the stale skew.
+    func testSkewChangeBeyondToleranceIsStillAdopted() async throws {
+        let release = localNow + 600
+        try await poll(serverTime: localNow, status: hospitalSlice(until: release))
+        XCTAssertEqual(app.serverClock.offset, 0)
+
+        // 60 s of local time pass; Torn's clock advanced 64 → the Mac lost 4 s.
+        clock.advance(60)
+        try await poll(serverTime: localNow + 64, status: hospitalSlice(until: release + 4))
+
+        XCTAssertEqual(app.serverClock.offset, 4,
+                       "4 s is past the jitter tolerance — a real correction, so track it")
+        XCTAssertEqual(try eta(.hospital), 540)
+    }
+
+    /// Part (a) of the fix: the receipt instant must be sampled the moment the transport
+    /// returns, not after the off-actor decode. Decoding burns real time, and folding it
+    /// into `server_time - receiptTime` makes the app believe the Mac runs that much fast
+    /// — freezing the countdown for exactly as long as the parse took.
+    func testOffsetIsNotInflatedByDecodeTime() async throws {
+        // 5 s of "decode" — deliberately past the jitter tolerance, so this test can only
+        // pass by sampling the receipt earlier, never by damping.
+        let slowService = ClockBurningSnapshotService(
+            wrapping: UserSnapshotService(session: session),
+            clock: clock,
+            decodeSeconds: 5
+        )
+        app.stopPolling()
+        app = AppState(session: session,
+                       connectivity: ControllableConnectivity(connected: true),
+                       defaults: .createMockDefaults(),
+                       time: clock,
+                       userSnapshotService: slowService)
+
+        try await poll(serverTime: localNow, status: hospitalSlice(until: localNow + 300))
+
+        XCTAssertEqual(app.serverClock.offset, 0,
+                       "the decode took 5 s of wall time; that is not clock skew")
+        XCTAssertEqual(try eta(.hospital), 295,
+                       "5 s really did elapse, so 5 s came off the countdown — reading the "
+                       + "receipt after the decode reports a frozen 300")
+    }
+
+    // MARK: - Helpers for the jitter suite
+
+    private func publishChain(timeout: Int) {
+        app.factionService.publishBasic(
+            FactionData(name: "Test", factionId: 1, respect: 10,
+                        chain: FactionChain(current: 25, max: 100,
+                                            timeout: timeout, cooldown: 0))
+        )
+    }
+}
+
+/// Wraps the real snapshot service and burns injected clock time inside `parseSnapshot`,
+/// the way a large payload's off-actor decode burns real time. Everything else passes
+/// straight through.
+private final class ClockBurningSnapshotService: UserSnapshotServicing, @unchecked Sendable {
+    private let wrapped: UserSnapshotServicing
+    private let clock: MutableTimeSource
+    private let decodeSeconds: TimeInterval
+
+    init(wrapping: UserSnapshotServicing, clock: MutableTimeSource, decodeSeconds: TimeInterval) {
+        self.wrapped = wrapping
+        self.clock = clock
+        self.decodeSeconds = decodeSeconds
+    }
+
+    func load(_ url: URL) async throws -> UserHTTPResponse {
+        try await wrapped.load(url)
+    }
+
+    func parseSnapshot(
+        data: Data,
+        requestedSelections: [String],
+        grantedSelections: [String]?
+    ) async -> UserServiceResult<UserSnapshotPayload> {
+        let result = await wrapped.parseSnapshot(data: data,
+                                                 requestedSelections: requestedSelections,
+                                                 grantedSelections: grantedSelections)
+        let seconds = decodeSeconds
+        let clock = self.clock
+        await MainActor.run { clock.advance(seconds) }
+        return result
+    }
+
+    func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload> {
+        try await wrapped.loadActivity(url)
+    }
+
+    func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
+        try await wrapped.loadUserV2(url)
+    }
 }
 
 /// The pure conversion `ServerClockOffsetTests` drives end-to-end. These pin the two
@@ -411,5 +619,80 @@ final class ServerClockTests: XCTestCase {
         let clock = ServerClock.synchronized
         XCTAssertEqual(clock.serverNow(localNow), localNow)
         XCTAssertEqual(clock.localDate(forServerTimestamp: 1_700_000_000), localNow)
+    }
+
+    // MARK: - Damping the offset
+
+    /// `merged` is the offset's version of `CooldownEnds.merged`, and exists for the same
+    /// reason: whole-second `server_time` minus a whole-second local receipt, plus that
+    /// request's latency, makes the derived offset wobble by a second or three between
+    /// polls even when neither clock moved. Since every countdown is now measured against
+    /// this offset, letting the wobble through walks the menu bar backwards at each poll.
+    func testJitterWithinToleranceKeepsThePreviousOffset() {
+        let pinned = ServerClock(offset: 90)
+
+        XCTAssertEqual(pinned.merged(with: ServerClock(offset: 92)).offset, 90,
+                       "2 s of latency is not a clock correction")
+        XCTAssertEqual(pinned.merged(with: ServerClock(offset: 88)).offset, 90,
+                       "and symmetrically in the other direction")
+        XCTAssertEqual(pinned.merged(with: ServerClock(offset: 90)).offset, 90)
+    }
+
+    /// The exact edge, pinned in both directions so a later change to the window is
+    /// deliberate rather than a silent regression.
+    func testMergeToleranceBoundary() {
+        let tolerance = ServerClock.jitterToleranceSeconds
+        XCTAssertEqual(tolerance, 3, "the window CooldownEnds.merged has always used")
+        let pinned = ServerClock(offset: 90)
+
+        XCTAssertEqual(pinned.merged(with: ServerClock(offset: 90 + tolerance)).offset, 90,
+                       "movement exactly at the tolerance is still jitter")
+        XCTAssertEqual(pinned.merged(with: ServerClock(offset: 90 - tolerance)).offset, 90)
+        XCTAssertEqual(pinned.merged(with: ServerClock(offset: 90 + tolerance + 1)).offset,
+                       90 + tolerance + 1,
+                       "one second past it is a real correction — adopt it")
+        XCTAssertEqual(pinned.merged(with: ServerClock(offset: 90 - tolerance - 1)).offset,
+                       90 - tolerance - 1)
+    }
+
+    /// One tolerance for the whole clock. `CooldownEnds.merged` damps `endsAt` and
+    /// `ServerClock.merged` damps the `now` it is subtracted from — two halves of one
+    /// subtraction, so a divergent window would reintroduce the jump on one side.
+    func testCooldownPinSharesTheSameToleranceWindow() {
+        let tolerance = ServerClock.jitterToleranceSeconds
+        let pinned = CooldownEnds(drugEndsAt: 0, boosterEndsAt: 0, medicalEndsAt: 1_000)
+
+        func mergedMedical(_ endsAt: Int) -> Int {
+            pinned.merged(with: CooldownEnds(drugEndsAt: 0, boosterEndsAt: 0, medicalEndsAt: endsAt))
+                .medicalEndsAt
+        }
+
+        XCTAssertEqual(mergedMedical(1_000 + tolerance), 1_000,
+                       "cooldowns hold at exactly the same window the offset does")
+        XCTAssertEqual(mergedMedical(1_000 + tolerance + 1), 1_000 + tolerance + 1)
+    }
+
+    /// Damping must never become latching: a Mac whose clock is corrected mid-session,
+    /// or a payload whose anchor was discarded as implausible, has to move the offset.
+    func testMergeAdoptsGenuineCorrections() {
+        XCTAssertEqual(ServerClock.synchronized.merged(with: ServerClock(offset: 90)).offset, 90,
+                       "first real skew must be adopted, not damped away")
+        XCTAssertEqual(ServerClock(offset: 90).merged(with: .synchronized).offset, 0,
+                       "a discarded anchor degrades to the local clock rather than latching")
+        XCTAssertEqual(ServerClock(offset: 90).merged(with: ServerClock(offset: -30)).offset, -30)
+    }
+
+    /// Slow one-directional drift still converges: each poll compares against the
+    /// *pinned* value, not the previous derivation, so the error is bounded by the
+    /// tolerance and a correction always lands.
+    func testSlowDriftEventuallyCrossesTheToleranceAndIsAdopted() {
+        var pinned = ServerClock(offset: 0)
+        for derived in 1...ServerClock.jitterToleranceSeconds {
+            pinned = pinned.merged(with: ServerClock(offset: derived))
+            XCTAssertEqual(pinned.offset, 0, "still inside the window")
+        }
+        pinned = pinned.merged(with: ServerClock(offset: ServerClock.jitterToleranceSeconds + 1))
+        XCTAssertEqual(pinned.offset, ServerClock.jitterToleranceSeconds + 1,
+                       "drift past the window is picked up — bounded error, no latching")
     }
 }
