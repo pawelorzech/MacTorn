@@ -32,12 +32,12 @@ struct StatusView: View {
                 
                 // Status badges (Hospital/Jail)
                 if let status = appState.data?.status {
-                    StatusBadgesView(status: status)
+                    StatusBadgesView(status: status, serverClock: appState.serverClock)
                 }
                 
                 // Chain status
                 if let chain = appState.liveChain, let fetchTime = appState.lastUpdated {
-                    ChainView(chain: chain, fetchTime: fetchTime)
+                    ChainView(chain: chain, fetchTime: fetchTime, serverClock: appState.serverClock)
                 }
                 
                 // Travel status
@@ -70,7 +70,7 @@ struct StatusView: View {
 
                 // Events
                 if !appState.activityEvents.isEmpty {
-                    EventsView(events: appState.activityEvents)
+                    EventsView(events: appState.activityEvents, serverClock: appState.serverClock)
                 }
                 
                 // Quick Links
@@ -237,9 +237,9 @@ struct StatusView: View {
 
             HStack(spacing: 16) {
                 if let ends = appState.cooldownEnds {
-                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
-                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
-                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel)
+                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →", serverClock: appState.serverClock)
+                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →", serverClock: appState.serverClock)
+                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel, serverClock: appState.serverClock)
                 } else {
                     CooldownItem(label: "Drug", seconds: cooldowns.drug, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
                     CooldownItem(label: "Medical", seconds: cooldowns.medical, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
@@ -364,7 +364,8 @@ struct StatusView: View {
                 // `endsDate` is an absolute time, so tick `now` against it — no drift.
                 if let ends = appState.education?.endsDate {
                     TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                        let remaining = max(0, Int(ends.timeIntervalSince(context.date)))
+                        let remaining = max(0, Int(ends.timeIntervalSince(
+                            appState.serverClock.serverNow(context.date))))
                         HStack(spacing: 6) {
                             Image(systemName: "graduationcap.fill")
                                 .foregroundColor(.purple)
@@ -492,13 +493,16 @@ struct LiveCooldownItem: View {
     let icon: String
     var actionURL: URL? = nil
     var actionLabel: String? = nil
+    /// Mac↔Torn skew (issue #46) — `endsAt` is server-absolute, so the tick is compared
+    /// against Torn's now.
+    var serverClock: ServerClock = .synchronized
 
     @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1.0)) { context in
             let remaining = endsAt > 0
-                ? max(0, endsAt - Int(context.date.timeIntervalSince1970))
+                ? max(0, endsAt - serverClock.serverUnix(context.date))
                 : 0
 
             if remaining <= 0, let url = actionURL {

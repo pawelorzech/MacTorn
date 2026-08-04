@@ -4,11 +4,14 @@ struct ChainView: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
     let chain: Chain
     let fetchTime: Date
+    /// Mac↔Torn skew (issue #46). `chain.timeout` is an absolute server timestamp, so the
+    /// tick has to be compared against Torn's now, not the Mac's.
+    var serverClock: ServerClock = .synchronized
 
     var body: some View {
         if chain.isActive {
             TimelineView(.periodic(from: fetchTime, by: 1.0)) { context in
-                let remaining = max(0, (chain.timeout ?? 0) - Int(context.date.timeIntervalSince1970))
+                let remaining = chain.timeoutRemaining(at: serverClock.serverNow(context.date))
                 let color = timeoutColor(for: remaining)
 
                 VStack(alignment: .leading, spacing: 4) {

@@ -397,11 +397,23 @@ extension AppState {
         let decoded = payload.snapshot
         logger.info("Parsed authenticated user data successfully")
 
+        // Issue #46: re-derive the Mac↔Torn skew from THIS snapshot before anything reads
+        // a countdown. Deriving it per snapshot (rather than adjusting a running value) is
+        // what keeps it from accumulating across polls or latching when the Mac's clock is
+        // corrected mid-session. `receivedAt` is the same instant later stored as
+        // `lastFetchTime`, so the two never disagree by a poll's worth of work.
+        let receivedAt = time.now
+        serverClock = ServerClock(anchor: decoded.anchorTimestamp, localNow: receivedAt)
+
         checkNotifications(newData: decoded)
         self.data = decoded
 
         if let cooldowns = decoded.cooldowns {
-            let anchor = decoded.anchorTimestamp ?? Int(Date().timeIntervalSince1970)
+            // Deliberately the RAW anchor, not `serverClock.serverUnix(receivedAt)`: a
+            // cooldown's `endsAt` only has to be self-consistent with the response that
+            // produced it, and clamping it through the plausibility guard would silently
+            // re-anchor cooldowns from a payload whose timestamp is merely unusual.
+            let anchor = decoded.anchorTimestamp ?? Int(receivedAt.timeIntervalSince1970)
             let fresh = CooldownEnds.from(cooldowns: cooldowns, anchor: anchor)
             cooldownEnds = cooldownEnds?.merged(with: fresh) ?? fresh
         } else {
@@ -420,7 +432,7 @@ extension AppState {
         stocksData = payload.stocks
 
         lastUpdated = Date()
-        lastFetchTime = time.now
+        lastFetchTime = receivedAt
         errorMsg = nil
 
         manageLiveTimer()
@@ -554,7 +566,7 @@ extension AppState {
     }
 
     func shouldNotifyOCReady(_ oc: OrganizedCrime2?) -> Bool {
-        guard let oc, oc.isReady else { return false }
+        guard let oc, oc.isReady(at: serverNow) else { return false }
         return notificationCoordinator.shouldFireOnce("oc.ready", epoch: "\(oc.id)")
     }
 

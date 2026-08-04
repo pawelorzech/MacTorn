@@ -160,15 +160,17 @@ struct CooldownEnds: Equatable {
         }
     }
 
-    func remainingSeconds(_ kind: CooldownKind) -> Int {
+    /// `endsAt` is an absolute **server** timestamp, so `now` must be Torn's now
+    /// (`AppState.serverNow`). The `Date()` default is for pure-model callers only.
+    func remainingSeconds(_ kind: CooldownKind, at now: Date = Date()) -> Int {
         let target = endsAt(kind)
         guard target > 0 else { return 0 }
-        return max(0, target - Int(Date().timeIntervalSince1970))
+        return max(0, target - Int(now.timeIntervalSince1970))
     }
 
-    func soonestActive() -> (kind: CooldownKind, seconds: Int)? {
+    func soonestActive(at now: Date = Date()) -> (kind: CooldownKind, seconds: Int)? {
         CooldownKind.allCases
-            .map { (kind: $0, seconds: remainingSeconds($0)) }
+            .map { (kind: $0, seconds: remainingSeconds($0, at: now)) }
             .filter { $0.seconds > 0 }
             .min { $0.seconds < $1.seconds }
     }
@@ -227,26 +229,31 @@ struct Travel: Codable, Equatable {
         return Date(timeIntervalSince1970: TimeInterval(ts))
     }
 
-    /// Calculate remaining seconds based on fetch time (for live countdown)
-    func remainingSeconds(from fetchTime: Date) -> Int {
+    /// Remaining seconds of flight.
+    ///
+    /// `timestamp` is an absolute **server** timestamp and `time_left` is measured from
+    /// the instant the *server* generated the response, so both `fetchTime` and `now`
+    /// must be expressed on Torn's clock (`AppState.serverFetchTime` / `AppState.serverNow`)
+    /// — mixing the two clocks is exactly the bug in issue #46. The `Date()` default is
+    /// for pure-model callers that have no skew to correct.
+    func remainingSeconds(from fetchTime: Date, now: Date = Date()) -> Int {
         // Primary: Use timestamp directly if available (more accurate)
         if let timestamp = timestamp, timestamp > 0 {
-            let now = Int(Date().timeIntervalSince1970)
-            return max(0, timestamp - now)
+            return max(0, timestamp - Int(now.timeIntervalSince1970))
         }
 
         // Fallback: Use timeLeft with fetchTime offset (backward compatibility)
         guard let timeLeft = timeLeft, timeLeft > 0 else { return 0 }
-        let elapsed = Int(Date().timeIntervalSince(fetchTime))
+        let elapsed = Int(now.timeIntervalSince(fetchTime))
         return max(0, timeLeft - elapsed)
     }
 
     /// Calculate flight progress (0.0 to 1.0) based on fetch time
-    func flightProgress(from fetchTime: Date) -> Double {
+    func flightProgress(from fetchTime: Date, now: Date = Date()) -> Double {
         guard let departed = departed, let timestamp = timestamp else { return 0 }
         let totalDuration = timestamp - departed
         guard totalDuration > 0 else { return 0 }
-        let remaining = remainingSeconds(from: fetchTime)
+        let remaining = remainingSeconds(from: fetchTime, now: now)
         let elapsed = totalDuration - remaining
         return min(1.0, max(0.0, Double(elapsed) / Double(totalDuration)))
     }
@@ -403,10 +410,14 @@ struct Status: Codable, Equatable {
         state == "Okay" || state == nil
     }
     
-    var timeRemaining: Int {
+    /// Seconds until release. `until` is an absolute **server** timestamp, so `now` must
+    /// be Torn's now (`AppState.serverNow`).
+    func timeRemaining(at now: Date) -> Int {
         guard let until = until else { return 0 }
-        return max(0, until - Int(Date().timeIntervalSince1970))
+        return max(0, until - Int(now.timeIntervalSince1970))
     }
+
+    var timeRemaining: Int { timeRemaining(at: Date()) }
 }
 
 // MARK: - Chain
@@ -426,10 +437,14 @@ struct Chain: Codable, Equatable {
         return cooldown > 0
     }
     
-    var timeoutRemaining: Int {
+    /// Seconds until the chain lapses. `timeout` is an absolute **server** timestamp, so
+    /// `now` must be Torn's now (`AppState.serverNow`).
+    func timeoutRemaining(at now: Date) -> Int {
         guard let timeout = timeout else { return 0 }
-        return max(0, timeout - Int(Date().timeIntervalSince1970))
+        return max(0, timeout - Int(now.timeIntervalSince1970))
     }
+
+    var timeoutRemaining: Int { timeoutRemaining(at: Date()) }
 }
 
 // MARK: - Events
@@ -646,14 +661,16 @@ struct AttackResult: Codable, Identifiable {
         }
     }
     
-    var timeAgo: String {
+    /// `timestampEnded` is Torn's clock, so `now` should be too (`AppState.serverNow`).
+    func timeAgo(at now: Date) -> String {
         guard let ts = timestampEnded else { return "" }
-        let now = Int(Date().timeIntervalSince1970)
-        let diff = now - ts
+        let diff = Int(now.timeIntervalSince1970) - ts
         if diff < 3600 { return "\(diff / 60)m" }
         if diff < 86400 { return "\(diff / 3600)h" }
         return "\(diff / 86400)d"
     }
+
+    var timeAgo: String { timeAgo(at: Date()) }
 }
 
 // MARK: - Faction Data
@@ -753,10 +770,14 @@ struct OrganizedCrime2: Codable, Equatable, Identifiable {
     }
 
     /// True once the OC has reached its ready time and hasn't been executed yet.
-    var isReady: Bool {
+    /// `readyAt` is an absolute **server** timestamp, so `now` must be Torn's now
+    /// (`AppState.serverNow`).
+    func isReady(at now: Date) -> Bool {
         guard executedAt == nil, let readyAt, readyAt > 0 else { return false }
-        return readyAt <= Int(Date().timeIntervalSince1970)
+        return readyAt <= Int(now.timeIntervalSince1970)
     }
+
+    var isReady: Bool { isReady(at: Date()) }
 
     var filledSlots: Int { slots?.filter { $0.user != nil }.count ?? 0 }
     var totalSlots: Int { slots?.count ?? 0 }

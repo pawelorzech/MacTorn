@@ -38,7 +38,8 @@ struct FactionView: View {
                         // every second and never extrapolate from a stored duration.
                         if faction.chain.current > 0 {
                             TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                                let remaining = max(0, faction.chain.timeout - Int(context.date.timeIntervalSince1970))
+                                let remaining = max(0, faction.chain.timeout
+                                    - appState.serverClock.serverUnix(context.date))
                                 let color = chainColor(remaining: remaining)
                                 HStack {
                                     Image(systemName: "link")
@@ -92,7 +93,7 @@ struct FactionView: View {
 
                 // Organized Crime 2.0 (your own current OC)
                 if let oc = appState.organizedCrime {
-                    OC2StatusView(oc: oc, playerId: appState.data?.playerId)
+                    OC2StatusView(oc: oc, playerId: appState.data?.playerId, serverClock: appState.serverClock)
                 }
 
                 // Active ranked war (score vs target)
@@ -184,6 +185,8 @@ struct OC2StatusView: View {
     @Environment(\.reduceTransparency) private var reduceTransparency
     let oc: OrganizedCrime2
     let playerId: Int?
+    /// Mac↔Torn skew (issue #46) — `readyAt` is server-absolute.
+    var serverClock: ServerClock = .synchronized
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -203,7 +206,7 @@ struct OC2StatusView: View {
             // Name + ready countdown. `readyAt` is an absolute Unix timestamp, so we
             // tick `now` against it every second — no drift vs the in-game OC panel.
             TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                let now = Int(context.date.timeIntervalSince1970)
+                let now = serverClock.serverUnix(context.date)
                 let ready = oc.readyAt.map { $0 <= now } ?? false
                 let remaining = max(0, (oc.readyAt ?? 0) - now)
 

@@ -333,3 +333,83 @@ final class ServerClockOffsetTests: XCTestCase {
                        "a relative fulltime must not be shifted by the clock offset")
     }
 }
+
+/// The pure conversion `ServerClockOffsetTests` drives end-to-end. These pin the two
+/// things the behavioural suite leaves open: exactly where the plausibility guard sits,
+/// and that the server→local direction is a true inverse (the notification scheduler
+/// depends on it — a local alert fires on the Mac's clock, so a server-absolute landing
+/// time has to be converted back).
+final class ServerClockTests: XCTestCase {
+
+    private let localNow = Date(timeIntervalSince1970: 1_700_000_000)
+
+    // MARK: - Deriving the offset
+
+    func testAnchorAheadOfLocalYieldsPositiveOffset() {
+        let clock = ServerClock(anchor: 1_700_000_090, localNow: localNow)
+        XCTAssertEqual(clock.offset, 90, "Torn ahead of the Mac → add to the local clock")
+    }
+
+    /// A Mac running *fast* is just as ordinary as one running slow, and the correction
+    /// has to go the other way.
+    func testAnchorBehindLocalYieldsNegativeOffset() {
+        let clock = ServerClock(anchor: 1_699_999_910, localNow: localNow)
+        XCTAssertEqual(clock.offset, -90)
+        XCTAssertEqual(clock.serverUnix(localNow), 1_699_999_910)
+    }
+
+    func testMissingOrZeroAnchorIsSynchronized() {
+        XCTAssertEqual(ServerClock(anchor: nil, localNow: localNow), .synchronized)
+        XCTAssertEqual(ServerClock(anchor: 0, localNow: localNow), .synchronized)
+        XCTAssertEqual(ServerClock(anchor: -5, localNow: localNow), .synchronized,
+                       "a negative epoch is nonsense, not skew")
+    }
+
+    /// The guard's exact edge, in both directions. Pinned so a later tightening of the
+    /// window is a deliberate, visible change rather than a silent regression in which
+    /// countdowns quietly stop being corrected.
+    func testPlausibilityGuardBoundary() {
+        let limit = ServerClock.maxPlausibleSkewSeconds
+
+        XCTAssertEqual(ServerClock(anchor: 1_700_000_000 + limit, localNow: localNow).offset, limit,
+                       "skew exactly at the limit is still honoured")
+        XCTAssertEqual(ServerClock(anchor: 1_700_000_000 - limit, localNow: localNow).offset, -limit,
+                       "and symmetrically in the other direction")
+        XCTAssertEqual(ServerClock(anchor: 1_700_000_000 + limit + 1, localNow: localNow).offset, 0,
+                       "one second past the limit is a corrupt payload → discard")
+        XCTAssertEqual(ServerClock(anchor: 1_700_000_000 - limit - 1, localNow: localNow).offset, 0)
+    }
+
+    // MARK: - Converting
+
+    func testServerNowAndServerUnixAgree() {
+        let clock = ServerClock(offset: 90)
+        XCTAssertEqual(clock.serverNow(localNow), localNow.addingTimeInterval(90))
+        XCTAssertEqual(clock.serverUnix(localNow), 1_700_000_090)
+    }
+
+    /// Fetch-relative durations become absolute *server* timestamps.
+    func testServerTimestampAnchorsARelativeDuration() {
+        let clock = ServerClock(offset: 90)
+        XCTAssertEqual(clock.serverTimestamp(fetchedAt: localNow, plus: 300), 1_700_000_390)
+    }
+
+    /// The direction the travel-notification scheduler needs: a landing 300 s away on
+    /// Torn's clock is 300 s away on the Mac's too — the skew must not shorten the wait.
+    func testLocalDateForServerTimestampInvertsTheOffset() {
+        let clock = ServerClock(offset: 90)
+        let landsAt = clock.serverUnix(localNow) + 300      // server-absolute
+
+        let localLanding = clock.localDate(forServerTimestamp: landsAt)
+
+        XCTAssertEqual(localLanding, localNow.addingTimeInterval(300),
+                       "a 90 s-slow Mac must not fire the landing alert 90 s early")
+        XCTAssertEqual(clock.serverUnix(localLanding), landsAt, "round-trips exactly")
+    }
+
+    func testSynchronizedClockIsTheIdentity() {
+        let clock = ServerClock.synchronized
+        XCTAssertEqual(clock.serverNow(localNow), localNow)
+        XCTAssertEqual(clock.localDate(forServerTimestamp: 1_700_000_000), localNow)
+    }
+}
