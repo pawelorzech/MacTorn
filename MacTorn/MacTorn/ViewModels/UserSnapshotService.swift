@@ -140,14 +140,26 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         }
 
         let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
+        // `TornResponse.recentEvents` / `.unreadMessagesCount` are non-optional and
+        // collapse a *missing* key to `[]` / `0`. `UserActivityPayload` must instead
+        // preserve the absent-vs-zero distinction the way `parseAttacks(_:)` does:
+        // `AppState.fetchActivityData` only overwrites its state when the payload field
+        // is non-nil, so a 200 body that simply omits `events` must report `nil` rather
+        // than silently emptying the user's event list (issue #84).
         return .success(
             UserActivityPayload(
-                events: decoded?.recentEvents,
-                unreadMessages: decoded?.unreadMessagesCount,
+                events: Self.isPresent(json["events"]) ? decoded?.recentEvents : nil,
+                unreadMessages: Self.isPresent(json["messages"]) ? decoded?.unreadMessagesCount : nil,
                 recentAttacks: Self.parseAttacks(json)
             ),
             responseBytes: data.count
         )
+    }
+
+    /// True when a top-level JSON key is present and not `null`.
+    private static func isPresent(_ value: Any?) -> Bool {
+        guard let value else { return false }
+        return !(value is NSNull)
     }
 
     func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {

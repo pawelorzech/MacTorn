@@ -55,6 +55,89 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertEqual(json?.isEmpty, true, "Activity call must not get the fast-user fixture")
     }
 
+    // MARK: - Issue #84 probes: the `.accessibility` activity seed must survive a poll
+    //
+    // `UITestConfiguration.makeAppState()` seeds exactly one activity event for the
+    // `.accessibility` scenario and claims it is "never overwritten by fetchActivityData's
+    // `if let events = ...` guard" because the activity endpoint serves `[:]`. These pin
+    // every link in that chain so the XCUITest failure (`uitest.event.9002` never found)
+    // can be localised without launching the app.
+
+    /// Link 1: the fixture really does serve `{}` on the activity call for `.accessibility`.
+    func testAccessibilityScenarioServesEmptyObjectOnActivityCall() throws {
+        let url = TornAPI.activityURL(for: fakeKey)
+        let data = FixtureNetworkSession.body(for: url, scenario: .accessibility)
+
+        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertTrue(json.isEmpty,
+                      "The accessibility scenario must not route the activity call to a rich fixture")
+    }
+
+    /// Link 2: an empty activity body must decode to *absent* events, not to an empty
+    /// array. `UserActivityPayload.events` is optional precisely so `AppState` can tell
+    /// "the endpoint said nothing" from "the endpoint said zero events" — and only the
+    /// former leaves a seeded list alone.
+    func testEmptyActivityBodyReportsAbsentEventsRatherThanZeroEvents() async throws {
+        let session = FixtureNetworkSession(scenario: .accessibility)
+        let service = UserSnapshotService(session: session)
+        let url = try XCTUnwrap(TornAPI.activityURL(for: fakeKey))
+
+        let result = try await service.loadActivity(url)
+        guard case .success(let payload, _) = result else {
+            return XCTFail("Activity call should succeed on an empty body, got \(result)")
+        }
+
+        XCTAssertNil(payload.events,
+                     "An activity response with no \"events\" key must report nil, not [] — " +
+                     "[] passes the `if let events` guard and wipes seeded/known events")
+    }
+
+    /// Link 3: `identified(by:)` must win over the timestamp-derived fallback, so the row's
+    /// accessibility identifier really is `uitest.event.9002`.
+    func testSeededAccessibilityEventKeepsItsAPIIdentity() throws {
+        let json = Data("""
+        {"timestamp": 1735689600, "event": "You were mugged by <a href=\\"#\\">Fixture Mugger</a> for $500."}
+        """.utf8)
+        let event = try JSONDecoder().decode(TornEvent.self, from: json).identified(by: "9002")
+
+        XCTAssertEqual(event.id, "9002")
+        XCTAssertEqual("uitest.event.\(event.id)", "uitest.event.9002")
+        XCTAssertEqual(event.cleanEvent, "You were mugged by Fixture Mugger for $500.")
+    }
+
+    /// Link 4, end to end: seed the event exactly as the harness does, run one real poll
+    /// through the fixture session, and require the row to still be there afterwards.
+    /// If this goes red, no amount of scrolling in XCUITest can find `uitest.event.9002`.
+    @MainActor
+    func testAccessibilityPollDoesNotClearSeededActivityEvents() async throws {
+        let appState = AppState(session: FixtureNetworkSession(scenario: .accessibility),
+                                connectivity: ControllableConnectivity(),
+                                defaults: .createMockDefaults())
+        appState.apiKey = "sample-ax-financial-user"   // resets account-scoped state
+
+        let seeded = try JSONDecoder().decode(
+            TornEvent.self,
+            from: Data("""
+            {"timestamp": \(Int(Date().timeIntervalSince1970) - 90), "event": "You were mugged for $500."}
+            """.utf8)
+        ).identified(by: "9002")
+        appState.activityEvents = [seeded]
+
+        XCTAssertTrue(appState.fetchData(), "The fixture poll should start")
+
+        let deadline = Date().addingTimeInterval(10)
+        while Date() < deadline,
+              appState.endpointHealth.latest(for: "user.activity") == nil {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertNotNil(appState.endpointHealth.latest(for: "user.activity"),
+                        "The activity call must have run for this probe to mean anything")
+
+        XCTAssertEqual(appState.activityEvents.map(\.id), ["9002"],
+                       "The accessibility fixture's seeded event must survive the activity poll — " +
+                       "StatusView hides EventsView entirely when activityEvents is empty")
+    }
+
     func testNilURLDoesNotCrashAndServesEmpty() {
         let data = FixtureNetworkSession.body(for: nil, scenario: .full)
         XCTAssertFalse(data.isEmpty, "A nil URL should still yield a valid (empty-object) body")
