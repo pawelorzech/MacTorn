@@ -202,6 +202,21 @@ class AppState {
     // MARK: - Fetch Time (for live countdown calculations)
     var lastFetchTime: Date = Date()
 
+    /// Mac↔Torn clock skew, re-derived from `server_time` on every successful snapshot
+    /// (issue #46). Every countdown in the app — travel, hospital, jail, chain, OC,
+    /// cooldowns, bars — is measured through this, so the whole window agrees on one
+    /// clock. Absent or implausible anchors leave it `.synchronized`, i.e. the plain
+    /// local clock.
+    var serverClock: ServerClock = .synchronized
+
+    /// "Now" on Torn's clock. The only `now` any countdown should compare against.
+    var serverNow: Date { serverClock.serverNow(time.now) }
+
+    /// The instant of the last successful fetch, expressed on Torn's clock. Pair it with
+    /// `serverNow` whenever a duration is relative to the response (`travel.time_left`,
+    /// `bar.fulltime`) so the elapsed time is a same-clock subtraction.
+    var serverFetchTime: Date { serverClock.serverNow(lastFetchTime) }
+
     /// Absolute end-timestamps for active cooldowns, derived at fetch time from
     /// the server's response timestamp. The single source of truth that keeps
     /// the menu-bar and Status tab cooldown countdowns matching torn.com.
@@ -386,6 +401,7 @@ class AppState {
         education = nil
         bountiesOnMe = []
         cooldownEnds = nil
+        serverClock = .synchronized
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
         previousTravel = nil

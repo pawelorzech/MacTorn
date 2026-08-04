@@ -21,7 +21,7 @@ extension AppState {
         guard let data = data else { return false }
         if let travel = data.travel, travel.isTraveling { return true }
         if let status = data.status, status.isInHospital || status.isInJail { return true }
-        if let ends = cooldownEnds, ends.soonestActive() != nil { return true }
+        if let ends = cooldownEnds, ends.soonestActive(at: serverNow) != nil { return true }
         return false
     }
 
@@ -50,10 +50,14 @@ extension AppState {
         }
     }
 
+    // Every countdown below reads `serverNow` / `serverFetchTime` — Torn's clock, not the
+    // Mac's (issue #46). All of `travel.timestamp`, `status.until` and `CooldownEnds.endsAt`
+    // are absolute server timestamps, so comparing them against a local `Date()` leaked the
+    // machine's skew straight into the menu bar.
     private func updateTravelSecondsRemaining() {
         let next: Int
         if let travel = data?.travel, travel.isTraveling {
-            next = travel.remainingSeconds(from: lastFetchTime)
+            next = travel.remainingSeconds(from: serverFetchTime, now: serverNow)
         } else {
             next = 0
         }
@@ -64,14 +68,15 @@ extension AppState {
 
     private func computeMenuBarDisplay() -> MenuBarDisplay {
         guard let data = data else { return .fallbackIcon }
+        let now = serverNow
 
         if let travel = data.travel, travel.isTraveling {
             return .traveling(destination: travel.destination,
-                              seconds: travel.remainingSeconds(from: lastFetchTime))
+                              seconds: travel.remainingSeconds(from: serverFetchTime, now: now))
         }
 
         if let status = data.status, status.isInHospital {
-            let secs = status.timeRemaining
+            let secs = status.timeRemaining(at: now)
             if let travel = data.travel, travel.isAbroad {
                 return .hospitalAbroad(destination: travel.destination, seconds: secs)
             }
@@ -79,11 +84,11 @@ extension AppState {
         }
 
         if let status = data.status, status.isInJail {
-            return .jail(seconds: status.timeRemaining)
+            return .jail(seconds: status.timeRemaining(at: now))
         }
 
         if let ends = cooldownEnds,
-           let soonest = ends.soonestActive() {
+           let soonest = ends.soonestActive(at: now) {
             return .cooldown(kind: soonest.kind, seconds: soonest.seconds)
         }
 
@@ -101,8 +106,11 @@ extension AppState {
         defaults.set(hiddenNextActionCategories.map(\.rawValue), forKey: Self.hiddenNextActionKey)
     }
 
+    /// Builds the timeline input. `now` is a *local* instant (the shared clock's); it is
+    /// converted to Torn's clock here, and every timestamp in the snapshot is likewise
+    /// server-absolute — so the whole timeline is one consistent clock (issue #46).
     func makeNextActionSnapshot(now: Date = Date()) -> NextActionSnapshot {
-        let nowUnix = Int(now.timeIntervalSince1970)
+        let nowUnix = serverClock.serverUnix(now)
         var snapshot = NextActionSnapshot(now: nowUnix)
 
         if let bars = data?.bars {
@@ -120,7 +128,10 @@ extension AppState {
             if let timestamp = travel.timestamp, timestamp > 0 {
                 snapshot.travelArrivalAt = timestamp
             } else if let timeLeft = travel.timeLeft, timeLeft > 0 {
-                snapshot.travelArrivalAt = Int(lastFetchTime.timeIntervalSince1970) + timeLeft
+                // `time_left` counts from the instant the *server* built the response, so
+                // it is anchored on the server's reading of the fetch, not the Mac's.
+                snapshot.travelArrivalAt =
+                    serverClock.serverTimestamp(fetchedAt: lastFetchTime, plus: timeLeft)
             }
         }
         if let status = data?.status {
@@ -142,9 +153,13 @@ extension AppState {
         return snapshot
     }
 
+    /// `fulltime` is a duration relative to the response, exactly like travel's `time_left`
+    /// — so it moves onto the server clock with the fetch anchor. Shifting the timeline's
+    /// `now` onto Torn's clock without moving these anchors too would knock the whole skew
+    /// off every bar ETA.
     private func barFullAt(_ bar: Bar) -> Int? {
         guard bar.current < bar.maximum, let full = bar.fulltime, full > 0 else { return nil }
-        return Int(lastFetchTime.timeIntervalSince1970) + full
+        return serverClock.serverTimestamp(fetchedAt: lastFetchTime, plus: full)
     }
 
     func nextEvents(now: Date = Date()) -> [NextEvent] {

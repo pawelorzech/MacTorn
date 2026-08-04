@@ -257,6 +257,12 @@ extension AppState {
 
             do {
                 let response = try await self.userSnapshotService.load(url)
+                // Issue #46: stamp the receipt the instant the transport hands the bytes
+                // back. The Mac↔Torn offset is `server_time - Int(receivedAt)`, so every
+                // millisecond spent after this line — the top-level JSON sniff below, the
+                // off-actor decode in `parseSnapshot` — would otherwise be booked as clock
+                // skew and shift every countdown in the app by that much.
+                let receivedAt = self.time.now
                 let data = response.data
                 guard self.isCurrentAccount(requestedKey, generation: generation) else {
                     self.recordHealth("user.fast", outcome: .cancelled, since: startTime, bytes: 0)
@@ -296,6 +302,7 @@ extension AppState {
                     async let activityResult: Void = self.fetchActivityData(apiKey: requestedKey, generation: generation)
                     let parsed = await self.parseDataInBackground(
                         data: data,
+                        receivedAt: receivedAt,
                         apiKey: requestedKey,
                         generation: generation
                     )
@@ -370,7 +377,13 @@ extension AppState {
         return true
     }
 
-    private func parseDataInBackground(data: Data, apiKey: String, generation: UInt) async -> Bool {
+    /// - Parameter receivedAt: the local instant the transport returned these bytes,
+    ///   sampled by the caller *before* this decode (issue #46). It is both the anchor
+    ///   for the Mac↔Torn offset and the value stored as `lastFetchTime`.
+    private func parseDataInBackground(data: Data,
+                                       receivedAt: Date,
+                                       apiKey: String,
+                                       generation: UInt) async -> Bool {
         let requestedSelections =
             TornEndpointRegistry.endpoint(id: "user.fast")?.selections ?? []
         let grantedSelections = keyInfo?.selections.user
@@ -397,11 +410,29 @@ extension AppState {
         let decoded = payload.snapshot
         logger.info("Parsed authenticated user data successfully")
 
+        // Issue #46: re-derive the Mac↔Torn skew from THIS snapshot before anything reads
+        // a countdown. Deriving it per snapshot (rather than adjusting a running value) is
+        // what keeps it from accumulating across polls or latching when the Mac's clock is
+        // corrected mid-session.
+        //
+        // …but the raw derivation is jittery — whole-second truncation on both sides plus
+        // this request's latency — and it is now the `now` behind EVERY countdown, so the
+        // wobble is damped against the pinned value exactly as `CooldownEnds.merged` damps
+        // `endsAt`. Without that, each poll boundary walks the menu bar backwards by a
+        // second or three. `receivedAt` is the transport's receipt instant and is also
+        // what lands in `lastFetchTime`, so the anchor and the fetch time never disagree.
+        let derivedClock = ServerClock(anchor: decoded.anchorTimestamp, localNow: receivedAt)
+        serverClock = serverClock.merged(with: derivedClock)
+
         checkNotifications(newData: decoded)
         self.data = decoded
 
         if let cooldowns = decoded.cooldowns {
-            let anchor = decoded.anchorTimestamp ?? Int(Date().timeIntervalSince1970)
+            // Deliberately the RAW anchor, not `serverClock.serverUnix(receivedAt)`: a
+            // cooldown's `endsAt` only has to be self-consistent with the response that
+            // produced it, and clamping it through the plausibility guard would silently
+            // re-anchor cooldowns from a payload whose timestamp is merely unusual.
+            let anchor = decoded.anchorTimestamp ?? Int(receivedAt.timeIntervalSince1970)
             let fresh = CooldownEnds.from(cooldowns: cooldowns, anchor: anchor)
             cooldownEnds = cooldownEnds?.merged(with: fresh) ?? fresh
         } else {
@@ -421,7 +452,7 @@ extension AppState {
         stocksData = payload.stocks
 
         lastUpdated = Date()
-        lastFetchTime = time.now
+        lastFetchTime = receivedAt
         errorMsg = nil
 
         manageLiveTimer()
@@ -555,7 +586,7 @@ extension AppState {
     }
 
     func shouldNotifyOCReady(_ oc: OrganizedCrime2?) -> Bool {
-        guard let oc, oc.isReady else { return false }
+        guard let oc, oc.isReady(at: serverNow) else { return false }
         return notificationCoordinator.shouldFireOnce("oc.ready", epoch: "\(oc.id)")
     }
 

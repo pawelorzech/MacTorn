@@ -83,9 +83,9 @@ struct AttacksView: View {
                             let direction = userWasAttacker
                                 ? "outgoing attack against"
                                 : "incoming attack from"
-                            let timeDescription = attack.timeAgo.isEmpty
+                            let timeDescription = attack.timeAgo(at: appState.serverNow).isEmpty
                                 ? ""
-                                : ", \(attack.timeAgo) ago"
+                                : ", \(attack.timeAgo(at: appState.serverNow)) ago"
 
                             Button {
                                 if let opponentId = attack.opponentId(forUserId: userId),
@@ -118,7 +118,7 @@ struct AttacksView: View {
 
                                     Spacer()
 
-                                    Text(attack.timeAgo)
+                                    Text(attack.timeAgo(at: appState.serverNow))
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }

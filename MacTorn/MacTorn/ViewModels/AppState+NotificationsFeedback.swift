@@ -124,15 +124,19 @@ extension AppState {
         guard let chain = liveChain, chainExpiringShouldFire(chain) else { return }
         NotificationManager.shared.send(
             title: "Chain Expiring! ⚠️",
-            body: "Chain timeout in \(chain.timeoutRemaining) seconds!",
+            body: "Chain timeout in \(chain.timeoutRemaining(at: serverNow)) seconds!",
             type: .chainExpiring
         )
     }
 
+    /// `FactionChain.timeout` is an absolute server timestamp, so the danger window is
+    /// measured on Torn's clock (issue #46) — on a slow Mac the local reading overstated
+    /// the time left and armed the alert late.
     func chainExpiringShouldFire(_ chain: Chain?) -> Bool {
+        let remaining = chain?.timeoutRemaining(at: serverNow) ?? 0
         let inDanger = (chain?.isActive == true)
-            && chain!.timeoutRemaining > 0
-            && chain!.timeoutRemaining < Self.chainWarningThreshold
+            && remaining > 0
+            && remaining < Self.chainWarningThreshold
         return notificationCoordinator.shouldFireOnEdge("chain.expiring", active: inDanger)
     }
 

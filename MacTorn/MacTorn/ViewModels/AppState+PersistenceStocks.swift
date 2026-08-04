@@ -152,12 +152,16 @@ extension AppState {
     func scheduleTravelNotifications(for travel: Travel) {
         NotificationManager.shared.cancelTravelNotifications()
 
-        guard let arrivalDate = travel.arrivalDate else { return }
+        // `travel.timestamp` is an absolute *server* timestamp, but a scheduled local
+        // notification fires on the *Mac's* clock — so convert back through the skew
+        // (issue #46), or a 90 s-slow Mac fires every landing alert 90 s early.
+        guard travel.isTraveling, let arrival = travel.timestamp, arrival > 0 else { return }
+        let arrivalDate = serverClock.localDate(forServerTimestamp: arrival)
 
         for setting in travelNotificationSettings where setting.enabled {
             let notificationDate = arrivalDate.addingTimeInterval(-Double(setting.secondsBefore))
 
-            if notificationDate > Date() {
+            if notificationDate > time.now {
                 let identifier = "\(setting.id)_alert"
                 let timeText: String
                 if setting.secondsBefore >= 60 {
