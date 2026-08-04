@@ -185,6 +185,23 @@ final class NotificationCoordinatorTests: XCTestCase {
         )
     }
 
+    /// The pre-#47 stores were uncapped, so an install upgrading into this version can
+    /// arrive carrying thousands of rows under the old ids. Leaving them behind would
+    /// keep the leak on disk forever — and the bound above is measured over the whole
+    /// `notifications.` namespace, so it would also be a lie.
+    func testUpgradingFromTheUncappedStoresDropsTheirLeftoverRows() {
+        defaults.set((0..<2000).map { "bounty.\($0)" }, forKey: "notifications.latched.v1")
+        defaults.set(Dictionary(uniqueKeysWithValues: (0..<2000).map { ("bounty.\($0)", "\($0)") }),
+                     forKey: "notifications.epochs.v1")
+
+        _ = NotificationCoordinator(defaults: defaults)
+
+        XCTAssertLessThanOrEqual(
+            persistedDedupEntries(in: defaults), generousStoreCeiling,
+            "the retired uncapped stores must not survive the upgrade"
+        )
+    }
+
     func testBoundedStoreStaysBoundedAndKeepsHotEntriesAcrossRestart() {
         let coord = NotificationCoordinator(defaults: defaults)
         let survivor = "bounty.still-open"
@@ -427,6 +444,22 @@ final class NotificationRestartTests: XCTestCase {
     func testFreshInstallWhileOkayDoesNotFire() {
         XCTAssertFalse(launch().shouldFireReleased(makeStatus(state: "Okay")),
                        "first snapshot on a fresh install seeds the latch instead of alerting")
+    }
+
+    /// Travelling is not confinement. `isOkay` alone would make every landing announce
+    /// "Released!", because Torn reports `Abroad`/`Traveling` as not-okay — so those
+    /// states have to be inert, exactly like a missing status.
+    func testComingHomeFromAbroadIsNotAJailRelease() {
+        let app = launch()
+        XCTAssertFalse(app.shouldFireReleased(makeStatus(state: "Okay")), "seeded okay")
+        XCTAssertFalse(app.shouldFireReleased(makeStatus(state: "Traveling")), "flying out")
+        XCTAssertFalse(app.shouldFireReleased(makeStatus(state: "Abroad")), "landed abroad")
+        XCTAssertFalse(app.shouldFireReleased(makeStatus(state: "Traveling")), "flying home")
+        XCTAssertFalse(app.shouldFireReleased(makeStatus(state: "Okay")),
+                       "arriving home is not a release — the user was never confined")
+        // A real confinement in the middle of all that still works.
+        XCTAssertFalse(app.shouldFireReleased(makeStatus(state: "Hospital")))
+        XCTAssertTrue(app.shouldFireReleased(makeStatus(state: "Okay")), "out of hospital — fire")
     }
 
     func testMissingStatusIsNotTreatedAsARelease() {

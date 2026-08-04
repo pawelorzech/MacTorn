@@ -408,10 +408,11 @@ extension AppState {
             cooldownEnds = nil
         }
 
-        previousBars = decoded.bars
-        previousCooldowns = decoded.cooldowns
+        // Bars, cooldowns and status no longer need a previous snapshot: their alert
+        // edges are decided by the persistent latches in `notificationCoordinator`
+        // (see `checkNotifications`). Travel still compares against the last poll —
+        // its alert schedules/cancels local notifications rather than latching.
         previousTravel = decoded.travel
-        previousStatus = decoded.status
 
         moneyData = payload.money
         battleStats = payload.battleStats

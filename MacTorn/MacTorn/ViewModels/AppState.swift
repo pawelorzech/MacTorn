@@ -237,10 +237,7 @@ class AppState {
     @ObservationIgnored let forumWatchService: ForumWatchServicing
 
     // MARK: - State Comparison
-    @ObservationIgnored var previousBars: Bars?
-    @ObservationIgnored var previousCooldowns: Cooldowns?
     @ObservationIgnored var previousTravel: Travel?
-    @ObservationIgnored var previousStatus: Status?
     @ObservationIgnored var notifiedBountyKeys: Set<String> = []
     /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
     /// `news` is a row-based cloud category, so this doubles as its rate control:
@@ -385,10 +382,7 @@ class AppState {
         cooldownEnds = nil
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
-        previousBars = nil
-        previousCooldowns = nil
         previousTravel = nil
-        previousStatus = nil
         notifiedBountyKeys = []
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
