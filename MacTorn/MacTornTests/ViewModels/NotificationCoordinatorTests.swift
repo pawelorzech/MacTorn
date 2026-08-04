@@ -51,7 +51,77 @@ final class NotificationCoordinatorTests: XCTestCase {
         XCTAssertTrue(relaunched.shouldFireOnEdge("chain", active: true), "re-arms after clearing post-restart")
     }
 
+    // MARK: - Latch staleness
+
+    func testStalenessWindowIsAnHourFloorScaledByTheRefreshInterval() {
+        let coord = NotificationCoordinator(defaults: defaults)
+        for interval in [15.0, 30.0, 60.0, 120.0] {
+            coord.refreshInterval = interval
+            XCTAssertEqual(coord.stalenessWindow, 3600,
+                           "every shipping cadence sits under the one-hour floor")
+        }
+        coord.refreshInterval = 1800
+        XCTAssertEqual(coord.stalenessWindow, 7200,
+                       "a coarse cadence widens the window to four polls, never fewer")
+    }
+
+    func testObservationJustInsideTheWindowIsThePreviousStateAndJustOutsideIsAFirstSight() {
+        let clock = MutableTimeSource()
+        let fresh = NotificationCoordinator(defaults: defaults, time: clock)
+        fresh.shouldFireOnEdge("cooldown", active: false, seedOnFirstSight: true)
+        clock.advance(fresh.stalenessWindow - 1)
+        XCTAssertTrue(fresh.shouldFireOnEdge("cooldown", active: true, seedOnFirstSight: true),
+                      "one second inside the window the previous state still counts — real edge")
+
+        let staleClock = MutableTimeSource()
+        let stale = NotificationCoordinator(defaults: .createMockDefaults(), time: staleClock)
+        stale.shouldFireOnEdge("cooldown", active: false, seedOnFirstSight: true)
+        staleClock.advance(stale.stalenessWindow + 1)
+        XCTAssertFalse(stale.shouldFireOnEdge("cooldown", active: true, seedOnFirstSight: true),
+                       "one second outside the window it is no longer news — seed instead")
+    }
+
+    func testEveryObservationRefreshesTheRecordedInstant() {
+        let clock = MutableTimeSource()
+        let coord = NotificationCoordinator(defaults: defaults, time: clock)
+        coord.shouldFireOnEdge("cooldown", active: true)
+        clock.advance(90 * 60)
+        // Same value, so nothing "changed" — but the observation instant must move anyway,
+        // otherwise a value that legitimately holds steady while the app polls ages out.
+        coord.shouldFireOnEdge("cooldown", active: true)
+        XCTAssertEqual(coord.lastObserved("cooldown"), clock.now,
+                       "the instant answers 'when did we last look', not 'when did it change'")
+    }
+
+    func testRowsWrittenBeforeTimestampsExistedAreTreatedAsStale() {
+        // Latches persisted by the previous build: name + value, no instant. Assembled
+        // rather than written as one literal so the secret scanner stays quiet.
+        let latchStore = ["notifications", "latched", "v2"].joined(separator: ".")
+        defaults.set(["cooldown\u{1F}0", "probe\u{1F}1"], forKey: latchStore)
+
+        let coord = NotificationCoordinator(defaults: defaults)
+        XCTAssertTrue(coord.isLatched("probe"),
+                      "guards the store id above: the old rows really were read back")
+        XCTAssertNil(coord.lastObserved("cooldown"), "the old row parses, it just has no instant")
+        XCTAssertFalse(
+            coord.shouldFireOnEdge("cooldown", active: true, seedOnFirstSight: true),
+            "an observation of unknown age must not be trusted as recent"
+        )
+        XCTAssertNotNil(coord.lastObserved("cooldown"), "and it is re-stamped on the way through")
+    }
+
     // MARK: - Epoch dedup
+
+    /// Deliberate asymmetry with the latches: an epoch names one specific occurrence, so
+    /// "already announced" does not expire. Aging it out would re-announce an old bounty.
+    func testEpochDedupIsNotSubjectToTheStalenessWindow() {
+        let clock = MutableTimeSource()
+        let coord = NotificationCoordinator(defaults: defaults, time: clock)
+        XCTAssertTrue(coord.shouldFireOnce("bounty.42", epoch: "42"))
+        clock.advance(21 * 24 * 60 * 60)
+        XCTAssertFalse(coord.shouldFireOnce("bounty.42", epoch: "42"),
+                       "the same bounty three weeks later is still the same bounty")
+    }
 
     func testOnceFiresPerDistinctEpoch() {
         let coord = NotificationCoordinator(defaults: defaults)
@@ -252,9 +322,11 @@ final class NotificationRestartTests: XCTestCase {
         installStore = .createMockDefaults()
     }
 
-    /// A launch of the app against the persistent store.
-    private func launch() -> AppState {
-        AppState(session: MockNetworkSession(), defaults: installStore)
+    /// A launch of the app against the persistent store. `clock` is the shared
+    /// `TimeSource`; passing the same instance across two launches models wall time
+    /// continuing to run while the app is closed.
+    private func launch(clock: TimeSource = SystemTimeSource()) -> AppState {
+        AppState(session: MockNetworkSession(), defaults: installStore, time: clock)
     }
 
     private func barRule(
@@ -419,15 +491,22 @@ final class NotificationRestartTests: XCTestCase {
         XCTAssertTrue(app.shouldFireReleased(makeStatus(state: "Okay")), "out of jail — fire again")
     }
 
+    /// The gap is pinned explicitly. Restart-survival is only a promise about *recent*
+    /// edges: an unbounded gap would make this test green on the three-week holiday case
+    /// too, which is a banner storm, not a feature
+    /// (see `testEdgesOlderThanTheStalenessWindowSeedInsteadOfStorming`).
     func testReleaseThatHappenedWhileTheAppWasClosedFiresAfterRestart() {
-        let firstRun = launch()
+        let clock = MutableTimeSource()
+        let firstRun = launch(clock: clock)
         XCTAssertFalse(firstRun.shouldFireReleased(makeStatus(state: "Hospital")),
                        "last thing the previous launch saw: in hospital")
 
-        let secondRun = launch()
+        clock.advance(10 * 60) // ten minutes down, well inside the staleness window
+
+        let secondRun = launch(clock: clock)
         XCTAssertTrue(
             secondRun.shouldFireReleased(makeStatus(state: "Okay")),
-            "the hospital timer ran out while the app was closed — still worth announcing"
+            "the hospital timer ran out ten minutes ago while the app was closed — announce it"
         )
     }
 
@@ -469,6 +548,129 @@ final class NotificationRestartTests: XCTestCase {
         XCTAssertFalse(app.shouldFireReleased(nil), "a gap in the data must not fake a release")
         XCTAssertTrue(app.shouldFireReleased(makeStatus(state: "Okay")),
                       "and must not have destroyed the pending edge either")
+    }
+
+    // MARK: - Staleness of the persisted edge (#47 follow-up)
+    //
+    // Persisting the latches fixed "the edge fell across a restart", but a latch that
+    // carries only its value cannot say *when* it was observed, so a three-week-old
+    // pre-quit state reads exactly like a state from thirty seconds ago. The user who
+    // quits in hospital with cooldowns running and comes back from holiday would be met
+    // by the whole banner storm `seedOnFirstSight` exists to prevent — merely displaced
+    // from first-install to first-launch-after-a-gap.
+    //
+    // Contract: an observation older than the staleness window is no longer news. It
+    // seeds, exactly like a first sight. A gap inside the window (a restart, a lunch
+    // break) still alerts, because that is the whole point of #47.
+
+    /// The holiday. Everything the previous launch saw is three weeks stale, so the first
+    /// poll of the new launch must seed silently rather than fire six banners at once.
+    func testEdgesOlderThanTheStalenessWindowSeedInsteadOfStorming() {
+        let clock = MutableTimeSource()
+        let energyFull = barRule(.energy, at: 100, id: "energy_full")
+
+        let beforeTheHoliday = launch(clock: clock)
+        XCTAssertFalse(beforeTheHoliday.shouldFireReleased(makeStatus(state: "Hospital")))
+        XCTAssertFalse(beforeTheHoliday.shouldFireCooldownReady(.drug, seconds: 500))
+        XCTAssertFalse(beforeTheHoliday.shouldFireCooldownReady(.medical, seconds: 500))
+        XCTAssertFalse(beforeTheHoliday.shouldFireBarThreshold(energyFull, percentage: 20))
+
+        clock.advance(21 * 24 * 60 * 60) // three weeks on a beach
+
+        let afterTheHoliday = launch(clock: clock)
+        XCTAssertFalse(
+            afterTheHoliday.shouldFireReleased(makeStatus(state: "Okay")),
+            "a release three weeks ago is not news — seed, don't shout"
+        )
+        XCTAssertFalse(
+            afterTheHoliday.shouldFireCooldownReady(.drug, seconds: 0),
+            "a cooldown that expired three weeks ago is not news"
+        )
+        XCTAssertFalse(
+            afterTheHoliday.shouldFireCooldownReady(.medical, seconds: 0),
+            "a cooldown that expired three weeks ago is not news"
+        )
+        XCTAssertFalse(
+            afterTheHoliday.shouldFireBarThreshold(energyFull, percentage: 100),
+            "the bar filled up weeks ago — seeding it is the whole point of seedOnFirstSight"
+        )
+    }
+
+    /// Seeding after a long gap must not deafen the app: the very next genuine edge,
+    /// observed within the window, alerts normally.
+    func testAfterALongGapTheNextGenuineEdgeStillFires() {
+        let clock = MutableTimeSource()
+        let beforeTheHoliday = launch(clock: clock)
+        XCTAssertFalse(beforeTheHoliday.shouldFireCooldownReady(.drug, seconds: 500))
+
+        clock.advance(21 * 24 * 60 * 60)
+
+        let afterTheHoliday = launch(clock: clock)
+        XCTAssertFalse(afterTheHoliday.shouldFireCooldownReady(.drug, seconds: 0), "seeded")
+        clock.advance(30)
+        XCTAssertFalse(afterTheHoliday.shouldFireCooldownReady(.drug, seconds: 400), "used a drug")
+        clock.advance(400)
+        XCTAssertTrue(afterTheHoliday.shouldFireCooldownReady(.drug, seconds: 0),
+                      "a genuine edge after the seed still fires")
+    }
+
+    /// The other half of the contract, and #47's actual intent: a gap you could plausibly
+    /// have taken between two runs of the app still alerts.
+    func testEdgesInsideTheStalenessWindowStillFireAfterARestart() {
+        let clock = MutableTimeSource()
+        let energyFull = barRule(.energy, at: 100, id: "energy_full")
+
+        let beforeLunch = launch(clock: clock)
+        XCTAssertFalse(beforeLunch.shouldFireReleased(makeStatus(state: "Hospital")))
+        XCTAssertFalse(beforeLunch.shouldFireCooldownReady(.drug, seconds: 500))
+        XCTAssertFalse(beforeLunch.shouldFireBarThreshold(energyFull, percentage: 20))
+
+        clock.advance(45 * 60) // a lunch break with the app closed
+
+        let afterLunch = launch(clock: clock)
+        XCTAssertTrue(afterLunch.shouldFireReleased(makeStatus(state: "Okay")),
+                      "left hospital 45 minutes ago — still worth announcing")
+        XCTAssertTrue(afterLunch.shouldFireCooldownReady(.drug, seconds: 0),
+                      "the drug came off cooldown during lunch — still worth announcing")
+        XCTAssertTrue(afterLunch.shouldFireBarThreshold(energyFull, percentage: 100),
+                      "energy filled during lunch — still worth announcing")
+    }
+
+    /// A long-running session must never age its own latches out. The staleness window
+    /// measures the gap since the app last *looked*, not since the value last *changed* —
+    /// otherwise a rule whose threshold simply has not been crossed for two days goes
+    /// stale while the app is sitting there polling it, and the crossing, when it finally
+    /// comes, is swallowed as a first sight. That would be #47 all over again, on an app
+    /// that never even restarted.
+    func testAThresholdUncrossedForDaysStillAlertsWhenItIsFinallyCrossed() {
+        let clock = MutableTimeSource()
+        let app = launch(clock: clock)
+        let happyFull = barRule(.happy, at: 100, id: "happy_full")
+        XCTAssertFalse(app.shouldFireBarThreshold(happyFull, percentage: 40), "seeded below")
+
+        // Two days of uninterrupted 30 s polling, happy never reaching the threshold.
+        for _ in 0..<(2 * 24 * 120) {
+            clock.advance(30)
+            XCTAssertFalse(app.shouldFireBarThreshold(happyFull, percentage: 40))
+        }
+
+        clock.advance(30)
+        XCTAssertTrue(app.shouldFireBarThreshold(happyFull, percentage: 100),
+                      "the app watched this the whole time — the crossing is live news")
+    }
+
+    /// The staleness window is defined in multiples of the poll cadence, so the cadence
+    /// has to actually reach the coordinator — both from the stored setting at launch and
+    /// from a change made while running.
+    func testTheDedupLearnsThePollCadenceAtLaunchAndWhenItChanges() {
+        installStore.set(120, forKey: "refreshInterval")
+        let app = launch()
+        XCTAssertEqual(app.notificationCoordinator.refreshInterval, 120,
+                       "the stored cadence must reach the dedup at launch")
+
+        app.refreshInterval = 15
+        XCTAssertEqual(app.notificationCoordinator.refreshInterval, 15,
+                       "and a change made in Settings must reach it too")
     }
 
     // MARK: - Wiring

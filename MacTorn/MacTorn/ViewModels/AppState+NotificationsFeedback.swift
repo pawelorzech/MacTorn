@@ -13,7 +13,10 @@ extension AppState {
     /// simply never announced itself — the product's main job, silently unperformed
     /// (#47). The persistent latches also remember the *cleared* state, which is what
     /// lets the first observation of a key seed silently instead of producing a banner
-    /// storm on a fresh install.
+    /// storm on a fresh install — and they remember *when* they were written, so a
+    /// pre-quit state older than the coordinator's staleness window seeds too. Quitting
+    /// in hospital with three cooldowns running and coming back from a holiday is a
+    /// first sight, not six banners.
     func checkNotifications(newData: TornResponse) {
         if let current = newData.bars {
             checkBarNotifications(bar: current.energy, barType: .energy)
