@@ -99,6 +99,7 @@
 		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
 		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
 		BBB00029 /* NextActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10029 /* NextActionTests.swift */; };
+		BBB00038 /* ServerClockOffsetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10038 /* ServerClockOffsetTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -213,6 +214,7 @@
 		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
 		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
 		BBB10029 /* NextActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionTests.swift; sourceTree = "<group>"; };
+		BBB10038 /* ServerClockOffsetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerClockOffsetTests.swift; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -451,6 +453,7 @@
 				BBB10034 /* MarketWatchServiceTests.swift */,
 				BBB10035 /* ForumWatchServiceTests.swift */,
 				BBB10036 /* FactionServiceTests.swift */,
+				BBB10038 /* ServerClockOffsetTests.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -688,6 +691,7 @@
 				BBB00028 /* DiagnosticsTests.swift in Sources */,
 				BBB00030 /* UITestHarnessTests.swift in Sources */,
 				BBB00029 /* NextActionTests.swift in Sources */,
+				BBB00038 /* ServerClockOffsetTests.swift in Sources */,
 				BBB00032 /* AccountSessionStoreTests.swift in Sources */,
 				BBB00033 /* UserSnapshotServiceTests.swift in Sources */,
 				BBB00034 /* MarketWatchServiceTests.swift in Sources */,
