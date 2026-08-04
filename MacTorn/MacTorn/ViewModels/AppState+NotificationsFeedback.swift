@@ -3,22 +3,36 @@ import Foundation
 extension AppState {
     // MARK: - Notifications
 
+    /// Evaluates every per-poll alert against the *persistent* latches in
+    /// `notificationCoordinator` rather than against in-memory `previous*` snapshots.
+    ///
+    /// The in-memory version dropped every alert whose edge fell across a restart: the
+    /// `previous*` fields start `nil` on each launch, so the first poll was always
+    /// skipped and the second poll compared two already-satisfied states. A cooldown that
+    /// ended, a bar that filled or a hospital stay that expired while MacTorn was closed
+    /// simply never announced itself — the product's main job, silently unperformed
+    /// (#47). The persistent latches also remember the *cleared* state, which is what
+    /// lets the first observation of a key seed silently instead of producing a banner
+    /// storm on a fresh install — and they remember *when* they were written, so a
+    /// pre-quit state older than the coordinator's staleness window seeds too. Quitting
+    /// in hospital with three cooldowns running and coming back from a holiday is a
+    /// first sight, not six banners.
     func checkNotifications(newData: TornResponse) {
-        if let prev = previousBars, let current = newData.bars {
-            checkBarNotification(prevBar: prev.energy, currentBar: current.energy, barType: .energy)
-            checkBarNotification(prevBar: prev.nerve, currentBar: current.nerve, barType: .nerve)
-            checkBarNotification(prevBar: prev.happy, currentBar: current.happy, barType: .happy)
-            checkBarNotification(prevBar: prev.life, currentBar: current.life, barType: .life)
+        if let current = newData.bars {
+            checkBarNotifications(bar: current.energy, barType: .energy)
+            checkBarNotifications(bar: current.nerve, barType: .nerve)
+            checkBarNotifications(bar: current.happy, barType: .happy)
+            checkBarNotifications(bar: current.life, barType: .life)
         }
 
-        if let prevCD = previousCooldowns, let currentCD = newData.cooldowns {
-            if prevCD.drug > 0 && currentCD.drug == 0 {
+        if let currentCD = newData.cooldowns {
+            if shouldFireCooldownReady(.drug, seconds: currentCD.drug) {
                 NotificationManager.shared.send(title: "Drug Ready! 💊", body: "Drug cooldown has ended", type: .drugReady)
             }
-            if prevCD.medical > 0 && currentCD.medical == 0 {
+            if shouldFireCooldownReady(.medical, seconds: currentCD.medical) {
                 NotificationManager.shared.send(title: "Medical Ready! 🏥", body: "Medical cooldown has ended", type: .medicalReady)
             }
-            if prevCD.booster > 0 && currentCD.booster == 0 {
+            if shouldFireCooldownReady(.booster, seconds: currentCD.booster) {
                 NotificationManager.shared.send(title: "Booster Ready! 🚀", body: "Booster cooldown has ended", type: .boosterReady)
             }
         }
@@ -42,11 +56,56 @@ extension AppState {
         // endpoint, not in this user snapshot. It fires from `checkChainNotification()`
         // at the point the faction payload lands. See audit finding C-01.
 
-        if let prevStatus = previousStatus, let currentStatus = newData.status {
-            if (prevStatus.isInHospital || prevStatus.isInJail) && currentStatus.isOkay {
-                NotificationManager.shared.send(title: "Released! 🎉", body: "You are now free", type: .released)
-            }
+        if shouldFireReleased(newData.status) {
+            NotificationManager.shared.send(title: "Released! 🎉", body: "You are now free", type: .released)
         }
+    }
+
+    // MARK: - Persistent alert predicates (#47)
+    //
+    // Each is a pure function of (persisted latch, this poll's value). They are the
+    // headlessly-provable seam for notification behaviour, since
+    // `NotificationManager.shared.send` is not injectable.
+
+    /// Whether the "<kind> Ready!" alert should fire for a cooldown now at `seconds`.
+    /// Rising edge on running→ready, re-armed when the cooldown restarts. The first ever
+    /// observation of the kind seeds silently, so launching into three ready cooldowns is
+    /// not three banners.
+    func shouldFireCooldownReady(_ kind: CooldownKind, seconds: Int) -> Bool {
+        notificationCoordinator.shouldFireOnEdge(
+            "cooldown.ready.\(kind.displayName)",
+            active: seconds <= 0,
+            seedOnFirstSight: true
+        )
+    }
+
+    /// Whether `rule` should fire for a bar now at `percentage`. Rising edge on crossing
+    /// the rule's threshold, re-armed when the bar drops back below it. Latched per rule,
+    /// so two rules on the same bar (80% and 100%) announce independently, and a rule
+    /// added while its threshold is already met seeds instead of firing at once.
+    func shouldFireBarThreshold(_ rule: NotificationRule, percentage: Double) -> Bool {
+        guard rule.enabled else { return false }
+        return notificationCoordinator.shouldFireOnEdge(
+            "bar.\(rule.barType.rawValue).\(rule.id).\(rule.threshold)",
+            active: percentage >= Double(rule.threshold),
+            seedOnFirstSight: true
+        )
+    }
+
+    /// Whether the "Released!" alert should fire for this status. Rising edge on
+    /// confinement→okay. A `nil` status is a gap in the data, not a release: it neither
+    /// fires nor touches the latch, so a poll that fails mid-hospital-stay does not
+    /// destroy the pending edge. States that are neither okay nor confinement (travelling,
+    /// abroad) are likewise inert — landing back home is not a jail release.
+    func shouldFireReleased(_ status: Status?) -> Bool {
+        guard let status else { return false }
+        let confined = status.isInHospital || status.isInJail
+        guard status.isOkay || confined else { return false }
+        return notificationCoordinator.shouldFireOnEdge(
+            "status.released",
+            active: status.isOkay,
+            seedOnFirstSight: true
+        )
     }
 
     /// Decides whether the "Chain Expiring!" alert should fire on this poll.
@@ -77,35 +136,30 @@ extension AppState {
         return notificationCoordinator.shouldFireOnEdge("chain.expiring", active: inDanger)
     }
 
-    private func checkBarNotification(prevBar: Bar, currentBar: Bar, barType: NotificationRule.BarType) {
-        let prevPct = prevBar.percentage
-        let currentPct = currentBar.percentage
+    private func checkBarNotifications(bar: Bar, barType: NotificationRule.BarType) {
+        for rule in notificationRules where rule.barType == barType {
+            guard shouldFireBarThreshold(rule, percentage: bar.percentage) else { continue }
 
-        for rule in notificationRules where rule.enabled && rule.barType == barType {
-            let threshold = Double(rule.threshold)
+            let title: String
+            let notificationType: NotificationType
+            switch barType {
+            case .energy:
+                title = "Energy \(rule.threshold)%! ⚡️"
+                notificationType = .energy
+            case .nerve:
+                title = "Nerve \(rule.threshold)%! 💪"
+                notificationType = .nerve
+            case .happy:
+                title = "Happy \(rule.threshold)%! 😊"
+                notificationType = .happy
+            case .life:
+                title = "Life \(rule.threshold)%! ❤️"
+                notificationType = .life
+            }
+            NotificationManager.shared.send(title: title, body: "\(barType.rawValue) is now at \(bar.current)/\(bar.maximum)", type: notificationType)
 
-            if prevPct < threshold && currentPct >= threshold {
-                let title: String
-                let notificationType: NotificationType
-                switch barType {
-                case .energy:
-                    title = "Energy \(rule.threshold)%! ⚡️"
-                    notificationType = .energy
-                case .nerve:
-                    title = "Nerve \(rule.threshold)%! 💪"
-                    notificationType = .nerve
-                case .happy:
-                    title = "Happy \(rule.threshold)%! 😊"
-                    notificationType = .happy
-                case .life:
-                    title = "Life \(rule.threshold)%! ❤️"
-                    notificationType = .life
-                }
-                NotificationManager.shared.send(title: title, body: "\(barType.rawValue) is now at \(currentBar.current)/\(currentBar.maximum)", type: notificationType)
-
-                if let sound = NotificationSound(rawValue: rule.soundName) {
-                    SoundManager.shared.play(sound)
-                }
+            if let sound = NotificationSound(rawValue: rule.soundName) {
+                SoundManager.shared.play(sound)
             }
         }
     }

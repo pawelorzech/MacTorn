@@ -111,6 +111,9 @@ class AppState {
                 return
             }
             defaults.set(refreshInterval, forKey: "refreshInterval")
+            // The notification dedup measures "how stale is the previous observation" in
+            // multiples of the poll cadence, so it has to hear about a cadence change.
+            notificationCoordinator.refreshInterval = TimeInterval(refreshInterval)
         }
     }
     var appearanceMode: String = AppearanceMode.system.rawValue {
@@ -237,10 +240,7 @@ class AppState {
     @ObservationIgnored let forumWatchService: ForumWatchServicing
 
     // MARK: - State Comparison
-    @ObservationIgnored var previousBars: Bars?
-    @ObservationIgnored var previousCooldowns: Cooldowns?
     @ObservationIgnored var previousTravel: Travel?
-    @ObservationIgnored var previousStatus: Status?
     @ObservationIgnored var notifiedBountyKeys: Set<String> = []
     /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
     /// `news` is a row-based cloud category, so this doubles as its rate control:
@@ -328,7 +328,7 @@ class AppState {
             marketWatchService ?? MarketWatchService(defaults: defaults, session: session)
         self.forumWatchService =
             forumWatchService ?? ForumWatchService(defaults: defaults, session: session)
-        self.notificationCoordinator = NotificationCoordinator(defaults: defaults)
+        self.notificationCoordinator = NotificationCoordinator(defaults: defaults, time: time)
         self.pollingCoordinator = pollingCoordinator ?? PollingCoordinator(time: time)
         self.endpointHealth = EndpointHealthTracker(time: time)
 
@@ -339,6 +339,9 @@ class AppState {
            Self.allowedRefreshIntervals.contains(stored) {
             self.refreshInterval = stored
         }
+        // didSet does not fire on init, so the dedup staleness window is seeded by hand
+        // here and kept in step by the didSet from then on.
+        self.notificationCoordinator.refreshInterval = TimeInterval(self.refreshInterval)
         if let stored = defaults.string(forKey: "appearanceMode") {
             self.appearanceMode = stored
         }
@@ -385,10 +388,7 @@ class AppState {
         cooldownEnds = nil
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
-        previousBars = nil
-        previousCooldowns = nil
         previousTravel = nil
-        previousStatus = nil
         notifiedBountyKeys = []
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
