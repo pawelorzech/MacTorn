@@ -170,6 +170,13 @@ enum UITestConfiguration {
             // never overwritten by fetchActivityData's `if let events = ...`
             // guard — same non-clobbering trick as above. Used to pin
             // EventsView's combined VoiceOver label (issue #45).
+            //
+            // This only holds because `UserSnapshotService.loadActivity` reports an
+            // *absent* "events" key as nil rather than as an empty array (issue #84).
+            // Before that fix the first poll wiped this seed and StatusView's
+            // `if !appState.activityEvents.isEmpty` dropped EventsView from the tree
+            // entirely. Never rely on this pattern for a field whose parser collapses
+            // "absent" to an empty collection.
             let fixtureEventJSON = Data("""
             {"timestamp": \(now - 90), "event": "You were mugged by <a href=\\"#\\">Fixture Mugger</a> for $500."}
             """.utf8)

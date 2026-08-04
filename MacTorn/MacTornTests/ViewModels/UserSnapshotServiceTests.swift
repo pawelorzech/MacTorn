@@ -77,6 +77,50 @@ final class UserSnapshotServiceTests: XCTestCase {
         XCTAssertEqual(bytes, data.count)
     }
 
+    /// Issue #84: a 200 body that simply omits the row-based selections must report
+    /// *absent* (nil) for every field, so `AppState.fetchActivityData`'s `if let`
+    /// guards leave the last known events/messages/attacks alone. Reporting `[]`/`0`
+    /// here silently wipes the user's event list on any partial response.
+    func testActivityBodyWithoutRowSelectionsReportsEveryFieldAsAbsent() async throws {
+        let mock = MockNetworkSession()
+        mock.mockData = try TornAPIFixtures.toData([:])
+        let service = UserSnapshotService(session: mock)
+
+        let result = try await service.loadActivity(
+            URL(string: "https://api.torn.com/user")!
+        )
+
+        guard case .success(let payload, _) = result else {
+            return XCTFail("Expected activity payload")
+        }
+        XCTAssertNil(payload.events, "A missing \"events\" key must not decode to []")
+        XCTAssertNil(payload.unreadMessages, "A missing \"messages\" key must not decode to 0")
+        XCTAssertNil(payload.recentAttacks, "A missing \"attacks\" key must not decode to []")
+    }
+
+    /// The mirror image of the test above: when the keys *are* present but empty, the
+    /// endpoint really is saying "zero rows", and that must overwrite stale state.
+    func testActivityBodyWithEmptyRowSelectionsReportsZeroRatherThanAbsent() async throws {
+        let mock = MockNetworkSession()
+        mock.mockData = try TornAPIFixtures.toData([
+            "events": [String: Any](),
+            "messages": [String: Any](),
+            "attacks": [String: Any]()
+        ])
+        let service = UserSnapshotService(session: mock)
+
+        let result = try await service.loadActivity(
+            URL(string: "https://api.torn.com/user")!
+        )
+
+        guard case .success(let payload, _) = result else {
+            return XCTFail("Expected activity payload")
+        }
+        XCTAssertEqual(payload.events?.isEmpty, true)
+        XCTAssertEqual(payload.unreadMessages, 0)
+        XCTAssertEqual(payload.recentAttacks?.isEmpty, true)
+    }
+
     func testLoadsUserV2SectionsIndependently() async throws {
         let mock = MockNetworkSession()
         let data = try TornAPIFixtures.toData(
