@@ -5,7 +5,9 @@ import AppKit
 struct FlyingStatusView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
-    let destination: String
+    /// Optional because `Travel.isTraveling` only requires a positive `time_left`:
+    /// Torn can report an in-progress flight before the destination is populated.
+    let destination: String?
     let timestamp: Int
     let departed: Int
 
@@ -37,7 +39,7 @@ struct FlyingStatusView: View {
                     .font(.title2)
                     .foregroundColor(.blue)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Flying to \(destination)")
+                    Text(destination.map { "Flying to \($0)" } ?? "Destination unavailable")
                         .font(.headline)
                     Text("In transit...")
                         .font(.caption)
@@ -136,7 +138,7 @@ struct TravelView: View {
             if travel.isTraveling {
                 // Flying state with live countdown - FlyingStatusView observes appState directly
                 FlyingStatusView(
-                    destination: travel.destination ?? "Unknown",
+                    destination: travel.destination,
                     timestamp: travel.timestamp ?? 0,
                     departed: travel.departed ?? 0
                 )
@@ -160,7 +162,7 @@ struct TravelView: View {
                     .font(.title2)
                     .foregroundColor(.orange)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("In \(travel.destination ?? "Unknown")")
+                    Text(travel.destination.map { "In \($0)" } ?? "Location unavailable")
                         .font(.headline)
                     Text("Currently abroad")
                         .font(.caption)

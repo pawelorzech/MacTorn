@@ -160,7 +160,12 @@ struct StatusView: View {
             HStack {
                 Image(systemName: "airplane")
                     .foregroundColor(.blue)
-                Text(travel.isTraveling ? "Traveling to \(travel.destination ?? "Unknown")" : "In \(travel.destination ?? "Unknown")")
+                // Torn can report an in-progress flight before it sends the destination,
+                // so the traveling row drops the place rather than naming it "Unknown" —
+                // the same rule MenuBarDisplay.accessibilityDescription already follows.
+                Text(travel.isTraveling
+                    ? (travel.destination.map { "Traveling to \($0)" } ?? "Traveling")
+                    : (travel.destination.map { "In \($0)" } ?? "Location unavailable"))
                     .font(.caption.bold())
             }
 
