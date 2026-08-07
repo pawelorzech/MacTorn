@@ -275,20 +275,28 @@ enum TornAPIError: Error, Equatable, Sendable {
 // MARK: - Display sanitising
 
 extension String {
-    /// Strips Unicode control *and* format characters and caps the length.
+    /// Strips Unicode control *and* format characters plus line breaks, and caps the length.
     ///
     /// `CharacterSet.controlCharacters` covers categories Cc and Cf, so this removes bidi
     /// overrides (U+202A–202E, U+2066–2069) and zero-width characters along with the usual
     /// C0/C1 controls — the pieces used to build text that reads as something other than
-    /// what it is, on screen or through VoiceOver.
+    /// what it is, on screen or through VoiceOver. It is *not* enough on its own: U+2028
+    /// LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR are categories Zl/Zp and still render
+    /// as hard line breaks, which is how a forum title can fake a second MacTorn-authored
+    /// paragraph. `NotificationManager.lineBreakingCharacters` unions in `.newlines` to
+    /// close that hole, and stays the single source of truth for both callers.
     ///
     /// Apply to every string reaching the UI from a source we do not control: Torn's own
     /// error messages, and event text that another player can influence.
     func sanitizedForDisplay(limit: Int = 120) -> String {
         let stripped = unicodeScalars
-            .filter { !CharacterSet.controlCharacters.contains($0) || $0 == .emojiJoiner }
+            .filter { !NotificationManager.lineBreakingCharacters.contains($0) || $0 == .emojiJoiner }
             .map(Character.init)
-        return String(String(stripped).prefix(limit))
+        // `prefix(_:)` has a precondition of maxLength >= 0 and traps below it. No caller
+        // passes a negative today — the three are 80, 200 and the 120 default — but this is
+        // a shared helper on String now, so a future caller computing a limit gets an empty
+        // string rather than a crash.
+        return String(String(stripped).prefix(max(0, limit)))
     }
 }
 
