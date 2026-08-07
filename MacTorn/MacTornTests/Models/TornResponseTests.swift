@@ -211,6 +211,34 @@ final class TornResponseTests: XCTestCase {
         XCTAssertEqual(try event(plain).cleanEvent, plain)
     }
 
+    /// U+200D is category Cf like the bidi overrides, but it is the glue in every emoji ZWJ
+    /// sequence. Stripping it decomposes one grapheme into several, which is corruption of
+    /// legitimate content rather than defence against spoofing.
+    func testTornEvent_cleanEvent_preservesEmojiZWJSequences() throws {
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"      // 👨‍👩‍👧
+        let flag = "\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}"                 // 🏳️‍🌈
+        XCTAssertEqual(try event("Gift from \(family)").cleanEvent, "Gift from \(family)")
+        XCTAssertEqual(try event("Joined \(flag)").cleanEvent, "Joined \(flag)")
+        XCTAssertEqual(try event(family).cleanEvent.count, 1, "stays one grapheme")
+    }
+
+    /// The ZWJ exception must be exactly one scalar wide — every other format character
+    /// that enables spoofing has to keep going.
+    func testTornEvent_cleanEvent_zwjExceptionDoesNotLeakToOtherFormatChars() throws {
+        let noisy = try event("a\u{200B}b\u{202E}c\u{2066}d\u{200F}e")
+        XCTAssertEqual(noisy.cleanEvent, "abcde",
+                       "ZWSP, RLO, LRI and RLM must still be stripped")
+    }
+
+    /// Variation selectors and keycap marks are neither Cc nor Cf, so they were never at
+    /// risk — pinned so a future widening of the filter cannot quietly break them.
+    func testTornEvent_cleanEvent_preservesVariationSelectorsAndKeycaps() throws {
+        let keycap = "1\u{FE0F}\u{20E3}"                                 // 1️⃣
+        let thumbsUpToned = "\u{1F44D}\u{1F3FD}"                         // 👍🏽
+        XCTAssertEqual(try event(keycap).cleanEvent, keycap)
+        XCTAssertEqual(try event(thumbsUpToned).cleanEvent, thumbsUpToned)
+    }
+
     func testTornEvent_date() throws {
         let json: [String: Any] = [
             "timestamp": 1700000000,
