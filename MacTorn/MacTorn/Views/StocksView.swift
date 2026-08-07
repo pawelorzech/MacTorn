@@ -53,8 +53,9 @@ struct StocksView: View {
                                         .foregroundColor(.secondary)
                                         .lineLimit(1)
                                 } else {
-                                    Text("Stock #\(stock.stockId)")
+                                    Text("Stock details unavailable")
                                         .font(.caption2)
+                                        .lineLimit(1)
                                 }
 
                                 Spacer(minLength: 4)
