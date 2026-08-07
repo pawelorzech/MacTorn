@@ -368,6 +368,14 @@ final class TornAPIURLBuilderTests: XCTestCase {
 // MARK: - Notification Sanitizer (F-08)
 
 final class NotificationSanitizerTests: XCTestCase {
+    /// `String.prefix(_:)` has a precondition of `maxLength >= 0` and traps below it. No
+    /// caller passes a negative today, but the sanitiser is a shared `String` helper now, so
+    /// a future caller computing a limit must get an empty string rather than a crash.
+    func testSanitize_negativeMaxLengthDoesNotTrap() {
+        XCTAssertEqual(NotificationManager.sanitize("Travel: Mexico", maxLength: -1), "")
+        XCTAssertEqual(NotificationManager.sanitize("Travel: Mexico", maxLength: 0), "")
+    }
+
     func testSanitize_capsLength() {
         let input = String(repeating: "x", count: 500)
         let out = NotificationManager.sanitize(input, maxLength: 200)
