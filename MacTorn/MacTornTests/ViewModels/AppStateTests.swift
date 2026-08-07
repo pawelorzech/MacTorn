@@ -501,6 +501,72 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(rankedWarCalls, 1, "the second poll within 60s must not re-fetch ranked wars")
     }
 
+    // MARK: - CooldownEnds.from overflow guard (issue #87)
+
+    /// The ordinary case must be untouched by the guard.
+    func testCooldownEndsFrom_normalResponseIsUnchanged() {
+        let anchor = 1_786_104_547
+        let ends = CooldownEnds.from(
+            cooldowns: Cooldowns(drug: 3600, medical: 0, booster: 120), anchor: anchor)
+
+        XCTAssertEqual(ends.drugEndsAt, anchor + 3600)
+        XCTAssertEqual(ends.boosterEndsAt, anchor + 120)
+        XCTAssertEqual(ends.medicalEndsAt, 0, "an inactive cooldown stays 0")
+    }
+
+    /// `anchor + duration` on raw API integers used to trap the process (SIGTRAP,
+    /// exit 133). An unusable number must degrade that cooldown to "not active"
+    /// rather than crash a display-only menu bar app.
+    func testCooldownEndsFrom_hugeDurationDoesNotTrap() {
+        let ends = CooldownEnds.from(
+            cooldowns: Cooldowns(drug: Int.max, medical: 0, booster: 0),
+            anchor: 1_786_104_547)
+
+        XCTAssertEqual(ends.drugEndsAt, 0, "overflow degrades to the not-active sentinel")
+    }
+
+    /// Every operand comes from the same untrusted payload, so the anchor can be
+    /// hostile too — and all three cooldowns must be guarded, not just the first.
+    func testCooldownEndsFrom_hugeAnchorDoesNotTrap() {
+        let ends = CooldownEnds.from(
+            cooldowns: Cooldowns(drug: 60, medical: 60, booster: 60), anchor: Int.max)
+
+        XCTAssertEqual(ends.drugEndsAt, 0)
+        XCTAssertEqual(ends.boosterEndsAt, 0)
+        XCTAssertEqual(ends.medicalEndsAt, 0)
+    }
+
+    /// Underflow is the same defect with the sign flipped.
+    func testCooldownEndsFrom_negativeAnchorDoesNotTrap() {
+        let ends = CooldownEnds.from(
+            cooldowns: Cooldowns(drug: Int.min, medical: 0, booster: 0), anchor: -1)
+
+        XCTAssertEqual(ends.drugEndsAt, 0, "drug is guarded by duration > 0 before the add")
+    }
+
+    /// One bad cooldown must not take the other two with it — the guard is per field.
+    func testCooldownEndsFrom_overflowIsIsolatedPerCooldown() {
+        let anchor = 1_786_104_547
+        let ends = CooldownEnds.from(
+            cooldowns: Cooldowns(drug: Int.max, medical: 300, booster: 600), anchor: anchor)
+
+        XCTAssertEqual(ends.drugEndsAt, 0, "the bad one degrades")
+        XCTAssertEqual(ends.medicalEndsAt, anchor + 300, "the good ones survive")
+        XCTAssertEqual(ends.boosterEndsAt, anchor + 600)
+    }
+
+    /// A degraded cooldown must read as inactive to every consumer, not as an
+    /// end-timestamp in 1970.
+    func testCooldownEndsFrom_degradedCooldownReadsAsInactive() {
+        let ends = CooldownEnds.from(
+            cooldowns: Cooldowns(drug: Int.max, medical: 0, booster: 0),
+            anchor: 1_786_104_547)
+        let now = Date(timeIntervalSince1970: 1_786_104_547)
+
+        XCTAssertEqual(ends.remainingSeconds(.drug, at: now), 0)
+        XCTAssertNil(ends.soonestActive(at: now), "nothing is counting down")
+    }
+
     // MARK: - CooldownEnds.merged (pure model)
 
     /// Per-poll jitter ≤ tolerance keeps the previously pinned `endsAt`. Without this,
