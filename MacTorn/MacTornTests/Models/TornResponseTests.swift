@@ -166,6 +166,51 @@ final class TornResponseTests: XCTestCase {
         XCTAssertEqual(event.cleanEvent, "You received a message from SomePlayer.")
     }
 
+    /// Event bodies carry another player's name and message, so they are attacker-influenced
+    /// text on a string that reaches both `Text` and the VoiceOver label.
+    private func event(_ body: String) throws -> TornEvent {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "timestamp": 1700000000, "event": body, "seen": 0
+        ])
+        return try JSONDecoder().decode(TornEvent.self, from: data)
+    }
+
+    func testTornEvent_cleanEvent_stripsBidiOverrides() throws {
+        // U+202E flips the following run right-to-left, which is how a display name is made
+        // to read as something other than what it is.
+        let spoof = try event("You were mugged by \u{202E}revilEvil\u{202C} for $500.")
+        XCTAssertEqual(spoof.cleanEvent, "You were mugged by revilEvil for $500.")
+        XCTAssertFalse(spoof.cleanEvent.unicodeScalars.contains { $0.value == 0x202E })
+    }
+
+    func testTornEvent_cleanEvent_stripsControlCharactersAndNewlines() throws {
+        let noisy = try event("Attack\u{0}ed by\n\rSomeone\u{1}\u{7}!")
+        XCTAssertEqual(noisy.cleanEvent, "Attacked bySomeone!")
+        XCTAssertFalse(noisy.cleanEvent.contains("\n"))
+    }
+
+    func testTornEvent_cleanEvent_stripsZeroWidthCharacters() throws {
+        let hidden = try event("Some\u{200B}Player attacked you")
+        XCTAssertEqual(hidden.cleanEvent, "SomePlayer attacked you")
+    }
+
+    func testTornEvent_cleanEvent_capsLength() throws {
+        let long = try event(String(repeating: "x", count: 500))
+        XCTAssertEqual(long.cleanEvent.count, 120)
+    }
+
+    /// The cap must measure what the user sees. Tags are stripped first, so markup does not
+    /// eat the budget and truncate legible text.
+    func testTornEvent_cleanEvent_capMeasuresVisibleTextNotMarkup() throws {
+        let padded = "<a href='" + String(repeating: "z", count: 300) + "'>Player</a> attacked you"
+        XCTAssertEqual(try event(padded).cleanEvent, "Player attacked you")
+    }
+
+    func testTornEvent_cleanEvent_leavesOrdinaryTextAlone() throws {
+        let plain = "You were mugged by SomePlayer for $500."
+        XCTAssertEqual(try event(plain).cleanEvent, plain)
+    }
+
     func testTornEvent_date() throws {
         let json: [String: Any] = [
             "timestamp": 1700000000,

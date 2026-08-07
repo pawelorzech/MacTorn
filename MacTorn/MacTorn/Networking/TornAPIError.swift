@@ -217,10 +217,7 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// views, and `CharacterSet.controlCharacters` alone lets U+2028/U+2029 through as
     /// hard line breaks. See the note on `NotificationManager.lineBreakingCharacters`.
     private func sanitized(_ text: String) -> String {
-        let stripped = text.unicodeScalars
-            .filter { !NotificationManager.lineBreakingCharacters.contains($0) }
-            .map(Character.init)
-        return String(String(stripped).prefix(120))
+        text.sanitizedForDisplay()
     }
 
     // MARK: - Classification
@@ -272,5 +269,25 @@ enum TornAPIError: Error, Equatable, Sendable {
         default:
             return .transport(detail: urlError.code.rawValue.description)
         }
+    }
+}
+
+// MARK: - Display sanitising
+
+extension String {
+    /// Strips Unicode control *and* format characters and caps the length.
+    ///
+    /// `CharacterSet.controlCharacters` covers categories Cc and Cf, so this removes bidi
+    /// overrides (U+202A–202E, U+2066–2069) and zero-width characters along with the usual
+    /// C0/C1 controls — the pieces used to build text that reads as something other than
+    /// what it is, on screen or through VoiceOver.
+    ///
+    /// Apply to every string reaching the UI from a source we do not control: Torn's own
+    /// error messages, and event text that another player can influence.
+    func sanitizedForDisplay(limit: Int = 120) -> String {
+        let stripped = unicodeScalars
+            .filter { !CharacterSet.controlCharacters.contains($0) }
+            .map(Character.init)
+        return String(String(stripped).prefix(limit))
     }
 }

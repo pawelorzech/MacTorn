@@ -77,10 +77,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let lineBreakingCharacters = CharacterSet.controlCharacters.union(.newlines)
 
     static func sanitize(_ text: String, maxLength: Int) -> String {
-        let stripped = text.unicodeScalars
-            .filter { !lineBreakingCharacters.contains($0) }
-            .map(Character.init)
-        return String(String(stripped).prefix(maxLength))
+        text.sanitizedForDisplay(limit: maxLength)
     }
 
     private override init() {
