@@ -286,8 +286,24 @@ extension String {
     /// error messages, and event text that another player can influence.
     func sanitizedForDisplay(limit: Int = 120) -> String {
         let stripped = unicodeScalars
-            .filter { !CharacterSet.controlCharacters.contains($0) }
+            .filter { !CharacterSet.controlCharacters.contains($0) || $0 == .emojiJoiner }
             .map(Character.init)
         return String(String(stripped).prefix(limit))
     }
+}
+
+extension Unicode.Scalar {
+    /// U+200D ZERO WIDTH JOINER.
+    ///
+    /// It is category Cf, so `CharacterSet.controlCharacters` matches it — but it is also
+    /// the glue in every emoji ZWJ sequence, and dropping it decomposes one grapheme into
+    /// several: 👨‍👩‍👧 becomes three separate people, 🏳️‍🌈 becomes a white flag beside a
+    /// rainbow. That is visible corruption of legitimate content.
+    ///
+    /// Keeping it is a deliberately narrow exception. ZWJ only asks that adjacent glyphs be
+    /// joined: unlike the bidi overrides it cannot reorder text, and unlike U+200B ZERO
+    /// WIDTH SPACE — which stays stripped — it is not the character used to split a word
+    /// invisibly. Variation selectors (U+FE0F) and the keycap mark (U+20E3) need no
+    /// exception; they are in neither Cc nor Cf and were never removed.
+    static let emojiJoiner = Unicode.Scalar(0x200D)!
 }
