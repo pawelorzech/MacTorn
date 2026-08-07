@@ -146,10 +146,25 @@ struct CooldownEnds: Equatable {
 
     static func from(cooldowns: Cooldowns, anchor: Int) -> CooldownEnds {
         CooldownEnds(
-            drugEndsAt: cooldowns.drug > 0 ? anchor + cooldowns.drug : 0,
-            boosterEndsAt: cooldowns.booster > 0 ? anchor + cooldowns.booster : 0,
-            medicalEndsAt: cooldowns.medical > 0 ? anchor + cooldowns.medical : 0
+            drugEndsAt: endTimestamp(anchor: anchor, duration: cooldowns.drug),
+            boosterEndsAt: endTimestamp(anchor: anchor, duration: cooldowns.booster),
+            medicalEndsAt: endTimestamp(anchor: anchor, duration: cooldowns.medical)
         )
+    }
+
+    /// One cooldown's absolute end-timestamp, or `0` — the struct's existing "not active"
+    /// sentinel — when the cooldown is inactive or the API's numbers cannot produce a
+    /// usable one.
+    ///
+    /// `anchor` and `duration` are both raw `Int`s decoded straight from Torn, so nothing
+    /// bounds their sum. A response carrying a duration near `Int.max` overflowed the
+    /// addition and trapped the process (SIGTRAP, exit 133). Degrading that cooldown to
+    /// "unknown" keeps a display-only menu bar app running, which is strictly better than
+    /// crashing it over a number it only meant to display.
+    private static func endTimestamp(anchor: Int, duration: Int) -> Int {
+        guard duration > 0 else { return 0 }
+        let (endsAt, overflowed) = anchor.addingReportingOverflow(duration)
+        return overflowed ? 0 : endsAt
     }
 
     func endsAt(_ kind: CooldownKind) -> Int {
