@@ -536,13 +536,26 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertNil(AppState.bountyBanner(for: []), "nothing new means no banner at all")
 
+        // Amounts are compared through the same formatter rather than against a literal
+        // like "1,000,000". `AppState.decimalFormatter` has no explicit locale, so it
+        // follows `Locale.current` — on a machine with German regional settings it emits
+        // "1.000.000" and a hardcoded assertion fails for a reason that has nothing to do
+        // with the behaviour under test.
+        let expected = { (v: Int) in AppState.decimalFormatter.string(from: NSNumber(value: v)) ?? "\(v)" }
+
         let single = try XCTUnwrap(AppState.bountyBanner(for: [one]))
         XCTAssertEqual(single.title, "⚠️ Bounty on you")
-        XCTAssertTrue(single.body.contains("1,000,000"), "single banner keeps the amount, got \(single.body)")
+        XCTAssertTrue(
+            single.body.contains(expected(1_000_000)),
+            "single banner keeps the amount, got \(single.body)"
+        )
 
         let summary = try XCTUnwrap(AppState.bountyBanner(for: [one, two]))
         XCTAssertEqual(summary.title, "⚠️ 2 bounties on you")
-        XCTAssertTrue(summary.body.contains("3,500,000"), "summary totals the rewards, got \(summary.body)")
+        XCTAssertTrue(
+            summary.body.contains(expected(3_500_000)),
+            "summary totals both rewards, got \(summary.body)"
+        )
     }
 
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
