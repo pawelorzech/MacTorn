@@ -965,23 +965,45 @@ extension AppState {
     }
 
     private func notifyBountiesOnMe() {
-        let currentKeys = Set(bountiesOnMe.map(\.id))
-        for bounty in bountiesOnMe where !notifiedBountyKeys.contains(bounty.id) {
-            let amount = Self.decimalFormatter.string(from: NSNumber(value: bounty.reward)) ?? "\(bounty.reward)"
-            let who: String
-            if bounty.isAnonymous == true {
-                who = " (anonymous)"
-            } else if let name = bounty.listerName {
-                who = " from \(name)"
-            } else {
-                who = ""
-            }
-            NotificationManager.shared.send(
-                title: "⚠️ Bounty on you",
-                body: "$\(amount)\(who)",
-                type: .bountyOnMe
-            )
+        // `shouldFireOnce` both tests and records, so this filter performs the dedup
+        // write as well — the same usage as `shouldNotifyOCReady` above. The epoch is
+        // the bounty id, which never changes for a given bounty, so a bounty announces
+        // itself exactly once and then stays quiet for as long as it hangs there,
+        // across relaunches.
+        let fresh = bountiesOnMe.filter {
+            notificationCoordinator.shouldFireOnce("bounty.\($0.id)", epoch: $0.id)
         }
-        notifiedBountyKeys = currentKeys
+        guard let banner = Self.bountyBanner(for: fresh) else { return }
+        NotificationManager.shared.send(title: banner.title, body: banner.body, type: .bountyOnMe)
+    }
+
+    /// The banner for a set of freshly-seen bounties, or `nil` when there is nothing to
+    /// say. More than one at once collapses into a single summary rather than a stack of
+    /// banners, matching `flushPendingPriceAlerts()`.
+    ///
+    /// Pure and non-private so the aggregation is testable: `NotificationManager.shared`
+    /// is a singleton with no injection seam, so the alternative was shipping this half
+    /// unasserted.
+    static func bountyBanner(for fresh: [Bounty]) -> (title: String, body: String)? {
+        guard !fresh.isEmpty else { return nil }
+
+        if fresh.count == 1 {
+            let bounty = fresh[0]
+            return ("⚠️ Bounty on you", "$\(bountyAmount(bounty))\(bountyLister(bounty))")
+        }
+
+        let total = fresh.reduce(0) { $0 + $1.reward }
+        let totalText = decimalFormatter.string(from: NSNumber(value: total)) ?? "\(total)"
+        return ("⚠️ \(fresh.count) bounties on you", "$\(totalText) total")
+    }
+
+    private static func bountyAmount(_ bounty: Bounty) -> String {
+        decimalFormatter.string(from: NSNumber(value: bounty.reward)) ?? "\(bounty.reward)"
+    }
+
+    private static func bountyLister(_ bounty: Bounty) -> String {
+        if bounty.isAnonymous == true { return " (anonymous)" }
+        if let name = bounty.listerName { return " from \(name)" }
+        return ""
     }
 }

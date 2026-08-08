@@ -70,12 +70,12 @@ class AppState {
             guard accountSession.updateAPIKey(newValue) else { return }
             resetAccountScopedState()
             // Dedup latches are per-account facts (this chain already alerted, this OC
-            // was already announced). Switching accounts must forget them. This is done
-            // here rather than in `resetAccountScopedState()` on purpose: that method is
-            // also called on a transient permanent-key error, where clearing the latches
-            // would re-fire alerts the user has already seen. (Audit finding C-03.)
+            // was already announced, this bounty was already reported). Switching
+            // accounts must forget them. This is done here rather than in
+            // `resetAccountScopedState()` on purpose: that method is also called on a
+            // transient permanent-key error, where clearing the latches would re-fire
+            // alerts the user has already seen. (Audit finding C-03.)
             notificationCoordinator.reset()
-            notifiedBountyKeys = []
             if newValue.isEmpty {
                 stopPolling()
                 stopForumPolling()
@@ -264,7 +264,6 @@ class AppState {
 
     // MARK: - State Comparison
     @ObservationIgnored var previousTravel: Travel?
-    @ObservationIgnored var notifiedBountyKeys: Set<String> = []
     /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
     /// `news` is a row-based cloud category, so this doubles as its rate control:
     /// 5 min → ≤288 calls/day × 25-row limit ≈ 7,200 rows/day, well under the 50k cap.
@@ -461,10 +460,12 @@ class AppState {
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
         previousTravel = nil
-        // Deliberately NOT cleared here, for the reason the apiKey setter documents: this
-        // is a dedup latch, and a transient permanent-key error routes through this method.
-        // Wiping it there re-announced every bounty the user had already been told about
-        // the moment polling recovered. The setter clears it on a real account change.
+        // Bounty dedup is deliberately NOT cleared here, for the reason the apiKey setter
+        // documents: it is a dedup latch, and a transient permanent-key error routes through
+        // this method. Wiping it there re-announced every bounty the user had already been
+        // told about the moment polling recovered. It now lives in `notificationCoordinator`
+        // (persisted, so it also survives a relaunch — issue #53), and the setter clears it
+        // via `notificationCoordinator.reset()` on a real account change.
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
         endpointGate.reset()
