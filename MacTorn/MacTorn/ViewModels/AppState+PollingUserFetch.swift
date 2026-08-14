@@ -591,23 +591,33 @@ extension AppState {
     }
 
     private func notifyBountiesOnMe() {
-        let currentKeys = Set(bountiesOnMe.map(\.id))
-        for bounty in bountiesOnMe where !notifiedBountyKeys.contains(bounty.id) {
-            let amount = Self.decimalFormatter.string(from: NSNumber(value: bounty.reward)) ?? "\(bounty.reward)"
-            let who: String
-            if bounty.isAnonymous == true {
-                who = " (anonymous)"
-            } else if let name = bounty.listerName {
-                who = " from \(name)"
-            } else {
-                who = ""
-            }
-            NotificationManager.shared.send(
-                title: "⚠️ Bounty on you",
-                body: "$\(amount)\(who)",
-                type: .bountyOnMe
-            )
+        let newBounties = bountiesOnMe.filter {
+            notificationCoordinator.shouldFireOnce("bounty.\($0.id)", epoch: "\($0.id)")
         }
-        notifiedBountyKeys = currentKeys
+        guard !newBounties.isEmpty else { return }
+        let banner = Self.bountyBanner(for: newBounties)
+        NotificationManager.shared.send(title: banner.title, body: banner.body, type: .bountyOnMe)
+    }
+
+    static func bountyBanner(for bounties: [Bounty]) -> (title: String, body: String) {
+        if bounties.count == 1 {
+            return ("⚠️ Bounty on you", bountySummary(bounties[0]))
+        }
+        let preview = bounties.prefix(3).map(Self.bountySummary).joined(separator: ", ")
+        let extra = bounties.count > 3 ? " +\(bounties.count - 3) more" : ""
+        return ("\(bounties.count) bounties on you", "\(preview)\(extra)")
+    }
+
+    static func bountySummary(_ bounty: Bounty) -> String {
+        let amount = decimalFormatter.string(from: NSNumber(value: bounty.reward)) ?? "\(bounty.reward)"
+        let who: String
+        if bounty.isAnonymous == true {
+            who = " (anonymous)"
+        } else if let name = bounty.listerName {
+            who = " from \(name)"
+        } else {
+            who = ""
+        }
+        return "$\(amount)\(who)"
     }
 }

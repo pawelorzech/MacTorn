@@ -474,6 +474,70 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.bountiesOnMe.first?.reward, 3_000_000)
     }
 
+    // MARK: - Bounty notification dedup (issue #53)
+
+    /// One new bounty → single banner whose body carries the lister name.
+    func testBountyBanner_singleBounty() {
+        let bounty = Bounty(
+            targetId: 1, targetName: "A", targetLevel: nil,
+            listerId: 7, listerName: "Alice", reward: 1000,
+            reason: nil, quantity: nil, isAnonymous: false, validUntil: nil
+        )
+        let banner = AppState.bountyBanner(for: [bounty])
+        XCTAssertEqual(banner.title, "⚠️ Bounty on you")
+        XCTAssertTrue(banner.body.contains("Alice"))
+        XCTAssertTrue(banner.body.contains("from"))
+    }
+
+    /// An anonymous bounty renders without a lister name.
+    func testBountyBanner_anonymousBounty() {
+        let bounty = Bounty(
+            targetId: 1, targetName: "A", targetLevel: nil,
+            listerId: nil, listerName: nil, reward: 1000,
+            reason: nil, quantity: nil, isAnonymous: true, validUntil: nil
+        )
+        let banner = AppState.bountyBanner(for: [bounty])
+        XCTAssertTrue(banner.body.contains("anonymous"))
+    }
+
+    /// Several new bounties → one summary banner with a preview, modeled on price alerts.
+    func testBountyBanner_batchesMultipleBounties() {
+        func makeBounty(_ id: Int) -> Bounty {
+            Bounty(
+                targetId: id, targetName: nil, targetLevel: nil,
+                listerId: id, listerName: "Lister\(id)", reward: 100,
+                reason: nil, quantity: nil, isAnonymous: false, validUntil: nil
+            )
+        }
+        let two = AppState.bountyBanner(for: [makeBounty(1), makeBounty(2)])
+        XCTAssertEqual(two.title, "2 bounties on you")
+        XCTAssertTrue(two.body.contains("Lister1"))
+        XCTAssertTrue(two.body.contains("Lister2"))
+
+        let four = AppState.bountyBanner(for: [makeBounty(1), makeBounty(2), makeBounty(3), makeBounty(4)])
+        XCTAssertEqual(four.title, "4 bounties on you")
+        XCTAssertTrue(four.body.contains("+1 more"))
+    }
+
+    /// The dedup must survive restart: a fresh coordinator on the same defaults must
+    /// suppress the bounty that was already announced before the restart.
+    func testBountyNotificationDedupPersistsAcrossRestart() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.userV2Response(bounties: [TornAPIFixtures.bountyOnMe(reward: 3_000_000)])
+        )
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let bounty = try XCTUnwrap(appState.bountiesOnMe.first)
+        let relaunched = NotificationCoordinator(defaults: testDefaults)
+        XCTAssertFalse(
+            relaunched.shouldFireOnce("bounty.\(bounty.id)", epoch: "\(bounty.id)"),
+            "the bounty epoch must survive restart"
+        )
+    }
+
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
     func testFetchData_populatesRankedWars_fromV2Faction() async throws {
         appState.apiKey = "valid_key"
