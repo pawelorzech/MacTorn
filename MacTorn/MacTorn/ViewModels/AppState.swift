@@ -75,7 +75,6 @@ class AppState {
             // also called on a transient permanent-key error, where clearing the latches
             // would re-fire alerts the user has already seen. (Audit finding C-03.)
             notificationCoordinator.reset()
-            notifiedBountyKeys = []
             if newValue.isEmpty {
                 stopPolling()
                 stopForumPolling()
@@ -256,7 +255,6 @@ class AppState {
 
     // MARK: - State Comparison
     @ObservationIgnored var previousTravel: Travel?
-    @ObservationIgnored var notifiedBountyKeys: Set<String> = []
     /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
     /// `news` is a row-based cloud category, so this doubles as its rate control:
     /// 5 min → ≤288 calls/day × 25-row limit ≈ 7,200 rows/day, well under the 50k cap.
@@ -405,7 +403,6 @@ class AppState {
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
         previousTravel = nil
-        notifiedBountyKeys = []
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
         rowSourcePausedUntil = [:]
