@@ -558,6 +558,31 @@ final class AppStateTests: XCTestCase {
         )
     }
 
+    /// Regression: rewards are untrusted API integers. Recording each bounty as seen
+    /// must not be followed by a process trap when their display-only total exceeds Int.
+    func testBountyBanner_handlesCombinedRewardsAboveIntMaxAfterDedup() throws {
+        let maximum = try XCTUnwrap(TornAPIFixtures.decodedBounty(reward: .max))
+        let one = try XCTUnwrap(TornAPIFixtures.decodedBounty(reward: 1, targetId: 999))
+        let fresh = [maximum, one]
+
+        for bounty in fresh {
+            XCTAssertTrue(
+                appState.notificationCoordinator.shouldFireOnce("bounty.\(bounty.id)", epoch: bounty.id)
+            )
+        }
+
+        let summary = try XCTUnwrap(AppState.bountyBanner(for: fresh))
+        let total = Decimal(Int.max) + 1
+        let totalText = AppState.decimalFormatter.string(from: NSDecimalNumber(decimal: total)) ?? "\(total)"
+        XCTAssertEqual(summary.body, "$\(totalText) total")
+
+        for bounty in fresh {
+            XCTAssertFalse(
+                appState.notificationCoordinator.shouldFireOnce("bounty.\(bounty.id)", epoch: bounty.id)
+            )
+        }
+    }
+
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
     func testFetchData_populatesRankedWars_fromV2Faction() async throws {
         appState.apiKey = "valid_key"

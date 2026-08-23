@@ -992,9 +992,12 @@ extension AppState {
             return ("⚠️ Bounty on you", "$\(bountyAmount(bounty))\(bountyLister(bounty))")
         }
 
-        let total = fresh.reduce(0) { $0 + $1.reward }
-        let totalText = decimalFormatter.string(from: NSNumber(value: total)) ?? "\(total)"
-        return ("⚠️ \(fresh.count) bounties on you", "$\(totalText) total")
+        return ("⚠️ \(fresh.count) bounties on you", "$\(bountyTotalAmount(fresh)) total")
+    }
+
+    static func bountyTotalAmount(_ bounties: [Bounty]) -> String {
+        let total = bounties.reduce(Decimal.zero) { $0 + Decimal($1.reward) }
+        return decimalFormatter.string(from: NSDecimalNumber(decimal: total)) ?? "\(total)"
     }
 
     private static func bountyAmount(_ bounty: Bounty) -> String {
