@@ -106,4 +106,38 @@ final class TornEndpointTests: XCTestCase {
         // header + separator + one row per endpoint
         XCTAssertEqual(lines.count, TornEndpointRegistry.all.count + 2)
     }
+
+    /// README's "API Data Usage" table must be exactly what the registry generates.
+    ///
+    /// The registry has always described itself as the source of truth for that table, but
+    /// nothing checked it — so the README kept advertising `forum.threads` as a live
+    /// endpoint for as long as the code declared it and never called it. A row count is not
+    /// enough: cadence, row limits and purposes drift silently. This compares the text.
+    func testREADMETableIsExactlyWhatTheRegistryGenerates() throws {
+        let readmeURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // Models
+            .deletingLastPathComponent()   // MacTornTests
+            .deletingLastPathComponent()   // MacTorn
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("README.md")
+        let readme = try String(contentsOf: readmeURL, encoding: .utf8)
+
+        let generated = TornEndpointRegistry.markdownTable()
+        guard let header = generated.split(separator: "\n").first else {
+            return XCTFail("the registry produced no table")
+        }
+        guard let start = readme.range(of: String(header)) else {
+            return XCTFail("README has no API Data Usage table starting with the generated header")
+        }
+        let rest = readme[start.lowerBound...]
+        let table = rest.split(separator: "\n", omittingEmptySubsequences: false)
+            .prefix { $0.hasPrefix("|") }
+            .joined(separator: "\n")
+
+        XCTAssertEqual(table, generated, """
+        README's API table is out of date. Replace it with:
+
+        \(generated)
+        """)
+    }
 }

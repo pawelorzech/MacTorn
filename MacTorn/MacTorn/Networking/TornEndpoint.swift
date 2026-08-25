@@ -6,19 +6,22 @@ import Foundation
 // This is the source of truth the rest of the app derives from instead of keeping
 // several hand-maintained lists:
 //
-//   1. Request building        — `TornEndpoint.url(key:parameter:)`
-//   2. "API Data Usage" screen  — the metadata fields below (Diagnostics, Etap F)
-//   3. README documentation     — `TornEndpointRegistry.markdownTable()`
-//   4. Onboarding disclosure     — `TornEndpointRegistry.disclosure()` (Etap C)
+//   1. Request building        — `TornEndpoint.url(key:parameter:granted:)`, reached
+//                                 through `AppState.endpointURL(_:parameter:key:)`
+//   2. Request gating           — `TornEndpointGate` (what this key may ask for)
+//   3. "API Data Usage" screen  — the metadata fields below (Diagnostics, Etap F)
+//   4. README documentation     — `TornEndpointRegistry.markdownTable()`, which a test
+//                                 asserts is byte-identical to README's table
 //
-// The legacy `TornAPI` builders in `TornModels.swift` remain the code path that
-// AppState calls today; `TornEndpointContractTests` asserts every registry entry
-// produces the *exact* same URL as its `TornAPI` counterpart, so the two can never
-// silently drift while the migration to a single builder is completed in a later
-// stage (see ISA backlog A-02).
+// AppState builds every request through the registry (ISA backlog A-02, done). The
+// legacy `TornAPI` builders in `TornModels.swift` are no longer a code path; they stay
+// as the independent second implementation that `TornEndpointTests` compares each
+// registry URL against, so a change to one and not the other fails the build.
 
-/// Torn API major version. v1 is frozen (not sunset — every selection MacTorn relies
-/// on still returns its v1 shape); v2 is the actively developed OpenAPI surface.
+/// Torn API major version. v1 is frozen but not sunset: Torn's own OpenAPI document
+/// states that a v2 selection "will default to the API v1 version" where it has not been
+/// migrated, and every selection MacTorn relies on still returns its v1 shape. v2 is the
+/// actively developed surface. Checked against spec version 6.13.1 on 2026-08-26.
 enum TornAPIVersion: String, Equatable, Sendable {
     case v1
     case v2
