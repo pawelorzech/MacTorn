@@ -20,7 +20,7 @@ extension AppState {
         timerCancellable?.cancel()
         refreshKeyInfoIfNeeded()
         fetchData()
-        triggerStocksMetadataFetchIfNeeded()
+        triggerReferenceDataFetchIfNeeded()
         installPollingTimer()
     }
 
@@ -29,7 +29,7 @@ extension AppState {
             .autoconnect()
             .sink { [weak self] _ in
                 self?.fetchData()
-                self?.triggerStocksMetadataFetchIfNeeded()
+                self?.triggerReferenceDataFetchIfNeeded()
             }
     }
 
@@ -37,6 +37,13 @@ extension AppState {
         guard stocksMetadata.isEmpty, !apiKey.isEmpty else { return }
         if let nextRetry = stocksNextRetryAfter, Date() < nextRetry { return }
         Task { await self.fetchStocksMetadata() }
+    }
+
+    /// Slow-changing reference data, refreshed alongside the stock names. Both are cheap
+    /// no-ops on almost every tick — they only reach the network when their cache is stale.
+    private func triggerReferenceDataFetchIfNeeded() {
+        triggerStocksMetadataFetchIfNeeded()
+        triggerItemCatalogFetchIfNeeded()
     }
 
     func stopPolling() {

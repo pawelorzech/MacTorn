@@ -78,6 +78,8 @@
 		AAA00054 /* TornEndpointGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10054 /* TornEndpointGateTests.swift */; };
 		AAA00055 /* TornAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10055 /* TornAPIClientTests.swift */; };
 		AAA00056 /* UserV2AdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10056 /* UserV2AdditionsTests.swift */; };
+		AAA00057 /* AppState+ItemCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10057 /* AppState+ItemCatalog.swift */; };
+		AAA00058 /* ItemCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10058 /* ItemCatalogTests.swift */; };
 		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
 		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
 		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
@@ -197,6 +199,8 @@
 		AAA10054 /* TornEndpointGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGateTests.swift; sourceTree = "<group>"; };
 		AAA10055 /* TornAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIClientTests.swift; sourceTree = "<group>"; };
 		AAA10056 /* UserV2AdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2AdditionsTests.swift; sourceTree = "<group>"; };
+		AAA10057 /* AppState+ItemCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ItemCatalog.swift"; sourceTree = "<group>"; };
+		AAA10058 /* ItemCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ItemCatalogTests.swift"; sourceTree = "<group>"; };
 		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
 		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
 		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
@@ -299,6 +303,7 @@
 		AAA30004 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10057 /* AppState+ItemCatalog.swift */,
 				AAA10005 /* AppState.swift */,
 				AAA10041 /* AccountSessionStore.swift */,
 				AAA10042 /* UserSnapshotService.swift */,
@@ -449,6 +454,7 @@
 		BBB30004 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10058 /* ItemCatalogTests.swift */,
 				BBB10011 /* AppStateTests.swift */,
 				BBB10012 /* AppStateWatchlistTests.swift */,
 				BBB10013 /* AppStateFeedbackTests.swift */,
@@ -613,6 +619,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA00057 /* AppState+ItemCatalog.swift in Sources */,
 				AAA00053 /* TornEndpointGate.swift in Sources */,
 				AAA00001 /* MacTornApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
@@ -673,6 +680,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA00058 /* ItemCatalogTests.swift in Sources */,
 				AAA00056 /* UserV2AdditionsTests.swift in Sources */,
 				AAA00054 /* TornEndpointGateTests.swift in Sources */,
 				AAA00055 /* TornAPIClientTests.swift in Sources */,

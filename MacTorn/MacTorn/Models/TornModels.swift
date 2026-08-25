@@ -1241,6 +1241,20 @@ struct WatchlistItem: Codable, Identifiable {
         lastAlertedPrice = try container.decodeIfPresent(Int.self, forKey: .lastAlertedPrice)
     }
 
+    /// A copy under a different display name. `id` is the identity — renaming an entry
+    /// keeps its prices, its threshold and its alert history intact.
+    func renamed(to newName: String) -> WatchlistItem {
+        WatchlistItem(id: id,
+                      name: newName,
+                      lowestPrice: lowestPrice,
+                      lowestPriceQuantity: lowestPriceQuantity,
+                      secondLowestPrice: secondLowestPrice,
+                      lastUpdated: lastUpdated,
+                      error: error,
+                      priceThreshold: priceThreshold,
+                      lastAlertedPrice: lastAlertedPrice)
+    }
+
     var priceDifference: Int {
         guard secondLowestPrice > 0 && lowestPrice > 0 else { return 0 }
         return secondLowestPrice - lowestPrice
@@ -1458,6 +1472,13 @@ enum TornAPI {
     /// absolute finish timestamp, and the countdown between reads is derived locally.
     static func userVirusURL(for apiKey: String) -> URL? {
         build("https://api.torn.com/v2/user/virus", query: ["key": apiKey])
+    }
+
+    /// The global item catalog. `cat` is deliberately omitted: the default category is
+    /// "All", which is the only one that returns every item, and its details are stripped —
+    /// exactly the trade MacTorn wants, since it needs names and nothing else.
+    static func tornItemsURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/torn/items", query: ["key": apiKey])
     }
 
     static func tornStocksURL(for apiKey: String) -> URL? {

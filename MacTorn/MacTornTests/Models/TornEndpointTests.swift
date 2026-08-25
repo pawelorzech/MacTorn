@@ -30,6 +30,7 @@ final class TornEndpointTests: XCTestCase {
         assertMatch("faction.news", TornAPI.factionNewsURL(for: key))
         assertMatch("market.item", TornAPI.marketURL(itemId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("torn.stocks", TornAPI.tornStocksURL(for: key))
+        assertMatch("torn.items", TornAPI.tornItemsURL(for: key))
         assertMatch("forum.thread", TornAPI.forumThreadURL(threadId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("forum.threads", TornAPI.forumCategoryThreadsURL(categoryId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("key.info", TornAPI.keyInfoURL(for: key))
@@ -37,7 +38,7 @@ final class TornEndpointTests: XCTestCase {
 
     /// The contract test above is only meaningful if it covers every endpoint.
     func testEveryEndpointIsCoveredByContract() {
-        XCTAssertEqual(TornEndpointRegistry.all.count, 12,
+        XCTAssertEqual(TornEndpointRegistry.all.count, 13,
                        "add the new endpoint to testRegistryURLsMatchLegacyBuilders too")
     }
 

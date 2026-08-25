@@ -166,6 +166,9 @@ class AppState {
     var propertiesData: [PropertyInfo]?
     var stocksData: [StockHolding] = []
     var stocksMetadata: [Int: StockMetadata] = [:]
+    /// Torn's global item catalogue, id → name. Empty until the first successful fetch;
+    /// everything that reads it degrades to `Item #id` rather than waiting on it.
+    var itemCatalog: [Int: String] = [:]
     var watchlistItems: [WatchlistItem] {
         get { marketWatchService.items }
         set { marketWatchService.items = newValue }
@@ -299,6 +302,11 @@ class AppState {
     var stocksFailureCount = 0
     var stocksNextRetryAfter: Date?
 
+    // Item catalog backoff + in-flight guard, mirroring the stocks metadata ladder above.
+    var itemCatalogFailureCount = 0
+    var itemCatalogNextRetryAfter: Date?
+    @ObservationIgnored var itemCatalogTask: Task<Void, Never>?
+
     /// Non-secret persistence store. Injected so tests get an isolated
     /// `UserDefaults` suite instead of the process-wide `.standard`, which under
     /// parallel testing races across test classes on shared keys (e.g. "watchlist").
@@ -386,6 +394,7 @@ class AppState {
         loadForumWatch()
         loadFeedbackState()
         loadStocksMetadataFromCache()
+        loadItemCatalogFromCache()
         loadHiddenNextActionCategories()
 
         // Etap D: when the network comes back after an outage, refresh once immediately

@@ -333,6 +333,23 @@ enum TornEndpointRegistry {
             critical: false
         ),
         TornEndpoint(
+            id: "torn.items",
+            name: "Item catalog",
+            version: .v2,
+            path: "https://api.torn.com/v2/torn/items",
+            selections: [],
+            extraQuery: [:],
+            minimumAccessLevel: .publicOnly,
+            purpose: "Names for every Torn item, so the watchlist can be searched by name and priced items are labelled rather than numbered.",
+            cadence: "Rarely (cached for a week; refreshed on demand)",
+            dataShape: .pointInTime,
+            recordLimit: nil,
+            sendsLimitQuery: false,
+            cachePolicy: .throttle(seconds: 604_800),
+            budget: .metadata,
+            critical: false
+        ),
+        TornEndpoint(
             id: "forum.thread",
             name: "Forum thread",
             version: .v2,

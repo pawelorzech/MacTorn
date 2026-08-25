@@ -95,9 +95,12 @@ def main():
         build_lines.append(
             f"\t\t{bid} /* {name} in Sources */ = {{isa = PBXBuildFile; fileRef = {fid} /* {name} */; }};\n"
         )
+        # `path` is always quoted: the OpenStep plist that pbxproj uses only allows a
+        # bare word to contain alphanumerics, `_`, `$`, `/`, `.` and `-`, so a filename
+        # like `AppState+ItemCatalog.swift` silently corrupts the project without them.
         ref_lines.append(
             f"\t\t{fid} /* {name} */ = {{isa = PBXFileReference; "
-            f"lastKnownFileType = sourcecode.swift; path = {name}; sourceTree = \"<group>\"; }};\n"
+            f"lastKnownFileType = sourcecode.swift; path = \"{name}\"; sourceTree = \"<group>\"; }};\n"
         )
     text = text.replace(build_anchor, "".join(build_lines) + build_anchor, 1)
     text = text.replace(ref_anchor, "".join(ref_lines) + ref_anchor, 1)

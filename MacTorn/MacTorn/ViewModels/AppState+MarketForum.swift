@@ -66,7 +66,7 @@ extension AppState {
         guard !watchlistItems.contains(where: { $0.id == itemId }) else {
             return .alreadyWatched
         }
-        guard addToWatchlist(itemId: itemId, name: "Item #\(itemId)") else {
+        guard addToWatchlist(itemId: itemId, name: itemName(for: itemId)) else {
             // The service applies the same bounds we just checked, so reaching here
             // means those two definitions drifted apart.
             logger.error("addToWatchlist(input:) passed its own checks but the service still rejected \(itemId)")
