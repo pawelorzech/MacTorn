@@ -1306,8 +1306,14 @@ enum TornAPI {
     /// Build a Torn API URL with proper percent-encoding via URLComponents/URLQueryItem.
     /// String interpolation (the previous approach) would silently mangle keys that
     /// happen to contain `&`, `=`, or whitespace if pasted with junk.
+    ///
+    /// Every request carries `comment=MacTorn` (see `TornAPIClient.comment`), so the
+    /// key owner can tell MacTorn's traffic apart from every other tool sharing their
+    /// key in Torn's own key log.
     private static func build(_ urlString: String, query: [String: String]) -> URL? {
         guard var comps = URLComponents(string: urlString) else { return nil }
+        var query = query
+        query["comment"] = TornAPIClient.comment
         comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
             .sorted { $0.name < $1.name }
         return comps.url
@@ -1376,6 +1382,58 @@ enum TornAPI {
 
     static func forumCategoryThreadsURL(categoryId: Int, apiKey: String) -> URL? {
         build("https://api.torn.com/v2/forum/\(categoryId)/threads", query: ["key": apiKey])
+    }
+}
+
+// MARK: - Request construction
+
+/// The one place MacTorn turns a built Torn API URL into the request it actually sends.
+///
+/// Two things happen here that every call site needs and none of them should re-implement:
+///
+///  1. **The key leaves the URL on API v2.** Torn's OpenAPI document declares an
+///     `Authorization: ApiKey <key>` header and states the `key` query parameter "is not
+///     required … when passing the API key via the Authorization header". A key in a
+///     query string is a key in every URL that gets logged, cached, or attached to a
+///     crash report; a key in a header is not. v1 has no documented header form, so v1
+///     URLs keep `key=` — `tornRedactedURL` remains the guard there.
+///  2. **The URL cache is bypassed.** Torn may itself serve a response up to ~30 s old;
+///     letting `URLCache` stack a second layer on top of that is how a countdown ends up
+///     minutes stale.
+enum TornAPIClient {
+    /// Sent as `comment` on every request. Torn surfaces it in the key owner's key log
+    /// (`/v2/key/log`), which is how a user tells MacTorn's calls apart from those of
+    /// every other tool they have handed the same key to.
+    static let comment = "MacTorn"
+
+    /// Header name Torn documents for key auth.
+    static let authorizationHeader = "Authorization"
+
+    /// True for the `/v2/...` paths, the only ones where header auth is documented.
+    static func usesHeaderAuth(_ url: URL) -> Bool {
+        url.path.hasPrefix("/v2/") || url.path == "/v2"
+    }
+
+    /// Builds the request for `url`, relocating the key into the Authorization header
+    /// where Torn supports it. Returns the URL unchanged when it carries no `key` item.
+    static func request(for url: URL) -> URLRequest {
+        guard usesHeaderAuth(url),
+              var comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let items = comps.queryItems,
+              let key = items.first(where: { $0.name == "key" })?.value,
+              !key.isEmpty
+        else {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            return request
+        }
+
+        let remaining = items.filter { $0.name != "key" }
+        comps.queryItems = remaining.isEmpty ? nil : remaining
+        var request = URLRequest(url: comps.url ?? url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.setValue("ApiKey \(key)", forHTTPHeaderField: authorizationHeader)
+        return request
     }
 }
 

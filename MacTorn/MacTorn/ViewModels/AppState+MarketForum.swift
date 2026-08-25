@@ -145,7 +145,7 @@ extension AppState {
     ) async {
         guard isCurrentAccount(requestedKey, generation: generation),
               !requestedKey.isEmpty,
-              let url = TornAPI.marketURL(itemId: itemId, apiKey: requestedKey) else { return }
+              let url = endpointURL("market.item", parameter: itemId, key: requestedKey) else { return }
         guard reserveRequest("market.item") else {
             updateItemError(itemId: itemId, error: "Request limit reached", save: save)
             return
@@ -316,7 +316,7 @@ extension AppState {
         generation: UInt
     ) async {
         guard isCurrentAccount(requestedKey, generation: generation),
-              let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: requestedKey) else { return }
+              let url = endpointURL("forum.thread", parameter: threadId, key: requestedKey) else { return }
         guard reserveRequest("forum.thread") else {
             updateThreadError(threadId: threadId, error: "Request limit reached")
             return
@@ -361,7 +361,7 @@ extension AppState {
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         guard !requestedKey.isEmpty,
-              let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: requestedKey) else { return }
+              let url = endpointURL("forum.thread", parameter: threadId, key: requestedKey) else { return }
         guard reserveRequest("forum.thread") else {
             updateThreadError(threadId: threadId, error: "Request limit reached")
             return

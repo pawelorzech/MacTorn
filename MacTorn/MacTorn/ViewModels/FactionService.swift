@@ -105,8 +105,7 @@ final class FactionService: FactionServicing {
     }
 
     private func load(_ url: URL) async throws -> TransportResponse {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let request = TornAPIClient.request(for: url)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             return .httpError(

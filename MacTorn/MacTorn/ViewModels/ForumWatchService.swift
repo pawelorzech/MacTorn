@@ -184,8 +184,7 @@ final class ForumWatchService: ForumWatchServicing {
     }
 
     func fetchThread(from url: URL) async throws -> ForumThreadResult {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let request = TornAPIClient.request(for: url)
         let (data, response) = try await session.data(for: request)
 
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {

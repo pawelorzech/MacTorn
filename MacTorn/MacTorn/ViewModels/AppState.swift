@@ -309,16 +309,24 @@ class AppState {
     /// Shared clock (injected). Used for the daily-row-limit pause windows below.
     @ObservationIgnored let time: TimeSource
 
-    /// Row-based sources paused after a Torn "daily read limit" hit (error code 14),
-    /// keyed by endpoint id → re-arm instant (ISC-15.1). Keyed by endpoint (NOT budget
-    /// category): `faction.news` and `faction.basic` share the `faction` budget, but only
-    /// the row-based `news` can trip code 14 — pausing it must never stop the point-in-time
-    /// `faction.basic` chain data that drives the chain alert. Point-in-time endpoints never
-    /// land here, so the live bars/countdowns keep running while a row source is paused.
-    @ObservationIgnored var rowSourcePausedUntil: [String: Date] = [:]
+    /// Decides per endpoint whether a request may be spent at all: live cool-offs after a
+    /// self-healing failure, selections the validated key cannot read, faction endpoints
+    /// for a factionless player, and the per-category row budget.
+    ///
+    /// Pauses are keyed by endpoint, never by budget category: `faction.news` and
+    /// `faction.basic` share the `faction` budget, but only the row-based `news` can trip
+    /// code 14 — pausing it must never stop the point-in-time `faction.basic` chain data
+    /// that drives the chain alert.
+    @ObservationIgnored let endpointGate: TornEndpointGate
 
-    /// How long a row source stays paused after a code-14 hit before it is retried. The cap
-    /// is a rolling 24 h window, so a conservative 1 h pause backs off without giving up.
+    /// In-flight background `/key/info` load (see `refreshKeyInfoIfNeeded`). Held so a
+    /// burst of poll ticks cannot start several at once.
+    @ObservationIgnored var keyInfoTask: Task<Void, Never>?
+
+    /// Scheduled resume after a recoverable key error (federal jail, key cooldown, IP
+    /// block). Held so a newer error, or an account change, can cancel the old wake-up.
+    @ObservationIgnored var keyResumeTask: Task<Void, Never>?
+
     /// Chain timeout (seconds remaining) below which the "Chain Expiring!" alert arms.
     static let chainWarningThreshold = 60
 
@@ -345,6 +353,7 @@ class AppState {
             forumWatchService ?? ForumWatchService(defaults: defaults, session: session)
         self.notificationCoordinator = NotificationCoordinator(defaults: defaults, time: time)
         self.pollingCoordinator = pollingCoordinator ?? PollingCoordinator(time: time)
+        self.endpointGate = TornEndpointGate(time: time)
         self.endpointHealth = EndpointHealthTracker(time: time)
 
         // Was provided by @AppStorage; now manual seed from UserDefaults so the
@@ -408,7 +417,11 @@ class AppState {
         notifiedBountyKeys = []
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
-        rowSourcePausedUntil = [:]
+        endpointGate.reset()
+        keyInfoTask?.cancel()
+        keyInfoTask = nil
+        keyResumeTask?.cancel()
+        keyResumeTask = nil
         liveTimerCancellable?.cancel()
         liveTimerCancellable = nil
     }

@@ -116,6 +116,11 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// true = part of the app's core (an outage degrades the whole app);
     /// false = optional module the user can live without.
     let critical: Bool
+    /// true when the endpoint only returns anything for a key whose owner is in a
+    /// faction. `/key/info` reports `user.faction_id`, so MacTorn can skip these
+    /// outright for a factionless player instead of spending a request every poll on a
+    /// call that can only come back empty.
+    var requiresFaction: Bool = false
 
     var isParameterized: Bool { path.contains("{param}") }
 
@@ -123,18 +128,36 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// endpoints count as 1 "request" but 0 row-based records.
     var recordsPerCall: Int { dataShape == .rowBased ? (recordLimit ?? 0) : 0 }
 
+    /// The selections this endpoint should actually ask for, given what `/key/info` says
+    /// the key can read. `granted == nil` (key never validated) means ask for everything.
+    ///
+    /// Narrowing matters because Torn rejects the *whole request* with error 16 when it
+    /// contains one selection the key cannot read. Asking a Minimal-access key for
+    /// `battlestats` therefore does not cost you battle stats — it costs you the bars,
+    /// the cooldowns and the travel timer in the same call. Trimming the request to what
+    /// the key can serve turns a total failure into a partial answer.
+    func resolvedSelections(granted: Set<String>?) -> [String] {
+        guard let granted, !selections.isEmpty else { return selections }
+        return selections.filter { granted.contains($0) }
+    }
+
     /// Builds the request URL with the same percent-encoding + sorted query items as
     /// the legacy `TornAPI` builders. `parameter` fills a `{param}` placeholder and is
     /// required for parameterized endpoints (returns nil if missing).
-    func url(key: String, parameter: Int? = nil) -> URL? {
+    ///
+    /// Returns nil when `granted` rules out every selection the endpoint needs — there is
+    /// no request left to make, and the caller should skip rather than send an empty one.
+    func url(key: String, parameter: Int? = nil, granted: Set<String>? = nil) -> URL? {
         var resolvedPath = path
         if isParameterized {
             guard let parameter else { return nil }
             resolvedPath = resolvedPath.replacingOccurrences(of: "{param}", with: String(parameter))
         }
-        var query: [String: String] = ["key": key]
+        var query: [String: String] = ["key": key, "comment": TornAPIClient.comment]
         if !selections.isEmpty {
-            query["selections"] = selections.joined(separator: ",")
+            let usable = resolvedSelections(granted: granted)
+            guard !usable.isEmpty else { return nil }
+            query["selections"] = usable.joined(separator: ",")
         }
         if sendsLimitQuery, let recordLimit {
             query["limit"] = String(recordLimit)
@@ -219,7 +242,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: false,
             cachePolicy: .none,
             budget: .faction,
-            critical: false
+            critical: false,
+            requiresFaction: true
         ),
         TornEndpoint(
             id: "faction.rankedwars",
@@ -236,7 +260,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: false,
             cachePolicy: .throttle(seconds: 300),
             budget: .faction,
-            critical: false
+            critical: false,
+            requiresFaction: true
         ),
         TornEndpoint(
             id: "faction.news",
@@ -253,7 +278,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: true,
             cachePolicy: .throttle(seconds: 300),
             budget: .faction,
-            critical: false
+            critical: false,
+            requiresFaction: true
         ),
         TornEndpoint(
             id: "market.item",

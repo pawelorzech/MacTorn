@@ -74,6 +74,9 @@
 		BBB00021 /* AppStateStocksMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10021 /* AppStateStocksMetadataTests.swift */; };
 		BBB00022 /* AppStatePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10022 /* AppStatePerformanceTests.swift */; };
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
+		AAA00053 /* TornEndpointGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10053 /* TornEndpointGate.swift */; };
+		AAA00054 /* TornEndpointGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10054 /* TornEndpointGateTests.swift */; };
+		AAA00055 /* TornAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10055 /* TornAPIClientTests.swift */; };
 		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
 		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
 		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
@@ -189,6 +192,9 @@
 		BBB10022 /* AppStatePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePerformanceTests.swift; sourceTree = "<group>"; };
 		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
+		AAA10053 /* TornEndpointGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGate.swift; sourceTree = "<group>"; };
+		AAA10054 /* TornEndpointGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGateTests.swift; sourceTree = "<group>"; };
+		AAA10055 /* TornAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIClientTests.swift; sourceTree = "<group>"; };
 		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
 		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
 		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
@@ -363,6 +369,7 @@
 		AAA30008 /* Networking */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10053 /* TornEndpointGate.swift */,
 				AAA10022 /* NetworkSession.swift */,
 				AAA10030 /* TornEndpoint.swift */,
 				AAA10031 /* TornAPIError.swift */,
@@ -412,6 +419,8 @@
 		BBB30003 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10054 /* TornEndpointGateTests.swift */,
+				AAA10055 /* TornAPIClientTests.swift */,
 				BBB10004 /* BarTests.swift */,
 				BBB10005 /* TravelTests.swift */,
 				BBB10006 /* StatusTests.swift */,
@@ -601,6 +610,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA00053 /* TornEndpointGate.swift in Sources */,
 				AAA00001 /* MacTornApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
 				AAA00004 /* TornModels.swift in Sources */,
@@ -660,6 +670,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA00054 /* TornEndpointGateTests.swift in Sources */,
+				AAA00055 /* TornAPIClientTests.swift in Sources */,
 				BBB00001 /* MockNetworkSession.swift in Sources */,
 				BBB00002 /* TestHelpers.swift in Sources */,
 				BBB00003 /* TornAPIFixtures.swift in Sources */,

@@ -3,7 +3,6 @@ import Combine
 
 extension AppState {
     private static var activityMinInterval: TimeInterval { 300 }
-    private static var dailyRowLimitPause: TimeInterval { 3600 }
 
     // MARK: - Polling
 
@@ -17,6 +16,7 @@ extension AppState {
             return
         }
         timerCancellable?.cancel()
+        refreshKeyInfoIfNeeded()
         fetchData()
         triggerStocksMetadataFetchIfNeeded()
         installPollingTimer()
@@ -71,24 +71,57 @@ extension AppState {
     }
 
     func isRowSourcePaused(_ endpointID: String) -> Bool {
-        guard let until = rowSourcePausedUntil[endpointID] else { return false }
-        if time.now >= until {
-            rowSourcePausedUntil[endpointID] = nil
-            return false
+        endpointGate.isPaused(endpointID)
+    }
+
+    /// Records a failure against the endpoint that produced it, so the gate can hold that
+    /// one endpoint back for as long as the failure class warrants — a daily row limit for
+    /// an hour, a key cooldown for ten minutes, an IP block for an hour — while every
+    /// other endpoint keeps polling.
+    func noteEndpointFailure(_ error: TornAPIError, for endpointID: String) {
+        endpointGate.note(error, for: endpointID)
+        if let pause = error.pauseDuration {
+            logger.warning(
+                "Paused \(endpointID) for \(Int(pause))s after \(error.classification.rawValue) (code \(error.tornCode ?? -1))"
+            )
         }
-        return true
     }
 
     func pauseRowSource(_ endpointID: String, error: TornAPIError) {
-        rowSourcePausedUntil[endpointID] = time.now.addingTimeInterval(Self.dailyRowLimitPause)
-        logger.warning("Paused row source \(endpointID) for \(Int(Self.dailyRowLimitPause))s after daily read limit (code \(error.tornCode ?? 14))")
+        noteEndpointFailure(error, for: endpointID)
     }
 
+    /// Builds the URL for a registered endpoint, narrowed to the selections this key is
+    /// actually allowed to read.
+    ///
+    /// This is the single builder the registry header has always pointed at (ISA backlog
+    /// A-02). Going through the registry rather than the hand-written `TornAPI` helpers is
+    /// what makes selection narrowing possible at all: the registry knows which
+    /// `/key/info` category an endpoint belongs to, so it can intersect the endpoint's
+    /// selections with the ones the key was granted.
+    func endpointURL(_ endpointID: String, parameter: Int? = nil, key: String? = nil) -> URL? {
+        guard let endpoint = TornEndpointRegistry.endpoint(id: endpointID) else { return nil }
+        let resolvedKey = key ?? apiKey
+        guard !resolvedKey.isEmpty else { return nil }
+        let granted = keyInfo.map { Set($0.selections.names(for: KeyValidator.category(for: endpoint))) }
+        return endpoint.url(key: resolvedKey, parameter: parameter, granted: granted)
+    }
+
+    /// The single choke point every request-issuing path goes through. Returns false —
+    /// and spends nothing — when the gate already knows the call cannot produce data.
     @discardableResult
     func reserveRequest(_ endpointID: String) -> Bool {
-        guard let endpoint = TornEndpointRegistry.endpoint(id: endpointID),
-              pollingCoordinator.canMakeRequest() else {
-            logger.warning("Request skipped for \(endpointID): per-minute budget reached")
+        guard let endpoint = TornEndpointRegistry.endpoint(id: endpointID) else {
+            logger.error("Request skipped for \(endpointID): not in the endpoint registry")
+            return false
+        }
+        if let denial = endpointGate.denial(for: endpointID,
+                                            keyInfo: keyInfo,
+                                            coordinator: pollingCoordinator) {
+            // Deliberately debug, not warning: a skip is the gate working. Only genuine
+            // failures deserve the warning level, or a factionless player's log fills
+            // with "faction/basic denied" every thirty seconds.
+            logger.debug("Request skipped for \(endpointID): \(denial.label)")
             return false
         }
         pollingCoordinator.record(endpoint)
@@ -105,6 +138,73 @@ extension AppState {
         logger.error("Polling halted on permanent key/permission error (code \(error.tornCode ?? -1))")
     }
 
+    /// Handles the key errors that clear on their own — federal jail, a key-change
+    /// cooldown, a key Torn disabled temporarily, an IP block.
+    ///
+    /// These used to be classified as permanent, which meant a stint in federal jail
+    /// stopped MacTorn dead and told the user their key was invalid. Nothing was wrong
+    /// with the key: it starts working again by itself. So polling stands down for the
+    /// error's `pauseDuration`, says so in plain words, and comes back without the user
+    /// touching anything.
+    func handleRecoverableKeyError(_ error: TornAPIError) {
+        let pause = error.pauseDuration ?? 600
+        errorMsg = error.userMessage
+        stopPolling()
+        logger.warning(
+            "Polling paused \(Int(pause))s on recoverable key error (code \(error.tornCode ?? -1))"
+        )
+        keyResumeTask?.cancel()
+        keyResumeTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(pause * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard let self, !self.keyHalted, !self.apiKey.isEmpty else { return }
+                self.logger.info("Resuming polling after recoverable key error cool-off")
+                self.startPolling()
+            }
+        }
+    }
+
+    /// Loads `/key/info` in the background so the endpoint gate knows what this key can
+    /// actually read, without touching `keyValidation` — that state belongs to the
+    /// Settings "Test Connection" button and a panel appearing on its own would be a
+    /// result the user never asked for.
+    ///
+    /// Without this, `keyInfo` stayed nil for anyone who never pressed that button, and
+    /// the gate had nothing to gate on: the app went right on asking a factionless
+    /// player's key for faction data every thirty seconds.
+    func refreshKeyInfoIfNeeded() {
+        guard keyInfo == nil, !apiKey.isEmpty, !keyHalted, connectivity.isConnected else { return }
+        guard keyInfoTask == nil else { return }
+        let requestedKey = apiKey
+        let identity = accountSession.identity
+        guard let url = endpointURL("key.info", key: requestedKey),
+              reserveRequest("key.info") else { return }
+
+        keyInfoTask = Task { [weak self] in
+            defer { Task { @MainActor in self?.keyInfoTask = nil } }
+            guard let self else { return }
+            let startTime = Date()
+            do {
+                let (data, response) = try await self.session.data(for: TornAPIClient.request(for: url))
+                guard self.accountSession.isCurrent(identity) else { return }
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                      let decoded = try? JSONDecoder().decode(TornKeyInfo.Response.self, from: data)
+                else {
+                    self.recordHealth("key.info", outcome: .error, since: startTime,
+                                      bytes: data.count, errorClass: "malformedResponse")
+                    return
+                }
+                self.keyInfo = decoded.info
+                self.recordHealth("key.info", outcome: .ok, since: startTime, bytes: data.count)
+                self.logger.info("Key capabilities loaded: access level \(decoded.info.access.level)")
+            } catch {
+                self.recordHealth("key.info", outcome: .error, since: startTime, bytes: 0,
+                                  errorClass: "transport")
+            }
+        }
+    }
+
     func validateKey(_ keyOverride: String? = nil) async {
         let trimmed = (keyOverride ?? apiKey).trimmingCharacters(in: .whitespacesAndNewlines)
         let validationIdentity = accountSession.identity
@@ -116,7 +216,7 @@ extension AppState {
             keyValidation = .failure(TornAPIError.offline.userMessage)
             return
         }
-        guard let url = TornAPI.keyInfoURL(for: trimmed) else {
+        guard let url = endpointURL("key.info", key: trimmed) else {
             keyValidation = .failure("Could not build the key-info request.")
             return
         }
@@ -130,8 +230,7 @@ extension AppState {
         logger.info("Validating key via key-info: \(tornRedactedURL(url))")
 
         do {
-            var request = URLRequest(url: url)
-            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let request = TornAPIClient.request(for: url)
             let (data, response) = try await session.data(for: request)
             guard accountSession.isCurrent(validationIdentity) else { return }
 
@@ -223,7 +322,7 @@ extension AppState {
             return false
         }
 
-        guard let url = TornAPI.url(for: requestedKey) else {
+        guard let url = endpointURL("user.fast", key: requestedKey) else {
             errorMsg = "Invalid URL"
             logger.error("Fetch aborted: Invalid URL")
             return false
@@ -282,8 +381,12 @@ extension AppState {
                                 bytes: data.count,
                                 errorClass: apiError.classification.rawValue
                             )
+                            self.noteEndpointFailure(apiError, for: "user.fast")
                             if apiError.haltsAllRequests {
                                 self.handlePermanentKeyError(apiError)
+                            } else if apiError.classification == .temporaryKey
+                                        || apiError.classification == .ipBlocked {
+                                self.handleRecoverableKeyError(apiError)
                             } else {
                                 self.errorMsg = apiError.userMessage
                                 self.logger.warning("User API error class: \(apiError.classification.rawValue)")
@@ -465,7 +568,7 @@ extension AppState {
     // MARK: - Fetch Row-Based Activity Data
 
     private func fetchActivityData(apiKey: String, generation: UInt) async {
-        guard !apiKey.isEmpty, let url = TornAPI.activityURL(for: apiKey) else { return }
+        guard !apiKey.isEmpty, let url = endpointURL("user.activity", key: apiKey) else { return }
         guard !isRowSourcePaused("user.activity") else { return }
 
         if let last = lastActivityFetch,
@@ -488,9 +591,7 @@ extension AppState {
                 recordHealth("user.activity", outcome: .ok, since: startTime, bytes: responseBytes)
 
             case .apiError(let apiError, let responseBytes):
-                if apiError.haltsCategoryOnly {
-                    pauseRowSource("user.activity", error: apiError)
-                }
+                noteEndpointFailure(apiError, for: "user.activity")
                 recordHealth(
                     "user.activity",
                     outcome: .error,
@@ -525,7 +626,7 @@ extension AppState {
     // MARK: - Fetch API v2 User Data
 
     private func fetchUserV2Data(apiKey: String, generation: UInt) async {
-        guard !apiKey.isEmpty, let url = TornAPI.userV2URL(for: apiKey),
+        guard !apiKey.isEmpty, let url = endpointURL("user.v2", key: apiKey),
               reserveRequest("user.v2") else { return }
         let startTime = Date()
 

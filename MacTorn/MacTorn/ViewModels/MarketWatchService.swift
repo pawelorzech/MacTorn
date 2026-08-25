@@ -151,8 +151,7 @@ final class MarketWatchService: MarketWatchServicing {
     }
 
     func fetchPrice(from url: URL) async throws -> MarketPriceResult {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let request = TornAPIClient.request(for: url)
         let (data, response) = try await session.data(for: request)
 
         if let http = response as? HTTPURLResponse, http.statusCode != 200 {
