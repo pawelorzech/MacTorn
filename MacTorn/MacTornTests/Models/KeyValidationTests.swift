@@ -9,7 +9,7 @@ final class KeyValidationTests: XCTestCase {
     private let fullUserSelections = [
         "basic", "bars", "cooldowns", "travel", "profile", "money", "battlestats",
         "properties", "stocks", "organizedcrime", "refills", "education", "bounties",
-        "events", "messages", "attacks",
+        "notifications", "events", "attacks",
     ]
 
     /// Builds a spec-accurate `/key/info` payload.

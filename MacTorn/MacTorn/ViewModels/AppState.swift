@@ -175,6 +175,11 @@ class AppState {
     var refills: Refills?
     var education: EducationStatus?
     var bountiesOnMe: [Bounty] = []
+    /// Unread messages / events / awards / competition, from the point-in-time
+    /// `notifications` selection. Cheap enough to refresh on every poll.
+    var notificationCounts: TornNotifications?
+    /// The virus currently being written, if any. Read rarely — see `fetchVirusIfNeeded`.
+    var virus: VirusProgramming?
     // MARK: - Faction v2 state (ranked wars, news)
     var rankedWars: [RankedWar] {
         factionService.wars
@@ -262,7 +267,12 @@ class AppState {
     /// 5 min → ≤288 calls/day × 25-row limit ≈ 7,200 rows/day, well under the 50k cap.
     @ObservationIgnored var lastFactionV2Fetch: Date?
 
-    /// Throttle for the row-based user activity call (events + messages + attacks).
+    /// Throttle for the virus read. The response is an absolute finish timestamp, so
+    /// between reads the countdown runs locally and the endpoint only needs re-reading
+    /// once that timestamp has passed.
+    @ObservationIgnored var lastVirusFetch: Date?
+
+    /// Throttle for the row-based user activity call (events + attacks).
     /// Same 50k-rows/day-per-category budget as faction news — keep the cadence slow.
     @ObservationIgnored var lastActivityFetch: Date?
 
@@ -409,6 +419,9 @@ class AppState {
         refills = nil
         education = nil
         bountiesOnMe = []
+        notificationCounts = nil
+        virus = nil
+        lastVirusFetch = nil
         cooldownEnds = nil
         serverClock = .synchronized
         travelSecondsRemaining = 0

@@ -3,6 +3,8 @@ import Combine
 
 extension AppState {
     private static var activityMinInterval: TimeInterval { 300 }
+    /// Floor between virus reads when the app does not already know a finish time.
+    static var virusMinInterval: TimeInterval { 1_800 }
 
     // MARK: - Polling
 
@@ -403,6 +405,7 @@ extension AppState {
                     async let userV2Result: Void = self.fetchUserV2Data(apiKey: requestedKey, generation: generation)
                     async let factionV2Result: Void = self.fetchFactionV2Data(apiKey: requestedKey, generation: generation)
                     async let activityResult: Void = self.fetchActivityData(apiKey: requestedKey, generation: generation)
+                    async let virusResult: Void = self.fetchVirusIfNeeded(apiKey: requestedKey, generation: generation)
                     let parsed = await self.parseDataInBackground(
                         data: data,
                         receivedAt: receivedAt,
@@ -413,6 +416,7 @@ extension AppState {
                     await userV2Result
                     await factionV2Result
                     await activityResult
+                    await virusResult
 
                     guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
                     if parsed {
@@ -623,6 +627,60 @@ extension AppState {
         }
     }
 
+    // MARK: - Fetch Virus Programming
+
+    /// Reads `/v2/user/virus`, but only when the answer could have changed.
+    ///
+    /// Writing a virus takes days, and the response is an absolute finish timestamp rather
+    /// than a countdown — so between reads there is nothing to learn. This asks again only
+    /// once a known virus has finished, or after half an hour of not knowing, which is why
+    /// a feature with its own endpoint costs a handful of requests a day rather than one
+    /// per poll.
+    func fetchVirusIfNeeded(apiKey: String, generation: UInt) async {
+        if let virus, !virus.isReady(at: serverNow) { return }
+        if let last = lastVirusFetch,
+           time.now.timeIntervalSince(last) < Self.virusMinInterval { return }
+        guard let url = endpointURL("user.virus", key: apiKey),
+              reserveRequest("user.virus") else { return }
+
+        lastVirusFetch = time.now
+        let startTime = Date()
+        do {
+            let result = try await userSnapshotService.loadVirus(url)
+            guard isCurrentAccount(apiKey, generation: generation) else { return }
+
+            switch result {
+            case .success(let value, let responseBytes):
+                let wasProgramming = virus
+                virus = value
+                if let wasProgramming, value == nil || value?.itemID != wasProgramming.itemID,
+                   notificationCoordinator.shouldFireOnce("virus.ready", epoch: "\(wasProgramming.until)") {
+                    NotificationManager.shared.send(
+                        title: "Virus ready 💾",
+                        body: "\(wasProgramming.name) has finished programming",
+                        type: .virusReady
+                    )
+                }
+                recordHealth("user.virus", outcome: .ok, since: startTime, bytes: responseBytes)
+
+            case .apiError(let apiError, let responseBytes):
+                noteEndpointFailure(apiError, for: "user.virus")
+                recordHealth("user.virus", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: apiError.classification.rawValue)
+
+            case .malformed(let responseBytes):
+                recordHealth("user.virus", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: "malformedResponse")
+            }
+        } catch {
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth("user.virus",
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "transport")
+        }
+    }
+
     // MARK: - Fetch API v2 User Data
 
     private func fetchUserV2Data(apiKey: String, generation: UInt) async {
@@ -640,6 +698,12 @@ extension AppState {
                 if let refills = payload.refills { self.refills = refills }
                 if let education = payload.education { self.education = education }
                 bountiesOnMe = payload.bounties
+                if let counts = payload.notifications {
+                    notificationCounts = counts
+                    // The unread count used to arrive with the row-based activity call, so
+                    // it was up to five minutes stale. It rides the fast poll now.
+                    unreadMessages = counts.messages
+                }
 
                 if shouldNotifyOCReady(payload.organizedCrime),
                    let organizedCrime = payload.organizedCrime {

@@ -540,6 +540,10 @@ private final class ClockBurningSnapshotService: UserSnapshotServicing, @uncheck
     func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
         try await wrapped.loadUserV2(url)
     }
+
+    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
+        .success(nil, responseBytes: 0)
+    }
 }
 
 /// The pure conversion `ServerClockOffsetTests` drives end-to-end. These pin the two

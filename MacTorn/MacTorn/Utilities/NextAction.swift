@@ -11,7 +11,7 @@ import Foundation
 enum NextActionCategory: String, CaseIterable, Codable, Sendable {
     case energy, nerve, happy, life
     case drug, medical, booster
-    case travel, hospital, jail, education, organizedCrime, chain, refills
+    case travel, hospital, jail, education, organizedCrime, chain, refills, virus
 
     var label: String {
         switch self {
@@ -29,6 +29,7 @@ enum NextActionCategory: String, CaseIterable, Codable, Sendable {
         case .organizedCrime: return "OC ready"
         case .chain: return "Chain timeout"
         case .refills: return "Refills available"
+        case .virus: return "Virus ready"
         }
     }
 
@@ -48,6 +49,7 @@ enum NextActionCategory: String, CaseIterable, Codable, Sendable {
         case .organizedCrime: return "person.3.sequence.fill"
         case .chain: return "link"
         case .refills: return "arrow.clockwise.circle.fill"
+        case .virus: return "externaldrive.badge.checkmark"
         }
     }
 
@@ -85,6 +87,7 @@ struct NextActionSnapshot: Equatable {
     var educationEndsAt: Int?
     var ocReadyAt: Int?
     var chainTimeoutAt: Int?
+    var virusFinishesAt: Int?
     var refillsAvailable: Bool
 
     init(now: Int) {
@@ -117,6 +120,7 @@ struct NextActionEngine {
         addFuture(.education, s.educationEndsAt)
         addFuture(.organizedCrime, s.ocReadyAt)
         addFuture(.chain, s.chainTimeoutAt)
+        addFuture(.virus, s.virusFinishesAt)
 
         if s.refillsAvailable && !hidden.contains(.refills) {
             out.append(NextEvent(category: .refills, title: NextActionCategory.refills.label, fireAt: s.now, eta: 0))

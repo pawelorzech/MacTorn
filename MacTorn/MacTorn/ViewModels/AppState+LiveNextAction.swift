@@ -150,6 +150,9 @@ extension AppState {
         if let refills, !refills.unclaimed.isEmpty {
             snapshot.refillsAvailable = true
         }
+        if let virus, virus.until > 0 {
+            snapshot.virusFinishesAt = virus.until
+        }
         return snapshot
     }
 

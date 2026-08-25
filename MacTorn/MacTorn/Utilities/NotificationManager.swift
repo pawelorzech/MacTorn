@@ -22,6 +22,7 @@ enum NotificationType: String {
     case bountyOnMe
     case forumNewPosts
     case factionNewThread
+    case virusReady
 
     var url: URL {
         switch self {
@@ -47,6 +48,8 @@ enum NotificationType: String {
             return URL(string: "https://www.torn.com/bounties.php")!
         case .forumNewPosts, .factionNewThread:
             return URL(string: "https://www.torn.com/forums.php")!
+        case .virusReady:
+            return URL(string: "https://www.torn.com/crimes.php")!
         }
     }
 }

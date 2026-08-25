@@ -864,6 +864,83 @@ struct Refills: Codable, Equatable {
     }
 }
 
+// MARK: - Notification counters (v2 /user?selections=notifications)
+
+/// The four counters Torn's own header badges are built from.
+///
+/// This is the cheap way to know there is something waiting. MacTorn used to learn its
+/// unread-message count from the row-based `messages` selection, which spends rows against
+/// the 50,000-a-day-per-category cap just to produce one integer — so it could only afford
+/// to ask every five minutes. `notifications` is point-in-time, costs no rows, needs only a
+/// Minimal-access key, and rides the poll MacTorn already makes. It also carries two
+/// signals the app previously had no way to see at all: pending awards, and an active
+/// competition.
+struct TornNotifications: Codable, Equatable, Sendable {
+    let messages: Int
+    let events: Int
+    let awards: Int
+    let competition: Int
+
+    init(messages: Int = 0, events: Int = 0, awards: Int = 0, competition: Int = 0) {
+        self.messages = messages
+        self.events = events
+        self.awards = awards
+        self.competition = competition
+    }
+
+    var total: Int { messages + events + awards + competition }
+    var hasAny: Bool { total > 0 }
+}
+
+// MARK: - Virus programming (v2 /user/virus)
+
+/// A virus being written, and the instant it finishes.
+///
+/// `nil` at the response level means no virus is being programmed. Torn gives an absolute
+/// Unix timestamp rather than a duration, so the countdown is derived locally and the
+/// endpoint only needs re-reading when it lapses — see `AppState.fetchVirusIfNeeded`.
+struct VirusProgramming: Codable, Equatable, Sendable {
+    let itemID: Int
+    let name: String
+    /// Absolute Unix timestamp the virus is finished at.
+    let until: Int
+
+    init(itemID: Int, name: String, until: Int) {
+        self.itemID = itemID
+        self.name = name
+        self.until = until
+    }
+
+    private enum CodingKeys: String, CodingKey { case item, until }
+    private enum ItemKeys: String, CodingKey { case id, name }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let item = try container.nestedContainer(keyedBy: ItemKeys.self, forKey: .item)
+        itemID = try item.decode(Int.self, forKey: .id)
+        name = try item.decode(String.self, forKey: .name)
+        until = try container.decode(Int.self, forKey: .until)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        var item = container.nestedContainer(keyedBy: ItemKeys.self, forKey: .item)
+        try item.encode(itemID, forKey: .id)
+        try item.encode(name, forKey: .name)
+        try container.encode(until, forKey: .until)
+    }
+
+    /// Seconds left, measured against the Torn-side clock the caller supplies (issue #46:
+    /// every countdown in the app reads through `ServerClock`, never a bare `Date()`).
+    /// Never negative — a finished virus reads as zero, not as a countdown running
+    /// backwards.
+    func secondsRemaining(at serverNow: Date) -> Int {
+        max(0, until - Int(serverNow.timeIntervalSince1970))
+    }
+
+    func isReady(at serverNow: Date) -> Bool { Int(serverNow.timeIntervalSince1970) >= until }
+}
+
 // MARK: - Education (v2 /user?selections=education)
 struct EducationStatus: Codable, Equatable {
     let complete: [Int]
@@ -1298,7 +1375,11 @@ enum TornAPI {
 
     /// Slow poll: the row-based / display-only categories. Capped with `limit` and
     /// fetched every few minutes so each category stays well under 50k rows/day.
-    static let activitySelections = "events,messages,attacks"
+    ///
+    /// `messages` used to be here purely to produce one unread count, at the price of 25
+    /// rows a call against the daily cap. That count now comes free from the point-in-time
+    /// `notifications` selection on the v2 poll, so this call carries a third fewer rows.
+    static let activitySelections = "events,attacks"
     /// Rows per category per activity call. The UI only ever shows a handful, so 25 is
     /// generous; at a 5-minute cadence that is 25 × 288 ≈ 7,200 rows/day/category.
     static let activityRowLimit = 25
@@ -1340,7 +1421,7 @@ enum TornAPI {
     /// Combined API v2 `user` call. v2 accepts multiple selections in one request
     /// (verified live), so a single call covers organized crime, refills, education
     /// and bounties. v1 selections stay on the frozen v1 endpoints above.
-    static let userV2Selections = "organizedcrime,refills,education,bounties"
+    static let userV2Selections = "organizedcrime,refills,education,bounties,notifications"
     static func userV2URL(for apiKey: String) -> URL? {
         build("https://api.torn.com/v2/user",
               query: ["selections": userV2Selections, "key": apiKey])
@@ -1370,6 +1451,13 @@ enum TornAPI {
     static func marketURL(itemId: Int, apiKey: String) -> URL? {
         build("https://api.torn.com/v2/market/\(itemId)",
               query: ["selections": "itemmarket,bazaar", "key": apiKey])
+    }
+
+    /// Virus programming has no combinable `/user` selection — it is absent from Torn's
+    /// `UserSelectionName` enum — so it needs its own path. Read rarely: the response is an
+    /// absolute finish timestamp, and the countdown between reads is derived locally.
+    static func userVirusURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/user/virus", query: ["key": apiKey])
     }
 
     static func tornStocksURL(for apiKey: String) -> URL? {
