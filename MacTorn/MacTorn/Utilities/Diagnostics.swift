@@ -204,6 +204,15 @@ struct DiagnosticsReport: Equatable {
     // Per-endpoint health
     let endpoints: [EndpointHealth]
 
+    /// Endpoints the gate is currently holding back, and why: endpoint id → the reason's
+    /// `TornEndpointDenial.label`.
+    ///
+    /// Safe by construction, like every other field here. Denial labels come from a closed
+    /// vocabulary of classifications and selection *names* — never a server message, never
+    /// a key, never anything the user typed. This is the field that answers the support
+    /// question "why is my faction tab empty?" without anyone having to read a log.
+    let suppressedEndpoints: [String: String]
+
     /// The "Copy sanitized diagnostic report" body. Contains only the safe fields above.
     func sanitizedText() -> String {
         var lines: [String] = []
@@ -226,6 +235,15 @@ struct DiagnosticsReport: Equatable {
             lines.append("Records/day per category:")
             for key in recordsPerDayByCategory.keys.sorted() {
                 lines.append("  \(key): \(recordsPerDayByCategory[key]!)")
+            }
+        }
+        lines.append("")
+        if suppressedEndpoints.isEmpty {
+            lines.append("Suppressed endpoints: none")
+        } else {
+            lines.append("Suppressed endpoints:")
+            for key in suppressedEndpoints.keys.sorted() {
+                lines.append("  \(key): \(suppressedEndpoints[key]!)")
             }
         }
         lines.append("")

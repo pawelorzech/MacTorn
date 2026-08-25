@@ -189,8 +189,27 @@ extension AppState {
             requestsLastMinute: pollingCoordinator.requestsInLastMinute,
             requestsLastDay: pollingCoordinator.requestsInLastDay,
             recordsPerDayByCategory: recordsByCategory,
-            endpoints: endpointHealth.all
+            endpoints: endpointHealth.all,
+            suppressedEndpoints: currentEndpointSuppressions()
         )
+    }
+
+    /// Every endpoint the gate would refuse right now, with the reason.
+    ///
+    /// Asked of the gate rather than remembered, so the answer is current: a cool-off that
+    /// has already lapsed does not linger in the report as though it were still in force.
+    /// The per-minute cap is excluded — it is a momentary condition that says nothing about
+    /// an endpoint, and reporting it would make a healthy burst look like a fault.
+    func currentEndpointSuppressions() -> [String: String] {
+        var result: [String: String] = [:]
+        for endpoint in TornEndpointRegistry.all {
+            guard let denial = endpointGate.denial(for: endpoint.id,
+                                                   keyInfo: keyInfo,
+                                                   coordinator: pollingCoordinator),
+                  denial != .perMinuteCapReached else { continue }
+            result[endpoint.id] = denial.label
+        }
+        return result
     }
 
     /// Coarse, closed-vocabulary summary of the most recent failure — a `TornErrorClass`

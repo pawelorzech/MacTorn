@@ -51,6 +51,16 @@ struct DiagnosticsView: View {
                                 }
                             }
                         }
+                        if !report.suppressedEndpoints.isEmpty {
+                            section("Not being requested") {
+                                Text("MacTorn is skipping these on purpose.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                ForEach(report.suppressedEndpoints.keys.sorted(), id: \.self) { key in
+                                    row(key, report.suppressedEndpoints[key]!)
+                                }
+                            }
+                        }
                         section("Endpoints") {
                             if report.endpoints.isEmpty {
                                 Text("No endpoints called yet.")
