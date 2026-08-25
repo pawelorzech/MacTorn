@@ -7,6 +7,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-08-26 — a better Torn API citizen
+
+### Added
+- **Search Torn's item catalog by name.** Adding a watchlist entry no longer means
+  knowing its numeric item ID and typing the name yourself. Type "xanax", pick it from
+  the matches, and it is added correctly labelled. Entries you added earlier as
+  `Item #206` are relabelled once the catalog loads; names you chose yourself are left
+  alone. The catalog is cached for a week and everything still works without it.
+- **Virus programming countdown.** The virus you are writing now appears on the Next
+  Action timeline alongside education, Organized Crime and the bars, with a notification
+  when it finishes.
+- **Awards and competitions in the Status badges.** The unread-messages badge became a
+  row showing waiting messages, events, awards and open competitions — the same four
+  counters Torn's own header shows. Awards and competitions were never visible before.
+- **Watch a whole forum category for new threads.** Turn it on in Settings, give it a
+  category ID, and MacTorn alerts you when a thread appears that was not there before.
+  The first check only learns which threads already exist, so switching it on does not
+  produce a hundred notifications about months-old conversations.
+- **Diagnostics explains what is not being requested.** A new section lists every
+  endpoint MacTorn is deliberately skipping and why — a key without the right
+  permission, no faction, a daily read limit still cooling off.
+
+### Changed
+- **MacTorn now reads your key's permissions and asks only for what it can get.** It
+  used to fire every request regardless: a player with no faction spent a call on
+  faction data every thirty seconds, forever, purely to be told no. Those calls are
+  gone.
+- **A request naming several selections is trimmed rather than rejected.** Torn refuses
+  an entire request if it names one selection your key cannot read — so asking a
+  Minimal-access key for battle stats did not cost you battle stats, it cost you the
+  bars, the cooldowns and the travel timer in the same call. MacTorn now asks for the
+  readable ones and shows what it gets.
+- **The unread count is current instead of five minutes old**, and costs nothing. It
+  moved from a row-based call that spends against Torn's daily read limit to the
+  point-in-time counter that rides the poll MacTorn already makes.
+- **Every request identifies itself as `MacTorn` in your key log**, so you can tell its
+  traffic apart from every other tool you have given the same key. API v2 requests now
+  send the key in an `Authorization` header rather than in the URL.
+
+### Fixed
+- **A spell in federal jail no longer looks like a broken key.** Torn's "key owner in
+  federal jail", "key change cooldown" and "key temporary disabled" errors all clear on
+  their own, and MacTorn treated them as permanent: it stopped polling and told you to
+  fix a key that was never broken. It now waits and resumes by itself.
+- **Requests that can never succeed are no longer retried forever.** An error meaning
+  "this request is wrong" — wrong API version, wrong category, an ID that no longer
+  exists — used to be retried at poll cadence indefinitely. It now disables just that
+  one endpoint.
+- **An IP block gets an hour of quiet** instead of the continued retries that caused it.
+- **The client-side daily row budget is now an actual limit.** It was measured and
+  displayed but never consulted, so nothing stopped a runaway row source except Torn
+  answering with an error.
+- **Forum category listings are counted honestly.** That endpoint accepts a row limit
+  and defaults to 100; MacTorn declared it did not and booked 20 per call — five times
+  under what a default request would have pulled against the daily cap.
+
+### Quality
+- Verified against Torn's OpenAPI document, spec version 6.13.1 (2026-08-26).
+- README's API table is now compared character for character against the endpoint
+  registry by a test, so it cannot go stale. It had been advertising a forum endpoint
+  the app declared and never called.
+- 74 new tests covering the request gate, key placement, selection narrowing, the error
+  taxonomy, the item catalog and the forum category watch.
+
 ## [1.11.1] — 2026-07-31 — focused account views
 
 ### Changed
