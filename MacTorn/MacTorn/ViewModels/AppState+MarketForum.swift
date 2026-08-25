@@ -304,10 +304,68 @@ extension AppState {
             )
         }
 
+        await checkFactionForumForNewThreads(apiKey: requestedKey, generation: generation)
+
         guard !Task.isCancelled,
               isCurrentAccount(requestedKey, generation: generation) else { return }
         lastForumFetchAt = Date()
         saveForumWatch()
+    }
+
+    /// Watches a whole forum category and announces threads that were not there last time.
+    ///
+    /// The scaffolding for this shipped a while ago and was never connected: the config
+    /// fields, the `factionNewThread` notification type, the `forum.threads` endpoint and
+    /// its tests all existed, and nothing ever called them — so the README and the
+    /// onboarding disclosure both promised a feature the app did not have. This is the
+    /// missing half.
+    private func checkFactionForumForNewThreads(apiKey requestedKey: String,
+                                                generation: UInt) async {
+        guard forumWatchConfig.factionForumAutoMonitor,
+              let categoryID = forumWatchConfig.factionForumCategoryId,
+              categoryID > 0,
+              isCurrentAccount(requestedKey, generation: generation),
+              let url = endpointURL("forum.threads", parameter: categoryID, key: requestedKey),
+              reserveRequest("forum.threads") else { return }
+
+        let startTime = Date()
+        do {
+            let result = try await forumWatchService.fetchCategoryThreads(from: url)
+            guard !Task.isCancelled,
+                  isCurrentAccount(requestedKey, generation: generation) else { return }
+
+            switch result {
+            case .success(let threads, let responseBytes):
+                for thread in forumWatchService.applyCategory(threads) {
+                    NotificationManager.shared.send(
+                        title: "New forum thread",
+                        body: thread.title,
+                        type: .factionNewThread,
+                        customURL: URL(string: "https://www.torn.com/forums.php#/p=threads&t=\(thread.id)")
+                    )
+                }
+                recordHealth("forum.threads", outcome: .ok, since: startTime, bytes: responseBytes)
+
+            case .apiError(let apiError, let responseBytes):
+                noteEndpointFailure(apiError, for: "forum.threads")
+                recordHealth("forum.threads", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: apiError.classification.rawValue)
+
+            case .httpError(let statusCode, let responseBytes):
+                recordHealth("forum.threads", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: "http\(statusCode)")
+
+            case .malformed(let responseBytes):
+                recordHealth("forum.threads", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: "malformedResponse")
+            }
+        } catch {
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth("forum.threads",
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "transport")
+        }
     }
 
     private func checkThreadForUpdates(

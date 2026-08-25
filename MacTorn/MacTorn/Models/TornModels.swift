@@ -1489,9 +1489,17 @@ enum TornAPI {
         build("https://api.torn.com/v2/forum/\(threadId)/thread", query: ["key": apiKey])
     }
 
+    /// Unlike a single thread, a category listing accepts `limit` — and defaults to 100.
+    /// Sending the cap explicitly is what makes the row accounting honest: without it the
+    /// registry booked 20 rows for a call that was pulling five times that.
     static func forumCategoryThreadsURL(categoryId: Int, apiKey: String) -> URL? {
-        build("https://api.torn.com/v2/forum/\(categoryId)/threads", query: ["key": apiKey])
+        build("https://api.torn.com/v2/forum/\(categoryId)/threads",
+              query: ["key": apiKey, "limit": String(forumCategoryRowLimit)])
     }
+
+    /// Threads fetched per category check. The alert only needs to spot ids it has not
+    /// seen, and a busy category turns over far fewer than 20 threads in a poll interval.
+    static let forumCategoryRowLimit = 20
 }
 
 // MARK: - Request construction
@@ -1688,12 +1696,43 @@ struct ForumWatchConfig: Codable {
     var factionForumCategoryId: Int?
     var pollingIntervalSeconds: Int
     var knownFactionThreadIds: Set<Int>
+    /// Whether the category has been read at least once.
+    ///
+    /// Kept separately from `knownFactionThreadIds` because an empty id set is ambiguous:
+    /// it means both "never looked" and "looked, and the category was empty". Conflating
+    /// them costs the announcement of the very first thread posted to a quiet category —
+    /// the one most worth hearing about.
+    var hasSeededFactionThreads: Bool
 
-    init(factionForumAutoMonitor: Bool = false, factionForumCategoryId: Int? = nil, pollingIntervalSeconds: Int = 180, knownFactionThreadIds: Set<Int> = []) {
+    init(factionForumAutoMonitor: Bool = false,
+         factionForumCategoryId: Int? = nil,
+         pollingIntervalSeconds: Int = 180,
+         knownFactionThreadIds: Set<Int> = [],
+         hasSeededFactionThreads: Bool = false) {
         self.factionForumAutoMonitor = factionForumAutoMonitor
         self.factionForumCategoryId = factionForumCategoryId
         self.pollingIntervalSeconds = pollingIntervalSeconds
         self.knownFactionThreadIds = knownFactionThreadIds
+        self.hasSeededFactionThreads = hasSeededFactionThreads
+    }
+
+    /// Decoded field by field so a config written by an older build — which has no
+    /// `hasSeededFactionThreads` key — still loads. Synthesized `Codable` would throw on
+    /// the missing key and silently reset every forum preference the user had set.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        factionForumAutoMonitor =
+            try container.decodeIfPresent(Bool.self, forKey: .factionForumAutoMonitor) ?? false
+        factionForumCategoryId =
+            try container.decodeIfPresent(Int.self, forKey: .factionForumCategoryId)
+        pollingIntervalSeconds =
+            try container.decodeIfPresent(Int.self, forKey: .pollingIntervalSeconds) ?? 180
+        knownFactionThreadIds =
+            try container.decodeIfPresent(Set<Int>.self, forKey: .knownFactionThreadIds) ?? []
+        // An older config that already has ids was plainly seeded by an older build.
+        hasSeededFactionThreads =
+            try container.decodeIfPresent(Bool.self, forKey: .hasSeededFactionThreads)
+            ?? !knownFactionThreadIds.isEmpty
     }
 }
 

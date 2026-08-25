@@ -321,6 +321,25 @@ struct SettingsView: View {
                 Text("5m").tag(300)
             }
             .pickerStyle(.segmented)
+
+            Toggle("Alert on new threads in a forum category", isOn: forumCategoryMonitorBinding)
+                .font(.caption)
+
+            if appState.forumWatchConfig.factionForumAutoMonitor {
+                HStack {
+                    Text("Category ID")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    TextField("e.g. 4", text: forumCategoryIDBinding)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption)
+                        .frame(width: 80)
+                }
+                Text("Find the ID in the forum URL: torn.com/forums.php#/p=forums&f=4 is category 4. The first check only learns which threads already exist — alerts start from the next one.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -482,6 +501,38 @@ struct SettingsView: View {
                 appState.forumWatchConfig.pollingIntervalSeconds = newValue
                 appState.saveForumWatch()
                 appState.startForumPolling()
+            }
+        )
+    }
+
+    private var forumCategoryMonitorBinding: Binding<Bool> {
+        Binding(
+            get: { appState.forumWatchConfig.factionForumAutoMonitor },
+            set: { newValue in
+                appState.forumWatchConfig.factionForumAutoMonitor = newValue
+                // Turning the watch off forgets which threads it had seen, so switching it
+                // back on seeds again rather than announcing everything posted meanwhile.
+                if !newValue {
+                    appState.forumWatchConfig.knownFactionThreadIds = []
+                    appState.forumWatchConfig.hasSeededFactionThreads = false
+                }
+                appState.saveForumWatch()
+            }
+        )
+    }
+
+    private var forumCategoryIDBinding: Binding<String> {
+        Binding(
+            get: { appState.forumWatchConfig.factionForumCategoryId.map(String.init) ?? "" },
+            set: { newValue in
+                let parsed = PositiveIntegerInput.value(from: newValue)
+                guard parsed != appState.forumWatchConfig.factionForumCategoryId else { return }
+                appState.forumWatchConfig.factionForumCategoryId = parsed
+                // A different category is a different set of threads; the seen-ids from the
+                // old one would mark every thread in the new one as already known.
+                appState.forumWatchConfig.knownFactionThreadIds = []
+                appState.forumWatchConfig.hasSeededFactionThreads = false
+                appState.saveForumWatch()
             }
         )
     }

@@ -19,6 +19,19 @@ struct ForumNewPosts: Equatable {
     let count: Int
 }
 
+/// One thread in a forum category listing. Only what the new-thread alert needs.
+struct ForumCategoryThread: Equatable, Identifiable, Sendable {
+    let id: Int
+    let title: String
+}
+
+enum ForumCategoryResult {
+    case success([ForumCategoryThread], responseBytes: Int)
+    case apiError(TornAPIError, responseBytes: Int)
+    case httpError(statusCode: Int, responseBytes: Int)
+    case malformed(responseBytes: Int)
+}
+
 @MainActor
 protocol ForumWatchServicing: AnyObject {
     var threads: [WatchedThread] { get set }
@@ -35,6 +48,8 @@ protocol ForumWatchServicing: AnyObject {
     func apply(_ snapshot: ForumThreadSnapshot, to threadID: Int) -> ForumNewPosts?
     func setError(_ error: String, for threadID: Int)
     func fetchThread(from url: URL) async throws -> ForumThreadResult
+    func fetchCategoryThreads(from url: URL) async throws -> ForumCategoryResult
+    func applyCategory(_ threads: [ForumCategoryThread]) -> [ForumCategoryThread]
 }
 
 /// Owns forum-watch state, config, persistence and response decoding. Poll timers,
@@ -181,6 +196,54 @@ final class ForumWatchService: ForumWatchServicing {
     func setError(_ error: String, for threadID: Int) {
         guard let index = threads.firstIndex(where: { $0.id == threadID }) else { return }
         threads[index].error = error
+    }
+
+    /// Diffs a category listing against the ids already seen and returns only what is
+    /// genuinely new.
+    ///
+    /// The first listing is *seeded*, never announced. `knownFactionThreadIds` starts
+    /// empty, and a category holds up to a hundred threads — so treating an empty set as
+    /// "everything here is new" would greet anyone switching the feature on with a hundred
+    /// notifications about conversations that have been there for months.
+    func applyCategory(_ threads: [ForumCategoryThread]) -> [ForumCategoryThread] {
+        let ids = Set(threads.map(\.id))
+        let wasSeeded = config.hasSeededFactionThreads
+        defer {
+            config.knownFactionThreadIds = ids
+            config.hasSeededFactionThreads = true
+            save()
+        }
+        guard wasSeeded else { return [] }
+        return threads.filter { !config.knownFactionThreadIds.contains($0.id) }
+    }
+
+    func fetchCategoryThreads(from url: URL) async throws -> ForumCategoryResult {
+        let request = TornAPIClient.request(for: url)
+        let (data, response) = try await session.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            return .httpError(
+                statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                responseBytes: data.count
+            )
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .malformed(responseBytes: data.count)
+        }
+        if let apiError = tornAPIError(in: json) {
+            return .apiError(apiError, responseBytes: data.count)
+        }
+        guard let rows = json["threads"] as? [[String: Any]] else {
+            return .malformed(responseBytes: data.count)
+        }
+        // A row without an id cannot be tracked, and one without a title cannot be
+        // announced. Skip those rather than failing the whole listing over one bad row.
+        let threads: [ForumCategoryThread] = rows.compactMap { row in
+            guard let id = row["id"] as? Int else { return nil }
+            let title = (row["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            return ForumCategoryThread(id: id, title: title ?? "Untitled thread")
+        }
+        return .success(threads, responseBytes: data.count)
     }
 
     func fetchThread(from url: URL) async throws -> ForumThreadResult {

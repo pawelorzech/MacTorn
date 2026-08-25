@@ -107,9 +107,8 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// Row cap requested per call for row-based endpoints (used for the rows/day
     /// estimate). `nil` for point-in-time endpoints.
     let recordLimit: Int?
-    /// Whether `recordLimit` is also sent as a `limit` query item. Some row-based
-    /// endpoints (forum thread/threads) accept no `limit`, so accounting and the URL
-    /// diverge.
+    /// Whether `recordLimit` is also sent as a `limit` query item. `forum.thread` accepts
+    /// no `limit`, so for that one alone the accounting and the URL diverge.
     let sendsLimitQuery: Bool
     let cachePolicy: TornCachePolicy
     let budget: TornBudgetCategory
@@ -378,7 +377,7 @@ enum TornEndpointRegistry {
             cadence: "Forum poll (opt-in feature)",
             dataShape: .rowBased,
             recordLimit: 20,
-            sendsLimitQuery: false,
+            sendsLimitQuery: true,
             cachePolicy: .throttle(seconds: 300),
             budget: .forum,
             critical: false
