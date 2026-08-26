@@ -67,4 +67,15 @@ final class AppStateStocksMetadataTests: XCTestCase {
         await appState.fetchStocksMetadata()
         XCTAssertTrue(appState.stocksMetadata.isEmpty)
     }
+
+    func testFetchStocksMetadataPropagatesPermanentKeyError() async throws {
+        appState.apiKey = "revoked-key"
+        try mockSession.setTornAPIError(code: 2, message: "Incorrect key")
+
+        await appState.fetchStocksMetadata()
+
+        XCTAssertTrue(appState.keyHalted)
+        XCTAssertEqual(appState.endpointHealth.latest(for: "torn.stocks")?.errorClass,
+                       "permanentKey")
+    }
 }

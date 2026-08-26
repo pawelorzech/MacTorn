@@ -404,8 +404,7 @@ extension AppState {
                 }
             case .apiError(let apiError, _):
                 // Same reason as market.item: a deleted thread answers with code 6 every
-                // poll otherwise, and forum.thread is row-based so its code 14 needs to
-                // reach the gate too.
+                // poll otherwise, so the endpoint-scoped failure must reach the gate.
                 noteEndpointFailure(apiError, for: "forum.thread")
                 updateThreadError(threadId: threadId, error: apiError.userMessage)
             case .httpError, .malformed:

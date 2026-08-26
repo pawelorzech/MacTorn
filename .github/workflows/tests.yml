@@ -122,6 +122,9 @@ jobs:
           xcodebuild -version
           test "$(xcodebuild -version | head -1)" = "Xcode 16.4"
 
+      - name: Validate app icon assets
+        run: bash scripts/validate-app-icon.sh
+
       - name: Analyze
         run: |
           set -o pipefail

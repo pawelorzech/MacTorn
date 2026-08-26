@@ -83,6 +83,34 @@ final class TornEndpointTests: XCTestCase {
         }
     }
 
+    /// `/forum/{threadId}/thread` returns one details object. Only the separate `/posts`
+    /// route returns a 20-row page, so watching thread metadata must not spend cloud rows.
+    func testForumThreadDetailsDoNotConsumeTheForumRowBudget() throws {
+        let thread = try XCTUnwrap(TornEndpointRegistry.endpoint(id: "forum.thread"))
+        XCTAssertEqual(thread.dataShape, .pointInTime)
+        XCTAssertEqual(thread.recordsPerCall, 0)
+        XCTAssertNil(thread.recordLimit)
+    }
+
+    func testMarketUsesTheCanonicalItemMarketPath() throws {
+        let endpoint = try XCTUnwrap(TornEndpointRegistry.endpoint(id: "market.item"))
+        let url = try XCTUnwrap(endpoint.url(key: key, parameter: sampleId))
+        XCTAssertEqual(url.path, "/v2/market/4242/itemmarket")
+        XCTAssertNil(URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "selections" })
+    }
+
+    func testDedicatedEndpointAccessLevelsMatchTheOpenAPISpec() throws {
+        XCTAssertEqual(try XCTUnwrap(TornEndpointRegistry.endpoint(id: "user.v2")).minimumAccessLevel,
+                       .minimal)
+        XCTAssertEqual(try XCTUnwrap(TornEndpointRegistry.endpoint(id: "user.virus")).minimumAccessLevel,
+                       .minimal)
+        XCTAssertEqual(try XCTUnwrap(TornEndpointRegistry.endpoint(id: "faction.rankedwars")).minimumAccessLevel,
+                       .publicOnly)
+        XCTAssertEqual(try XCTUnwrap(TornEndpointRegistry.endpoint(id: "faction.news")).minimumAccessLevel,
+                       .minimal)
+    }
+
     func testUserFastPollIsTheOnlyCriticalEndpoint() {
         XCTAssertEqual(TornEndpointRegistry.critical.map(\.id), ["user.fast"])
     }

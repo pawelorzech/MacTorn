@@ -297,7 +297,7 @@ struct ForumThreadRow: View {
                 Image(systemName: thread.notificationsEnabled ? "bell.fill" : "bell.slash")
                     .font(.caption)
                     .foregroundColor(thread.notificationsEnabled ? .blue : .secondary)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -313,7 +313,7 @@ struct ForumThreadRow: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .frame(width: 24, height: 24)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

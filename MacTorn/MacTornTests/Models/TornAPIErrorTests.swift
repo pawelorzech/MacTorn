@@ -35,7 +35,7 @@ final class TornAPIErrorTests: XCTestCase {
     /// A request that can never succeed as constructed disables its one endpoint. Retrying
     /// it at poll cadence is a guaranteed 100% failure rate against the request budget.
     func testMalformedRequestCodesDisableOnlyTheirEndpoint() {
-        for code in [6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30] {
+        for code in [3, 4, 6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30] {
             let error = TornAPIError.classify(code: code, message: "")
             XCTAssertEqual(error.classification, .endpointUnavailable, "code \(code)")
             XCTAssertTrue(error.disablesEndpoint, "code \(code)")
@@ -53,7 +53,10 @@ final class TornAPIErrorTests: XCTestCase {
     }
 
     func testAccessLevelTooLowIsInsufficientPermissions() {
-        XCTAssertEqual(TornAPIError.classify(code: 16, message: "").classification, .insufficientPermissions)
+        let error = TornAPIError.classify(code: 16, message: "")
+        XCTAssertEqual(error.classification, .insufficientPermissions)
+        XCTAssertFalse(error.haltsAllRequests,
+                       "selection-level permissions must refresh capabilities, not invalidate the key")
     }
 
     func testTooManyRequestsIsRateLimit() {
@@ -83,11 +86,11 @@ final class TornAPIErrorTests: XCTestCase {
         XCTAssertNil(TornAPIError.offline.tornCode)
     }
 
-    // MARK: - Halt / retry semantics (Etap C: 2, 16, 18 halt; 14 halts category only)
+    // MARK: - Halt / retry semantics
 
-    func testKeyAndPermissionErrorsHaltAllRequests() {
+    func testOnlyPermanentKeyErrorsHaltAllRequests() {
         XCTAssertTrue(TornAPIError.classify(code: 2, message: "").haltsAllRequests)
-        XCTAssertTrue(TornAPIError.classify(code: 16, message: "").haltsAllRequests)
+        XCTAssertFalse(TornAPIError.classify(code: 16, message: "").haltsAllRequests)
         XCTAssertTrue(TornAPIError.classify(code: 18, message: "").haltsAllRequests)
     }
 

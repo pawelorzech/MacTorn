@@ -160,8 +160,23 @@ extension AppState {
     func presentationState(endpointIDs: [String],
                            hasContent: Bool,
                            staleAfter: TimeInterval) -> ModulePresentationState {
-        ModulePresentationState.resolve(
-            health: endpointIDs.compactMap { endpointHealth.latest(for: $0) },
+        let health = endpointIDs.compactMap { endpointHealth.latest(for: $0) }
+
+        // A permanent key failure is account-wide. The failing request may be
+        // `key.info`, while a feature screen observes only its own endpoint (for
+        // example `user.fast`). Keep every module's recovery action honest: retrying
+        // cannot help until the key is changed, so route the user to Settings.
+        if keyHalted {
+            return ModulePresentationState(
+                kind: .permission,
+                hasContent: hasContent,
+                updatedAt: health.map(\.at).max(),
+                recovery: .settings
+            )
+        }
+
+        return ModulePresentationState.resolve(
+            health: health,
             hasContent: hasContent,
             isLoading: isLoading,
             fallbackError: errorMsg,

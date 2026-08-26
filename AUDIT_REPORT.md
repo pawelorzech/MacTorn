@@ -469,12 +469,19 @@ przepustki, nie pustego wyniku — do przemyślenia na trzeźwo.
 
 ---
 
-## Otwarte po 1.12.3 — najważniejsza rzecz do naprawy
+## Rozwiązane w 1.13.0 — kolejność pierwszego żądania
 
-### P1-18 · Gwarancja kolejności nie obejmuje ścieżki, którą klucz naprawdę wchodzi
+### P1-18 · Gwarancja kolejności obejmuje wszystkie wejścia
 
-**Status:** potwierdzony. `Views/SettingsView.swift:259` to **jedyne** miejsce w aplikacji
-ustawiające `apiKey`, i zaraz po nim woła `refreshNow()`, nie `startPolling()`. Cała
+**Status: naprawiony i objęty testami regresji.** Wspólny automat pierwszego pobrania
+rozstrzyga `/key/info` przed `/user` także dla Save & Connect, `refreshNow()` i powrotu
+łączności. Zachowany został synchroniczny kontrakt debounce i księgowania budżetu.
+`FirstPollOrderingTests` sprawdzają kolejność sieciową i wszystkie wejścia, a test UI
+sprawdza właściwe przejście do Settings po trwałym błędzie klucza.
+
+Poniższy opis zachowujemy jako historię diagnozy przed poprawką. Wtedy
+`Views/SettingsView.swift:259` było **jedynym** miejscem, w którym aplikacja
+ustawiała `apiKey`, i zaraz po nim wołało `refreshNow()`, nie `startPolling()`. Cała
 kolejność wprowadzona w 1.12.3 żyje w `startFirstFetch()`, wołanym wyłącznie z
 `startPolling()`. Ta sama luka dotyczy `onConnectivityRestored` (`AppState.swift:426`).
 
@@ -514,7 +521,7 @@ tylko pierwsze wejście.**
 |---|---|
 | P1-16 (1.12.2) | `fetchData` ścigające się z ładowaniem uprawnień |
 | P1-17 (1.12.3) | timer wyprzedzający `await` |
-| P1-18 (otwarte) | `refreshNow` omijające `startFirstFetch` |
+| P1-18 (1.13.0) | `refreshNow` omijające wspólną kolejność pierwszego pobrania |
 
 To reformułuje zadanie. Pytanie brzmi nie „jak sprawić, żeby `refreshNow` też czekało" — to
 byłaby **czwarta łatka na tę samą klasę**, i moja próba dokładnie nią była. Pytanie brzmi:
@@ -570,13 +577,11 @@ Warianty do rozważenia, w kolejności, w jakiej bym je oceniał:
    siedem testów. Najmniejsza zmiana, ale zostawia wzorzec nietknięty i będzie czwartym
    wejściem czekającym na piąte.
 
-**Oferta audytu:** autor tego wzorca zaproponował ponowny audyt interakcji dwóch
-wywołujących (`startPolling` i `refreshNow`) w chwili, gdy P1-18 dostanie poprawkę —
-konkretnie czy token `firstFetchGeneration` wytrzyma, gdy obaj trafią do `startFirstFetch`
-w tym samym oknie. Warto z tego skorzystać; dziś nie ma czego audytować, bo poprawka jest
-wycofana.
+**Ponowny audyt:** interakcja `startPolling` i `refreshNow`, w tym zachowanie przy
+nakładających się wywołaniach, została sprawdzona po wdrożeniu poprawki. Pełny zestaw
+testów jednostkowych i UI przechodzi na ustabilizowanym drzewie.
 
-### Naprawione w tym samym przebiegu (na `main`, **niewydane**)
+### Naprawione w tym samym przebiegu (kandydat 1.13.0)
 
 | # | Problem | Skąd |
 |---|---|---|
@@ -592,24 +597,20 @@ wycofana.
 
 | Polecenie | Wynik |
 |---|---|
-| `make test` | ✅ 643 testy, 0 błędów (569 przed) |
-| `xcodebuild build` (Debug) | ✅ BUILD SUCCEEDED |
-| `make analyze` | ✅ 0 ostrzeżeń |
-| `make coverage-gate` | ✅ PASSED. `TornAPIError` 94,20 %, `TornEndpoint` 95,06 %, `PollingCoordinator` 100 %, `NotificationCoordinator` 98,36 %, `NextAction` 96,63 % |
-| `make scan` | ✅ brak wycieków |
-| `make test-ui` (lokalnie) | ❌ nie uruchomiono, patrz Ograniczenia |
-| CI `Tests` na scalonym `main` (przebieg 32914341887) | ✅ wszystkie trzy joby, w tym `Fixture UI Tests` |
-
-Pokrycie nowych plików: `TornEndpointGate.swift` 83,16 %, `AppState+ItemCatalog.swift`
-76,15 %, `ForumWatchService.swift` 96,41 %.
+| `xcodebuild test` (unit + coverage, finalne drzewo 1.13.0) | ✅ 709 testów, 0 błędów, 0 pominiętych |
+| `xcodebuild analyze` | ✅ zakończone bez błędów analizatora |
+| `coverage-gate.sh` | ✅ PASSED. `TornAPIError` 90,91 %, `TornEndpoint` 95,12 %, `PollingCoordinator` 100 %, `NotificationCoordinator` 98,36 %, `NextAction` 96,63 % |
+| `xcodebuild test` (`MacTornUITests`) | ✅ 13/13, w tym błędny klucz, offline, 320 pt i kontrakt VoiceOver |
+| `make release && make verify-release` | ✅ 1.13.0 (45), arm64 + x86_64, ścisły podpis ad-hoc |
+| `make icon-check` | ✅ 10 przezroczystych plików PNG o prawidłowych wymiarach |
+| `make scan` / `git diff --check` | ✅ brak wycieków i błędów whitespace |
 
 ---
 
 ## Ograniczenia audytu
 
-**Bez żywego klucza API.** Klucz Pawła leży w pęku kluczy, a jego odczyt wymaga
-interaktywnej zgody, której o tej porze nie było komu udzielić (próba zablokowała powłokę na
-dziesięć minut). Cały audyt warstwy API oparto więc na dokumencie OpenAPI Torna
+**Bez żywego klucza API.** Audyt nie odczytywał prywatnego klucza z pęku kluczy ani nie
+wysyłał próbnych żądań na koncie użytkownika. Cały audyt warstwy API oparto na dokumencie OpenAPI Torna
 (`https://www.torn.com/swagger/openapi.json`, wersja specyfikacji **6.13.1**, pobrany
 2026-08-26), a nie na porównaniu z żywymi odpowiedziami. Specyfikacja jest źródłem
 autorytatywnym i sama zawiera zastrzeżenie, że rozwój v2 trwa. **Każda zmiana kształtu
@@ -617,25 +618,11 @@ autorytatywnym i sama zawiera zastrzeżenie, że rozwój v2 trwa. **Każda zmian
 kluczu.** Dotyczy zwłaszcza: nagłówka `Authorization` na v2, zawężania selekcji i usunięcia
 `bazaar`.
 
-**Bramka testów wymagała obejścia.** Na tej maszynie `xcodebuild test` regularnie zawieszał
-się na kroku `RegisterWithLaunchServices`: build rejestruje pakiet `MacTorn.app`, a
-`lsregister` blokuje się, dopóki żyje instancja tego pakietu, którą sam build wcześniej
-uruchomił. Do tego `testmanagerd` potrafił zostać w stanie, w którym host testowy nigdy nie
-startuje. Działająca sekwencja: wyrejestrować pakiet (`lsregister -u`), usunąć
-`Build/Products/Debug/*.app`, ubić osierocone instancje i `testmanagerd`, a potem rozbić
-przebieg na `build-for-testing` i `test-without-building`. Warto to zapamiętać, bo kosztowało
-kilkadziesiąt minut i wygląda jak zawieszony build, a nie jak problem środowiska.
-
-**UI-testy: lokalnie nie, na CI tak.** `make test-ui` kończy się na tej maszynie
-`Timed out while enabling automation mode` — runner XCUITest potrzebuje aktywnej,
-odblokowanej sesji graficznej, a maszyna pracowała bez nadzoru. Ten sam błąd występuje na
-`main`, więc to ograniczenie środowiska, nie regresja.
-
-Zestaw przeszedł natomiast **na GitHub Actions**, na runnerze z prawdziwą sesją: przebieg
-32914341887 na scalonym `main` zaliczył wszystkie trzy joby, w tym `Fixture UI Tests`. To
-domyka lukę, którą wcześniejsza wersja tego raportu opisywała jako najpoważniejszą.
-Stwierdzenia o *wyglądzie* (przycięcie treści przy 320 pt, kontrast, mowa VoiceOver)
-pozostają wnioskami z kodu, bo tego UI-testy i tak nie sprawdzają.
+**UI-testy wymagają nieprzerwanej autoryzacji Accessibility.** Jeden przebieg stracił ją,
+gdy komputer był równolegle używany; po przywróceniu dostępu świeża sesja zaliczyła
+13/13. To ograniczenie runnera, nie wynik produktu. Testy sprawdzają drzewo dostępności,
+etykiety i geometrię, ale ręczne odsłuchanie VoiceOver oraz kontrola ikony w Finderze i
+Docku nadal pozostają manualną częścią QA.
 
 **Drugie spojrzenie przyszło po wydaniu 1.12.0.** Rozesłałem cztery równoległe audyty
 (diff, security, integralność danych, dostępność/UX) jako osobne agenty. Przez 44 minuty

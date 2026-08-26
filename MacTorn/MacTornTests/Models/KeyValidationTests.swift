@@ -16,6 +16,7 @@ final class KeyValidationTests: XCTestCase {
     private func keyInfoJSON(level: Int,
                              type: String,
                              userSelections: [String],
+                             factionAccess: Bool = true,
                              factionSelections: [String] = ["basic", "chain"],
                              marketSelections: [String] = ["itemmarket", "bazaar"],
                              tornSelections: [String] = ["stocks"],
@@ -23,7 +24,7 @@ final class KeyValidationTests: XCTestCase {
                              factionID: Int? = 100) -> [String: Any] {
         [
             "info": [
-                "access": ["level": level, "type": type, "faction": true, "company": false,
+                "access": ["level": level, "type": type, "faction": factionAccess, "company": false,
                            "log": ["custom_permissions": false, "available": []]],
                 "user": ["id": playerID,
                          "faction_id": factionID.map { $0 as Any } ?? NSNull(),
@@ -108,6 +109,23 @@ final class KeyValidationTests: XCTestCase {
             let ep = try XCTUnwrap(result.availability.first { $0.endpointID == id })
             XCTAssertTrue(ep.available, "\(id) takes no selections and should be available")
         }
+    }
+
+    func testPublicOnlyKeyCannotUseMinimalDedicatedUserEndpoint() throws {
+        let info = try decode(keyInfoJSON(level: 1, type: "Public Only", userSelections: []))
+        let virus = try XCTUnwrap(KeyValidator.validate(info).availability.first {
+            $0.endpointID == "user.virus"
+        })
+        XCTAssertFalse(virus.available)
+    }
+
+    func testFactionNewsRequiresFactionAPIAccessPermission() throws {
+        let info = try decode(keyInfoJSON(level: 2, type: "Minimal Access",
+                                          userSelections: [], factionAccess: false))
+        let news = try XCTUnwrap(KeyValidator.validate(info).availability.first {
+            $0.endpointID == "faction.news"
+        })
+        XCTAssertFalse(news.available)
     }
 
     func testCategoryMapping() throws {

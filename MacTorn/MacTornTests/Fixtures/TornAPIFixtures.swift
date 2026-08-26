@@ -278,9 +278,9 @@ enum TornAPIFixtures {
         ]
     ]
 
-    // MARK: - API v2 User (organized crime 2.0, refills, education, bounties)
+    // MARK: - API v2 User (organized crime 2.0, refills, education, bounties, notifications)
 
-    /// Mirrors a live `/v2/user?selections=organizedcrime,refills,education,bounties`
+    /// Mirrors a live `/v2/user?selections=organizedcrime,refills,education,bounties,notifications`
     /// response (captured 2026-07-03). `ocReadyAt` places the OC's ready time relative
     /// to `now` so tests can drive both the "ready" and "counting down" states.
     static func userV2Response(
@@ -312,7 +312,8 @@ enum TornAPIFixtures {
             "education": education,
             "bounties": bounties,
             "bounties_timestamp": 1783107206,
-            "bounties_delay": 0
+            "bounties_delay": 0,
+            "notifications": ["messages": 1, "events": 2, "awards": 0, "competition": 0]
         ]
     }
 

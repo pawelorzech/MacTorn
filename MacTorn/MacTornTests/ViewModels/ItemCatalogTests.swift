@@ -52,6 +52,20 @@ final class ItemCatalogTests: XCTestCase {
         XCTAssertTrue(AppState.parseItemCatalog(from: Data("not json".utf8), logger: logger).isEmpty)
     }
 
+    func testFetchPropagatesTypedRateLimitAccountWide() async throws {
+        let mock = MockNetworkSession()
+        try mock.setTornAPIErrorV2(code: 5, message: "Too many requests")
+        let state = AppState(session: mock, defaults: .createMockDefaults())
+        state.apiKey = "rate-limited"
+
+        await state.fetchItemCatalog()
+
+        XCTAssertTrue(state.isRowSourcePaused("forum.thread"),
+                      "code 5 from reference data must pause unrelated endpoint families")
+        XCTAssertEqual(state.endpointHealth.latest(for: "torn.items")?.errorClass, "rateLimit")
+        state.stopPolling()
+    }
+
     func testNamesAreTrimmed() {
         let data = json(["items": [["id": 1, "name": "  Padded Name  "]]])
         XCTAssertEqual(AppState.parseItemCatalog(from: data, logger: logger)[1], "Padded Name")

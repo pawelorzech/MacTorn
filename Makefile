@@ -3,7 +3,7 @@
 
 .PHONY: test test-unit test-ui test-all build analyze clean coverage coverage-gate help \
 	release verify-release release-signed diagnose-xctest hooks scan quick-test watch \
-	open test-summary
+	open test-summary icon-check
 
 RELEASE_DERIVED_DATA ?= DerivedData/Release
 RELEASE_APP := $(RELEASE_DERIVED_DATA)/Build/Products/Release/MacTorn.app
@@ -16,6 +16,7 @@ help:
 	@echo "  make test-ui         - Run UI tests"
 	@echo "  make build           - Build the app in Debug mode"
 	@echo "  make analyze         - Run Xcode static analysis"
+	@echo "  make icon-check      - Validate app icon formats and dimensions"
 	@echo "  make release         - Build the app in Release mode (ad-hoc signed, dev only)"
 	@echo "  make verify-release  - Verify universal architectures and strict ad-hoc signature"
 	@echo "  make release-signed  - Build Release signed with Developer ID (set DEVELOPER_ID)"
@@ -63,7 +64,7 @@ test-all:
 		CODE_SIGNING_REQUIRED=NO
 
 # Build Debug
-build:
+build: icon-check
 	xcodebuild build \
 		-project MacTorn/MacTorn.xcodeproj \
 		-scheme MacTorn \
@@ -84,7 +85,7 @@ analyze:
 
 # Build Release (Universal Binary for Intel + Apple Silicon, strict ad-hoc signed)
 # This is fine for local development. For distribution use `release-signed` below.
-release:
+release: icon-check
 	xcodebuild build \
 		-project MacTorn/MacTorn.xcodeproj \
 		-scheme MacTorn \
@@ -108,6 +109,10 @@ verify-release:
 	codesign --verify --deep --strict --verbose=2 '$(RELEASE_APP)'
 	@codesign -dv --verbose=4 '$(RELEASE_APP)' 2>&1 | grep -q '^Signature=adhoc$$'
 	@echo "Release verification passed: universal and strict ad-hoc signed."
+
+# Reject corrupted or mislabeled icon assets before Xcode compiles Assets.car.
+icon-check:
+	bash scripts/validate-app-icon.sh
 
 # Build Release signed with Developer ID (Universal Binary). Required for distribution
 # so users can verify the publisher. Notarization is a follow-up — without it, Gatekeeper

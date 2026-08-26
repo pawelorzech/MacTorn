@@ -116,7 +116,7 @@ struct StatusView: View {
                         appState.refreshNow()
                     } label: {
                         Image(systemName: "arrow.clockwise")
-                            .frame(width: 20, height: 20)
+                            .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)

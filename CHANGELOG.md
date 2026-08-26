@@ -5,7 +5,39 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.13.0] — 2026-08-26 — audited API and a new identity
+
+### Fixed
+- Every first refresh now resolves `/key/info` before requesting account data,
+  including Save & Connect, manual refresh, and connectivity recovery, while
+  preserving the synchronous debounce and request-budget contract.
+- API error handling now applies Torn codes consistently across user, faction,
+  market, forum, item-catalog, and stock requests: permanent key failures open
+  Settings, global cooldowns pause all callers, and a changed-permission response
+  refreshes capabilities and retries the narrowed request once.
+- Endpoint metadata now matches Torn's current OpenAPI contract, including the
+  canonical item-market URL, forum-thread row accounting, and faction/key access
+  requirements.
+- Malformed optional user-v2 selections and virus payloads preserve their last
+  known-good values; an explicit `null` virus remains a valid empty result.
+
+### Changed
+- **MacTorn has a new visual identity.** The app icon now uses a simplified
+  tornado-and-bolt mark that remains legible at menu, Finder, and Dock sizes.
+  The in-app accent follows the same coral palette, and navigation uses softer,
+  more expressive capsule shapes while retaining native macOS controls.
+- Compact refresh, notification, alert, and removal controls now meet the 28 pt
+  minimum pointer target without making their symbols visually heavier.
+
+### Quality
+- App-icon validation now rejects mislabeled image formats and incorrect asset
+  dimensions before a release build. The previous `.png` files were JPEG data.
+- Fixture UI tests pin their process locale, so financial accessibility assertions
+  no longer depend on the developer Mac's regional settings.
+- A permanent account-key error now routes recovery to Settings from every module,
+  even when the failing request was `/key/info` rather than the module endpoint.
+- The item-catalog parser no longer crosses main-actor isolation for its static
+  safety limit, removing a warning that becomes an error under Swift 6.
 
 ## [1.12.4] — 2026-08-26 — the panel fits its window again
 

@@ -33,7 +33,7 @@ final class AppStateTests: XCTestCase {
         let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
         app.apiKey = "valid_key"
         XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
-        app.refreshNow()   // fetchData records "user.fast" synchronously before spawning its task
+        app.refreshNow()   // the accepted `/key/info` handshake is recorded synchronously
         XCTAssertGreaterThanOrEqual(app.pollingCoordinator.requestsInLastMinute, 1,
                                     "a poll must be recorded against the API budget")
         app.stopPolling()
@@ -47,7 +47,7 @@ final class AppStateTests: XCTestCase {
 
         let before = app.pollingCoordinator.requestsInLastMinute
         conn.goOffline()
-        conn.restore()   // down→up edge → refreshNow → fetchData records a request
+        conn.restore()   // down→up edge → refreshNow records the ordered capability request
         XCTAssertGreaterThan(app.pollingCoordinator.requestsInLastMinute, before,
                              "a restored connection refreshes immediately")
         app.stopPolling()
@@ -474,6 +474,28 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.bountiesOnMe.first?.reward, 3_000_000)
     }
 
+    func testMalformedUserV2SectionPreservesLastGoodState() throws {
+        let existing = try JSONDecoder().decode(
+            Bounty.self,
+            from: TornAPIFixtures.toData(TornAPIFixtures.bountyOnMe(reward: 9_000_000))
+        )
+        appState.bountiesOnMe = [existing]
+        appState.notificationCounts = TornNotifications(messages: 7)
+
+        appState.applyUserV2Payload(UserV2Payload(
+            organizedCrime: .unchanged,
+            refills: .unchanged,
+            education: .unchanged,
+            bounties: .unchanged,
+            notifications: .replace(TornNotifications(messages: 2)),
+            malformedSelections: ["bounties"]
+        ))
+
+        XCTAssertEqual(appState.bountiesOnMe, [existing])
+        XCTAssertEqual(appState.notificationCounts?.messages, 2,
+                       "a valid sibling section must still update")
+    }
+
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
     func testFetchData_populatesRankedWars_fromV2Faction() async throws {
         appState.apiKey = "valid_key"
@@ -725,6 +747,21 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.errorMsg, "Too many requests — backing off.")
         XCTAssertEqual(mockSession.requestedURLs.count, 1,
                        "a rate-limited main response must not fan out optional requests")
+        XCTAssertTrue(appState.isRowSourcePaused("forum.thread"),
+                      "Torn's per-user rate limit must pause independent forum polling too")
+    }
+
+    func testFetchData_permissionErrorRefreshesCapabilitiesWithoutInvalidatingKey() async throws {
+        appState.apiKey = "valid_but_limited_key"
+        try mockSession.setTornAPIError(code: 16, message: "Access level too low")
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        XCTAssertFalse(appState.keyHalted)
+        XCTAssertEqual(appState.errorMsg, "Access level too low")
+        XCTAssertLessThanOrEqual(mockSession.requestedURLs.count, 3,
+                                 "a persistent code 16 must not create a capability-refresh loop")
     }
 
     // MARK: - Network Error Tests
@@ -873,6 +910,9 @@ final class AppStateTests: XCTestCase {
             time: clock
         )
         app.apiKey = "debounce-\(UUID().uuidString)"
+        // This test isolates the three-second manual debounce; first-session capability
+        // ordering is covered by FirstPollOrderingTests.
+        app.keyInfo = TornKeyInfo.testFixture()
 
         app.refreshNow()
         XCTAssertEqual(app.pollSequence, 1)
@@ -1421,7 +1461,7 @@ private final class DailyRowLimitNetworkSession: NetworkSession, @unchecked Send
             "respect": 456,
             "chain": ["current": 0, "max": 0, "timeout": 0, "cooldown": 0]
         ])
-        userV2Data = try TornAPIFixtures.toData([:])
+        userV2Data = try TornAPIFixtures.toData(TornAPIFixtures.userV2Response())
         rankedWarsData = try TornAPIFixtures.toData(["rankedwars": []])
         dailyLimitData = try TornAPIFixtures.toData([
             "error": ["code": 14, "error": "Daily read limit reached"]
@@ -1478,7 +1518,7 @@ private final class FanOutSuccessNetworkSession: NetworkSession, @unchecked Send
             "respect": 456,
             "chain": ["current": 0, "max": 0, "timeout": 0, "cooldown": 0],
         ])
-        userV2Data = try TornAPIFixtures.toData([:])
+        userV2Data = try TornAPIFixtures.toData(TornAPIFixtures.userV2Response())
         rankedWarsData = try TornAPIFixtures.toData(TornAPIFixtures.rankedWarsResponse())
         factionNewsData = try TornAPIFixtures.toData(TornAPIFixtures.factionNewsResponse)
     }

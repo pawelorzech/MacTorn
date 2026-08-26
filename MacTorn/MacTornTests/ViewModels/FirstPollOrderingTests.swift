@@ -81,6 +81,27 @@ final class FirstPollOrderingTests: XCTestCase {
         app.stopPolling()
     }
 
+    func testSaveAndConnectRefreshRequestsKeyInfoBeforeUserData() async throws {
+        let session = FirstPollRoutingSession()
+        let app = AppState(
+            session: session,
+            connectivity: ControllableConnectivity(connected: true),
+            defaults: .createMockDefaults()
+        )
+        app.apiKey = "save-connect-\(UUID().uuidString)"
+
+        app.refreshNow()
+
+        for _ in 0..<100 where session.requestedPaths().count < 2 {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        let paths = session.requestedPaths()
+        XCTAssertGreaterThanOrEqual(paths.count, 2)
+        XCTAssertEqual(paths.first, "/v2/key/info")
+        XCTAssertEqual(paths.first(where: { $0 != "/v2/key/info" }), "/user")
+        app.stopPolling()
+    }
+
     // MARK: - Account changes
 
     /// An account change must tear down the previous account's timer, or `startPolling`'s
@@ -139,6 +160,43 @@ final class FirstPollOrderingTests: XCTestCase {
                        "a validated key costs no round-trip on a later startPolling")
         XCTAssertNotNil(app.timerCancellable)
         app.stopPolling()
+    }
+}
+
+private final class FirstPollRoutingSession: NetworkSession, @unchecked Sendable {
+    private let lock = NSLock()
+    private var paths: [String] = []
+
+    func requestedPaths() -> [String] { lock.withLock { paths } }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let url = request.url ?? URL(string: "https://api.torn.com")!
+        lock.withLock { paths.append(url.path) }
+        let json: [String: Any]
+        if url.path == "/v2/key/info" {
+            json = [
+                "info": [
+                    "access": ["level": 4, "type": "Full Access", "faction": false,
+                               "company": false],
+                    "user": ["id": 42, "faction_id": NSNull(), "company_id": NSNull()],
+                    "selections": [
+                        "user": ["basic", "bars", "cooldowns", "travel", "profile",
+                                 "money", "battlestats", "properties", "stocks",
+                                 "organizedcrime", "refills", "education", "bounties",
+                                 "notifications", "events", "attacks"],
+                        "faction": [], "market": ["itemmarket"], "property": [],
+                        "torn": ["stocks", "items"], "racing": [], "forum": [],
+                        "key": ["info"], "company": [],
+                    ],
+                ],
+            ]
+        } else {
+            json = TornAPIFixtures.validFullResponse()
+        }
+        let data = try TornAPIFixtures.toData(json)
+        let response = HTTPURLResponse(url: url, statusCode: 200,
+                                       httpVersion: nil, headerFields: nil)!
+        return (data, response)
     }
 }
 

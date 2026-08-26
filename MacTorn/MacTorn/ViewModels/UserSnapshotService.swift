@@ -32,12 +32,23 @@ struct UserActivityPayload {
     let recentAttacks: [AttackResult]?
 }
 
+/// A section update from the combined v2 user response. `unchanged` is deliberately
+/// distinct from a valid empty/null value: a partial or malformed sibling section must
+/// not erase data successfully decoded on the previous poll.
+enum UserV2Section<Value> {
+    case unchanged
+    case replace(Value)
+}
+
 struct UserV2Payload {
-    let organizedCrime: OrganizedCrime2?
-    let refills: Refills?
-    let education: EducationStatus?
-    let bounties: [Bounty]
-    let notifications: TornNotifications?
+    let organizedCrime: UserV2Section<OrganizedCrime2?>
+    let refills: UserV2Section<Refills>
+    let education: UserV2Section<EducationStatus>
+    let bounties: UserV2Section<[Bounty]>
+    let notifications: UserV2Section<TornNotifications>
+    /// Requested sections whose key was absent, null where null is not valid, or failed
+    /// strict decoding. Valid sibling updates remain publishable.
+    let malformedSelections: [String]
 }
 
 protocol UserSnapshotServicing: Sendable {
@@ -173,37 +184,57 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
             return .apiError(apiError, responseBytes: data.count)
         }
 
+        let requested: Set<String> = {
+            guard let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "selections" })?.value else {
+                return Set(TornEndpointRegistry.endpoint(id: "user.v2")?.selections ?? [])
+            }
+            return Set(value.split(separator: ",").map(String.init))
+        }()
         let decoder = JSONDecoder()
-        var organizedCrime: OrganizedCrime2?
-        if let dictionary = json["organizedCrime"] as? [String: Any],
-           dictionary["id"] is Int,
-           let encoded = try? JSONSerialization.data(withJSONObject: dictionary) {
-            organizedCrime = try? decoder.decode(OrganizedCrime2.self, from: encoded)
+        var malformed: [String] = []
+
+        func decodeSection<Value: Decodable>(
+            _ type: Value.Type,
+            selection: String,
+            key: String
+        ) -> UserV2Section<Value> {
+            guard requested.contains(selection) else { return .unchanged }
+            guard let raw = json[key], !(raw is NSNull),
+                  JSONSerialization.isValidJSONObject(raw),
+                  let encoded = try? JSONSerialization.data(withJSONObject: raw),
+                  let value = try? decoder.decode(type, from: encoded) else {
+                malformed.append(selection)
+                return .unchanged
+            }
+            return .replace(value)
         }
 
-        var refills: Refills?
-        if let dictionary = json["refills"] as? [String: Any],
-           let encoded = try? JSONSerialization.data(withJSONObject: dictionary) {
-            refills = try? decoder.decode(Refills.self, from: encoded)
+        let organizedCrime: UserV2Section<OrganizedCrime2?>
+        if !requested.contains("organizedcrime") {
+            organizedCrime = .unchanged
+        } else if !json.keys.contains("organizedCrime") {
+            malformed.append("organizedcrime")
+            organizedCrime = .unchanged
+        } else if json["organizedCrime"] is NSNull {
+            organizedCrime = .replace(nil)
+        } else if let raw = json["organizedCrime"], JSONSerialization.isValidJSONObject(raw),
+                  let encoded = try? JSONSerialization.data(withJSONObject: raw),
+                  let value = try? decoder.decode(OrganizedCrime2.self, from: encoded) {
+            organizedCrime = .replace(value)
+        } else {
+            malformed.append("organizedcrime")
+            organizedCrime = .unchanged
         }
 
-        var education: EducationStatus?
-        if let dictionary = json["education"] as? [String: Any],
-           let encoded = try? JSONSerialization.data(withJSONObject: dictionary) {
-            education = try? decoder.decode(EducationStatus.self, from: encoded)
-        }
-
-        var bounties: [Bounty] = []
-        if let array = json["bounties"] as? [[String: Any]],
-           let encoded = try? JSONSerialization.data(withJSONObject: array) {
-            bounties = (try? decoder.decode([Bounty].self, from: encoded)) ?? []
-        }
-
-        var notifications: TornNotifications?
-        if let dictionary = json["notifications"] as? [String: Any],
-           let encoded = try? JSONSerialization.data(withJSONObject: dictionary) {
-            notifications = try? decoder.decode(TornNotifications.self, from: encoded)
-        }
+        let refills = decodeSection(Refills.self, selection: "refills", key: "refills")
+        let education = decodeSection(EducationStatus.self, selection: "education", key: "education")
+        let bounties = decodeSection([Bounty].self, selection: "bounties", key: "bounties")
+        let notifications = decodeSection(
+            TornNotifications.self,
+            selection: "notifications",
+            key: "notifications"
+        )
 
         return .success(
             UserV2Payload(
@@ -211,14 +242,16 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
                 refills: refills,
                 education: education,
                 bounties: bounties,
-                notifications: notifications
+                notifications: notifications,
+                malformedSelections: malformed
             ),
             responseBytes: data.count
         )
     }
 
-    /// Decodes `/v2/user/virus`. A `null` virus is the normal "not programming anything"
-    /// answer, not a failure — hence the double optional collapsing to `.success(nil)`.
+    /// Decodes `/v2/user/virus`. An explicit `null` is the normal "not programming"
+    /// answer. Missing or malformed data is a contract failure and must preserve the
+    /// previous value rather than falsely announcing that a virus finished.
     func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
         let response = try await load(url)
         let data = response.data
@@ -228,11 +261,17 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         if let apiError = tornAPIError(in: json) {
             return .apiError(apiError, responseBytes: data.count)
         }
+        guard json.keys.contains("virus") else {
+            return .malformed(responseBytes: data.count)
+        }
+        if json["virus"] is NSNull {
+            return .success(nil, responseBytes: data.count)
+        }
         guard let dictionary = json["virus"] as? [String: Any],
               let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
               let virus = try? JSONDecoder().decode(VirusProgramming.self, from: encoded)
         else {
-            return .success(nil, responseBytes: data.count)
+            return .malformed(responseBytes: data.count)
         }
         return .success(virus, responseBytes: data.count)
     }

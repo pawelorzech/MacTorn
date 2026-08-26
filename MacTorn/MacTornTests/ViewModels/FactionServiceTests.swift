@@ -91,7 +91,8 @@ final class FactionServiceTests: XCTestCase {
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected faction.wars API error")
         }
-        XCTAssertTrue(error.haltsAllRequests)
+        XCTAssertFalse(error.haltsAllRequests,
+                       "code 16 refreshes capabilities; it does not invalidate the key")
         XCTAssertTrue(service.wars.isEmpty)
     }
 

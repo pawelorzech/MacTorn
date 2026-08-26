@@ -172,10 +172,10 @@ in an `Authorization` header instead of the URL.
 | Faction basic + chain | v1 | basic, chain | point-in-time | Every refresh interval (rides the fast poll) | — | faction | no | Faction identity and the live chain counter/timeout that drives the chain-expiring alert. |
 | Faction ranked wars | v2 | — | point-in-time | ≥5 min (throttled; large, slow-changing payload) | — | faction | no | Active ranked war progress (your faction vs. the opponent). |
 | Faction news | v2 | — | row-based | ≥5 min (throttled; hard row limit) | 25 | faction | no | Recent faction news feed. |
-| Item market | v2 | itemmarket | point-in-time | Watchlist refresh (manual + on price-alert timer) | — | market | no | Lowest item-market listings for each watchlist item, used to drive price alerts. |
+| Item market | v2 | — | point-in-time | Watchlist refresh (manual + on price-alert timer) | — | market | no | Lowest item-market listings for each watchlist item, used to drive price alerts. |
 | Stock metadata | v1 | stocks | point-in-time | Rarely (cached; refreshed on demand) | — | metadata | no | Global stock names/acronyms used to label the user's stock holdings (slow-changing reference data). |
 | Item catalog | v2 | — | point-in-time | Rarely (cached for a week; refreshed on demand) | — | metadata | no | Names for every Torn item, so the watchlist can be searched by name and priced items are labelled rather than numbered. |
-| Forum thread | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Post count of a watched forum thread, to alert on new replies. |
+| Forum thread | v2 | — | point-in-time | Forum poll (opt-in feature) | — | forum | no | Post count of a watched forum thread, to alert on new replies. |
 | Forum category threads | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Thread list of a watched forum category, to alert on new threads. |
 | Key info | v2 | — | point-in-time | On demand (Test Connection / key change) | — | core | no | One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read, for onboarding's Test Connection. Never polled. |
 

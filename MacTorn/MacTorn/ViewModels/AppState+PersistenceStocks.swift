@@ -22,6 +22,21 @@ extension AppState {
         do {
             let request = TornAPIClient.request(for: url)
             let (data, _) = try await session.data(for: request)
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let apiError = tornAPIError(in: json) {
+                await MainActor.run {
+                    self.handleAPIError(apiError, for: "torn.stocks")
+                    self.recordStocksMetadataFailure()
+                    self.recordHealth(
+                        "torn.stocks",
+                        outcome: .error,
+                        since: startTime,
+                        bytes: data.count,
+                        errorClass: apiError.classification.rawValue
+                    )
+                }
+                return
+            }
             let parsed = AppState.parseStocksMetadata(from: data, logger: logger)
             guard !parsed.isEmpty else {
                 await MainActor.run {
@@ -37,6 +52,7 @@ extension AppState {
                 }
                 self.stocksFailureCount = 0
                 self.stocksNextRetryAfter = nil
+                self.endpointGate.noteSuccess(for: "torn.stocks")
                 self.recordHealth("torn.stocks", outcome: .ok, since: startTime, bytes: data.count)
                 self.logger.info("Stocks metadata loaded: \(parsed.count) stocks")
             }

@@ -146,8 +146,8 @@ enum KeyValidator {
     }
 
     /// Availability of a single endpoint under a validated key. Endpoints that take no
-    /// `selections` parameter (parameterized v2 market/forum paths) are considered
-    /// available for any valid key — their access isn't expressed via key-info selections.
+    /// `selections` parameter are checked against their documented access tier and any
+    /// dedicated permission bit exposed by `/key/info`.
     static func availability(of endpoint: TornEndpoint, given info: TornKeyInfo) -> EndpointAvailability {
         let required = endpoint.selections
         let missing: [String]
@@ -157,10 +157,19 @@ enum KeyValidator {
             let granted = Set(info.selections.names(for: category(for: endpoint)))
             missing = required.filter { !granted.contains($0) }
         }
+        // Selection-bearing endpoints are governed by the authoritative selection list:
+        // a Custom/Minimal key with one readable selection still gets a narrowed request.
+        // Dedicated endpoints have no selection entry, so their documented tier is the
+        // only capability signal `/key/info` gives us.
+        let hasRequiredLevel = !endpoint.selections.isEmpty
+            || info.access.level >= endpoint.minimumAccessLevel.rawValue
+        let hasDedicatedFactionAccess = !endpoint.requiresFactionAPIAccess || info.access.faction
+        let hasFaction = !endpoint.requiresFaction || info.user.factionId != nil
         return EndpointAvailability(endpointID: endpoint.id,
                                     name: endpoint.name,
                                     critical: endpoint.critical,
-                                    available: missing.isEmpty,
+                                    available: missing.isEmpty && hasRequiredLevel
+                                        && hasDedicatedFactionAccess && hasFaction,
                                     missingSelections: missing)
     }
 

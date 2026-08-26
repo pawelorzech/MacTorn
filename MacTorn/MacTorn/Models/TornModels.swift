@@ -1518,8 +1518,8 @@ enum TornAPI {
     /// spec 6.13.1). Torn does not expose per-item bazaar prices on v2 at all, so asking
     /// for it bought a larger payload and nothing else.
     static func marketURL(itemId: Int, apiKey: String) -> URL? {
-        build("https://api.torn.com/v2/market/\(itemId)",
-              query: ["selections": "itemmarket", "key": apiKey])
+        build("https://api.torn.com/v2/market/\(itemId)/itemmarket",
+              query: ["key": apiKey])
     }
 
     /// Virus programming has no combinable `/user` selection — it is absent from Torn's

@@ -15,7 +15,7 @@ import Foundation
 //     clear on their own, so polling pauses and resumes automatically instead of
 //     sending the user off to regenerate a perfectly good key.
 //   • insufficientPermissions → the key's access level cannot serve this selection.
-//     Permanent for that endpoint, but the rest of the app keeps running.
+//     Refresh `/key/info`, narrow the request and retry once; never invalidate the key.
 //   • endpointUnavailable → the request as constructed can never succeed (wrong API
 //     version, wrong category, a deleted thread/item id, an unmigrated crime
 //     selection). Disable that one endpoint; retrying is a guaranteed 100% failure.
@@ -23,10 +23,10 @@ import Foundation
 //     it worse, so this gets its own long cool-off.
 //   • dailyRowLimit → pause ONLY the row-based category that tripped it (error 14),
 //     while bars/cooldowns/countdowns keep running.
-//   • rateLimit / temporaryBackend / offline / transport → surfaced to the UI; no
-//     built-in retry layer. At the app's 15-120s poll cadence the next timer tick
-//     recovers on its own, and a second retry layer would double traffic in an app
-//     that guards its Torn API budget.
+//   • rateLimit → a one-minute account-wide pause, because Torn applies code 5 per user
+//     across every key and endpoint.
+//   • temporaryBackend / offline / transport → surfaced to the UI; the normal poll
+//     cadence is the retry, avoiding a second traffic-amplifying retry layer.
 //   • malformed / cancelled → non-retryable, not the server's fault.
 //
 // Codes are the 0-31 set published in Torn's OpenAPI document
@@ -60,9 +60,9 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// The key is valid but its access level is too low for a requested selection.
     /// Torn code 16.
     case insufficientPermissions(code: Int, message: String)
-    /// This request can never succeed as constructed — wrong API version for the
-    /// selection, wrong category, an id that does not exist, or a selection that has
-    /// been migrated away. Torn codes 6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30.
+    /// This request can never succeed as constructed — wrong fields/type/API version,
+    /// wrong category, an id that does not exist, or a migrated selection. Torn codes
+    /// 3, 4, 6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30.
     case endpointUnavailable(code: Int, message: String)
     /// Torn blocked this IP address (code 8). Needs a long cool-off, not a poll retry.
     case ipBlocked(code: Int, message: String)
@@ -116,13 +116,11 @@ enum TornAPIError: Error, Equatable, Sendable {
         }
     }
 
-    /// A key/permission problem that should halt *all* affected requests until the
-    /// user fixes their key. Only the three genuinely permanent key codes plus
-    /// access-level-too-low qualify — everything self-healing goes through
-    /// `pauseDuration` instead, so a spell in federal jail no longer looks to the
-    /// user like a broken key.
+    /// A key problem that should halt *all* requests until the user changes the key.
+    /// Only the three genuinely permanent key codes qualify; code 16 refreshes
+    /// capabilities and retries a narrowed request instead.
     var haltsAllRequests: Bool {
-        classification == .permanentKey || classification == .insufficientPermissions
+        classification == .permanentKey
     }
 
     /// A daily-row-limit hit (error 14) halts only the row-based category that tripped
@@ -135,7 +133,7 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// app is fine — so the caller should stop calling that one endpoint rather than
     /// stop the app or keep retrying a request that cannot ever succeed.
     var disablesEndpoint: Bool {
-        classification == .endpointUnavailable || classification == .insufficientPermissions
+        classification == .endpointUnavailable
     }
 
     /// How long to stay quiet before trying again, for the self-healing failures.
@@ -147,7 +145,7 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// the app recovers on its own well within one sitting.
     var pauseDuration: TimeInterval? {
         switch self {
-        case .endpointUnavailable, .insufficientPermissions:
+        case .endpointUnavailable:
             // Not a retry interval so much as a re-probe. These cannot succeed as
             // constructed, so the cool-off exists to stop the request rather than to wait
             // out a condition: a deleted forum thread or a bad item id would otherwise be
@@ -162,7 +160,7 @@ enum TornAPIError: Error, Equatable, Sendable {
             return 3600     // 1 h — the cap is daily; re-probe hourly, cheaply.
         case .rateLimit:
             return 60       // 1 min — the per-minute window has to roll over.
-        case .permanentKey, .temporaryBackend, .offline, .transport,
+        case .permanentKey, .insufficientPermissions, .temporaryBackend, .offline, .transport,
              .malformedResponse, .cancelled:
             return nil
         }
@@ -243,8 +241,8 @@ enum TornAPIError: Error, Equatable, Sendable {
             return .temporaryKey(code: code, message: message)
         case 16:
             return .insufficientPermissions(code: code, message: message)
-        case 6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30:
-            // 6 incorrect id, 7 id/entity mismatch, 19 must migrate to Crimes v2,
+        case 3, 4, 6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30:
+            // 3 wrong type, 4 wrong fields, 6 incorrect id, 7 id/entity mismatch,
             // 21 incorrect category, 22 v1-only selection, 23 v2-only selection,
             // 25 invalid stat, 26 category-or-stats only, 27 must migrate to OC v2,
             // 28 incorrect log id, 29 category unavailable for interaction logs,

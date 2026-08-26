@@ -138,11 +138,83 @@ final class UserSnapshotServiceTests: XCTestCase {
         guard case .success(let payload, let bytes) = result else {
             return XCTFail("Expected v2 payload")
         }
-        XCTAssertEqual(payload.organizedCrime?.id, 1_836_033)
-        XCTAssertEqual(payload.bounties.count, 1)
-        XCTAssertNotNil(payload.refills)
-        XCTAssertNotNil(payload.education)
+        guard case .replace(let organizedCrime) = payload.organizedCrime,
+              case .replace(let bounties) = payload.bounties,
+              case .replace = payload.refills,
+              case .replace = payload.education else {
+            return XCTFail("Expected every requested section to produce an update")
+        }
+        XCTAssertEqual(organizedCrime?.id, 1_836_033)
+        XCTAssertEqual(bounties.count, 1)
+        XCTAssertTrue(payload.malformedSelections.isEmpty)
         XCTAssertEqual(bytes, data.count)
+    }
+
+    func testUserV2MalformedSectionDoesNotMasqueradeAsEmpty() async throws {
+        let mock = MockNetworkSession()
+        mock.mockData = try TornAPIFixtures.toData([
+            "bounties": [["id": "not-an-integer"]],
+            "notifications": ["messages": 2, "events": 3, "awards": 0, "competition": 0],
+        ])
+        let service = UserSnapshotService(session: mock)
+        let url = URL(string: "https://api.torn.com/v2/user?selections=bounties,notifications")!
+
+        let result = try await service.loadUserV2(url)
+
+        guard case .success(let payload, _) = result else {
+            return XCTFail("Valid sibling sections should still be publishable")
+        }
+        guard case .unchanged = payload.bounties,
+              case .replace(let notifications) = payload.notifications else {
+            return XCTFail("Malformed bounties must preserve last-good while notifications update")
+        }
+        XCTAssertEqual(notifications.messages, 2)
+        XCTAssertEqual(payload.malformedSelections, ["bounties"])
+    }
+
+    func testUserV2ExplicitEmptyArrayClearsLastGoodArray() async throws {
+        let mock = MockNetworkSession()
+        mock.mockData = try TornAPIFixtures.toData(["bounties": []])
+        let service = UserSnapshotService(session: mock)
+
+        let result = try await service.loadUserV2(
+            URL(string: "https://api.torn.com/v2/user?selections=bounties")!
+        )
+
+        guard case .success(let payload, _) = result,
+              case .replace(let bounties) = payload.bounties else {
+            return XCTFail("An explicit empty array is a real update")
+        }
+        XCTAssertTrue(bounties.isEmpty)
+    }
+
+    func testVirusExplicitNullMeansNotProgramming() async throws {
+        let mock = MockNetworkSession()
+        mock.mockData = try TornAPIFixtures.toData(["virus": NSNull()])
+        let service = UserSnapshotService(session: mock)
+
+        let result = try await service.loadVirus(URL(string: "https://api.torn.com/v2/user/virus")!)
+
+        guard case .success(let virus, _) = result else {
+            return XCTFail("Explicit null is Torn's valid idle state")
+        }
+        XCTAssertNil(virus)
+    }
+
+    func testVirusMissingOrMalformedObjectIsRejected() async throws {
+        for json: [String: Any] in [[:], ["virus": ["until": "tomorrow"]]] {
+            let mock = MockNetworkSession()
+            mock.mockData = try TornAPIFixtures.toData(json)
+            let service = UserSnapshotService(session: mock)
+
+            let result = try await service.loadVirus(
+                URL(string: "https://api.torn.com/v2/user/virus")!
+            )
+
+            guard case .malformed = result else {
+                return XCTFail("Missing/malformed virus must not clear last-good state: \(json)")
+            }
+        }
     }
 
     func testReportsTornAPIErrorWithoutDecodingPayload() async throws {

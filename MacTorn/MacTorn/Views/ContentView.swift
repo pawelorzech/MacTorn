@@ -227,10 +227,10 @@ struct ContentView: View {
                     .background(currentGroup == group
                                 ? Color.accentColor.opacity(selectedBackgroundOpacity)
                                 : Color.clear)
-                    .cornerRadius(6)
-                    .contentShape(Rectangle())
+                    .clipShape(Capsule())
+                    .contentShape(Capsule())
                     .overlay {
-                        RoundedRectangle(cornerRadius: 6)
+                        Capsule()
                             .stroke(navigationFocus == .group(group)
                                     ? Color.accentColor
                                     : Color.clear,
@@ -265,12 +265,12 @@ struct ContentView: View {
                                     ? Color.accentColor.opacity(selectedBackgroundOpacity)
                                     : Color.secondary.opacity(reduceTransparency ? 0.12 : 0.06))
                         .overlay {
-                            RoundedRectangle(cornerRadius: 5)
+                            RoundedRectangle(cornerRadius: 6)
                                 .stroke(moduleBorderColor(for: tab),
                                         lineWidth: navigationFocus == .tab(tab) ? 2 : 1)
                         }
-                        .cornerRadius(5)
-                        .contentShape(Rectangle())
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                        .contentShape(RoundedRectangle(cornerRadius: 6))
                 }
                 .buttonStyle(.plain)
                 .focused($navigationFocus, equals: .tab(tab))

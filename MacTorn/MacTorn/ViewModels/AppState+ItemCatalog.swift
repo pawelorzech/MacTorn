@@ -65,6 +65,14 @@ extension AppState {
 
         do {
             let (data, _) = try await session.data(for: TornAPIClient.request(for: url))
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let apiError = tornAPIError(in: json) {
+                handleAPIError(apiError, for: "torn.items")
+                recordItemCatalogFailure()
+                recordHealth("torn.items", outcome: .error, since: startTime,
+                             bytes: data.count, errorClass: apiError.classification.rawValue)
+                return
+            }
             let parsed = AppState.parseItemCatalog(from: data, logger: logger)
             guard !parsed.isEmpty else {
                 recordItemCatalogFailure()
@@ -79,6 +87,7 @@ extension AppState {
             }
             itemCatalogFailureCount = 0
             itemCatalogNextRetryAfter = nil
+            endpointGate.noteSuccess(for: "torn.items")
             backfillWatchlistNames()
             recordHealth("torn.items", outcome: .ok, since: startTime, bytes: data.count)
             logger.info("Item catalog loaded: \(parsed.count) items")
@@ -106,7 +115,7 @@ extension AppState {
     /// UserDefaults, which macOS materialises in full at every launch: without a ceiling a
     /// hostile or MITM'd response could persist an arbitrarily large blob that reloads on
     /// every start and only clears on the next *successful* fetch.
-    static let itemCatalogMaxEntries = 5_000
+    nonisolated static let itemCatalogMaxEntries = 5_000
 
     /// Decodes `TornItemsResponse` down to id → name.
     ///

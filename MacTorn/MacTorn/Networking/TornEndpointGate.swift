@@ -10,6 +10,10 @@ enum TornEndpointDenial: Equatable, Sendable {
     case paused(until: Date, reason: TornErrorClass)
     /// `/key/info` says this key cannot read the selections the endpoint needs.
     case keyLacksSelections([String])
+    /// A dedicated endpoint requires a higher key tier than `/key/info` reports.
+    case keyAccessLevelTooLow(required: TornKeyAccessLevel)
+    /// Torn's dedicated faction-API permission is disabled for this key.
+    case factionAPIAccessDisabled
     /// The endpoint only returns faction data and `/key/info` says the owner has no faction.
     case notInFaction
     /// The endpoint's row-based category has used up its client-side daily row budget.
@@ -26,6 +30,9 @@ enum TornEndpointDenial: Equatable, Sendable {
             return "paused(\(reason.rawValue), \(max(0, Int(until.timeIntervalSinceNow)))s)"
         case let .keyLacksSelections(missing):
             return "keyLacksSelections(\(missing.joined(separator: "+")))"
+        case let .keyAccessLevelTooLow(required):
+            return "keyAccessLevelTooLow(\(required.rawValue))"
+        case .factionAPIAccessDisabled: return "factionAPIAccessDisabled"
         case .notInFaction: return "notInFaction"
         case let .rowBudgetExhausted(category): return "rowBudgetExhausted(\(category.rawValue))"
         case .perMinuteCapReached: return "perMinuteCapReached"
@@ -52,6 +59,10 @@ enum TornEndpointDenial: Equatable, Sendable {
             }
         case let .keyLacksSelections(missing):
             return "Your key cannot read: \(missing.joined(separator: ", "))"
+        case let .keyAccessLevelTooLow(required):
+            return "This data requires a \(required.label) key"
+        case .factionAPIAccessDisabled:
+            return "Faction API access is disabled for this key"
         case .notInFaction:
             return "You are not in a faction"
         case .rowBudgetExhausted:
@@ -68,7 +79,8 @@ enum TornEndpointDenial: Equatable, Sendable {
     var isSelfHealing: Bool {
         switch self {
         case .paused, .rowBudgetExhausted, .perMinuteCapReached: return true
-        case .keyLacksSelections, .notInFaction, .unknownEndpoint: return false
+        case .keyLacksSelections, .keyAccessLevelTooLow, .factionAPIAccessDisabled,
+             .notInFaction, .unknownEndpoint: return false
         }
     }
 }
@@ -91,6 +103,9 @@ final class TornEndpointGate {
     private let time: TimeSource
     /// Endpoint id → the instant it may be tried again.
     private var pausedUntil: [String: (deadline: Date, reason: TornErrorClass)] = [:]
+    /// Endpoint ids that already consumed their one immediate code-16 capability refresh.
+    /// Prevents a stale/incorrect capability response from creating an unbounded retry loop.
+    private var permissionRetryAttempted: Set<String> = []
 
     init(time: TimeSource = SystemTimeSource()) {
         self.time = time
@@ -121,6 +136,13 @@ final class TornEndpointGate {
         if let keyInfo {
             if endpoint.requiresFaction, keyInfo.user.factionId == nil {
                 return .notInFaction
+            }
+            if endpoint.requiresFactionAPIAccess, !keyInfo.access.faction {
+                return .factionAPIAccessDisabled
+            }
+            if endpoint.selections.isEmpty,
+               keyInfo.access.level < endpoint.minimumAccessLevel.rawValue {
+                return .keyAccessLevelTooLow(required: endpoint.minimumAccessLevel)
             }
             // Only a *total* miss is a denial. A key that can read some of an endpoint's
             // selections still gets the call — `TornEndpoint.url(granted:)` trims the
@@ -176,6 +198,16 @@ final class TornEndpointGate {
         }
     }
 
+    /// Returns true exactly once per endpoint until a successful response clears the
+    /// latch. A second code 16 is held back rather than recursively refreshing forever.
+    func beginPermissionRetry(for endpointID: String) -> Bool {
+        permissionRetryAttempted.insert(endpointID).inserted
+    }
+
+    func noteSuccess(for endpointID: String) {
+        permissionRetryAttempted.remove(endpointID)
+    }
+
     /// Pauses one endpoint for a fixed interval, for callers that decide a cool-off
     /// without an error to hand over.
     func pause(_ endpointID: String, for interval: TimeInterval, reason: TornErrorClass) {
@@ -205,5 +237,6 @@ final class TornEndpointGate {
     /// clean slate, and a pause earned by the previous key says nothing about this one.
     func reset() {
         pausedUntil.removeAll(keepingCapacity: true)
+        permissionRetryAttempted.removeAll(keepingCapacity: true)
     }
 }

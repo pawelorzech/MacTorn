@@ -263,7 +263,9 @@ final class TornAPIURLBuilderTests: XCTestCase {
         guard let url = TornAPI.marketURL(itemId: 1234, apiKey: "abc") else {
             return XCTFail("nil URL")
         }
-        XCTAssertEqual(url.path, "/v2/market/1234")
+        XCTAssertEqual(url.path, "/v2/market/1234/itemmarket")
+        XCTAssertNil(URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first { $0.name == "selections" })
     }
 
     func testURL_forumThreadURLIncludesThreadIdInPath() {

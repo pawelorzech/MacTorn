@@ -488,7 +488,7 @@ struct WatchlistPriceRow: View {
                     Image(systemName: item.priceThreshold != nil ? "bell.fill" : "bell")
                         .foregroundColor(item.priceThreshold != nil ? .yellow : .secondary)
                         .font(.caption)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -541,7 +541,7 @@ struct WatchlistPriceRow: View {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
                         .font(.caption)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 28, height: 28)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)

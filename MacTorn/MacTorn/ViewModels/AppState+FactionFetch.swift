@@ -16,6 +16,7 @@ extension AppState {
 
             switch result {
             case .success(let payload, let responseBytes):
+                endpointGate.noteSuccess(for: "faction.basic")
                 factionService.publishBasic(payload)
                 // Chain data enters the app here — evaluate the expiry edge now, while
                 // it is fresh. (Audit C-01: this used to be checked against the user
@@ -25,6 +26,7 @@ extension AppState {
                 recordHealth("faction.basic", outcome: .ok, since: startTime, bytes: responseBytes)
 
             case .apiError(let apiError, let responseBytes):
+                handleAPIError(apiError, for: "faction.basic")
                 recordHealth(
                     "faction.basic",
                     outcome: .error,
@@ -86,6 +88,7 @@ extension AppState {
 
                 switch result {
                 case .success(let wars, let responseBytes):
+                    endpointGate.noteSuccess(for: "faction.rankedwars")
                     factionService.publishWars(wars)
                     recordHealth(
                         "faction.rankedwars",
@@ -95,6 +98,7 @@ extension AppState {
                     )
 
                 case .apiError(let apiError, let responseBytes):
+                    handleAPIError(apiError, for: "faction.rankedwars")
                     recordHealth(
                         "faction.rankedwars",
                         outcome: .error,
@@ -152,13 +156,12 @@ extension AppState {
 
                 switch result {
                 case .success(let news, let responseBytes):
+                    endpointGate.noteSuccess(for: "faction.news")
                     factionService.publishNews(news)
                     recordHealth("faction.news", outcome: .ok, since: startTime, bytes: responseBytes)
 
                 case .apiError(let apiError, let responseBytes):
-                    if apiError.haltsCategoryOnly {
-                        pauseRowSource("faction.news", error: apiError)
-                    }
+                    handleAPIError(apiError, for: "faction.news")
                     recordHealth(
                         "faction.news",
                         outcome: .error,

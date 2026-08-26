@@ -27,10 +27,13 @@ final class TornEndpointGateTests: XCTestCase {
                             "battlestats", "properties", "stocks", "organizedcrime",
                             "refills", "education", "bounties", "events", "messages", "attacks",
                          ],
-                         factionID: Int? = 100) throws -> TornKeyInfo {
+                         factionID: Int? = 100,
+                         accessLevel: Int = 3,
+                         factionAccess: Bool = true) throws -> TornKeyInfo {
         let json: [String: Any] = [
             "info": [
-                "access": ["level": 3, "type": "Limited Access", "faction": true, "company": false,
+                "access": ["level": accessLevel, "type": "Limited Access",
+                           "faction": factionAccess, "company": false,
                            "log": ["custom_permissions": false, "available": []]],
                 "user": ["id": 42,
                          "faction_id": factionID.map { $0 as Any } ?? NSNull(),
@@ -101,6 +104,16 @@ final class TornEndpointGateTests: XCTestCase {
                      "a key that can read bars must still get its bars")
     }
 
+    func testDedicatedMinimalEndpointIsRefusedForPublicOnlyKey() throws {
+        XCTAssertEqual(denial("user.virus", keyInfo: try keyInfo(accessLevel: 1)),
+                       .keyAccessLevelTooLow(required: .minimal))
+    }
+
+    func testFactionNewsIsRefusedWithoutFactionAPIPermission() throws {
+        XCTAssertEqual(denial("faction.news", keyInfo: try keyInfo(factionAccess: false)),
+                       .factionAPIAccessDisabled)
+    }
+
     // MARK: - Cool-offs
 
     func testPauseHoldsForTheErrorsDurationAndThenLifts() throws {
@@ -134,7 +147,7 @@ final class TornEndpointGateTests: XCTestCase {
                        "the next poll tick is already the retry for a transient failure")
     }
 
-    /// An IP block and a suspended key refuse everything. Pausing only the endpoint that
+    /// An IP block, suspended key and per-user rate limit refuse everything. Pausing only the endpoint that
     /// noticed would leave the rest firing into the same wall.
     func testAnAccountWideFailurePausesEveryEndpoint() {
         gate.noteAccountWideFailure(TornAPIError.classify(code: 8, message: ""))
@@ -147,6 +160,16 @@ final class TornEndpointGateTests: XCTestCase {
         }
     }
 
+
+    func testPerUserRateLimitPausesEveryEndpoint() {
+        gate.noteAccountWideFailure(TornAPIError.classify(code: 5, message: ""))
+        for endpoint in TornEndpointRegistry.all {
+            XCTAssertTrue(gate.isPaused(endpoint.id), "\(endpoint.id) kept running through a per-user limit")
+        }
+        clock.advance(61)
+        XCTAssertTrue(gate.activePauses().isEmpty)
+    }
+
     func testAnAccountWideFailureWithNoCoolOffPausesNothing() {
         gate.noteAccountWideFailure(.transport(detail: "timeout"))
         XCTAssertTrue(gate.activePauses().isEmpty)
@@ -157,6 +180,15 @@ final class TornEndpointGateTests: XCTestCase {
         gate.reset()
         XCTAssertFalse(gate.isPaused("user.activity"))
         XCTAssertTrue(gate.activePauses().isEmpty)
+    }
+
+    func testPermissionRefreshRetriesOnlyOnceUntilSuccess() {
+        XCTAssertTrue(gate.beginPermissionRetry(for: "user.v2"))
+        XCTAssertFalse(gate.beginPermissionRetry(for: "user.v2"),
+                       "a persistent code 16 must not recurse forever")
+        gate.noteSuccess(for: "user.v2")
+        XCTAssertTrue(gate.beginPermissionRetry(for: "user.v2"),
+                      "a later successful response re-arms recovery")
     }
 
     // MARK: - Budgets
@@ -194,6 +226,8 @@ final class TornEndpointGateTests: XCTestCase {
             .paused(until: clock.now.addingTimeInterval(600), reason: .dailyRowLimit),
             .paused(until: clock.now.addingTimeInterval(30), reason: .rateLimit),
             .keyLacksSelections(["battlestats"]),
+            .keyAccessLevelTooLow(required: .minimal),
+            .factionAPIAccessDisabled,
             .notInFaction,
             .rowBudgetExhausted(.activity),
             .perMinuteCapReached,

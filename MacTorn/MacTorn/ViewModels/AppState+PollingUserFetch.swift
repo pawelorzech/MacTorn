@@ -21,8 +21,9 @@ extension AppState {
         // only served to make `timerCancellable != nil` stop meaning "a timer is running" —
         // which `refreshNow` relies on.
         installPollingTimer()
-        triggerReferenceDataFetchIfNeeded()
+        let needsCapabilities = keyInfo == nil && !apiKey.isEmpty && connectivity.isConnected
         startFirstFetch()
+        if !needsCapabilities { triggerReferenceDataFetchIfNeeded() }
     }
 
     /// Issues the first poll of a session, ordered behind the key-capabilities load.
@@ -38,19 +39,35 @@ extension AppState {
     /// two others: `refreshNow` installs a timer whenever it finds none, so a manual
     /// refresh during the wait produced a second one and left the first orphaned, and a
     /// cancelled first fetch left the app with no timer at all.
-    private func startFirstFetch() {
+    @discardableResult
+    private func startFirstFetch() -> Bool {
         guard keyInfo == nil, !apiKey.isEmpty, connectivity.isConnected else {
-            fetchData()
-            return
+            return fetchData()
+        }
+        guard !awaitingFirstKeyInfo else { return false }
+
+        // Reserve `/key/info` on the caller's turn. Besides keeping accounting exact,
+        // this preserves `refreshNow`'s synchronous acceptance semantics: debounce and
+        // request-budget readers see the accepted refresh before its async transport runs.
+        var reservedKeyInfoURL: URL?
+        if keyInfoTask == nil {
+            guard let url = endpointURL("key.info"), reserveRequest("key.info") else {
+                return false
+            }
+            reservedKeyInfoURL = url
         }
 
         awaitingFirstKeyInfo = true
+        pollSequence &+= 1
         let identity = accountSession.identity
         firstFetchGeneration &+= 1
         let generation = firstFetchGeneration
         firstFetchTask?.cancel()
         firstFetchTask = Task { [weak self] in
-            await self?.loadKeyInfoIfNeeded()
+            await self?.loadKeyInfoIfNeeded(
+                preReservedURL: reservedKeyInfoURL,
+                expectedIdentity: identity
+            )
             guard let self else { return }
             // A superseded attempt must not clear the window a newer one just opened. This
             // is the `defer`-clobber bug in a second costume: the handle was fixed, the
@@ -66,8 +83,9 @@ extension AppState {
             guard !Task.isCancelled,
                   self.accountSession.isCurrent(identity),
                   !self.keyHalted else { return }
-            self.fetchData()
+            self.fetchData(reusingPollSequence: true)
         }
+        return true
     }
 
     private func installPollingTimer() {
@@ -80,6 +98,10 @@ extension AppState {
                 // one refresh interval is a plain cold handshake at the 15-second setting,
                 // not a rare event.
                 guard !self.awaitingFirstKeyInfo else { return }
+                if self.keyInfo == nil {
+                    self.startFirstFetch()
+                    return
+                }
                 self.refreshKeyInfoIfNeeded()
                 self.fetchData()
                 self.triggerReferenceDataFetchIfNeeded()
@@ -121,29 +143,21 @@ extension AppState {
             }
         }
 
-        // A manual refresh cannot jump the first key-capabilities load either; it would
-        // send the same un-narrowed request the timer is being held back from. The pending
-        // first fetch will satisfy this refresh when it lands, so nothing is lost.
+        // A manual refresh cannot jump or restart the first key-capabilities load. The
+        // pending first fetch satisfies this refresh when it lands.
         guard !awaitingFirstKeyInfo else { return }
 
-        // NOT FIXED HERE, deliberately. `startPolling` is not how a key gets into this
-        // app: `SettingsView`'s "Save & Connect" is the only caller of the `apiKey` setter
-        // and it follows with `refreshNow()`, so the ordering established in
-        // `startFirstFetch` never covers the path a key actually arrives on — including
-        // the first key a user ever enters. Connectivity-restored reaches here the same
-        // way. The setter's `resetAccountScopedState` clears `awaitingFirstKeyInfo`
-        // (correctly — a stale flag would wedge the timer forever), which is exactly why
-        // the guard above cannot fire on the transition that nulls `keyInfo`.
-        //
-        // Deferring here was tried and is wrong: it changes `refreshNow` from
-        // "synchronously attempt a fetch" to "sometimes defer", which invalidates the
-        // manual debounce, the offline-reopen handling and the budget accounting that all
-        // read `fetchData()`'s return value. Seven tests correctly caught it. Moving the
-        // ordering into `fetchData` instead needs a third piece of state to break the
-        // recursion when `/key/info` fails, on the function every poll goes through.
-        //
-        // This is a pre-existing behaviour, not a regression: on these paths the app does
-        // what it did before narrowing existed. See AUDIT_REPORT.md.
+        // Save & Connect and connectivity restoration both arrive here immediately after
+        // account-scoped state cleared `keyInfo`. Route that first refresh through the
+        // same ordered handshake as `startPolling`: `/key/info` must finish before the
+        // first user request can be narrowed safely.
+        if keyInfo == nil, !apiKey.isEmpty, connectivity.isConnected {
+            if timerCancellable == nil { installPollingTimer() }
+            guard startFirstFetch() else { return }
+            lastManualRefreshAt = time.now
+            lastManualRefreshGeneration = identity.generation
+            return
+        }
 
         // `fetchData` performs connectivity/key/budget validation synchronously. Only
         // accepted requests consume the debounce, so an offline attempt cannot delay
@@ -160,12 +174,20 @@ extension AppState {
         endpointGate.isPaused(endpointID)
     }
 
-    /// Records a failure against the endpoint that produced it, so the gate can hold that
-    /// one endpoint back for as long as the failure class warrants — a daily row limit for
-    /// an hour, a key cooldown for ten minutes, an IP block for an hour — while every
-    /// other endpoint keeps polling.
+    /// Records a failure with the scope Torn assigns it: endpoint-local for malformed
+    /// requests/daily row limits, account-wide for rate/key/network restrictions, and a
+    /// capability refresh for code 16. Legacy endpoint wrappers enter here too.
     func noteEndpointFailure(_ error: TornAPIError, for endpointID: String) {
-        endpointGate.note(error, for: endpointID)
+        switch error.classification {
+        case .permanentKey, .temporaryKey, .ipBlocked, .rateLimit,
+             .insufficientPermissions:
+            // Legacy market/forum callers enter through this method. Route their
+            // account/capability errors through the same central semantics too.
+            handleAPIError(error, for: endpointID)
+            return
+        default:
+            endpointGate.note(error, for: endpointID)
+        }
         if let pause = error.pauseDuration {
             logger.warning(
                 "Paused \(endpointID) for \(Int(pause))s after \(error.classification.rawValue) (code \(error.tornCode ?? -1))"
@@ -221,7 +243,7 @@ extension AppState {
         keyValidation = .failure(error.userMessage)
         errorMsg = error.userMessage
         stopPolling()
-        logger.error("Polling halted on permanent key/permission error (code \(error.tornCode ?? -1))")
+        logger.error("Polling halted on permanent key error (code \(error.tornCode ?? -1))")
     }
 
     /// Handles the key errors that clear on their own — federal jail, a key-change
@@ -255,6 +277,34 @@ extension AppState {
         }
     }
 
+    /// Applies Torn application errors consistently regardless of which service wrapper
+    /// decoded the envelope. In particular, code 5 is per user (and therefore global),
+    /// while code 16 is a stale-capability signal rather than an invalid-key signal.
+    func handleAPIError(_ error: TornAPIError, for endpointID: String) {
+        switch error.classification {
+        case .permanentKey:
+            handlePermanentKeyError(error)
+        case .temporaryKey, .ipBlocked, .rateLimit:
+            handleRecoverableKeyError(error)
+        case .insufficientPermissions:
+            errorMsg = error.userMessage
+            guard endpointGate.beginPermissionRetry(for: endpointID) else {
+                endpointGate.pause(endpointID, for: 3_600, reason: .insufficientPermissions)
+                logger.warning("Code 16 persisted after capability refresh for \(endpointID)")
+                return
+            }
+            keyInfo = nil
+            keyInfoLoadedAt = nil
+            logger.warning("Refreshing capabilities after code 16 from \(endpointID)")
+            // `/key/info` itself cannot be narrowed. Avoid an infinite self-refresh loop
+            // if Torn unexpectedly answers code 16 on the capability endpoint.
+            if endpointID != "key.info" { startFirstFetch() }
+        default:
+            noteEndpointFailure(error, for: endpointID)
+            errorMsg = error.userMessage
+        }
+    }
+
     /// Loads `/key/info` in the background so the endpoint gate knows what this key can
     /// actually read, without touching `keyValidation` — that state belongs to the
     /// Settings "Test Connection" button and a panel appearing on its own would be a
@@ -281,8 +331,12 @@ extension AppState {
     /// relaunched. The reverse cost just as much: one flaky `/key/info` at launch left
     /// `keyInfo` nil forever, so the gate silently did nothing for the whole session and a
     /// factionless player went back to spending a request on faction data every poll.
-    func loadKeyInfoIfNeeded() async {
+    func loadKeyInfoIfNeeded(
+        preReservedURL: URL? = nil,
+        expectedIdentity: AccountIdentity? = nil
+    ) async {
         guard !apiKey.isEmpty, !keyHalted, connectivity.isConnected else { return }
+        if let expectedIdentity, !accountSession.isCurrent(expectedIdentity) { return }
         // Join an in-flight load rather than returning past it. Returning immediately made
         // the guard that prevents a double-start also defeat the await-before-fetch
         // ordering for every caller that was not first: a second `startPolling` awaited
@@ -295,10 +349,16 @@ extension AppState {
            time.now.timeIntervalSince(loadedAt) < Self.keyInfoMaxAge {
             return
         }
-        let requestedKey = apiKey
-        let identity = accountSession.identity
-        guard let url = endpointURL("key.info", key: requestedKey),
-              reserveRequest("key.info") else { return }
+        let identity = expectedIdentity ?? accountSession.identity
+        let requestedKey = identity.apiKey
+        let url: URL
+        if let preReservedURL {
+            url = preReservedURL
+        } else {
+            guard let built = endpointURL("key.info", key: requestedKey),
+                  reserveRequest("key.info") else { return }
+            url = built
+        }
 
         let task = Task { [weak self] in
             guard let self else { return }
@@ -306,9 +366,20 @@ extension AppState {
             do {
                 let (data, response) = try await self.session.data(for: TornAPIClient.request(for: url))
                 guard self.accountSession.isCurrent(identity) else { return }
-                guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-                      let decoded = try? JSONDecoder().decode(TornKeyInfo.Response.self, from: data)
-                else {
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let apiError = tornAPIError(in: json) {
+                    self.handleAPIError(apiError, for: "key.info")
+                    self.recordHealth("key.info", outcome: .error, since: startTime,
+                                      bytes: data.count,
+                                      errorClass: apiError.classification.rawValue)
+                    return
+                }
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                    self.recordHealth("key.info", outcome: .error, since: startTime,
+                                      bytes: data.count, errorClass: "temporaryBackend")
+                    return
+                }
+                guard let decoded = try? JSONDecoder().decode(TornKeyInfo.Response.self, from: data) else {
                     self.recordHealth("key.info", outcome: .error, since: startTime,
                                       bytes: data.count, errorClass: "malformedResponse")
                     return
@@ -432,7 +503,7 @@ extension AppState {
     // MARK: - Fetch Data
 
     @discardableResult
-    func fetchData() -> Bool {
+    func fetchData(reusingPollSequence: Bool = false) -> Bool {
         guard connectivity.isConnected else {
             if errorMsg != "No internet connection" {
                 errorMsg = "No internet connection"
@@ -456,7 +527,7 @@ extension AppState {
 
         guard reserveRequest("user.fast") else { return false }
 
-        pollSequence &+= 1
+        if !reusingPollSequence { pollSequence &+= 1 }
         let myPollSequence = pollSequence
         isLoading = true
         errorMsg = nil
@@ -507,16 +578,8 @@ extension AppState {
                                 bytes: data.count,
                                 errorClass: apiError.classification.rawValue
                             )
-                            self.noteEndpointFailure(apiError, for: "user.fast")
-                            if apiError.haltsAllRequests {
-                                self.handlePermanentKeyError(apiError)
-                            } else if apiError.classification == .temporaryKey
-                                        || apiError.classification == .ipBlocked {
-                                self.handleRecoverableKeyError(apiError)
-                            } else {
-                                self.errorMsg = apiError.userMessage
-                                self.logger.warning("User API error class: \(apiError.classification.rawValue)")
-                            }
+                            self.handleAPIError(apiError, for: "user.fast")
+                            self.logger.warning("User API error class: \(apiError.classification.rawValue)")
                             return
                         }
                         let keys = topLevel.keys.sorted().joined(separator: ",")
@@ -544,8 +607,10 @@ extension AppState {
 
                     guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
                     if parsed {
+                        self.endpointGate.noteSuccess(for: "user.fast")
                         self.logger.info("Data fetch completed successfully")
                         self.recordHealth("user.fast", outcome: .ok, since: startTime, bytes: data.count)
+                        self.triggerReferenceDataFetchIfNeeded()
                     } else {
                         self.recordHealth(
                             "user.fast",
@@ -630,7 +695,7 @@ extension AppState {
         case .success(let value, _):
             payload = value
         case .apiError(let apiError, _):
-            errorMsg = apiError.userMessage
+            handleAPIError(apiError, for: "user.fast")
             return false
         case .malformed:
             errorMsg = "Failed to decode user data"
@@ -713,13 +778,14 @@ extension AppState {
 
             switch result {
             case .success(let payload, let responseBytes):
+                endpointGate.noteSuccess(for: "user.activity")
                 if let events = payload.events { activityEvents = events }
                 if let unread = payload.unreadMessages { unreadMessages = unread }
                 if let attacks = payload.recentAttacks { recentAttacks = attacks }
                 recordHealth("user.activity", outcome: .ok, since: startTime, bytes: responseBytes)
 
             case .apiError(let apiError, let responseBytes):
-                noteEndpointFailure(apiError, for: "user.activity")
+                handleAPIError(apiError, for: "user.activity")
                 recordHealth(
                     "user.activity",
                     outcome: .error,
@@ -775,6 +841,7 @@ extension AppState {
 
             switch result {
             case .success(let value, let responseBytes):
+                endpointGate.noteSuccess(for: "user.virus")
                 let wasProgramming = virus
                 virus = value
                 if let wasProgramming, value == nil || value?.itemID != wasProgramming.itemID,
@@ -788,7 +855,7 @@ extension AppState {
                 recordHealth("user.virus", outcome: .ok, since: startTime, bytes: responseBytes)
 
             case .apiError(let apiError, let responseBytes):
-                noteEndpointFailure(apiError, for: "user.virus")
+                handleAPIError(apiError, for: "user.virus")
                 recordHealth("user.virus", outcome: .error, since: startTime,
                              bytes: responseBytes, errorClass: apiError.classification.rawValue)
 
@@ -818,31 +885,19 @@ extension AppState {
 
             switch result {
             case .success(let payload, let responseBytes):
-                organizedCrime = payload.organizedCrime
-                if let refills = payload.refills { self.refills = refills }
-                if let education = payload.education { self.education = education }
-                bountiesOnMe = payload.bounties
-                if let counts = payload.notifications {
-                    notificationCounts = counts
-                    // The unread count used to arrive with the row-based activity call, so
-                    // it was up to five minutes stale. It rides the fast poll now.
-                    unreadMessages = counts.messages
-                }
-
-                if shouldNotifyOCReady(payload.organizedCrime),
-                   let organizedCrime = payload.organizedCrime {
-                    NotificationManager.shared.send(
-                        title: "OC Ready! 💼",
-                        body: "\(organizedCrime.name) is ready to execute",
-                        type: .ocReady
-                    )
-                }
-
-                notifyBountiesOnMe()
+                endpointGate.noteSuccess(for: "user.v2")
+                applyUserV2Payload(payload)
                 logger.info("User v2 data fetched")
-                recordHealth("user.v2", outcome: .ok, since: startTime, bytes: responseBytes)
+                recordHealth(
+                    "user.v2",
+                    outcome: payload.malformedSelections.isEmpty ? .ok : .error,
+                    since: startTime,
+                    bytes: responseBytes,
+                    errorClass: payload.malformedSelections.isEmpty ? nil : "malformedResponse"
+                )
 
             case .apiError(let apiError, let responseBytes):
+                handleAPIError(apiError, for: "user.v2")
                 recordHealth(
                     "user.v2",
                     outcome: .error,
@@ -871,6 +926,36 @@ extension AppState {
                 errorClass: mapped?.classification.rawValue ?? "transport"
             )
             logger.warning("User v2 fetch error (optional): \(String(describing: type(of: error)))")
+        }
+    }
+
+    /// Applies only sections that were decoded successfully. This makes partial v2
+    /// responses monotonic: one bad sibling cannot erase the last-good value of another.
+    func applyUserV2Payload(_ payload: UserV2Payload) {
+        switch payload.organizedCrime {
+        case .unchanged:
+            break
+        case .replace(let value):
+            organizedCrime = value
+            if shouldNotifyOCReady(value), let value {
+                NotificationManager.shared.send(
+                    title: "OC Ready! 💼",
+                    body: "\(value.name) is ready to execute",
+                    type: .ocReady
+                )
+            }
+        }
+        if case .replace(let value) = payload.refills { refills = value }
+        if case .replace(let value) = payload.education { education = value }
+        if case .replace(let value) = payload.bounties {
+            bountiesOnMe = value
+            notifyBountiesOnMe()
+        }
+        if case .replace(let counts) = payload.notifications {
+            notificationCounts = counts
+            // This used to arrive with the row-based activity call, so it was up to five
+            // minutes stale. It rides the fast poll now.
+            unreadMessages = counts.messages
         }
     }
 

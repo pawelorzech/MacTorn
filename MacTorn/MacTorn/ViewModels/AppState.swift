@@ -85,7 +85,7 @@ class AppState {
         }
     }
 
-    /// True after a permanent key/permission error (Torn codes 2/16/18) halted polling.
+    /// True after a permanent key error (Torn codes 1/2/18) halted polling.
     /// Blocks auto-restart (e.g. on MenuBarExtra open) until the user changes the key.
     /// `internal` for `@testable`.
     var keyHalted: Bool {

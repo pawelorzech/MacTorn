@@ -149,6 +149,21 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(state.recovery, .settings)
     }
 
+    func testAppStateRoutesAccountWidePermanentKeyFailureToSettings() {
+        let appState = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
+        defer { appState.stopPolling() }
+        appState.keyHalted = true
+
+        let state = appState.presentationState(
+            endpointIDs: ["user.fast"],
+            hasContent: false,
+            staleAfter: 120
+        )
+
+        XCTAssertEqual(state.kind, .permission)
+        XCTAssertEqual(state.recovery, .settings)
+    }
+
     func testModuleStateMarksOldSuccessfulDataStale() {
         let now = Date(timeIntervalSince1970: 2_000)
         let state = ModulePresentationState.resolve(

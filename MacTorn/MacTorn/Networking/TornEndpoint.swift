@@ -64,10 +64,9 @@ enum TornCachePolicy: Equatable, Sendable {
 ///
 /// NOTE: the authoritative per-selection requirement is only knowable at runtime
 /// from the `key/?selections=info` endpoint, which is wired in Etap C (key
-/// validation + onboarding — currently deferred; see ISA backlog C-01). The
-/// `minimumAccessLevel` declared on each endpoint below is a documented best-effort
-/// used for onboarding disclosure copy, NOT a hard gate. It is intentionally
-/// conservative (never under-states the requirement).
+/// validation + onboarding). The `minimumAccessLevel` declared on each endpoint below
+/// is also used to gate dedicated endpoints whose access is not represented by a
+/// `selections` query parameter.
 enum TornKeyAccessLevel: Int, Comparable, CaseIterable, Sendable {
     case publicOnly = 1
     case minimal = 2
@@ -110,8 +109,7 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// Row cap requested per call for row-based endpoints (used for the rows/day
     /// estimate). `nil` for point-in-time endpoints.
     let recordLimit: Int?
-    /// Whether `recordLimit` is also sent as a `limit` query item. `forum.thread` accepts
-    /// no `limit`, so for that one alone the accounting and the URL diverge.
+    /// Whether `recordLimit` is also sent as a `limit` query item.
     let sendsLimitQuery: Bool
     let cachePolicy: TornCachePolicy
     let budget: TornBudgetCategory
@@ -123,6 +121,10 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// outright for a factionless player instead of spending a request every poll on a
     /// call that can only come back empty.
     var requiresFaction: Bool = false
+    /// true when Torn additionally requires the key's dedicated faction-API permission.
+    /// `/key/info` exposes this separately as `access.faction`; faction membership alone
+    /// does not grant it.
+    var requiresFactionAPIAccess: Bool = false
 
     var isParameterized: Bool { path.contains("{param}") }
 
@@ -202,7 +204,7 @@ enum TornEndpointRegistry {
             path: "https://api.torn.com/v2/user",
             selections: ["organizedcrime", "refills", "education", "bounties", "notifications"],
             extraQuery: [:],
-            minimumAccessLevel: .limited,
+            minimumAccessLevel: .minimal,
             purpose: "Own Organized Crime 2.0 status, daily refills remaining, in-progress education timer, bounties placed on you, and the unread message/event/award/competition counters.",
             cadence: "Every refresh interval (rides the fast poll)",
             dataShape: .pointInTime,
@@ -271,7 +273,7 @@ enum TornEndpointRegistry {
             path: "https://api.torn.com/v2/faction/rankedwars",
             selections: [],
             extraQuery: [:],
-            minimumAccessLevel: .limited,
+            minimumAccessLevel: .publicOnly,
             purpose: "Active ranked war progress (your faction vs. the opponent).",
             cadence: "≥5 min (throttled; large, slow-changing payload)",
             dataShape: .pointInTime,
@@ -289,7 +291,7 @@ enum TornEndpointRegistry {
             path: "https://api.torn.com/v2/faction/news",
             selections: [],
             extraQuery: ["cat": "main"],
-            minimumAccessLevel: .limited,
+            minimumAccessLevel: .minimal,
             purpose: "Recent faction news feed.",
             cadence: "≥5 min (throttled; hard row limit)",
             dataShape: .rowBased,
@@ -298,14 +300,15 @@ enum TornEndpointRegistry {
             cachePolicy: .throttle(seconds: 300),
             budget: .faction,
             critical: false,
-            requiresFaction: true
+            requiresFaction: true,
+            requiresFactionAPIAccess: true
         ),
         TornEndpoint(
             id: "market.item",
             name: "Item market",
             version: .v2,
-            path: "https://api.torn.com/v2/market/{param}",
-            selections: ["itemmarket"],
+            path: "https://api.torn.com/v2/market/{param}/itemmarket",
+            selections: [],
             extraQuery: [:],
             minimumAccessLevel: .publicOnly,
             purpose: "Lowest item-market listings for each watchlist item, used to drive price alerts.",
@@ -361,8 +364,8 @@ enum TornEndpointRegistry {
             minimumAccessLevel: .publicOnly,
             purpose: "Post count of a watched forum thread, to alert on new replies.",
             cadence: "Forum poll (opt-in feature)",
-            dataShape: .rowBased,
-            recordLimit: 20,
+            dataShape: .pointInTime,
+            recordLimit: nil,
             sendsLimitQuery: false,
             cachePolicy: .throttle(seconds: 300),
             budget: .forum,

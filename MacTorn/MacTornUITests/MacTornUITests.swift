@@ -20,7 +20,12 @@ final class MacTornUITests: XCTestCase {
                         windowHeight: Int? = nil) -> XCUIApplication {
         let app = XCUIApplication()
         var args = ["--uitesting", "-uitest-fixture", fixture,
-                    "-uitest-online", online ? "1" : "0"]
+                    "-uitest-online", online ? "1" : "0",
+                    // Fixture assertions pin English accessibility copy and US currency.
+                    // Make that contract process-local instead of inheriting the Mac's
+                    // locale (which rendered $1,000,000 as `1.000.000 $` in Polish).
+                    "-AppleLanguages", "(en)",
+                    "-AppleLocale", "en_US"]
         if let apiKey { args += ["-uitest-apikey", apiKey] }
         if let windowHeight {
             args += ["-uitest-window-height", String(windowHeight)]
