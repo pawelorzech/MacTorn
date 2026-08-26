@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.2] — 2026-08-26 — what the audits found
+
+Three independent reviews of 1.12.0 and 1.12.1 reported after those releases shipped.
+Everything below is a defect in something 1.12.0 introduced.
+
+### Fixed
+- **Adding a watchlist item by name only worked with the mouse.** Typing "Xanax" and
+  pressing Return, with the matching row rendered directly below the field, answered
+  "Enter a positive item ID." Return and the Add button now commit the top match. A name
+  that matches nothing says so instead of collapsing the panel to a bare field.
+- **The forum category watch announced old threads as new.** Torn returns one page of 20
+  threads, not the whole category, and MacTorn replaced its memory with each page. A
+  thread that scrolled below the cut was forgotten, so the next reply that bumped it back
+  to the top arrived as "New forum thread" for a months-old conversation. In a busy
+  category that was the normal case, not an edge case. The list is now cumulative.
+- **Changing the watched category could produce a burst of notifications.** A listing
+  already in flight landed afterwards and filed the old category's threads under the new
+  one, so the next check found nothing familiar and announced a whole page. Remembered
+  threads are now tied to the category they came from.
+- **The forum alert toggle could be on while watching nothing.** Turning it on without
+  filling in a category ID left it silently inert. It now says so.
+- **Requests that can never succeed are no longer retried forever.** A deleted forum
+  thread or a watchlist entry holding a dead item id answers with the same error every
+  poll; MacTorn was not recording those, so it asked again every few minutes indefinitely.
+- **A key that gained access kept being treated as if it had not.** MacTorn read your
+  key's permissions once per launch and never again, so joining a faction mid-session left
+  the chain alert switched off until you restarted the app. It re-reads hourly now. A
+  single failed read at launch no longer disarms the permission checks for the session.
+- **Selection narrowing now actually happens on the poll it exists for.** 1.12.0 started
+  the permissions read alongside the first poll rather than before it, so that poll always
+  asked for everything.
+- **A transient key error no longer re-announces every bounty on you** once polling
+  recovers.
+- **Forum thread titles are length-capped before they are stored**, matching the rule
+  watchlist names already follow.
+- **Diagnostics names endpoints in words.** The "Not being requested" list showed
+  `faction.basic` beside a plain-English reason.
+- **The Status badge row no longer renders empty**, leaving a gap where nothing is waiting.
+
+### Quality
+- 671 unit tests passed, up from 663.
+- One test in the 1.12.0 suite was asserting the forum bug as correct behaviour. It is
+  rewritten, along with the comment above it that described a limit the code never used.
+
+
 ## [1.12.1] — 2026-08-26 — hostile-response hardening
 
 Follow-up to 1.12.0 from an independent security review of that release.

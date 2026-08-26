@@ -49,7 +49,7 @@ protocol ForumWatchServicing: AnyObject {
     func setError(_ error: String, for threadID: Int)
     func fetchThread(from url: URL) async throws -> ForumThreadResult
     func fetchCategoryThreads(from url: URL) async throws -> ForumCategoryResult
-    func applyCategory(_ threads: [ForumCategoryThread]) -> [ForumCategoryThread]
+    func applyCategory(_ threads: [ForumCategoryThread], for categoryID: Int) -> [ForumCategoryThread]
 }
 
 /// Owns forum-watch state, config, persistence and response decoding. Poll timers,
@@ -201,20 +201,39 @@ final class ForumWatchService: ForumWatchServicing {
     /// Diffs a category listing against the ids already seen and returns only what is
     /// genuinely new.
     ///
-    /// The first listing is *seeded*, never announced. `knownFactionThreadIds` starts
-    /// empty, and a category holds up to a hundred threads — so treating an empty set as
-    /// "everything here is new" would greet anyone switching the feature on with a hundred
-    /// notifications about conversations that have been there for months.
-    func applyCategory(_ threads: [ForumCategoryThread]) -> [ForumCategoryThread] {
-        let ids = Set(threads.map(\.id))
-        let wasSeeded = config.hasSeededFactionThreads
+    /// The first listing is *seeded*, never announced. The seen list starts empty, so
+    /// treating "not in the list" as "new" on the first read would greet anyone switching
+    /// the feature on with a page of notifications about conversations that have been
+    /// there for months.
+    func applyCategory(_ threads: [ForumCategoryThread], for categoryID: Int) -> [ForumCategoryThread] {
+        // A listing that was in flight when the user changed the category describes a
+        // category nobody is watching any more. Writing its ids under the new category's
+        // seed would make the next poll treat a whole page of old threads as new.
+        guard categoryID == config.factionForumCategoryId else { return [] }
+
+        // Seeded ids belong to one category. Pointing the watch somewhere else starts over
+        // rather than diffing against a category the user has left.
+        let wasSeeded = config.hasSeededFactionThreads && config.seededCategoryId == categoryID
+        let alreadySeen = wasSeeded ? Set(config.seenFactionThreadIds) : []
+        let fresh = threads.filter { !alreadySeen.contains($0.id) }
+
         defer {
-            config.knownFactionThreadIds = ids
+            // Union, most-recently-seen first. The listing is one capped page, so replacing
+            // the set here would forget every thread below the cut and re-announce it the
+            // next time a reply bumped it back up.
+            var seen = threads.map(\.id)
+            var known = Set(seen)
+            for id in config.seenFactionThreadIds where !known.contains(id) {
+                seen.append(id)
+                known.insert(id)
+            }
+            config.seenFactionThreadIds = Array(seen.prefix(ForumWatchConfig.maximumSeenThreadIds))
+            config.seededCategoryId = categoryID
             config.hasSeededFactionThreads = true
             save()
         }
         guard wasSeeded else { return [] }
-        return threads.filter { !config.knownFactionThreadIds.contains($0.id) }
+        return fresh
     }
 
     func fetchCategoryThreads(from url: URL) async throws -> ForumCategoryResult {
@@ -240,10 +259,27 @@ final class ForumWatchService: ForumWatchServicing {
         // announced. Skip those rather than failing the whole listing over one bad row.
         let threads: [ForumCategoryThread] = rows.compactMap { row in
             guard let id = row["id"] as? Int else { return nil }
-            let title = (row["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-            return ForumCategoryThread(id: id, title: title ?? "Untitled thread")
+            return ForumCategoryThread(id: id,
+                                       title: ForumWatchService.boundedTitle(row["title"]) ?? "Untitled thread")
         }
         return .success(threads, responseBytes: data.count)
+    }
+
+    /// A forum title, trimmed and length-capped, or nil when there is nothing usable.
+    ///
+    /// Thread titles are server text that lands in `WatchedThread.title` and is encoded
+    /// into the persisted `forumWatchedThreads` blob. Without a cap a hostile or MITM'd
+    /// response writes unbounded text into the user's own data — and because that blob is
+    /// protected by `threadsLoadFailed`, a blob too large to decode is deliberately never
+    /// overwritten, so the bloat sticks instead of healing. Same rule the item catalog and
+    /// typed watchlist names already follow.
+    static func boundedTitle(_ raw: Any?) -> String? {
+        guard let text = raw as? String else { return nil }
+        let cleaned = String(
+            text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(WatchlistItem.maximumNameLength)
+        )
+        return cleaned.isEmpty ? nil : cleaned
     }
 
     func fetchThread(from url: URL) async throws -> ForumThreadResult {
@@ -277,7 +313,7 @@ final class ForumWatchService: ForumWatchServicing {
             return .malformed(responseBytes: data.count)
         }
         // Likewise, never overwrite a good title with a placeholder.
-        let title = (thread["title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let title = ForumWatchService.boundedTitle(thread["title"])
         return .success(
             ForumThreadSnapshot(
                 title: title ?? "Unknown",

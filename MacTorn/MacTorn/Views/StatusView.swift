@@ -64,7 +64,12 @@ struct StatusView: View {
                 dailiesSection
 
                 // What's waiting: messages, events, awards, an open competition
-                if appState.notificationCounts?.hasAny == true || appState.unreadMessages > 0 {
+                // `notificationCounts` wins outright once it exists. Falling back to
+                // `unreadMessages` while it is present renders the row with zero badges,
+                // because that value comes from the slower activity poll and can still be
+                // non-zero after the counters have gone to zero.
+                if appState.notificationCounts?.hasAny == true
+                    || (appState.notificationCounts == nil && appState.unreadMessages > 0) {
                     notificationBadges
                 }
 

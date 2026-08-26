@@ -357,6 +357,51 @@ to była cudza decyzja, a teraz jest nasza.
 
 ---
 
+## Poprawki 1.12.2 (trzy audyty, które dotarły po wydaniu)
+
+Audyty diff, integralności danych i dostępności/UX odezwały się po opublikowaniu 1.12.1.
+Wszystkie trzy znalazły rzeczy, których nie zauważyłem, i **każda naprawiona niżej jest
+defektem w tym, co sam wprowadziłem w 1.12.0.**
+
+| # | Problem | Skąd |
+|---|---|---|
+| P1-12 | Dodanie pozycji watchlisty po nazwie działało tylko myszką. „Xanax" + Return → „Enter a positive item ID.", przy widocznym dopasowaniu tuż pod polem. Sztandarowa funkcja 1.12.0 była w połowie zepsuta. | UX |
+| P1-13 | Obserwowanie kategorii forum ogłaszało stare wątki jako nowe. Torn zwraca jedną stronę 20 wątków, a `applyCategory` **podmieniał** pamięć zamiast ją sumować. Wątek, który spadł poniżej cięcia, był zapominany, więc kolejna odpowiedź wypychająca go na górę przychodziła jako „New forum thread". Przy aktywnej kategorii to stan normalny, nie przypadek brzegowy. | dane |
+| P1-14 | Zmiana ID kategorii w locie zapisywała wątki starej kategorii pod nową, co dawało serię powiadomień o miesięcznych wątkach. | dane |
+| P1-15 | `keyInfo` czytane raz na uruchomienie, bez TTL i bez ponowienia. Dołączenie do frakcji w trakcie sesji wyłączało alert chainu do restartu; jedno nieudane `/key/info` przy starcie cicho rozbrajało bramkę na całą sesję. | diff |
+| P1-16 | Zawężanie selekcji nigdy nie działało na poll, dla którego istnieje. `startPolling` uruchamiał odczyt uprawnień **równolegle** z pierwszym `fetchData()`, więc ten pierwszy zawsze prosił o wszystko. Komentarz bramki obiecywał coś, czego kod nie robił. | diff |
+| P2-12 | `disablesEndpoint` było martwym kodem, a `endpointUnavailable`/`insufficientPermissions` nie zapisywały cool-offu. Do tego `market.item` i `forum.thread` — dwa endpointy sparametryzowane, czyli najbardziej narażone na kod 6 — jako jedyne nie zgłaszały błędów do bramki. Usunięty wątek forum albo martwe ID przedmiotu były odpytywane co poll, bez końca. | diff |
+| P2-13 | Przełącznik obserwowania kategorii można było włączyć bez ID i był wtedy trwale bezczynny, bez żadnego sygnału. | UX |
+| P2-14 | Tytuły wątków forum lądowały nieograniczone w trwałym blobie `forumWatchedThreads`. Gorzej: ten blob chroni `threadsLoadFailed`, więc rozdęcie robi się **trwałe** zamiast samo się goić. | security |
+| P3-7 | `notifiedBountyKeys` czyszczone w `resetAccountScopedState` wbrew komentarzowi C-03 tuż nad nim, więc przejściowy błąd klucza powodował ponowne ogłoszenie każdego bounty. Poprawka jednolinijkowa. | dane |
+| P3-8 | Wiersz odznak renderował się pusty, zostawiając lukę. Diagnostyka pokazywała `faction.basic` obok powodu po ludzku. | UX |
+
+**Jeden z testów 1.12.0 utrwalał defekt jako poprawne zachowanie.**
+`testThreadsFallingOffTheListingAreForgottenQuietly` sprawdzał połowę kurczącą się i
+zatrzymywał się krok przed podaniem z powrotem ID, które wypadło. Sonda falsyfikująca od
+audytora (`XCTAssertTrue(service.applyCategory(threads([1,2,3])).isEmpty)`) padała.
+Przepisany, razem z nagłówkiem pliku opisującym limit stu wątków, którego kod nigdy nie
+używał.
+
+### Zostawione Pawłowi
+
+| Priorytet | Problem | Dlaczego nie teraz |
+|---|---|---|
+| P1 | Cztery magazyny (`notificationRules`, `travelNotificationSettings`, `customShortcuts`, `appFeedbackState`) używają syntezowanego `Codable`, nie mają strażnika `loadFailed` i **nadpisują nieczytelny blob w tej samej instrukcji**, w której odczyt się nie powiódł. Audytor sprawdził empirycznie: syntezowany `Codable` rzuca na brakującym kluczu nawet gdy init memberwise ma default, więc dodanie jednego pola kasuje to ustawienie każdemu użytkownikowi. | Cztery mechaniczne strażniki to dokładnie ten kształt zmiany, który wygląda bezpiecznie i nie jest. Promień rażenia przy pomyłce: wszyscy użytkownicy. Audytor zaproponował napisanie tego jako diffów do przejrzenia na trzeźwo. |
+| P1/P2 | Klucz o niskich uprawnieniach nadal zabija aplikację przy pierwszym pollu, bo kod 16 to `haltsAllRequests`, a `isHalted` czyści się tylko w `updateAPIKey` za `guard newValue != apiKey` — wklejenie **tego samego** klucza nic nie daje. | Zmiana semantyki zatrzymania na najbardziej krytycznej ścieżce. Uporządkowanie odczytu uprawnień przed pierwszym pollem (P1-16) usuwa wyścig, który ten kod 16 produkował; reszta na jasny dzień. |
+| P2 | `forumWatchConfig` dekodowany przez `try?` bez flagi porażki, a `save()` pisze bezwarunkowo. Komentarz mówi „zawsze odtwarzalna preferencja" — nieprawda: `factionForumCategoryId` to numer, który użytkownik wygrzebał z URL-a forum. | Ten sam kształt co P1 wyżej, ta sama decyzja. |
+| P2 | `WatchedThread` na syntezowanym `Codable`: kolejne dodane pole opróżni listę na stałe, bo `threadsLoadFailed` blokuje potem każdy zapis. Bajty przeżywają pod `forumWatchedThreads.unreadable`, ale nic tego klucza nie czyta ani o nim nie mówi — ścieżka odzysku, którą strażnik miał umożliwić, nigdy nie została dokończona. | Wymaga decyzji, czy dokończyć konwencję `.unreadable`, czy ją porzucić. To projekt, nie łatka. |
+| P2 | `.prefix()` liczy grafemy, nie bajty, więc „64-znakowa" nazwa z 50 000 znaków łączących waży 6 MB. Sufit z P2-11 nie jest sufitem bajtowym, a `AppState+ItemCatalog` czyta odpowiedź bez limitu rozmiaru. | Amplifikacja 1:1, więc to poprawność sufitu, nie ekspozycja. Naprawa: cap na `unicodeScalars` plus strażnik rozmiaru odpowiedzi. |
+| P2 | Rekomendacja A1: wyprowadzić `TornEndpointGate.denial(...).userExplanation` do `ModuleStateView`. `ModulePresentationState` ma już przypadek `.permission` z przyciskiem **Settings** zamiast Retry, a `isSelfHealing` jest napisane i nieczytane przez nic. Dziś pominięty moduł pokazuje „No data yet" i Retry, który nigdy nie pomoże. | Jedyna rzecz z tej listy z ciężarem projektowym. Zasługuje na własne przejście, nie na dopisek o trzeciej w nocy. |
+| P3 | `TornEndpointDenial.label` liczy pozostały czas z zegara systemowego, nie z wstrzykniętego `TimeSource`. Ten sam problem w `AppState+ItemCatalog` (cztery miejsca). | Dotyczy napisu w Diagnostyce i testowalności, nie danych. |
+| P3 | Timer forum przeżywa trwały błąd klucza: `handlePermanentKeyError` woła `stopPolling()`, nie `stopForumPolling()`. | Jedna linijka, ale chcę ją zobaczyć w kontekście reszty semantyki zatrzymania. |
+| P3 | Przejściowe błędy sieci są utrwalane jak stan — po restarcie wiersze pokazują „Network Error", choć nic im nie jest. | Kosmetyka o realnym koszcie zaufania. |
+| P3 | `userMessage` zwraca łańcuch Torna dosłownie dla kodów 1/2/18 i 16. Kopia aplikacji już istnieje (gałąź `message.isEmpty ?`), a `.temporaryKey` już przełącza się po `code`, więc to usunięcie ternary, nie pisanie tekstów. | Robota redakcyjna w kilku gałęziach. Zysk bezpieczeństwa skromny, zysk dla issue #58 duży. |
+| P3 | `parseStocksMetadata` bez limitu długości nazw i liczby wpisów. Komentarz katalogu przedmiotów wskazuje na nią jako wzór, a relacja się odwróciła. | Wcześniejsze, nie moje, i teraz jawnie udokumentowane. |
+| P3 | Brak `uiTestID` na nowych kontrolkach, przez co poprawki wrażliwej na szerokość warstwy odznak nie da się objąć testem regresji przy 320 pt. | Warto zrobić razem z A1. |
+
+---
+
 ## Walidacja po zmianach
 
 | Polecenie | Wynik |

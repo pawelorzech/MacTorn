@@ -70,7 +70,9 @@ final class WatchedThreadTests: XCTestCase {
         XCTAssertFalse(config.factionForumAutoMonitor)
         XCTAssertNil(config.factionForumCategoryId)
         XCTAssertEqual(config.pollingIntervalSeconds, 180)
-        XCTAssertTrue(config.knownFactionThreadIds.isEmpty)
+        XCTAssertTrue(config.seenFactionThreadIds.isEmpty)
+        XCTAssertNil(config.seededCategoryId)
+        XCTAssertFalse(config.hasSeededFactionThreads)
     }
 
     func testForumWatchConfig_roundTrip() throws {
@@ -78,7 +80,9 @@ final class WatchedThreadTests: XCTestCase {
         original.factionForumAutoMonitor = true
         original.factionForumCategoryId = 42
         original.pollingIntervalSeconds = 300
-        original.knownFactionThreadIds = [100, 200, 300]
+        original.seenFactionThreadIds = [100, 200, 300]
+        original.seededCategoryId = 42
+        original.hasSeededFactionThreads = true
 
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(ForumWatchConfig.self, from: data)
@@ -86,7 +90,9 @@ final class WatchedThreadTests: XCTestCase {
         XCTAssertEqual(decoded.factionForumAutoMonitor, true)
         XCTAssertEqual(decoded.factionForumCategoryId, 42)
         XCTAssertEqual(decoded.pollingIntervalSeconds, 300)
-        XCTAssertEqual(decoded.knownFactionThreadIds, [100, 200, 300])
+        XCTAssertEqual(decoded.seenFactionThreadIds, [100, 200, 300])
+        XCTAssertEqual(decoded.seededCategoryId, 42)
+        XCTAssertTrue(decoded.hasSeededFactionThreads)
     }
 
     // MARK: - Identifiable

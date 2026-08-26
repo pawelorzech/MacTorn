@@ -337,9 +337,20 @@ class AppState {
     /// that drives the chain alert.
     @ObservationIgnored let endpointGate: TornEndpointGate
 
-    /// In-flight background `/key/info` load (see `refreshKeyInfoIfNeeded`). Held so a
+    /// In-flight background `/key/info` load (see `loadKeyInfoIfNeeded`). Held so a
     /// burst of poll ticks cannot start several at once.
     @ObservationIgnored var keyInfoTask: Task<Void, Never>?
+
+    /// When `keyInfo` was last read. Drives the refresh in `loadKeyInfoIfNeeded`.
+    @ObservationIgnored var keyInfoLoadedAt: Date?
+
+    /// How long a `/key/info` answer is trusted before it is read again.
+    ///
+    /// The gate refuses requests on the strength of this snapshot, so a stale one is not
+    /// merely out of date: it keeps a working endpoint switched off. An hour is short
+    /// enough that joining a faction or widening a key recovers within a sitting, and long
+    /// enough that the extra call is invisible against the poll cadence.
+    static let keyInfoMaxAge: TimeInterval = 3_600
 
     /// Scheduled resume after a recoverable key error (federal jail, key cooldown, IP
     /// block). Held so a newer error, or an account change, can cancel the old wake-up.
@@ -436,12 +447,18 @@ class AppState {
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
         previousTravel = nil
-        notifiedBountyKeys = []
+        // Deliberately NOT cleared here, for the reason the apiKey setter documents: this
+        // is a dedup latch, and a transient permanent-key error routes through this method.
+        // Wiping it there re-announced every bounty the user had already been told about
+        // the moment polling recovered. The setter clears it on a real account change.
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
         endpointGate.reset()
         keyInfoTask?.cancel()
         keyInfoTask = nil
+        keyInfoLoadedAt = nil
+        itemCatalogTask?.cancel()
+        itemCatalogTask = nil
         keyResumeTask?.cancel()
         keyResumeTask = nil
         liveTimerCancellable?.cancel()

@@ -147,6 +147,13 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// the app recovers on its own well within one sitting.
     var pauseDuration: TimeInterval? {
         switch self {
+        case .endpointUnavailable, .insufficientPermissions:
+            // Not a retry interval so much as a re-probe. These cannot succeed as
+            // constructed, so the cool-off exists to stop the request rather than to wait
+            // out a condition: a deleted forum thread or a bad item id would otherwise be
+            // re-requested every poll, indefinitely. Long enough to be effectively "off",
+            // short enough that fixing the key or the id recovers within a sitting.
+            return 3600
         case .temporaryKey:
             return 600      // 10 min — federal jail / key cooldown outlive a poll tick.
         case .ipBlocked:
@@ -155,8 +162,8 @@ enum TornAPIError: Error, Equatable, Sendable {
             return 3600     // 1 h — the cap is daily; re-probe hourly, cheaply.
         case .rateLimit:
             return 60       // 1 min — the per-minute window has to roll over.
-        case .permanentKey, .insufficientPermissions, .endpointUnavailable,
-             .temporaryBackend, .offline, .transport, .malformedResponse, .cancelled:
+        case .permanentKey, .temporaryBackend, .offline, .transport,
+             .malformedResponse, .cancelled:
             return nil
         }
     }

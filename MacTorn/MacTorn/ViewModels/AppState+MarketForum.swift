@@ -168,6 +168,10 @@ extension AppState {
                     save: save
                 )
             case .apiError(let apiError, _):
+                // Code 6 (bad item id) means this request can never succeed. Without
+                // telling the gate, a watchlist entry holding a dead id was re-requested
+                // on every refresh, forever.
+                noteEndpointFailure(apiError, for: "market.item")
                 logger.warning("Item \(itemId) API returned an error envelope")
                 updateItemError(itemId: itemId, error: apiError.userMessage, save: save)
             case .httpError(let statusCode, _):
@@ -336,7 +340,7 @@ extension AppState {
 
             switch result {
             case .success(let threads, let responseBytes):
-                for thread in forumWatchService.applyCategory(threads) {
+                for thread in forumWatchService.applyCategory(threads, for: categoryID) {
                     NotificationManager.shared.send(
                         title: "New forum thread",
                         body: thread.title,
@@ -399,6 +403,10 @@ extension AppState {
                     )
                 }
             case .apiError(let apiError, _):
+                // Same reason as market.item: a deleted thread answers with code 6 every
+                // poll otherwise, and forum.thread is row-based so its code 14 needs to
+                // reach the gate too.
+                noteEndpointFailure(apiError, for: "forum.thread")
                 updateThreadError(threadId: threadId, error: apiError.userMessage)
             case .httpError, .malformed:
                 return
@@ -434,6 +442,7 @@ extension AppState {
             case .success(let snapshot, _):
                 _ = forumWatchService.apply(snapshot, to: threadId)
             case .apiError(let apiError, _):
+                noteEndpointFailure(apiError, for: "forum.thread")
                 updateThreadError(threadId: threadId, error: apiError.userMessage)
             case .httpError:
                 updateThreadError(threadId: threadId, error: "HTTP Error")

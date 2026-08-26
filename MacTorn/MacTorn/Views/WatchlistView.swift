@@ -71,11 +71,11 @@ struct WatchlistView: View {
                                     addItemError = nil
                                 }
                                 .onSubmit {
-                                    addItemByID()
+                                    commitTypedEntry()
                                 }
 
                             Button("Add") {
-                                addItemByID()
+                                commitTypedEntry()
                             }
                             .buttonStyle(.borderedProminent)
                             .controlSize(.small)
@@ -91,6 +91,15 @@ struct WatchlistView: View {
                                     suggestionRow(name: item.name, id: item.id)
                                 }
                             }
+                        } else if isSearchingByName {
+                            // A name with no match used to render nothing at all: no
+                            // suggestions, no fallback grid, just a bare field and an Add
+                            // button that answers with "Enter a positive item ID."
+                            Text("No item matches \u{201C}\(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 4)
                         } else if appState.itemCatalog.isEmpty {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
                                 ForEach(popularItems, id: \.1) { item in
@@ -173,6 +182,31 @@ struct WatchlistView: View {
             undoDismissTask?.cancel()
             pendingUndo = nil
         }
+    }
+
+    /// True when the field holds something that should be looked up by name rather than
+    /// treated as an item id.
+    private var isSearchingByName: Bool {
+        let typed = itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !typed.isEmpty && Int(typed) == nil && !appState.itemCatalog.isEmpty
+    }
+
+    /// Commits whatever is in the field.
+    ///
+    /// The field accepts a name or an id, and Return has to honour both. It used to go
+    /// straight to the id parser, so typing "Xanax" and pressing Return was answered with
+    /// "Enter a positive item ID." while the matching row sat rendered directly below —
+    /// which left the whole name-search feature reachable by mouse only.
+    private func commitTypedEntry() {
+        if isSearchingByName {
+            guard let best = searchResults.first else {
+                addItemError = "No item matches that name. Try fewer letters, or paste the item ID."
+                return
+            }
+            add(name: best.name, id: best.id)
+            return
+        }
+        addItemByID()
     }
 
     /// Catalog matches for whatever is in the field. Typing digits still means "this
