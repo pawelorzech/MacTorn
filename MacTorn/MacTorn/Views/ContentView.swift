@@ -104,8 +104,20 @@ struct ContentView: View {
 
                         Divider()
 
-                        // Content based on selected tab
+                        // Content based on selected tab.
+                        //
+                        // The expansion belongs here and nowhere higher. `Group` applies a
+                        // modifier to each of its children *separately*, so putting
+                        // `maxHeight: .infinity` on the enclosing Group handed an infinite
+                        // height to the header, the group bar, the module picker and the
+                        // divider as well, and the VStack shared the window out between all
+                        // five. Only the scrolling content should absorb the slack.
                         tabContent
+                            // `.top`, not the default centre: `TravelView` is a plain
+                            // VStack rather than a ScrollView, so centring would float its
+                            // content in the middle of the panel. Scroll views fill the
+                            // space either way and are unaffected.
+                            .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
                 // Only the *content* is inert while the first load runs. The footer sits
@@ -113,10 +125,6 @@ struct ContentView: View {
                 // disabling those left the user with no way out of a slow or hung first
                 // fetch (URLSession's default timeout is 60 s) short of force-quitting.
                 .disabled(isBlockingInitialLoad)
-                // Take every point the window offers, so the footer below is pinned to the
-                // bottom edge instead of floating wherever the tallest module happened to
-                // end. Without this a short module leaves the footer stranded mid-window.
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 Divider()
                     .padding(.vertical, 4)
@@ -363,14 +371,21 @@ struct ContentView: View {
 
             commandButton(.settings)
         } label: {
-            Label("Commands", systemImage: "command")
-                .labelStyle(.titleAndIcon)
-                // `Menu` draws its label in the system control font and ignores the
-                // `.font(.caption)` the enclosing footer sets, so this has to be stated
-                // here or "Commands" renders larger than "Settings" and "Quit" beside it.
-                .font(.caption)
+            // Spelled out as an HStack rather than a `Label`, because a `Label` is
+            // re-rendered by the menu style and loses the font set on it.
+            HStack(spacing: 3) {
+                Image(systemName: "command")
+                Text("Commands")
+            }
+            .font(.caption)
         }
         .menuStyle(.borderlessButton)
+        // `Menu` is an NSPopUpButton underneath and takes its font from the control size,
+        // not from `.font` on the label — which is why stating the font alone left
+        // "Commands" visibly larger than the "Settings" and "Quit" beside it. `.small`
+        // shrinks the control itself, including the disclosure chevron, so the whole item
+        // matches the footer instead of just its text.
+        .controlSize(.small)
         .fixedSize()
         .focused($navigationFocus, equals: .commands)
         .accessibilityLabel("Commands")
