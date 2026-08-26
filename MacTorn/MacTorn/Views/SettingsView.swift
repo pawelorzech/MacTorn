@@ -335,6 +335,16 @@ struct SettingsView: View {
                         .font(.caption)
                         .frame(width: 80)
                 }
+                // Without a category id the watch fetches nothing and reports nothing, so
+                // the switch reads as armed while being permanently inert. Say so.
+                if appState.forumWatchConfig.factionForumCategoryId == nil {
+                    Label("Enter a category ID — nothing is being watched yet.",
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 Text("Find the ID in the forum URL: torn.com/forums.php#/p=forums&f=4 is category 4. The first check only learns which threads are already there, so alerts start from the next one.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -515,8 +525,7 @@ struct SettingsView: View {
                 // Turning the watch off forgets which threads it had seen, so switching it
                 // back on seeds again rather than announcing everything posted meanwhile.
                 if !newValue {
-                    appState.forumWatchConfig.knownFactionThreadIds = []
-                    appState.forumWatchConfig.hasSeededFactionThreads = false
+                    appState.forumWatchConfig.forgetSeenThreads()
                 }
                 appState.saveForumWatch()
             }
@@ -532,8 +541,7 @@ struct SettingsView: View {
                 appState.forumWatchConfig.factionForumCategoryId = parsed
                 // A different category is a different set of threads; the seen-ids from the
                 // old one would mark every thread in the new one as already known.
-                appState.forumWatchConfig.knownFactionThreadIds = []
-                appState.forumWatchConfig.hasSeededFactionThreads = false
+                appState.forumWatchConfig.forgetSeenThreads()
                 appState.saveForumWatch()
             }
         )

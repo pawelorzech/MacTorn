@@ -18,16 +18,33 @@ extension AppState {
             return
         }
         timerCancellable?.cancel()
-        refreshKeyInfoIfNeeded()
-        fetchData()
-        triggerReferenceDataFetchIfNeeded()
         installPollingTimer()
+        triggerReferenceDataFetchIfNeeded()
+
+        // The key's capabilities have to land BEFORE the first poll, not alongside it.
+        // Started concurrently, `fetchData()` ran while `keyInfo` was still nil, so the
+        // very request that needs narrowing always went out asking for everything — and a
+        // key that cannot read one of those selections answers with code 16, which halts
+        // the app before a narrowed retry can happen. Selection narrowing was unreachable
+        // on the one endpoint it exists for.
+        //
+        // A key already validated this session skips the wait entirely, so this costs one
+        // round-trip on a cold start and nothing thereafter.
+        if keyInfo == nil, !apiKey.isEmpty, connectivity.isConnected {
+            Task { [weak self] in
+                await self?.loadKeyInfoIfNeeded()
+                self?.fetchData()
+            }
+        } else {
+            fetchData()
+        }
     }
 
     private func installPollingTimer() {
         timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
+                self?.refreshKeyInfoIfNeeded()
                 self?.fetchData()
                 self?.triggerReferenceDataFetchIfNeeded()
             }
@@ -187,15 +204,36 @@ extension AppState {
     /// the gate had nothing to gate on: the app went right on asking a factionless
     /// player's key for faction data every thirty seconds.
     func refreshKeyInfoIfNeeded() {
-        guard keyInfo == nil, !apiKey.isEmpty, !keyHalted, connectivity.isConnected else { return }
         guard keyInfoTask == nil else { return }
+        Task { [weak self] in await self?.loadKeyInfoIfNeeded() }
+    }
+
+    /// Loads `/key/info` when what MacTorn knows about the key is missing or old.
+    ///
+    /// Two things this has to get right that the first version did not.
+    ///
+    /// **It must be awaitable.** `startPolling` needs the answer before the first fetch,
+    /// because that fetch is the one selection narrowing exists for.
+    ///
+    /// **It must expire.** Read once per key and never again, a snapshot taken while the
+    /// player had no faction kept the gate refusing faction endpoints for the life of the
+    /// process — a player who joined a faction mid-session lost the chain alert until they
+    /// relaunched. The reverse cost just as much: one flaky `/key/info` at launch left
+    /// `keyInfo` nil forever, so the gate silently did nothing for the whole session and a
+    /// factionless player went back to spending a request on faction data every poll.
+    func loadKeyInfoIfNeeded() async {
+        guard !apiKey.isEmpty, !keyHalted, connectivity.isConnected else { return }
+        guard keyInfoTask == nil else { return }
+        if keyInfo != nil, let loadedAt = keyInfoLoadedAt,
+           time.now.timeIntervalSince(loadedAt) < Self.keyInfoMaxAge {
+            return
+        }
         let requestedKey = apiKey
         let identity = accountSession.identity
         guard let url = endpointURL("key.info", key: requestedKey),
               reserveRequest("key.info") else { return }
 
-        keyInfoTask = Task { [weak self] in
-            defer { Task { @MainActor in self?.keyInfoTask = nil } }
+        let task = Task { [weak self] in
             guard let self else { return }
             let startTime = Date()
             do {
@@ -209,6 +247,7 @@ extension AppState {
                     return
                 }
                 self.keyInfo = decoded.info
+                self.keyInfoLoadedAt = self.time.now
                 self.recordHealth("key.info", outcome: .ok, since: startTime, bytes: data.count)
                 self.logger.info("Key capabilities loaded: access level \(decoded.info.access.level)")
             } catch {
@@ -216,6 +255,13 @@ extension AppState {
                                   errorClass: "transport")
             }
         }
+        keyInfoTask = task
+        // Awaited rather than fired and forgotten, so `startPolling` can order the first
+        // fetch behind it. The handle is cleared here, on the same actor, instead of from
+        // a deferred hop that could outlive an account change and null a newer task's
+        // handle.
+        await task.value
+        if keyInfoTask == task { keyInfoTask = nil }
     }
 
     func validateKey(_ keyOverride: String? = nil) async {

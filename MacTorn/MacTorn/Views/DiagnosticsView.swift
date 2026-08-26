@@ -57,7 +57,11 @@ struct DiagnosticsView: View {
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 ForEach(report.suppressedEndpoints.keys.sorted(), id: \.self) { key in
-                                    row(key, report.suppressionExplanations[key]
+                                    // The registry already carries a human name. Showing
+                                    // the slug beside a plain-words reason read as half
+                                    // translated, and VoiceOver spelled it out.
+                                    row(TornEndpointRegistry.endpoint(id: key)?.name ?? key,
+                                        report.suppressionExplanations[key]
                                         ?? report.suppressedEndpoints[key]
                                         ?? "")
                                 }

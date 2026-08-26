@@ -1733,25 +1733,72 @@ struct ForumWatchConfig: Codable {
     var factionForumAutoMonitor: Bool
     var factionForumCategoryId: Int?
     var pollingIntervalSeconds: Int
-    var knownFactionThreadIds: Set<Int>
+    /// Thread ids already seen in the watched category, most recently seen first.
+    ///
+    /// Ordered and cumulative, not a snapshot of the last page. The listing is capped at
+    /// `TornAPI.forumCategoryRowLimit` rows, so replacing this with each page turned it
+    /// into a sliding window: in any category busier than one page, a thread that scrolled
+    /// off was forgotten, and the next reply that bumped it back to the top was announced
+    /// as new. Under activity-ordered listings that is the steady state, not an edge case.
+    var seenFactionThreadIds: [Int]
+    /// The category `seenFactionThreadIds` was gathered from.
+    ///
+    /// Without it, a listing already in flight when the user edits the Category ID lands
+    /// afterwards and writes the *old* category's ids under the *new* category's id, with
+    /// `hasSeededFactionThreads` set. The next poll then finds nothing familiar and
+    /// announces a page of months-old threads: exactly the storm seeding exists to prevent.
+    var seededCategoryId: Int?
     /// Whether the category has been read at least once.
     ///
-    /// Kept separately from `knownFactionThreadIds` because an empty id set is ambiguous:
-    /// it means both "never looked" and "looked, and the category was empty". Conflating
-    /// them costs the announcement of the very first thread posted to a quiet category —
-    /// the one most worth hearing about.
+    /// Kept separately from the id list because an empty list is ambiguous: it means both
+    /// "never looked" and "looked, and the category was empty". Conflating them costs the
+    /// announcement of the very first thread posted to a quiet category, the one most
+    /// worth hearing about.
     var hasSeededFactionThreads: Bool
+
+    /// Ceiling on remembered ids. A category holds far fewer threads than this in
+    /// practice, so eviction should never fire; it is here so an unbounded preference
+    /// cannot grow forever, and it drops the least recently seen first because those are
+    /// the least likely to be bumped back to the top.
+    static let maximumSeenThreadIds = 500
 
     init(factionForumAutoMonitor: Bool = false,
          factionForumCategoryId: Int? = nil,
          pollingIntervalSeconds: Int = 180,
-         knownFactionThreadIds: Set<Int> = [],
+         seenFactionThreadIds: [Int] = [],
+         seededCategoryId: Int? = nil,
          hasSeededFactionThreads: Bool = false) {
         self.factionForumAutoMonitor = factionForumAutoMonitor
         self.factionForumCategoryId = factionForumCategoryId
         self.pollingIntervalSeconds = pollingIntervalSeconds
-        self.knownFactionThreadIds = knownFactionThreadIds
+        self.seenFactionThreadIds = seenFactionThreadIds
+        self.seededCategoryId = seededCategoryId
         self.hasSeededFactionThreads = hasSeededFactionThreads
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case factionForumAutoMonitor, factionForumCategoryId, pollingIntervalSeconds
+        case seenFactionThreadIds, seededCategoryId, hasSeededFactionThreads
+        /// Written by 1.12.0/1.12.1. Read for migration, never written again.
+        case knownFactionThreadIds
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(factionForumAutoMonitor, forKey: .factionForumAutoMonitor)
+        try container.encodeIfPresent(factionForumCategoryId, forKey: .factionForumCategoryId)
+        try container.encode(pollingIntervalSeconds, forKey: .pollingIntervalSeconds)
+        try container.encode(seenFactionThreadIds, forKey: .seenFactionThreadIds)
+        try container.encodeIfPresent(seededCategoryId, forKey: .seededCategoryId)
+        try container.encode(hasSeededFactionThreads, forKey: .hasSeededFactionThreads)
+    }
+
+    /// Forgets the watched category. Used when the user turns the watch off or points it
+    /// somewhere else — remembered ids from one category say nothing about another.
+    mutating func forgetSeenThreads() {
+        seenFactionThreadIds = []
+        seededCategoryId = nil
+        hasSeededFactionThreads = false
     }
 
     /// Decoded field by field so a config written by an older build — which has no
@@ -1765,12 +1812,24 @@ struct ForumWatchConfig: Codable {
             try container.decodeIfPresent(Int.self, forKey: .factionForumCategoryId)
         pollingIntervalSeconds =
             try container.decodeIfPresent(Int.self, forKey: .pollingIntervalSeconds) ?? 180
-        knownFactionThreadIds =
-            try container.decodeIfPresent(Set<Int>.self, forKey: .knownFactionThreadIds) ?? []
+
+        // `knownFactionThreadIds` was an unordered Set written by 1.12.0 and 1.12.1.
+        // Decoding it here keeps those installs from re-announcing their whole category
+        // after the upgrade. Order is unrecoverable from a Set, which costs nothing: the
+        // ids are all equally "already seen", and the next listing re-establishes order.
+        if let ordered = try container.decodeIfPresent([Int].self, forKey: .seenFactionThreadIds) {
+            seenFactionThreadIds = ordered
+        } else {
+            seenFactionThreadIds =
+                Array(try container.decodeIfPresent(Set<Int>.self, forKey: .knownFactionThreadIds) ?? [])
+        }
+        seededCategoryId =
+            try container.decodeIfPresent(Int.self, forKey: .seededCategoryId)
+            ?? (seenFactionThreadIds.isEmpty ? nil : factionForumCategoryId)
         // An older config that already has ids was plainly seeded by an older build.
         hasSeededFactionThreads =
             try container.decodeIfPresent(Bool.self, forKey: .hasSeededFactionThreads)
-            ?? !knownFactionThreadIds.isEmpty
+            ?? !seenFactionThreadIds.isEmpty
     }
 }
 
