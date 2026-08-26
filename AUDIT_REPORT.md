@@ -502,11 +502,44 @@ elementu stanu, żeby przerwać rekurencję, gdy `/key/info` padnie, i to na fun
 którą przechodzi każdy poll. Tryb awarii przy pomyłce: nieskończona rekurencja w ścieżce
 pobierania. Nie o trzeciej w nocy.
 
-**Kształt poprawki (do rozstrzygnięcia na trzeźwo):** albo przepiąć „Save & Connect" i
-`onConnectivityRestored` na `startPolling()` zamiast `refreshNow()` — wtedy trzeba też
-sprawdzić, czy strażnik wczesnego wyjścia w `startPolling` (`:16`) nie połknie tego
-wywołania — albo dać `refreshNow` osobną, synchroniczną ścieżkę „ustanów kolejność", która
-nadal zwraca to samo, czego oczekują te siedem testów.
+**Kształt poprawki (do rozstrzygnięcia na trzeźwo) — i lepsze postawienie pytania.**
+
+Audytor diff nazwał wzorzec, który przebiega przez wszystkie dzisiejsze defekty w tym
+podsystemie: **za każdym razem było to drugie wejście do niezmiennika, który ustanawiało
+tylko pierwsze wejście.**
+
+| Defekt | Drugie wejście |
+|---|---|
+| P1-16 (1.12.2) | `fetchData` ścigające się z ładowaniem uprawnień |
+| P1-17 (1.12.3) | timer wyprzedzający `await` |
+| P1-18 (otwarte) | `refreshNow` omijające `startFirstFetch` |
+
+To reformułuje zadanie. Pytanie brzmi nie „jak sprawić, żeby `refreshNow` też czekało" — to
+byłaby **czwarta łatka na tę samą klasę**, i moja próba dokładnie nią była. Pytanie brzmi:
+**przez jaki jeden punkt musi przejść każde pierwsze żądanie?**
+
+Uczciwa odpowiedź to prawdopodobnie `fetchData()` — jedyne miejsce, przez które przechodzą
+wszystkie cztery ścieżki. Dlatego notatka wyżej mówi, że ta droga potrzebuje trzeciego
+elementu stanu, żeby przerwać rekurencję, gdy `/key/info` padnie: to jest **właściwe**
+miejsce i zarazem trudne, a nie dwie osobne rzeczy.
+
+Warianty do rozważenia, w kolejności, w jakiej bym je oceniał:
+1. **Kolejność w `fetchData()`** — jeden choke point, zamyka klasę zamiast łatać instancję.
+   Koszt: znacznik „już próbowałem odczytać uprawnienia" osobny od `keyInfoLoadedAt` (który
+   ustawia się tylko przy sukcesie), inaczej nieudane `/key/info` daje nieskończoną
+   rekurencję w ścieżce pobierania.
+2. **Przepiąć „Save & Connect" i `onConnectivityRestored` na `startPolling()`** — trzeba
+   wtedy sprawdzić, czy strażnik wczesnego wyjścia w `startPolling` (`:16`) nie połknie
+   wywołania; P2-17 usunęło jedną z dwóch przyczyn takiego połknięcia, ale nie obie.
+3. **Osobna synchroniczna ścieżka w `refreshNow`**, która nadal zwraca to, czego oczekuje
+   siedem testów. Najmniejsza zmiana, ale zostawia wzorzec nietknięty i będzie czwartym
+   wejściem czekającym na piąte.
+
+**Oferta audytu:** autor tego wzorca zaproponował ponowny audyt interakcji dwóch
+wywołujących (`startPolling` i `refreshNow`) w chwili, gdy P1-18 dostanie poprawkę —
+konkretnie czy token `firstFetchGeneration` wytrzyma, gdy obaj trafią do `startFirstFetch`
+w tym samym oknie. Warto z tego skorzystać; dziś nie ma czego audytować, bo poprawka jest
+wycofana.
 
 ### Naprawione w tym samym przebiegu (na `main`, **niewydane**)
 
