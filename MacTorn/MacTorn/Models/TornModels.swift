@@ -1462,9 +1462,17 @@ enum TornAPI {
               query: ["cat": cat, "limit": String(activityRowLimit), "key": apiKey])
     }
 
+    /// Item-market listings for one item.
+    ///
+    /// `bazaar` used to ride along here. It no longer carries prices: on API v2 the
+    /// per-item `bazaar` selection returns a *directory* of the player bazaars stocking
+    /// the item — `{id, name, is_open, weekly_customers}` — with no cost or quantity
+    /// anywhere in the shape (`BazaarResponseSpecialized` in Torn's OpenAPI document,
+    /// spec 6.13.1). Torn does not expose per-item bazaar prices on v2 at all, so asking
+    /// for it bought a larger payload and nothing else.
     static func marketURL(itemId: Int, apiKey: String) -> URL? {
         build("https://api.torn.com/v2/market/\(itemId)",
-              query: ["selections": "itemmarket,bazaar", "key": apiKey])
+              query: ["selections": "itemmarket", "key": apiKey])
     }
 
     /// Virus programming has no combinable `/user` selection — it is absent from Torn's

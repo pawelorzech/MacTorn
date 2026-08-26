@@ -180,14 +180,14 @@ enum TornAPIError: Error, Equatable, Sendable {
             return sanitized(message.isEmpty ? "Your API key is invalid or paused. Update it in Settings." : message)
         case let .temporaryKey(code, _):
             switch code {
-            case 10: return "Torn has suspended API access while your account is in federal jail — retrying later."
-            case 11: return "Your key changed recently; Torn is enforcing a short cooldown — retrying later."
+            case 10: return "API access is paused while you're in federal jail — retrying later."
+            case 11: return "Torn is holding your recently changed key — retrying later."
             default: return "Torn has temporarily disabled this key — retrying later."
             }
         case let .insufficientPermissions(_, message):
             return sanitized(message.isEmpty ? "Your API key's access level is too low for this data." : message)
         case .endpointUnavailable:
-            return "Torn no longer serves this data in the form MacTorn requested."
+            return "Torn no longer serves this data the way MacTorn asked for it."
         case .ipBlocked:
             return "Torn has temporarily blocked this network — pausing for an hour."
         case .rateLimit:

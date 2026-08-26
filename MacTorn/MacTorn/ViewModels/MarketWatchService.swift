@@ -164,6 +164,10 @@ final class MarketWatchService: MarketWatchServicing {
             return .apiError(apiError, responseBytes: data.count)
         }
 
+        // Item-market listings only. The `bazaar` selection was dropped from the request:
+        // on API v2 it returns a directory of the bazaars stocking an item, never their
+        // prices, so the branch that read `cost`/`quantity` out of it could not match the
+        // shape it was given and contributed nothing. See `TornAPI.marketURL`.
         var listings: [(price: Int, amount: Int)] = []
         if let itemMarket = json["itemmarket"] as? [String: Any],
            let array = itemMarket["listings"] as? [[String: Any]] {
@@ -177,13 +181,6 @@ final class MarketWatchService: MarketWatchServicing {
                 return (price, $0["quantity"] as? Int ?? 1)
             }
         }
-        if let array = json["bazaar"] as? [[String: Any]] {
-            listings += array.compactMap {
-                guard let price = $0["cost"] as? Int else { return nil }
-                return (price, $0["quantity"] as? Int ?? 1)
-            }
-        }
-
         let sorted = listings.sorted { $0.price < $1.price }
         guard let best = sorted.first else {
             return .noListings(responseBytes: data.count)

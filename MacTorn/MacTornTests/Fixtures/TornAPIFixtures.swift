@@ -253,25 +253,29 @@ enum TornAPIFixtures {
 
     // MARK: - Market
 
+    /// Shape of `/v2/market/{id}?selections=itemmarket` (`ItemMarket` in Torn's OpenAPI
+    /// document): listings carry `price` and `amount`.
+    ///
+    /// The fixture used to carry a `bazaar` array of `{cost, quantity}` alongside, and
+    /// the lowest price came from it. That is not a shape Torn ever returns on v2 — the
+    /// per-item `bazaar` selection answers with a *directory* of the bazaars stocking an
+    /// item and no prices at all — so the fixture was proving the parser could read a
+    /// payload that does not exist. The bazaar branch and the selection are both gone.
     static let marketItemSuccess: [String: Any] = [
         "itemmarket": [
             "listings": [
+                ["price": 950, "amount": 2],
                 ["price": 1000, "amount": 5],
                 ["price": 1100, "amount": 3],
                 ["price": 1200, "amount": 10]
             ]
-        ],
-        "bazaar": [
-            ["cost": 950, "quantity": 2],
-            ["cost": 1050, "quantity": 7]
         ]
     ]
 
     static let marketItemNoListings: [String: Any] = [
         "itemmarket": [
             "listings": []
-        ],
-        "bazaar": []
+        ]
     ]
 
     // MARK: - API v2 User (organized crime 2.0, refills, education, bounties)

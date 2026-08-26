@@ -180,7 +180,10 @@ struct WatchlistView: View {
     private var searchResults: [TornItemSummary] {
         let typed = itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !typed.isEmpty, Int(typed) == nil else { return [] }
-        return appState.searchItems(typed)
+        // Six rows, not the search default of twelve: this list renders inside an add
+        // panel inside the 320pt popover, and twelve suggestions push the rest of the
+        // watchlist off the visible area entirely.
+        return appState.searchItems(typed, limit: 6)
     }
 
     /// The field accepts a name only once the catalog is there to resolve it.

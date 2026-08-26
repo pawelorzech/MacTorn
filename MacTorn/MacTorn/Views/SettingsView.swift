@@ -335,7 +335,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .frame(width: 80)
                 }
-                Text("Find the ID in the forum URL: torn.com/forums.php#/p=forums&f=4 is category 4. The first check only learns which threads already exist — alerts start from the next one.")
+                Text("Find the ID in the forum URL: torn.com/forums.php#/p=forums&f=4 is category 4. The first check only learns which threads are already there, so alerts start from the next one.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

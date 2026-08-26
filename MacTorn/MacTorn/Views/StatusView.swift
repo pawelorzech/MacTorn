@@ -129,6 +129,10 @@ struct StatusView: View {
     /// all four for free, so the app can now show what it could only ever guess at.
     private var notificationBadges: some View {
         let counts = appState.notificationCounts
+        // Icon + count only. Spelling the noun out reads better but does not fit: four
+        // badges of "2 competitions" width overflow a 320pt popover, and this row can show
+        // all four at once. The noun lives in the accessibility label and the tooltip,
+        // where it costs no horizontal space.
         return HStack(spacing: 6) {
             if let messages = counts?.messages ?? (appState.unreadMessages > 0 ? appState.unreadMessages : nil),
                messages > 0 {
@@ -159,6 +163,7 @@ struct StatusView: View {
                       tint: .green,
                       destination: "https://www.torn.com/competition.php")
             }
+            Spacer(minLength: 0)
         }
     }
 
@@ -167,25 +172,30 @@ struct StatusView: View {
                        systemImage: String,
                        tint: Color,
                        destination: String) -> some View {
-        let label = "\(count) \(noun)\(count == 1 ? "" : "s")"
+        let spoken = "\(count) \(noun)\(count == 1 ? "" : "s")"
         return Button {
             if let url = URL(string: destination) {
                 BrowserManager.shared.open(url)
             }
         } label: {
-            HStack(spacing: 4) {
+            HStack(spacing: 3) {
+                // The icon distinguishes the four badges; the tint only reinforces it, so
+                // the row still reads without colour.
                 Image(systemName: systemImage)
                     .foregroundColor(tint)
-                Text(label)
+                Text("\(count)")
                     .font(.caption)
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(tint.opacity(reduceTransparency ? 0.2 : 0.1))
             .cornerRadius(6)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(label) waiting. Opens Torn.")
+        .help(spoken)
+        .accessibilityLabel("\(spoken) waiting. Opens Torn.")
     }
     
     // MARK: - Error

@@ -175,6 +175,7 @@ extension AppState {
         for (category, count) in pollingCoordinator.recordsPerDayByCategory() {
             recordsByCategory[category.rawValue] = count
         }
+        let suppressions = currentEndpointSuppressions()
         return DiagnosticsReport(
             appVersion: DiagnosticsEnvironment.appVersion,
             build: DiagnosticsEnvironment.build,
@@ -190,7 +191,8 @@ extension AppState {
             requestsLastDay: pollingCoordinator.requestsInLastDay,
             recordsPerDayByCategory: recordsByCategory,
             endpoints: endpointHealth.all,
-            suppressedEndpoints: currentEndpointSuppressions()
+            suppressedEndpoints: suppressions.labels,
+            suppressionExplanations: suppressions.explanations
         )
     }
 
@@ -200,16 +202,18 @@ extension AppState {
     /// has already lapsed does not linger in the report as though it were still in force.
     /// The per-minute cap is excluded — it is a momentary condition that says nothing about
     /// an endpoint, and reporting it would make a healthy burst look like a fault.
-    func currentEndpointSuppressions() -> [String: String] {
+    func currentEndpointSuppressions() -> (labels: [String: String], explanations: [String: String]) {
         var result: [String: String] = [:]
+        var explanations: [String: String] = [:]
         for endpoint in TornEndpointRegistry.all {
             guard let denial = endpointGate.denial(for: endpoint.id,
                                                    keyInfo: keyInfo,
                                                    coordinator: pollingCoordinator),
                   denial != .perMinuteCapReached else { continue }
             result[endpoint.id] = denial.label
+            explanations[endpoint.id] = denial.userExplanation
         }
-        return result
+        return (result, explanations)
     }
 
     /// Coarse, closed-vocabulary summary of the most recent failure — a `TornErrorClass`

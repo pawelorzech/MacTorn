@@ -57,7 +57,9 @@ struct DiagnosticsView: View {
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 ForEach(report.suppressedEndpoints.keys.sorted(), id: \.self) { key in
-                                    row(key, report.suppressedEndpoints[key]!)
+                                    row(key, report.suppressionExplanations[key]
+                                        ?? report.suppressedEndpoints[key]
+                                        ?? "")
                                 }
                             }
                         }

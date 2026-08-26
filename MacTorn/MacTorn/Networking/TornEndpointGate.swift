@@ -33,6 +33,36 @@ enum TornEndpointDenial: Equatable, Sendable {
         }
     }
 
+    /// A sentence a person can act on, for the Diagnostics panel.
+    ///
+    /// Separate from `label` on purpose. `label` is the machine form that goes into os_log
+    /// and the copied report, where a stable closed vocabulary is worth more than prose;
+    /// this is what a user reads when they are trying to work out why a tab is empty.
+    var userExplanation: String {
+        switch self {
+        case let .paused(until, reason):
+            let seconds = max(0, Int(until.timeIntervalSinceNow))
+            let when = seconds >= 90 ? "in \(seconds / 60) min" : "in \(seconds)s"
+            switch reason {
+            case .dailyRowLimit: return "Daily read limit reached — retrying \(when)"
+            case .ipBlocked: return "Torn blocked this network — retrying \(when)"
+            case .temporaryKey: return "Torn is refusing the key for now — retrying \(when)"
+            case .rateLimit: return "Backing off after too many requests — retrying \(when)"
+            default: return "Retrying \(when)"
+            }
+        case let .keyLacksSelections(missing):
+            return "Your key cannot read: \(missing.joined(separator: ", "))"
+        case .notInFaction:
+            return "You are not in a faction"
+        case .rowBudgetExhausted:
+            return "This feed used up its daily allowance"
+        case .perMinuteCapReached:
+            return "Waiting for the per-minute request budget"
+        case .unknownEndpoint:
+            return "Unknown endpoint"
+        }
+    }
+
     /// Whether this denial is expected to lift without the user doing anything. Used to
     /// decide if the reason is worth showing in the UI at all.
     var isSelfHealing: Bool {
@@ -131,6 +161,19 @@ final class TornEndpointGate {
         // hour-long IP block must not hand the block an early release.
         if let existing = pausedUntil[endpointID], existing.deadline > deadline { return }
         pausedUntil[endpointID] = (deadline, error.classification)
+    }
+
+    /// Applies a cool-off to *every* registered endpoint.
+    ///
+    /// Some failures are properties of the key or the network, not of the endpoint that
+    /// happened to hit them: an IP block and a suspended key refuse everything equally.
+    /// Pausing only the endpoint that noticed would leave the other eight to keep firing
+    /// into the same wall — and, for an IP block, to keep earning it.
+    func noteAccountWideFailure(_ error: TornAPIError) {
+        guard let pause = error.pauseDuration else { return }
+        for endpoint in TornEndpointRegistry.all {
+            self.pause(endpoint.id, for: pause, reason: error.classification)
+        }
     }
 
     /// Pauses one endpoint for a fixed interval, for callers that decide a cool-off

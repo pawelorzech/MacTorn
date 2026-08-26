@@ -157,6 +157,10 @@ extension AppState {
     /// touching anything.
     func handleRecoverableKeyError(_ error: TornAPIError) {
         let pause = error.pauseDuration ?? 600
+        // These refuse the whole account, not one endpoint. Without this the eight other
+        // endpoints keep firing into the same wall for the length of the cool-off — and an
+        // IP block is a wall that continued requests make thicker.
+        endpointGate.noteAccountWideFailure(error)
         errorMsg = error.userMessage
         stopPolling()
         logger.warning(

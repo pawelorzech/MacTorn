@@ -213,6 +213,11 @@ struct DiagnosticsReport: Equatable {
     /// question "why is my faction tab empty?" without anyone having to read a log.
     let suppressedEndpoints: [String: String]
 
+    /// The same suppressions in plain words, for the on-screen panel. Not included in the
+    /// copied report: the machine labels above are the stable vocabulary worth pasting into
+    /// an issue, and repeating each reason twice would only make the paste longer.
+    let suppressionExplanations: [String: String]
+
     /// The "Copy sanitized diagnostic report" body. Contains only the safe fields above.
     func sanitizedText() -> String {
         var lines: [String] = []

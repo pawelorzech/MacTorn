@@ -134,6 +134,24 @@ final class TornEndpointGateTests: XCTestCase {
                        "the next poll tick is already the retry for a transient failure")
     }
 
+    /// An IP block and a suspended key refuse everything. Pausing only the endpoint that
+    /// noticed would leave the rest firing into the same wall.
+    func testAnAccountWideFailurePausesEveryEndpoint() {
+        gate.noteAccountWideFailure(TornAPIError.classify(code: 8, message: ""))
+        for endpoint in TornEndpointRegistry.all {
+            XCTAssertTrue(gate.isPaused(endpoint.id), "\(endpoint.id) kept running through an IP block")
+        }
+        clock.advance(3_601)
+        for endpoint in TornEndpointRegistry.all {
+            XCTAssertFalse(gate.isPaused(endpoint.id), "\(endpoint.id) never came back")
+        }
+    }
+
+    func testAnAccountWideFailureWithNoCoolOffPausesNothing() {
+        gate.noteAccountWideFailure(.transport(detail: "timeout"))
+        XCTAssertTrue(gate.activePauses().isEmpty)
+    }
+
     func testResetClearsEveryPause() {
         gate.note(TornAPIError.classify(code: 14, message: ""), for: "user.activity")
         gate.reset()
@@ -168,6 +186,25 @@ final class TornEndpointGateTests: XCTestCase {
         XCTAssertEqual(gate.activePauses().count, 1)
         clock.advance(3_600)
         XCTAssertTrue(gate.activePauses().isEmpty)
+    }
+
+    /// Every denial has to be able to answer "why is this tab empty?" in words.
+    func testEveryDenialExplainsItselfInPlainWords() {
+        let denials: [TornEndpointDenial] = [
+            .paused(until: clock.now.addingTimeInterval(600), reason: .dailyRowLimit),
+            .paused(until: clock.now.addingTimeInterval(30), reason: .rateLimit),
+            .keyLacksSelections(["battlestats"]),
+            .notInFaction,
+            .rowBudgetExhausted(.activity),
+            .perMinuteCapReached,
+            .unknownEndpoint,
+        ]
+        for denial in denials {
+            let explanation = denial.userExplanation
+            XCTAssertFalse(explanation.isEmpty)
+            XCTAssertFalse(explanation.contains("("), "\(explanation) still reads like a log line")
+            XCTAssertFalse(explanation.contains("\n"))
+        }
     }
 
     func testDenialLabelsAreShortAndSingleLine() throws {
