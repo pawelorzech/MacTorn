@@ -341,6 +341,16 @@ class AppState {
     /// burst of poll ticks cannot start several at once.
     @ObservationIgnored var keyInfoTask: Task<Void, Never>?
 
+    /// The first poll of a session, ordered behind the key-capabilities load. Held so an
+    /// account change can cancel a fetch that is still waiting on `/key/info`.
+    @ObservationIgnored var firstFetchTask: Task<Void, Never>?
+
+    /// True while the first poll of a session is waiting on `/key/info`.
+    ///
+    /// Holds back the timer and manual refresh for that window, so neither can issue the
+    /// un-narrowed request the wait exists to prevent.
+    @ObservationIgnored var awaitingFirstKeyInfo = false
+
     /// When `keyInfo` was last read. Drives the refresh in `loadKeyInfoIfNeeded`.
     @ObservationIgnored var keyInfoLoadedAt: Date?
 
@@ -457,6 +467,9 @@ class AppState {
         keyInfoTask?.cancel()
         keyInfoTask = nil
         keyInfoLoadedAt = nil
+        firstFetchTask?.cancel()
+        firstFetchTask = nil
+        awaitingFirstKeyInfo = false
         itemCatalogTask?.cancel()
         itemCatalogTask = nil
         keyResumeTask?.cancel()

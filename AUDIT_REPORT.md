@@ -387,10 +387,12 @@ używał.
 
 | Priorytet | Problem | Dlaczego nie teraz |
 |---|---|---|
-| P1 | Cztery magazyny (`notificationRules`, `travelNotificationSettings`, `customShortcuts`, `appFeedbackState`) używają syntezowanego `Codable`, nie mają strażnika `loadFailed` i **nadpisują nieczytelny blob w tej samej instrukcji**, w której odczyt się nie powiódł. Audytor sprawdził empirycznie: syntezowany `Codable` rzuca na brakującym kluczu nawet gdy init memberwise ma default, więc dodanie jednego pola kasuje to ustawienie każdemu użytkownikowi. | Cztery mechaniczne strażniki to dokładnie ten kształt zmiany, który wygląda bezpiecznie i nie jest. Promień rażenia przy pomyłce: wszyscy użytkownicy. Audytor zaproponował napisanie tego jako diffów do przejrzenia na trzeźwo. |
+| P1 | Cztery magazyny (`notificationRules`, `travelNotificationSettings`, `customShortcuts`, `appFeedbackState`) używają syntezowanego `Codable` i **nadpisują nieczytelny blob w gałęzi `else` tego samego wywołania**, w którym odczyt się nie powiódł. Dodanie jednego **nie-opcjonalnego** pola kasuje to ustawienie każdemu istniejącemu użytkownikowi (sprawdzone `swiftc`; pole opcjonalne jest bezpieczne, bo synteza emituje dla niego `decodeIfPresent`). **Nie kopiuj tu strażnika `loadFailed`** — patrz kolumna obok. | Dwa audyty niezależnie doszły do przeciwnych recept, i drugie ma rację. Oś to nie „strażnik czy brak", tylko **czy użytkownik umie odtworzyć dane**. Watchlista i wątki są nieodtwarzalne, więc zamrożenie jest tam słuszne. Te cztery wracają do sensownych domyślnych, które użytkownik ustawia z powrotem w minutę — a strażnik dałby tu gorszy tryb: aplikacja działa na domyślnych w pamięci i **po cichu odmawia zapisu**, więc każda kolejna edycja wygląda na udaną i znika po restarcie. Do tego strażnik nie przenosi się mechanicznie: w `MarketWatchService` bezpieczne jest go dopiero `allowPersistenceAfterUserEdit()` przy add/remove/restore, a te cztery nie mają takiego punktu — `updateRule`, `updateShortcut`, `updateTravelNotificationSetting` mutują i zapisują wprost. **Właściwa poprawka: dać tym czterem typom ręczny `init(from:)` w stylu `ForumWatchConfig`** (`TornModels.swift`), czyli pole po polu z `decodeIfPresent`. Usuwa dominującą przyczynę (ewolucję schematu) zamiast łagodzić skutki, nie potrzebuje żadnej furtki i degraduje się lepiej: jedna zepsuta reguła w tablicy nie zabiera całej tablicy. |
+| P1 | **`NotificationRule.BarType` ma jako `rawValue` teksty wyświetlane** (`case energy = "Energy"`, `TornModels.swift`), a ten sam `rawValue` jest treścią powiadomienia (`AppState+NotificationsFeedback.swift`). Niewinna zmiana copy („Energy" → „Energy bar") unieważnia **wszystkie zapisane reguły wszystkich użytkowników**. | Wszyscy myślą o dodaniu pola; tego nikt nie oznaczy na review, bo to zmiana tekstu. Odsprzęgnąć `rawValue` od napisu przy okazji ręcznego `init(from:)` wyżej. |
 | P1/P2 | Klucz o niskich uprawnieniach nadal zabija aplikację przy pierwszym pollu, bo kod 16 to `haltsAllRequests`, a `isHalted` czyści się tylko w `updateAPIKey` za `guard newValue != apiKey` — wklejenie **tego samego** klucza nic nie daje. | Zmiana semantyki zatrzymania na najbardziej krytycznej ścieżce. Uporządkowanie odczytu uprawnień przed pierwszym pollem (P1-16) usuwa wyścig, który ten kod 16 produkował; reszta na jasny dzień. |
 | P2 | `forumWatchConfig` dekodowany przez `try?` bez flagi porażki, a `save()` pisze bezwarunkowo. Komentarz mówi „zawsze odtwarzalna preferencja" — nieprawda: `factionForumCategoryId` to numer, który użytkownik wygrzebał z URL-a forum. | Ten sam kształt co P1 wyżej, ta sama decyzja. |
-| P2 | `WatchedThread` na syntezowanym `Codable`: kolejne dodane pole opróżni listę na stałe, bo `threadsLoadFailed` blokuje potem każdy zapis. Bajty przeżywają pod `forumWatchedThreads.unreadable`, ale nic tego klucza nie czyta ani o nim nie mówi — ścieżka odzysku, którą strażnik miał umożliwić, nigdy nie została dokończona. | Wymaga decyzji, czy dokończyć konwencję `.unreadable`, czy ją porzucić. To projekt, nie łatka. |
+| P2 | `WatchedThread` na syntezowanym `Codable`: kolejne dodane pole opróżni listę na stałe, bo `threadsLoadFailed` blokuje potem każdy zapis. Ta sama poprawka co wyżej: ręczny `init(from:)`. | Tu strażnik **jest** słuszny (dane nieodtwarzalne), więc chodzi tylko o to, żeby przestał się uruchamiać bez powodu. |
+| P3 | **`.unreadable` zachowuje dowody, ale nie umożliwia odzysku.** Poza dwoma zapisami klucze `watchlist.unreadable` i `forumWatchedThreads.unreadable` występują wyłącznie w dwóch testach sprawdzających, że zapis nastąpił. Nie ma czytelnika, migracji, UI ani wzmianki w README. Komentarz „Keep it: a later app version may still be able to read it" opisuje zamiar, którego nikt nie zrealizował — a cykl życia gwarantuje, że nikt nie zauważy: po pierwszej świadomej edycji flaga gaśnie, główny klucz jest nadpisany, a `.unreadable` zostaje sierotą w pliście. | Odzysk możliwy tylko ręcznie (`defaults read com.mactorn.app watchlist.unreadable`), a użytkownik musi wiedzieć, że ten klucz istnieje. Trzy opcje rosnąco: poprawić komentarz na „zachowane do ręcznego odzysku, brak automatycznego czytelnika"; pokazać **obecność** klucza w raporcie diagnostycznym (bool, bez treści — mieści się w regule „bezpieczne z konstrukcji"); albo dopisać czytelnika, którego komentarz obiecuje. |
 | P2 | `.prefix()` liczy grafemy, nie bajty, więc „64-znakowa" nazwa z 50 000 znaków łączących waży 6 MB. Sufit z P2-11 nie jest sufitem bajtowym, a `AppState+ItemCatalog` czyta odpowiedź bez limitu rozmiaru. | Amplifikacja 1:1, więc to poprawność sufitu, nie ekspozycja. Naprawa: cap na `unicodeScalars` plus strażnik rozmiaru odpowiedzi. |
 | P2 | Rekomendacja A1: wyprowadzić `TornEndpointGate.denial(...).userExplanation` do `ModuleStateView`. `ModulePresentationState` ma już przypadek `.permission` z przyciskiem **Settings** zamiast Retry, a `isSelfHealing` jest napisane i nieczytane przez nic. Dziś pominięty moduł pokazuje „No data yet" i Retry, który nigdy nie pomoże. | Jedyna rzecz z tej listy z ciężarem projektowym. Zasługuje na własne przejście, nie na dopisek o trzeciej w nocy. |
 | P3 | `TornEndpointDenial.label` liczy pozostały czas z zegara systemowego, nie z wstrzykniętego `TimeSource`. Ten sam problem w `AppState+ItemCatalog` (cztery miejsca). | Dotyczy napisu w Diagnostyce i testowalności, nie danych. |
@@ -399,6 +401,69 @@ używał.
 | P3 | `userMessage` zwraca łańcuch Torna dosłownie dla kodów 1/2/18 i 16. Kopia aplikacji już istnieje (gałąź `message.isEmpty ?`), a `.temporaryKey` już przełącza się po `code`, więc to usunięcie ternary, nie pisanie tekstów. | Robota redakcyjna w kilku gałęziach. Zysk bezpieczeństwa skromny, zysk dla issue #58 duży. |
 | P3 | `parseStocksMetadata` bez limitu długości nazw i liczby wpisów. Komentarz katalogu przedmiotów wskazuje na nią jako wzór, a relacja się odwróciła. | Wcześniejsze, nie moje, i teraz jawnie udokumentowane. |
 | P3 | Brak `uiTestID` na nowych kontrolkach, przez co poprawki wrażliwej na szerokość warstwy odznak nie da się objąć testem regresji przy 320 pt. | Warto zrobić razem z A1. |
+
+---
+
+## Poprawki 1.12.3 (audyt poprawek z 1.12.2)
+
+Ponowny audyt gałęzi 1.12.2 pokazał, że **naprawa P1-16 działała tylko warunkowo**, a
+komunikat wydania mówił inaczej.
+
+### P1-17 · Timer wyprzedzał odczyt uprawnień
+
+**Status:** potwierdzony przez odczyt kodu przed poprawką.
+**Przyczyna źródłowa:** w 1.12.2 przeniosłem `installPollingTimer()` **przed** zadanie
+czekające na `/key/info`, a sink timera woła `fetchData()` bezwarunkowo. Jeśli `/key/info`
+trwa dłużej niż jeden `refreshInterval`, tik timera wysyła dokładnie to niezawężone żądanie,
+któremu cała poprawka miała zapobiec. Przy ustawieniu agresywnym (15 s) to zwykły zimny
+handshake DNS+TLS, nie rzadki przypadek.
+
+**Pierwsza próba naprawy była gorsza od problemu.** Wstrzymałem instalację timera do
+zakończenia pierwszego pobrania — co zamknęło tę dziurę i otworzyło dwie inne, bo
+`refreshNow()` instaluje timer, ilekroć żadnego nie zastanie: ręczne odświeżenie w trakcie
+czekania tworzyło **drugi** timer i osierocało pierwszy, a anulowane pierwsze pobranie
+zostawiało aplikację bez timera w ogóle. Wykrył to istniejący test
+`testRefreshNowDoesNotReplaceTheAutomaticPollingTimer`, czyli akurat ten, który miał to
+łapać.
+
+**Poprawka docelowa:** timer instalowany natychmiast, jak zawsze, a kolejność wymuszona
+flagą `awaitingFirstKeyInfo`, którą sprawdzają sink timera i `refreshNow`. Flaga jest
+czyszczona **przed** sprawdzeniem anulowania, żeby anulowane pierwsze pobranie i tak
+odblokowało polling.
+
+### P2-15 · Drugi wywołujący nie czekał na trwający odczyt
+
+`loadKeyInfoIfNeeded` miało `guard keyInfoTask == nil else { return }`, czyli strażnik przed
+podwójnym startem **jednocześnie znosił** kolejność await-przed-fetch dla każdego
+wywołującego poza pierwszym: drugie `startPolling` czekało na nic i pobierało z `keyInfo`
+nadal `nil`. Teraz dołącza do trwającego zadania (`await existing.value`).
+
+### P3-9 · Zewnętrzne zadanie nietrzymane i bez ponownej weryfikacji
+
+Zadanie pierwszego pobrania nie było nigdzie przechowywane, nie łapało tożsamości konta i po
+`await` wołało `fetchData()` bezwarunkowo — a `fetchData` nie ma strażnika `keyHalted`.
+Teraz jest w `firstFetchTask`, sprawdza `isCurrent` i `!keyHalted` po przebudzeniu, i jest
+anulowane w `resetAccountScopedState`.
+
+### Zamknięte, nie naprawione
+
+**Zawężanie selekcji nie może dziś wyzerować żadnego endpointu.** To była otwarta obawa z
+1.12.2; audyt rozstrzygnął ją z dokumentu OpenAPI: `KeyInfoResponse.info.selections.user` ma
+typ `array of UserSelectionName`, a `UserSelectionName` to jedna płaska przestrzeń nazw
+obejmująca obie wersje API i zawierająca wszystkie pięć nazw, o które prosi `user.v2`
+(`notifications`, `organizedcrime`, `refills`, `education`, `bounties`). Rozstrzygające, nie
+wywnioskowane: enum niesie własny opis wymieniający członków spadających do v1 (`bazaar`,
+`criminalrecord`, `display`, `networth`) i żadnej z naszych pięciu tam nie ma. Sprawdzone
+też pozostałe przestrzenie — `FactionSelectionName` ma `basic` i `chain`,
+`MarketSelectionName` ma `itemmarket`, `TornSelectionName` ma `stocks` i `items`.
+
+**Zastrzeżenie na przyszłość:** `UserSelectionName` to `oneOf: [<enum>, {"type": "string"}]`,
+więc Torn nie gwarantuje wyczerpalności enuma. „Nie ma na liście udzielonych" jest przez to
+odrobinę mocniejszym wnioskiem, niż specyfikacja licencjonuje. Nie wdrożyłem proponowanego
+zaworu (przy zerowym przecięciu wysyłać pełną listę), bo to znaczyłoby świadome wysłanie
+żądania, o którym sądzimy, że padnie, a bramka i tak odmawia wcześniej przez
+`keyLacksSelections`. Właściwy zawór to raczej traktowanie **nieznanej** nazwy jako
+przepustki, nie pustego wyniku — do przemyślenia na trzeźwo.
 
 ---
 
