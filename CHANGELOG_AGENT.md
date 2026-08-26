@@ -28,7 +28,7 @@ bramki jakości poza UI-testami zaliczone. UI-testy nie dały się uruchomić w 
 | `MacTornTests/Models/UserV2AdditionsTests.swift` | 13 testów liczników powiadomień i wirusa. |
 | `MacTornTests/ViewModels/ItemCatalogTests.swift` | 17 testów katalogu przedmiotów. |
 | `MacTornTests/ViewModels/ForumCategoryWatchTests.swift` | 15 testów obserwowania kategorii forum. |
-| `scripts/add-source-file.py` | Dopisuje plik Swift do `project.pbxproj` (projekt nie używa synchronizacji katalogów Xcode 16). |
+| `scripts/add-source-file.py` | Dopisuje plik Swift do `project.pbxproj` (projekt nie używa synchronizacji katalogów Xcode 16). **Odstępstwo od reguły „TypeScript zawsze, Python nigdy bez zgody":** to narzędzie deweloperskie, nie kod produktu, a repo nie ma toolchainu Node. Przepisanie na basha znaczyłoby wielolinijkowe wstawki w `sed`/`awk` do formatu OpenStep plist, czyli więcej ryzyka niż korzyści. Do decyzji Pawła. |
 
 ---
 
