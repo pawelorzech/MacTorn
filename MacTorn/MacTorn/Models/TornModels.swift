@@ -1241,11 +1241,24 @@ struct WatchlistItem: Codable, Identifiable {
         lastAlertedPrice = try container.decodeIfPresent(Int.self, forKey: .lastAlertedPrice)
     }
 
-    /// A copy under a different display name. `id` is the identity — renaming an entry
+    /// Longest display name a watchlist entry may carry. `MarketWatchService.add`
+    /// enforced this on names the user typed; `renamed(to:)` now enforces it on names
+    /// that arrive from Torn's item catalog, so there is one rule rather than two.
+    static let maximumNameLength = 64
+
+    /// A copy under a different display name. `id` is the identity: renaming an entry
     /// keeps its prices, its threshold and its alert history intact.
+    ///
+    /// The new name is trimmed and capped exactly as a typed one is. Without that, a
+    /// hostile or MITM'd `/v2/torn/items` response could write unbounded server text into
+    /// the user's own persisted watchlist through the catalog backfill.
     func renamed(to newName: String) -> WatchlistItem {
-        WatchlistItem(id: id,
-                      name: newName,
+        let cleaned = String(
+            newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(WatchlistItem.maximumNameLength)
+        )
+        return WatchlistItem(id: id,
+                      name: cleaned.isEmpty ? name : cleaned,
                       lowestPrice: lowestPrice,
                       lowestPriceQuantity: lowestPriceQuantity,
                       secondLowestPrice: secondLowestPrice,
@@ -1302,6 +1315,23 @@ class UpdateManager {
 
     init(session: NetworkSession = URLSession.shared) {
         self.session = session
+    }
+
+    /// Hosts a release link may point at.
+    ///
+    /// `GitHubRelease.htmlUrl` is decoded straight from api.github.com and handed to
+    /// `BrowserManager` behind a button labelled "Download Update". `BrowserManager`
+    /// checks the scheme, which stops `NSWorkspace` opening arbitrary handlers, but any
+    /// https host still passes — so a compromised or MITM'd GitHub response could send the
+    /// user somewhere else entirely under MacTorn's own update prompt.
+    static let allowedReleaseHosts: Set<String> = ["github.com", "www.github.com"]
+
+    /// Whether a release's link points somewhere MacTorn is willing to send the user.
+    static func isTrustedReleaseURL(_ urlString: String) -> Bool {
+        guard let url = URL(string: urlString),
+              url.scheme?.lowercased() == "https",
+              let host = url.host?.lowercased() else { return false }
+        return allowedReleaseHosts.contains(host)
     }
 
     func checkForUpdates(currentVersion: String) async -> GitHubRelease? {

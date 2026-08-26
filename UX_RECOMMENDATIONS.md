@@ -245,5 +245,7 @@ nie dało się wykonać w tym przebiegu. To lista dla Pawła przy pierwszym uruc
    Full Access i wymieniać endpointy frakcyjne dla gracza bez frakcji.
 10. **Zmiana klucza czyści stan.** Wpisać inny klucz, sprawdzić, że dane poprzedniego konta
     znikają, a watchlista i obserwowane wątki zostają.
-11. **UI-testy na odblokowanej sesji.** `make test-ui` nie dało się uruchomić w tym
-    przebiegu. To jedyna bramka jakości, która nie została zaliczona przed wydaniem.
+11. **UI-testy lokalnie.** `make test-ui` nie dało się uruchomić na tej maszynie (potrzebna
+    odblokowana sesja graficzna). Zestaw przeszedł na CI, na runnerze z prawdziwą sesją, więc
+    nie jest to luka w pokryciu — ale warto raz puścić lokalnie, żeby wiedzieć, że maszyna
+    znowu to potrafi.

@@ -99,9 +99,18 @@ enum SentryManager {
     // MARK: - Scrubbing
 
     private static func scrub(_ event: Event) -> Event? {
-        if let req = event.request, let urlString = req.url, let url = URL(string: urlString) {
-            req.url = tornRedactedURL(url)
+        if let req = event.request {
+            if let urlString = req.url, let url = URL(string: urlString) {
+                req.url = tornRedactedURL(url)
+            }
             req.queryString = nil
+            // The key travels in `Authorization` on API v2, so scrubbing the URL and the
+            // query string is no longer the whole job. Nothing should attach request
+            // headers today (network tracking, breadcrumbs and failed-request capture are
+            // all disabled above, and sentry-cocoa drops `Authorization` in its own header
+            // sanitizer), but both of those are somebody else's decision. Dropping headers
+            // here makes "the key never reaches Sentry" an invariant MacTorn owns.
+            req.headers = nil
             event.request = req
         }
         // Also walk breadcrumbs already attached at send time.

@@ -58,16 +58,27 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
 
     /// Sanitize text that originated from the Torn API before it lands in
-    /// `UNNotificationContent.title`/`.body`. Strips control characters and caps
-    /// length so a compromised or MITM'd response can't spoof multi-line / oversized
-    /// notifications. `notificationBodyMaxLength` is small on purpose — banners only
-    /// surface ~120 chars anyway.
+    /// `UNNotificationContent.title`/`.body`. Strips anything that can break a line and
+    /// caps length, so a compromised or MITM'd response cannot spoof a multi-line or
+    /// oversized notification. `notificationBodyMaxLength` is small on purpose — banners
+    /// only surface ~120 chars anyway.
     static let notificationTitleMaxLength = 80
     static let notificationBodyMaxLength = 200
 
+    /// Everything that ends a line, not just what Unicode files under "control".
+    ///
+    /// `CharacterSet.controlCharacters` is categories Cc and Cf only, which leaves
+    /// U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR (categories Zl and Zp)
+    /// untouched — and CoreText renders both as hard line breaks. Filtering on control
+    /// characters alone therefore did not deliver the guarantee this comment claims: a
+    /// forum thread title of `Re: raid\u{2028}\u{2028}MacTorn: your key expired, re-enter
+    /// it at …` produced a two-paragraph notification whose second half read as if
+    /// MacTorn had written it. `.newlines` covers LF, CR, NEL, LS and PS.
+    static let lineBreakingCharacters = CharacterSet.controlCharacters.union(.newlines)
+
     static func sanitize(_ text: String, maxLength: Int) -> String {
         let stripped = text.unicodeScalars
-            .filter { !CharacterSet.controlCharacters.contains($0) }
+            .filter { !lineBreakingCharacters.contains($0) }
             .map(Character.init)
         return String(String(stripped).prefix(maxLength))
     }

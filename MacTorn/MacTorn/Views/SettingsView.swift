@@ -426,9 +426,11 @@ struct SettingsView: View {
                     .foregroundStyle(.green)
 
                     Button("Download Update") {
-                        if let url = URL(string: update.htmlUrl) {
-                            BrowserManager.shared.open(url)
-                        }
+                        // Only a github.com link, whatever the API answered with. See
+                        // `UpdateManager.allowedReleaseHosts`.
+                        guard UpdateManager.isTrustedReleaseURL(update.htmlUrl),
+                              let url = URL(string: update.htmlUrl) else { return }
+                        BrowserManager.shared.open(url)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

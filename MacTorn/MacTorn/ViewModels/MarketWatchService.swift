@@ -93,7 +93,8 @@ final class MarketWatchService: MarketWatchServicing {
     func add(itemID: Int, name: String) -> Bool {
         guard itemID > 0, itemID < Self.maximumItemID else { return false }
         let trimmed = String(
-            name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(64)
+            name.trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(WatchlistItem.maximumNameLength)
         )
         guard !trimmed.isEmpty,
               !items.contains(where: { $0.id == itemID }) else {
