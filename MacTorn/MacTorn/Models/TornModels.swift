@@ -411,6 +411,23 @@ struct TravelNotificationSetting: Codable, Identifiable, Equatable {
     ]
 }
 
+/// See "Tolerant decoding for persisted preferences" above `WatchedThread`.
+extension TravelNotificationSetting {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        let shipped = Self.defaults.first { $0.id == id }
+        self.id = id
+        // `secondsBefore` is what the setting *means*, so a partial row rebuilds as the
+        // shipped lead time for its id rather than as zero — which would schedule the
+        // "landing soon" alert for the moment of landing.
+        secondsBefore = try container.decodeIfPresent(Int.self, forKey: .secondsBefore)
+            ?? shipped?.secondsBefore ?? 0
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+            ?? shipped?.enabled ?? false
+    }
+}
+
 // MARK: - Status (Hospital/Jail)
 struct Status: Codable, Equatable {
     let description: String?
@@ -1674,6 +1691,32 @@ struct NotificationRule: Codable, Identifiable, Equatable {
         NotificationRule(id: "happy_full", barType: .happy, threshold: 100, enabled: false, soundName: "default"),
         NotificationRule(id: "life_low", barType: .life, threshold: 20, enabled: false, soundName: "default")
     ]
+
+}
+
+/// See "Tolerant decoding for persisted preferences" above `WatchedThread`.
+extension NotificationRule {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // The rule id is the identity, and every rule the app defines has one.
+        let id = try container.decode(String.self, forKey: .id)
+        // A missing field falls back to the shipped rule with the same id, which is a
+        // truer reconstruction of a partial row than a bare zero would be.
+        let shipped = Self.defaults.first { $0.id == id }
+        self.id = id
+        // Decoded through the raw value rather than as `BarType`: `decodeIfPresent` still
+        // throws when the key is present but holds a raw value this build does not know,
+        // so retiring or renaming a bar in a later release would throw here and take
+        // every other rule down with it.
+        let rawBarType = try container.decodeIfPresent(String.self, forKey: .barType)
+        barType = rawBarType.flatMap(BarType.init(rawValue:)) ?? shipped?.barType ?? .energy
+        threshold = try container.decodeIfPresent(Int.self, forKey: .threshold)
+            ?? shipped?.threshold ?? 100
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled)
+            ?? shipped?.enabled ?? false
+        soundName = try container.decodeIfPresent(String.self, forKey: .soundName)
+            ?? shipped?.soundName ?? "default"
+    }
 }
 
 // MARK: - Sound Options
@@ -1727,6 +1770,44 @@ struct WatchedThread: Codable, Identifiable {
         self.isFactionThread = isFactionThread
     }
 
+}
+
+// MARK: - Tolerant decoding for persisted preferences
+//
+// Swift's synthesized `init(from:)` calls `decode(_:forKey:)` for every non-optional
+// property and throws on a missing key — it does **not** fall back to the defaults in a
+// memberwise initialiser. So adding one field to a persisted type throws on every
+// existing user's stored blob.
+//
+// That is only a nuisance where the load path is guarded. For these four it is data loss:
+// `loadNotificationRules`, `loadTravelNotificationSettings` and `loadShortcuts` answer a
+// decode failure by installing the defaults and saving them in the same statement, and
+// `WatchedThread` latches `threadsLoadFailed` and leaves the Forum Watch tab empty for
+// good. `WatchlistItem` and `ForumWatchConfig` already decode this way; these four are
+// the rest of the set.
+//
+// Each lives in an extension so the *synthesized memberwise* initialiser survives — an
+// explicit `init` in the struct body would suppress it and break every `defaults` entry.
+// `encode(to:)` is still synthesized, which keeps `CodingKeys` available here.
+
+extension WatchedThread {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // The thread id is the identity. A row without one is not a watched thread.
+        id = try container.decode(Int.self, forKey: .id)
+        title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Unknown"
+        notificationsEnabled =
+            try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
+        // Zero is the honest answer for a row that never stored a count, and `apply`'s
+        // `previousCount > 0` guard then re-baselines silently on the next poll: one
+        // missed alert, never a false one. Same reasoning as audit finding D-02.
+        lastKnownPostCount =
+            try container.decodeIfPresent(Int.self, forKey: .lastKnownPostCount) ?? 0
+        lastChecked = try container.decodeIfPresent(Date.self, forKey: .lastChecked)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
+        isFactionThread =
+            try container.decodeIfPresent(Bool.self, forKey: .isFactionThread) ?? false
+    }
 }
 
 struct ForumWatchConfig: Codable {
@@ -1892,6 +1973,31 @@ struct KeyboardShortcut: Identifiable, Codable, Equatable {
         KeyboardShortcut(id: "hospital", name: "Hospital", url: "https://www.torn.com/hospitalview.php", keyEquivalent: "o", modifiers: ["command", "shift"]),
         KeyboardShortcut(id: "faction", name: "Faction", url: "https://www.torn.com/factions.php", keyEquivalent: "f", modifiers: ["command", "shift"])
     ]
+}
+
+/// See "Tolerant decoding for persisted preferences" above `WatchedThread`.
+///
+/// These are hand-authored names, URLs and hotkeys with no other copy anywhere, and
+/// `loadShortcuts` replaces them with the defaults and saves in the same statement on a
+/// decode failure — the most expensive of the four to get wrong.
+extension KeyboardShortcut {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        // A shortcut the user created themselves has no shipped counterpart, so the
+        // fallbacks below degrade rather than invent: an unnamed row shows its id, and a
+        // row with no URL simply does not open anything.
+        let shipped = Self.defaults.first { $0.id == id }
+        self.id = id
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? shipped?.name ?? id
+        url = try container.decodeIfPresent(String.self, forKey: .url)
+            ?? shipped?.url ?? ""
+        keyEquivalent = try container.decodeIfPresent(String.self, forKey: .keyEquivalent)
+            ?? shipped?.keyEquivalent ?? ""
+        modifiers = try container.decodeIfPresent([String].self, forKey: .modifiers)
+            ?? shipped?.modifiers ?? []
+    }
 }
 
 // MARK: - Menu Bar Display
