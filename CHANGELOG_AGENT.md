@@ -201,3 +201,32 @@ Niezależny audyt bezpieczeństwa dotarł po opublikowaniu 1.12.0. Cztery napraw
 
 15 testów regresyjnych w `MacTornTests/Models/HostileResponseTests.swift`. 663 testy
 jednostkowe przechodzą.
+
+
+## Dodatek: 1.12.2
+
+Trzy audyty (diff, integralność danych, dostępność/UX) odezwały się po opublikowaniu
+1.12.1. Znalazły dwanaście defektów, **wszystkie w tym, co sam wprowadziłem w 1.12.0.**
+Pełny opis w `AUDIT_REPORT.md` jako P1-12…P1-16, P2-12…P2-14, P3-7, P3-8.
+
+Naprawione:
+
+- dodawanie pozycji watchlisty po nazwie działało tylko myszką (Return i Add szły prosto
+  do parsera ID); brak dopasowania nie renderował niczego,
+- obserwowanie kategorii forum ogłaszało stare wątki jako nowe, bo pamięć była podmieniana
+  jedną stroną 20 wątków zamiast sumowana; zmiana kategorii w locie mogła dać serię
+  powiadomień,
+- `keyInfo` bez TTL i bez ponowienia; zawężanie selekcji nigdy nie działało na pierwszym
+  pollu, bo odczyt uprawnień szedł równolegle z nim, nie przed nim,
+- `disablesEndpoint` było martwe, a `market.item` i `forum.thread` nie zgłaszały błędów do
+  bramki, więc martwe ID było odpytywane co poll bez końca,
+- przełącznik forum mógł być włączony bez ID i był wtedy bezczynny bez sygnału,
+- tytuły wątków forum trafiały nieograniczone do trwałego blobu,
+- `notifiedBountyKeys` czyszczone wbrew własnemu komentarzowi,
+- Diagnostyka pokazywała slug endpointu, wiersz odznak renderował się pusty.
+
+**Jeden test z 1.12.0 utrwalał defekt jako poprawne zachowanie** i został przepisany.
+
+671 testów jednostkowych przechodzi. Dwanaście dalszych ustaleń zostawionych Pawłowi z
+uzasadnieniem — największe to cztery magazyny preferencji, które kasują własne dane przy
+nieudanym dekodowaniu.
