@@ -233,10 +233,24 @@ final class MacTornUITests: XCTestCase {
         let expectedProgressLabels = ["Energy", "Nerve", "Happy", "Life"]
         let statusScroll = win.scrollViews["uitest.tabContent.Status"]
         XCTAssertTrue(statusScroll.waitForExistence(timeout: 10))
+        // The requirement is that Status scrolls inside the window and never pushes the
+        // footer out of reach, not that it is any particular number of points tall. This
+        // used to assert `height <= 481`, which pinned a hard `maxHeight: 480` cap in
+        // StatusView — and that cap was the reason the panel stopped short of the window's
+        // bottom edge, leaving dead space that read as content having ended. Asserting the
+        // invariant instead holds at any window height.
+        let statusFooter = win.buttons["uitest.openSettings"]
+        XCTAssertTrue(statusFooter.waitForExistence(timeout: 10))
+        XCTAssertTrue(statusFooter.isHittable, "the footer must stay reachable from Status")
         XCTAssertLessThanOrEqual(
-            statusScroll.frame.height,
-            481,
-            "Status should stay a compact, bounded surface"
+            statusScroll.frame.maxY,
+            statusFooter.frame.minY + 1,
+            "Status content must not overlap the footer"
+        )
+        XCTAssertLessThanOrEqual(
+            statusFooter.frame.maxY,
+            win.frame.maxY + 1,
+            "the footer must stay inside the window"
         )
         let nextAction = win.descendants(matching: .any)["uitest.nextAction"]
         XCTAssertTrue(nextAction.waitForExistence(timeout: 10))

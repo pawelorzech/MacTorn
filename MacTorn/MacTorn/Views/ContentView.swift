@@ -113,6 +113,10 @@ struct ContentView: View {
                 // disabling those left the user with no way out of a slow or hung first
                 // fetch (URLSession's default timeout is 60 s) short of force-quitting.
                 .disabled(isBlockingInitialLoad)
+                // Take every point the window offers, so the footer below is pinned to the
+                // bottom edge instead of floating wherever the tallest module happened to
+                // end. Without this a short module leaves the footer stranded mid-window.
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
 
                 Divider()
                     .padding(.vertical, 4)
@@ -361,6 +365,10 @@ struct ContentView: View {
         } label: {
             Label("Commands", systemImage: "command")
                 .labelStyle(.titleAndIcon)
+                // `Menu` draws its label in the system control font and ignores the
+                // `.font(.caption)` the enclosing footer sets, so this has to be stated
+                // here or "Commands" renders larger than "Settings" and "Quit" beside it.
+                .font(.caption)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()

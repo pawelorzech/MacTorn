@@ -83,7 +83,10 @@ struct StatusView: View {
             }
             .padding(12)
         }
-        .frame(maxHeight: 480)
+        // No height cap. A scroll view that stops short of the window's bottom edge looks
+        // like content that has ended, which is the opposite of the affordance a scroll
+        // view needs: the cue that there is more below is the content running to the edge
+        // and being clipped there.
     }
     
     // MARK: - Header
