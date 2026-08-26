@@ -23,9 +23,11 @@ forum updates without keeping the game open.
 - **Nine focused modules:** Status, Travel, Attacks, Money, Properties, Stocks,
   Faction, Watchlist, and Forums are grouped into a compact 320 pt popover.
 - **Actionable notifications:** bar thresholds, cooldowns, landing, release, chain
-  expiry, Organized Crime readiness, bounties, item prices, forum posts, and updates.
+  expiry, Organized Crime readiness, virus completion, bounties, item prices, forum posts
+  and threads, and app updates.
 - **Budget-aware polling:** fast point-in-time data stays separate from throttled,
-  row-based feeds, with live request and row budgets in Diagnostics.
+  row-based feeds, and MacTorn reads your key's permissions to skip requests that cannot
+  return anything. Live request and row budgets in Diagnostics.
 - **Read-only by design:** MacTorn displays Torn data and opens Torn pages; it never
   performs game actions through the API.
 - **Local-first security:** the API key lives in macOS Keychain, the app is sandboxed,
@@ -36,8 +38,8 @@ forum updates without keeping the game open.
 ### Now
 
 - **Status:** Energy, Nerve, Happy, and Life; cooldowns; Next Action timeline;
-  daily refills; education; hospital/jail state; bounties; unread messages; events;
-  chain status; and eight Torn quick links.
+  daily refills; education; virus programming; hospital/jail state; bounties; waiting
+  messages, events, awards and competitions; chain status; and eight Torn quick links.
 - **Travel:** live flight and arrival countdowns, all 11 destinations, current
   standard and Private Island airstrip estimates, pre-arrival alerts, and travel links.
 - **Attacks:** battle stats, total battle stat score, and recent attack outcomes with
@@ -53,10 +55,12 @@ forum updates without keeping the game open.
 
 ### Watch
 
-- **Watchlist:** Torn API v2 item-market prices, quantity at the lowest price,
-  price changes, threshold alerts, inline validation, and undo for destructive changes.
-- **Forums:** thread or faction-forum watching by URL/ID, per-thread notification
-  control, new-post alerts, and 2/3/5-minute polling options.
+- **Watchlist:** search Torn's item catalog by name (or paste an ID), API v2
+  item-market prices, quantity at the lowest price, price changes, threshold alerts,
+  inline validation, and undo for destructive changes.
+- **Forums:** watch individual threads by URL/ID for new posts, or watch a whole
+  category for new threads, with per-thread notification control and 2/3/5-minute
+  polling options.
 
 ### Quality of life
 
@@ -142,27 +146,38 @@ with every macOS assistive setting remains an ongoing release-quality activity; 
 
 MacTorn's typed endpoint registry in
 [`MacTorn/Networking/TornEndpoint.swift`](MacTorn/MacTorn/Networking/TornEndpoint.swift)
-is the source of truth for request construction, onboarding disclosure, Diagnostics,
-and the table below.
+is the source of truth for request construction, Diagnostics, and the table below. A test
+compares this table against what the registry generates, character for character.
 
 **Point-in-time** data (bars, money, cooldowns) can be polled frequently. **Row-based**
 data (events, attacks, news, forum posts) counts against Torn's per-category daily row
 limit, so MacTorn throttles and hard-limits those calls. A daily row-limit error pauses
 only the affected feed; core live data continues updating.
 
+MacTorn reads your key's own permissions from `/key/info` and skips what it cannot use.
+A Public-Only key is never asked for battle stats. If you have no faction, MacTorn stops
+asking for faction data. And when a request names several selections, MacTorn trims it to
+the ones your key can read, so one forbidden selection no longer fails the whole call.
+
+Every request carries `comment=MacTorn`, so you can pick its traffic out of your key log
+at [torn.com](https://www.torn.com/preferences.php#tab=api). API v2 requests send the key
+in an `Authorization` header instead of the URL.
+
 | Endpoint | API | Selections | Data | Cadence | Rows/call | Budget | Critical | Purpose |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | User (fast poll) | v1 | basic, bars, cooldowns, travel, profile, money, battlestats, properties, stocks | point-in-time | Every refresh interval (default 30s; 15s aggressive) | — | core | yes | Live Energy/Nerve/Happy/Life bars, drug/medical/booster cooldowns, travel status, money & net worth, battle stats, properties and stock holdings. |
-| User v2 (combined) | v2 | organizedcrime, refills, education, bounties | point-in-time | Every refresh interval (rides the fast poll) | — | core | no | Own Organized Crime 2.0 status, daily refills remaining, in-progress education timer, and bounties placed on you. |
-| User activity | v1 | events, messages, attacks | row-based | ≥5 min (self-throttled; hard row limit) | 25 | activity | no | Events feed, unread message count and recent attacks (display-only). |
+| User v2 (combined) | v2 | organizedcrime, refills, education, bounties, notifications | point-in-time | Every refresh interval (rides the fast poll) | — | core | no | Own Organized Crime 2.0 status, daily refills remaining, in-progress education timer, bounties placed on you, and the unread message/event/award/competition counters. |
+| Virus programming | v2 | — | point-in-time | On demand; re-read once the known finish time has passed, at least 30 min apart | — | core | no | The virus currently being written and the moment it finishes, for the countdown and the ready alert. |
+| User activity | v1 | events, attacks | row-based | ≥5 min (self-throttled; hard row limit) | 25 | activity | no | Events feed and recent attacks (display-only). The unread message count now comes from the point-in-time `notifications` selection, which costs no rows. |
 | Faction basic + chain | v1 | basic, chain | point-in-time | Every refresh interval (rides the fast poll) | — | faction | no | Faction identity and the live chain counter/timeout that drives the chain-expiring alert. |
-| Faction ranked wars | v2 | — | point-in-time | ≥5 min (throttled — large, slow-changing payload) | — | faction | no | Active ranked war progress (your faction vs. the opponent). |
+| Faction ranked wars | v2 | — | point-in-time | ≥5 min (throttled; large, slow-changing payload) | — | faction | no | Active ranked war progress (your faction vs. the opponent). |
 | Faction news | v2 | — | row-based | ≥5 min (throttled; hard row limit) | 25 | faction | no | Recent faction news feed. |
-| Item market | v2 | itemmarket, bazaar | point-in-time | Watchlist refresh (manual + on price-alert timer) | — | market | no | Lowest item-market listings for each watchlist item, used to drive price alerts. |
+| Item market | v2 | itemmarket | point-in-time | Watchlist refresh (manual + on price-alert timer) | — | market | no | Lowest item-market listings for each watchlist item, used to drive price alerts. |
 | Stock metadata | v1 | stocks | point-in-time | Rarely (cached; refreshed on demand) | — | metadata | no | Global stock names/acronyms used to label the user's stock holdings (slow-changing reference data). |
+| Item catalog | v2 | — | point-in-time | Rarely (cached for a week; refreshed on demand) | — | metadata | no | Names for every Torn item, so the watchlist can be searched by name and priced items are labelled rather than numbered. |
 | Forum thread | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Post count of a watched forum thread, to alert on new replies. |
 | Forum category threads | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Thread list of a watched forum category, to alert on new threads. |
-| Key info | v2 | — | point-in-time | On demand (Test Connection / key change) | — | core | no | One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read — used by onboarding's Test Connection. Never polled. |
+| Key info | v2 | — | point-in-time | On demand (Test Connection / key change) | — | core | no | One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read, for onboarding's Test Connection. Never polled. |
 
 All of these requests are read-only. MacTorn does not use the Torn API to submit game
 actions.

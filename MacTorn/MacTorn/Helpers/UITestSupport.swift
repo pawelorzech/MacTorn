@@ -384,28 +384,39 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
     }
 
     /// A full-access `/key/info` response granting every selection MacTorn requests, so
-    /// Test Connection reports all features available. Shape matches the verified
-    /// `KeyInfoResponse` schema.
-    static func keyInfoResponse() -> [String: Any] { [
-        "info": [
-            "access": ["level": 4, "type": "Full Access", "faction": true, "company": false,
-                       "log": ["custom_permissions": false, "available": []]],
-            "user": ["id": 123456, "faction_id": 6789, "company_id": NSNull()],
-            "selections": [
-                "user": ["basic", "bars", "cooldowns", "travel", "profile", "money",
-                         "battlestats", "properties", "stocks", "organizedcrime", "refills",
-                         "education", "bounties", "events", "messages", "attacks"],
-                "faction": ["basic", "chain"],
-                "market": ["itemmarket", "bazaar"],
-                "property": [],
-                "torn": ["stocks"],
-                "racing": [],
-                "forum": [],
-                "key": ["info"],
-                "company": [],
+    /// Test Connection reports all features available and the endpoint gate lets every
+    /// request through. Shape matches the verified `KeyInfoResponse` schema.
+    ///
+    /// The granted selections are **derived from the endpoint registry**, not listed by
+    /// hand. A hand-written list silently goes stale the moment an endpoint gains a
+    /// selection: the gate then refuses that endpoint for the whole UI-test run, and the
+    /// failure surfaces as an unrelated empty panel rather than as "the fixture is wrong".
+    static func keyInfoResponse() -> [String: Any] {
+        var granted: [String: [String]] = [:]
+        for category in TornKeyInfo.Category.allCases {
+            granted[category.rawValue] = []
+        }
+        for endpoint in TornEndpointRegistry.all {
+            let category = KeyValidator.category(for: endpoint).rawValue
+            var names = granted[category] ?? []
+            for selection in endpoint.selections where !names.contains(selection) {
+                names.append(selection)
+            }
+            granted[category] = names
+        }
+        // `key.info` takes no selections, so nothing above grants it — but a key that
+        // cannot read its own info is not a full-access key.
+        granted["key"] = ["info"]
+
+        return [
+            "info": [
+                "access": ["level": 4, "type": "Full Access", "faction": true, "company": false,
+                           "log": ["custom_permissions": false, "available": []]],
+                "user": ["id": 123456, "faction_id": 6789, "company_id": NSNull()],
+                "selections": granted,
             ],
-        ],
-    ] }
+        ]
+    }
 
     /// The Torn v1 "incorrect key" envelope (code 2). `AppState` classifies this as a
     /// permanent key error and halts polling.

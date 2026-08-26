@@ -11,10 +11,45 @@ final class TornAPIErrorTests: XCTestCase {
         XCTAssertEqual(TornAPIError.classify(code: 2, message: "Incorrect key").classification, .permanentKey)
     }
 
-    func testPausedAndDisabledKeysArePermanent() {
-        XCTAssertEqual(TornAPIError.classify(code: 18, message: "").classification, .permanentKey) // paused by owner
-        XCTAssertEqual(TornAPIError.classify(code: 13, message: "").classification, .permanentKey) // owner inactive
+    /// Only the codes a user has to *act* on are permanent: an empty key, a wrong key,
+    /// and a key its owner deliberately paused.
+    func testOnlyUserActionableKeyCodesArePermanent() {
         XCTAssertEqual(TornAPIError.classify(code: 1, message: "").classification, .permanentKey)  // empty key
+        XCTAssertEqual(TornAPIError.classify(code: 2, message: "").classification, .permanentKey)  // incorrect key
+        XCTAssertEqual(TornAPIError.classify(code: 18, message: "").classification, .permanentKey) // paused by owner
+    }
+
+    /// The key codes that clear on their own must NOT halt the app. Torn's own names for
+    /// these say so — "key owner in federal jail", "key change cooldown", "key temporary
+    /// disabled". Classifying them as permanent told users to regenerate a key that was
+    /// never broken, and left polling stopped until they did.
+    func testSelfHealingKeyCodesAreTemporary() {
+        for code in [10, 11, 12, 13] {
+            let error = TornAPIError.classify(code: code, message: "")
+            XCTAssertEqual(error.classification, .temporaryKey, "code \(code) should be temporary")
+            XCTAssertFalse(error.haltsAllRequests, "code \(code) must not stop the app for good")
+            XCTAssertNotNil(error.pauseDuration, "code \(code) needs a cool-off to retry after")
+        }
+    }
+
+    /// A request that can never succeed as constructed disables its one endpoint. Retrying
+    /// it at poll cadence is a guaranteed 100% failure rate against the request budget.
+    func testMalformedRequestCodesDisableOnlyTheirEndpoint() {
+        for code in [6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30] {
+            let error = TornAPIError.classify(code: code, message: "")
+            XCTAssertEqual(error.classification, .endpointUnavailable, "code \(code)")
+            XCTAssertTrue(error.disablesEndpoint, "code \(code)")
+            XCTAssertFalse(error.haltsAllRequests, "code \(code) must not stop the whole app")
+        }
+    }
+
+    /// An IP block is the one failure where retrying at the normal cadence is what caused
+    /// it, so it gets a cool-off an order of magnitude longer than a rate-limit blip.
+    func testIPBlockBacksOffFarLongerThanARateLimit() {
+        let block = TornAPIError.classify(code: 8, message: "")
+        XCTAssertEqual(block.classification, .ipBlocked)
+        let rateLimit = TornAPIError.classify(code: 5, message: "")
+        XCTAssertGreaterThan(block.pauseDuration ?? 0, (rateLimit.pauseDuration ?? 0) * 10)
     }
 
     func testAccessLevelTooLowIsInsufficientPermissions() {
@@ -30,10 +65,17 @@ final class TornAPIErrorTests: XCTestCase {
     }
 
     func testBackendCodesAreTemporary() {
-        for code in [0, 8, 9, 15, 17, 24, 999] {
+        for code in [0, 9, 15, 17, 24, 31] {
             XCTAssertEqual(TornAPIError.classify(code: code, message: "").classification, .temporaryBackend,
                            "code \(code) should be temporary")
         }
+    }
+
+    /// A code Torn has not shipped yet must degrade into "retry later", never into a stop.
+    func testUnknownFutureCodeDegradesToRetry() {
+        let future = TornAPIError.classify(code: 999, message: "")
+        XCTAssertEqual(future.classification, .temporaryBackend)
+        XCTAssertFalse(future.haltsAllRequests)
     }
 
     func testTornCodeIsPreserved() {

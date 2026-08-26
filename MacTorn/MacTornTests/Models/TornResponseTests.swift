@@ -224,7 +224,7 @@ final class TornRedactedURLTests: XCTestCase {
     }
 
     func testRedactor_listsQueryKeysSorted() {
-        let url = URL(string: "https://api.torn.com/v2/market/123?selections=itemmarket,bazaar&key=XYZ")!
+        let url = URL(string: "https://api.torn.com/v2/market/123?selections=itemmarket&key=XYZ")!
         XCTAssertEqual(tornRedactedURL(url), "https://api.torn.com/v2/market/123?[key,selections]")
     }
 

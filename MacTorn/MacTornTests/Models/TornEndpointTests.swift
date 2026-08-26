@@ -24,11 +24,13 @@ final class TornEndpointTests: XCTestCase {
         assertMatch("user.fast", TornAPI.url(for: key))
         assertMatch("user.v2", TornAPI.userV2URL(for: key))
         assertMatch("user.activity", TornAPI.activityURL(for: key))
+        assertMatch("user.virus", TornAPI.userVirusURL(for: key))
         assertMatch("faction.basic", TornAPI.factionURL(for: key))
         assertMatch("faction.rankedwars", TornAPI.factionRankedWarsURL(for: key))
         assertMatch("faction.news", TornAPI.factionNewsURL(for: key))
         assertMatch("market.item", TornAPI.marketURL(itemId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("torn.stocks", TornAPI.tornStocksURL(for: key))
+        assertMatch("torn.items", TornAPI.tornItemsURL(for: key))
         assertMatch("forum.thread", TornAPI.forumThreadURL(threadId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("forum.threads", TornAPI.forumCategoryThreadsURL(categoryId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("key.info", TornAPI.keyInfoURL(for: key))
@@ -36,7 +38,7 @@ final class TornEndpointTests: XCTestCase {
 
     /// The contract test above is only meaningful if it covers every endpoint.
     func testEveryEndpointIsCoveredByContract() {
-        XCTAssertEqual(TornEndpointRegistry.all.count, 11,
+        XCTAssertEqual(TornEndpointRegistry.all.count, 13,
                        "add the new endpoint to testRegistryURLsMatchLegacyBuilders too")
     }
 
@@ -103,5 +105,39 @@ final class TornEndpointTests: XCTestCase {
         let lines = TornEndpointRegistry.markdownTable().split(separator: "\n")
         // header + separator + one row per endpoint
         XCTAssertEqual(lines.count, TornEndpointRegistry.all.count + 2)
+    }
+
+    /// README's "API Data Usage" table must be exactly what the registry generates.
+    ///
+    /// The registry has always described itself as the source of truth for that table, but
+    /// nothing checked it — so the README kept advertising `forum.threads` as a live
+    /// endpoint for as long as the code declared it and never called it. A row count is not
+    /// enough: cadence, row limits and purposes drift silently. This compares the text.
+    func testREADMETableIsExactlyWhatTheRegistryGenerates() throws {
+        let readmeURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // Models
+            .deletingLastPathComponent()   // MacTornTests
+            .deletingLastPathComponent()   // MacTorn
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("README.md")
+        let readme = try String(contentsOf: readmeURL, encoding: .utf8)
+
+        let generated = TornEndpointRegistry.markdownTable()
+        guard let header = generated.split(separator: "\n").first else {
+            return XCTFail("the registry produced no table")
+        }
+        guard let start = readme.range(of: String(header)) else {
+            return XCTFail("README has no API Data Usage table starting with the generated header")
+        }
+        let rest = readme[start.lowerBound...]
+        let table = rest.split(separator: "\n", omittingEmptySubsequences: false)
+            .prefix { $0.hasPrefix("|") }
+            .joined(separator: "\n")
+
+        XCTAssertEqual(table, generated, """
+        README's API table is out of date. Replace it with:
+
+        \(generated)
+        """)
     }
 }

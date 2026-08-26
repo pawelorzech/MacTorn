@@ -1,268 +1,187 @@
-# CHANGELOG_AGENT
+# CHANGELOG_AGENT: zmiany wykonane przez agenta
 
-## 2026-08-01 — audyt kompleksowy (wersja bazowa 1.11.1)
+Last verified: 2026-08-26 | gałąź `feature/torn-api-2026-08` → wydanie 1.12.0
+Zamówienie: audyt i naprawa warstwy Torn API, wdrożenie tego, co się w API zmieniło,
+`/audit`, `/stop-slop`, wydanie produkcyjne.
 
-Gałąź: `main` (naprawy bezpośrednio na `main` — decyzja Pawła).
-Szczegóły i lokalizacje: `AUDIT_REPORT.md`. Rekomendacje: `UX_RECOMMENDATIONS.md`.
-
-Podsumowanie: 22 naprawione problemy, 28 nowych testów jednostkowych, 2 testy przepisane
-na poprawny kontrakt, 32 zmienione pliki, 4 pliki odtrackowane.
-
-### Zmiany zachowania widoczne dla użytkownika
-
-1. **Alert „Chain Expiring!" zaczyna działać.** Do tej pory nie wystrzelił ani razu — kod
-   czytał pole, którego API Torna nie zwraca. Karta chainu w zakładce Status i wpis chain
-   w osi Next Action również były z tego powodu puste; teraz obie pokazują dane.
-2. **Przejściowy błąd HTTP 403/404 nie kasuje już danych na ekranie** i nie twierdzi
-   nieprawdziwie „Invalid API Key". Prawdziwe odrzucenie klucza (koperta `error` przy HTTP
-   200) nadal zatrzymuje polling — bez zmian.
-3. **Uszkodzona watchlista i lista wątków nie znikają bezpowrotnie.** Nieczytelny wpis jest
-   zachowywany zamiast nadpisywany; kopia trafia pod klucz `*.unreadable`.
-4. **Pasek menu mówi VoiceOverowi, co się dzieje** — „Traveling to Japan, arriving in
-   2 minutes 35 seconds" zamiast odczytywania emoji.
-5. **Systemowe „Reduce transparency" działa automatycznie.** Przełącznik w aplikacji
-   nazywa się teraz „Always reduce transparency" i wymusza solidne tła niezależnie od
-   ustawienia systemowego.
-6. **Animacje respektują systemowe „Reduce motion"** (watchlista, obserwowane wątki).
-7. **Faction, Money i Attacks nie pokazują już „Loading…" bez końca** — po zakończonym
-   odświeżeniu nazywają stan („nie należysz do frakcji lub klucz nie ma dostępu").
-8. **Settings i Quit działają podczas pierwszego ładowania.**
-9. **Wynik „Test Connection" znika po edycji pola klucza.**
-10. **„Save & Connect" nie da się kliknąć kilka razy pod rząd.**
-11. **Dodanie przedmiotu już obecnego na watchliście mówi o tym wprost** zamiast zamykać
-    panel jak przy sukcesie.
-12. **Nieoczekiwany schemat URL nie jest już otwierany** — wyłącznie `http`/`https`.
-
-Zmiany 5–8 i 11 nie zostały zweryfikowane wizualnie (aplikacja nie była uruchamiana).
-
-### Zmienione pliki — model i logika
-
-| Plik | Zmiana |
-|---|---|
-| `Models/TornModels.swift` | `MenuBarDisplay` niesie znaczenie zamiast glifów: `.traveling(destination:seconds:)`, `.hospitalAbroad(destination:seconds:)`, `.cooldown(kind:seconds:)`. Dodane `accessibilityDescription` i czysta `spokenDuration(_:)`. `CooldownKind.displayName` |
-| `ViewModels/AppState.swift` | Nowe `liveChain` (mapuje `factionService.basic?.chain` na `Chain`). Setter `apiKey` woła `notificationCoordinator.reset()` i czyści `notifiedBountyKeys` |
-| `ViewModels/AppState+FactionFetch.swift` | `checkChainNotification()` wołane zaraz po `publishBasic` — tam, gdzie dane chainu wchodzą do systemu |
-| `ViewModels/AppState+NotificationsFeedback.swift` | Sprawdzenie chainu usunięte ze ścieżki snapshotu użytkownika; nowe `checkChainNotification()` |
-| `ViewModels/AppState+LiveNextAction.swift` | Snapshot Next Action czyta `liveChain` |
-| `ViewModels/AppState+PollingUserFetch.swift` | Usunięta gałąź `case 403, 404` kasująca `data` i ustawiająca „Invalid API Key" |
-| `ViewModels/AppState+MarketForum.swift` | `addToWatchlist` zwraca `Bool` (`@discardableResult`) |
-| `ViewModels/MarketWatchService.swift` | Flaga `loadFailed`; `save()` odmawia nadpisania nieczytelnego blobu; kopia pod `watchlist.unreadable`; `allowPersistenceAfterUserEdit()` w add/remove/restore |
-| `ViewModels/ForumWatchService.swift` | To samo dla wątków. Dodatkowo: brak użytecznego `posts` → `.malformed` (z tolerancją dla liczby jako stringu); pusty tytuł nie nadpisuje dobrego |
-| `Utilities/BrowserManager.swift` | `open` otwiera wyłącznie `http`/`https` z niepustym hostem; polityka wydzielona do czystej `isWebURL(_:)` |
-| `Helpers/TransparencyEnvironment.swift` | `SystemAccessibilitySettings` (czyta `NSWorkspace.accessibilityDisplayShouldReduceTransparency`, nasłuchuje zmian) + `TransparencyPolicy.effective(system:userOverride:)` |
-| `Helpers/UITestSupport.swift` | Usunięty zmyślony klucz `chain` z fixture'u odpowiedzi użytkownika |
-
-### Zmienione pliki — widoki
-
-| Plik | Zmiana |
-|---|---|
-| `MacTornApp.swift` | `.accessibilityLabel` na etykiecie paska menu; glify wyprowadzane z modelu; `reduceTransparency` w środowisku liczone przez `TransparencyPolicy` |
-| `Views/ContentView.swift` | `.disabled` przeniesione z całego `VStack` na sam obszar treści (stopka zawsze aktywna); nakładka ładowania `.allowsHitTesting(false)`; nowe `isBlockingInitialLoad` |
-| `Views/SettingsView.swift` | `.onChange(of: inputKey)` resetuje `keyValidation`; „Save & Connect" wyłączone podczas `isLoading`; przełącznik przezroczystości przemianowany, z podpowiedzią i `accessibilityHint` |
-| `Views/StatusView.swift` | Karta chainu czyta `appState.liveChain` |
-| `Views/FactionView.swift`, `Views/MoneyView.swift`, `Views/AttacksView.swift` | Rozróżnienie „ładowanie" od „brak danych" |
-| `Views/WatchlistView.swift` | Komunikat przy odrzuconym duplikacie (`addItemError`), panel zostaje otwarty; `reduceMotion` na animacjach i przejściu |
-| `Views/ForumWatchView.swift` | `reduceMotion` na animacjach i przejściu |
-
-### Zmienione pliki — konfiguracja, CI i doktryna
-
-| Plik | Zmiana |
-|---|---|
-| `.github/workflows/claude.yml` | Bramka `author_association` (`OWNER`/`MEMBER`/`COLLABORATOR`) we wszystkich czterech gałęziach `if:` — publiczne repo, więc komentarz obcej osoby uruchamiał workflow z sekretami |
-| `.gitleaks.toml` | `regexTarget = "match"` + placeholdery zakotwiczone na całej wartości zamiast dopasowania w linii |
-| `.githooks/pre-commit` | Fail-closed przy braku gitleaks (było `exit 0`) |
-| `scripts/coverage-gate.sh` | `awk -v` zamiast interpolacji parametru do programu awk |
-| `.claude/commands/new-version.md` | Przepisane pod projekt Xcode (było: „update version in gradle files"); uzupełnione `allowed-tools`; dodany krok podmiany lokalnej instalacji i zakaz uruchamiania testów UI bez pytania |
-| `CLAUDE.md` | Sekcja „Torn API" zgodna z rejestrem; jawnie zapisane, że chain żyje na endpointcie faction i że 403/404 nie oznacza złego klucza |
-| `README.md` | Deklaracje dostępności zgodne z implementacją + akapit o tym, czego brakuje |
-
-### Odtrackowane (pliki zostają na dysku)
-
-`MacTorn-1.5.1.zip`, `MacTorn/Archive/MacTorn-v1.0.zip`, `MacTorn/Archive/MacTorn-v1.2.zip`,
-`MacTorn/Archive/MacTorn-v1.2.1.zip` — ~8,3 MB archiwów śledzonych wbrew `.gitignore`.
-Historia gita nadal je zawiera; historii nie przepisywałem.
-
-### Dodane testy (28)
-
-| Klasa | Liczba | Co pilnuje |
-|---|---:|---|
-| `ChainSourceTests` | 7 | Że `user.fast` **nie** prosi o selekcję `chain`, a `faction.basic` prosi; że `liveChain` mapuje dane frakcji; że alert wystrzeliwuje w oknie zagrożenia i milczy poza nim; że latch krawędziowy tłumi powtórki; że oś Next Action widzi chain z frakcji |
-| `MenuBarAccessibilityTests` | 5 | Formatowanie mówionego czasu (w tym wartość ujemna); że **żaden** glif nie wycieka do mowy; że nazwa celu podróży i rodzaj cooldownu trafiają do etykiety; że brak celu nie produkuje „Unknown"/„nil" |
-| `BrowserManagerPolicyTests` | 3 | Że przechodzą tylko `http`/`https`; że `file://`, `javascript:`, `ssh://`, `mailto:` i schematy własne są odrzucane; że URL bez hosta jest odrzucany |
-| `MarketWatchCorruptStoreTests` | 4 | Że zapis w tle nie nadpisuje nieczytelnego blobu; że oryginał trafia pod klucz odzyskiwania; że czyste pierwsze uruchomienie nadal zapisuje; że edycja użytkownika wznawia zapisy |
-| `ForumWatchResilienceTests` | 5 | Jw. dla wątków; że konfiguracja zapisuje się mimo zablokowanej listy; że alert o nowych postach przeżywa częściową odpowiedź |
-| `ForumThreadParseTests` | 3 | Że odpowiedź bez `posts` to `.malformed`, nie sukces; że liczba jako string jest tolerowana; że pusty tytuł nie gubi licznika |
-| w `AppStateTests` | 1 | `testTornErrorEnvelopeStillHaltsOnBadKey` — że złagodzenie 403/404 nie połknęło prawdziwej awarii klucza |
-
-### Testy przepisane (2)
-
-`testFetchData_invalidAPIKey_HTTP403` i `…HTTP404` utrwalały zachowanie, które audyt uznał
-za błędne (403/404 = zły klucz + skasowanie danych). Zastąpione przez
-`testHTTP403IsTreatedAsTransientAndKeepsTheLastGoodSnapshot` i wariant 404, sprawdzające
-odwrotny, poprawny kontrakt. **To jest zmiana specyfikacji, nie obejście czerwonego
-testu** — dlatego równocześnie dołożony został test pilnujący, że prawdziwa awaria klucza
-nadal zatrzymuje polling.
-
-### Potencjalne regresje do obserwacji
-
-1. **Chain.** Alert, karta w Status i wpis w Next Action zależą teraz od danych frakcji.
-   Gracz bez frakcji nie zobaczy ich w ogóle — poprawnie, ale to zmiana. Częstotliwość
-   alertu zależy od cadence pollingu frakcji; jeśli okaże się zbyt rzadka względem
-   60-sekundowego progu, trzeba przyspieszyć `faction.basic` albo obniżyć próg.
-2. **403/404.** Aplikacja nie zatrzyma się już na tych kodach. Gdyby Torn zaczął ich
-   używać do sygnalizowania odrzuconego klucza (dziś nie używa), objawiłoby się to cichym
-   pollingiem w pętli. Warto zerknąć w `endpointHealth` po kilku dniach.
-3. **Blokada zapisu przy nieczytelnym blobie.** Gdyby flaga nie została zdjęta, zapisy
-   zamilkłyby na stałe. Zdejmują ją add/remove/restore/toggle.
-4. **`ContentView`.** Struktura `VStack` przebudowana (nowy `Group` wokół treści).
-   Kompiluje się, `.disabled` jest węższe, ale **układ nie został obejrzany**.
-5. **Nakładka ładowania** ma `.allowsHitTesting(false)`, więc stopka pod przyciemnieniem
-   jest klikalna, ale nadal przyciemniona — do oceny, czy nie jest to mylące.
-6. **Fixture UI.** Usunięcie zmyślonego klucza `chain` może wpłynąć na testy UI, które nie
-   zostały uruchomione w tym przebiegu.
-7. **`gitleaks`.** Węższy allowlist może dawać nowe trafienia na linijkach z placeholderami.
-   Pełna historia przeszła czysto.
-8. **Hook pre-commit.** Na maszynie bez gitleaks commit będzie blokowany — zamierzone;
-   wyjście awaryjne to `git commit --no-verify`.
-
-### Bramki po zmianach
-
-| Kontrola | Wynik |
-|---|---|
-| `xcodebuild test -only-testing:MacTornTests` | **PASS — 460/460**, 0 failed, 0 skipped (baseline 432) |
-| `bash scripts/coverage-gate.sh TestResults.xcresult 80` | **PASSED** — TornAPIError 99,07%, TornEndpoint 83,56%, PollingCoordinator 100%, NotificationCoordinator 100%, NextAction 96,51% |
-| `xcodebuild analyze` | **ANALYZE SUCCEEDED**, zero ostrzeżeń |
-| `xcodebuild build -configuration Debug` | **BUILD SUCCEEDED**, zero ostrzeżeń |
-| `make release` + `make verify-release` | **PASS** — `x86_64 arm64`, `Signature=adhoc`, strict/deep codesign, DR valid |
-| `gitleaks git` (pełna historia) | **PASS** — 132 commity, `no leaks found` |
-| `make test-ui` (8 testów) | **NIEWYKONANE** — przerwane na prośbę Pawła |
-
-### Do wykonania ręcznie
-
-Pełna lista w `UX_RECOMMENDATIONS.md` → „Manual QA". Trzy pozycje blokujące przed wydaniem:
-
-1. `make test-ui` — 8 testów, nieuruchomionych, przy ośmiu zmienionych plikach widoków i
-   zmienionym fixture harnessu.
-2. Alert chainu na żywo z prawdziwym kluczem — funkcja, która nie działała nigdy.
-3. Układ `ContentView` po przebudowie `VStack` — wizualnie nieobejrzany.
-
-**Nic nie zostało zacommitowane.** Zmiany czekają w drzewie roboczym `main`.
+Poprzedni przebieg (2026-08-01, wersja 1.11.1) jest w historii gita.
 
 ---
 
-## 2026-07-30 — audyt i wdrożenia T01–T17
+## Podsumowanie
 
-### Zakres
+37 plików, +2518 / −150 linii. Dziewięć defektów w warstwie API naprawionych, cztery
+funkcje dodane, 74 nowe testy. Zestaw testów jednostkowych urósł z 569 do 643. Wszystkie
+bramki jakości poza UI-testami zaliczone. UI-testy nie dały się uruchomić w tym środowisku
+(patrz *Do ręcznego QA*).
 
-Przeprowadzono audyt kodu, bezpieczeństwa, sieci, pollingów, buildów, zależności, architektury i interfejsu macOS. Wdrożono testowane poprawki T01–T13 i T17, przygotowano automatyczną część T14/T15 oraz zachowano decyzję T16-A o lokalnym universal Release podpisywanym ad hoc.
+---
 
-### Zmiany produkcyjne
+## Nowe pliki
 
-#### Izolacja konta i stan
+| Plik | Rola |
+|---|---|
+| `MacTorn/Networking/TornEndpointGate.swift` | Decyduje, czy wolno wydać żądanie: uprawnienia klucza, przynależność do frakcji, cool-offy po błędach, budżet wierszy. |
+| `MacTorn/ViewModels/AppState+ItemCatalog.swift` | Katalog przedmiotów Torna: pobranie, cache, wyszukiwanie po nazwie, uzupełnianie nazw w watchliście. |
+| `MacTornTests/Models/TornEndpointGateTests.swift` | 18 testów bramki. |
+| `MacTornTests/Models/TornAPIClientTests.swift` | 12 testów budowy żądania: nagłówek, `comment`, zawężanie selekcji, redakcja. |
+| `MacTornTests/Models/UserV2AdditionsTests.swift` | 13 testów liczników powiadomień i wirusa. |
+| `MacTornTests/ViewModels/ItemCatalogTests.swift` | 17 testów katalogu przedmiotów. |
+| `MacTornTests/ViewModels/ForumCategoryWatchTests.swift` | 15 testów obserwowania kategorii forum. |
+| `scripts/add-source-file.py` | Dopisuje plik Swift do `project.pbxproj` (projekt nie używa synchronizacji katalogów Xcode 16). **Odstępstwo od reguły „TypeScript zawsze, Python nigdy bez zgody":** to narzędzie deweloperskie, nie kod produktu, a repo nie ma toolchainu Node. Przepisanie na basha znaczyłoby wielolinijkowe wstawki w `sed`/`awk` do formatu OpenStep plist, czyli więcej ryzyka niż korzyści. Do decyzji Pawła. |
 
-- Dodano generation barrier oraz `AccountSessionStore`.
-- Zmiana klucza anuluje stare zadania i czyści dane poprzedniego konta.
-- Odpowiedzi user/faction/activity/v2 oraz key validation publikują stan wyłącznie dla bieżącej sesji.
-- Wydzielono `UserSnapshotService`, `FactionService`, `MarketWatchService` i `ForumWatchService`.
-- `AppState.swift` zmniejszono z 2 256 do 377 linii; logika pomocnicza znajduje się w sześciu extension files.
+---
 
-#### Sieć, freshness i współbieżność
+## Wykonane poprawki
 
-- Wszystkie ścieżki rezerwują request przez wspólną bramkę przed wykonaniem.
-- Watchlist i forum korzystają z bounded concurrency = 4 z obsługą anulowania.
-- Semantyczny kontrakt odpowiedzi nie traktuje brakującego krytycznego payloadu jako sukcesu.
-- Freshness i zdrowie są śledzone per endpoint.
-- Ostatnie poprawne dane pozostają widoczne podczas błędu chwilowego.
-- `lastUpdated` zmienia się wyłącznie po poprawnym głównym snapshotcie.
+Numeracja odpowiada `AUDIT_REPORT.md`.
 
-#### UX, Accessibility i Settings
+**P1-1 · Bramkowanie żądań uprawnieniami klucza.** `TornEndpointGate` odmawia żądań, o
+których `/key/info` mówi, że nie mogą się powieść. `AppState.refreshKeyInfoIfNeeded()`
+dociąga uprawnienia w tle przy starcie pollingu, bez dotykania stanu przycisku „Test
+Connection". `reserveRequest(_:)` przepuszcza żądanie wyłącznie przez bramkę.
+Pliki: `TornEndpointGate.swift` (nowy), `AppState+PollingUserFetch.swift`, `AppState.swift`.
 
-- Dodano wspólny `ModuleStateView` dla loading / empty / stale / offline / permission / rate limit i recovery.
-- Dodano walidację dodatniego progu ceny, inline error, disabled Set i bezpieczny Enter.
-- Watchlist i forum mają sześciosekundowe Undo pełnego elementu i pozycji.
-- Nawigację siedmiu tabów zastąpiły grupy `Now / Account / Watch`.
-- Produkcyjne widoki używają fontów semantycznych co najmniej `.caption2`.
-- Commands zapewnia Refresh `⌘R`, Settings `⌘,` i moduły `⌘1…⌘7`.
-- Kliknięcia, Commands i UI-test window współdzielą `AppNavigationState`.
-- Settings ma stały przełącznik sześciu kategorii i pokazuje jedną sekcję naraz; przewija się tylko treść aktywnej sekcji, gdy naprawdę nie mieści się w panelu.
-- Status ma ograniczoną wysokość, a rozbudowana lista Next Action została zastąpiona pojedynczym paskiem najbliższej akcji.
-- Rozszerzono AX labels, values, selected traits i widoczny focus.
-- Prefilled Settings SecureField dostał jawną etykietę AX `Torn API Key`; na macOS 26 placeholder znikał po wypełnieniu i pozostawiał pustą nazwę.
+**P1-2 · Zawężanie selekcji do uprawnień.** `TornEndpoint.resolvedSelections(granted:)` i
+`url(key:parameter:granted:)`. Nowy pojedynczy budowniczy `AppState.endpointURL(_:parameter:key:)`
+zastąpił bezpośrednie wywołania `TornAPI.*URL` we wszystkich dwunastu miejscach, co domyka
+zaległość A-02 z ISA. Stare buildery zostają jako niezależna druga implementacja, z którą
+`TornEndpointTests` porównuje każdy URL z rejestru.
+Pliki: `TornEndpoint.swift`, `AppState+PollingUserFetch.swift`, `AppState+FactionFetch.swift`,
+`AppState+MarketForum.swift`, `AppState+PersistenceStocks.swift`.
 
-#### Quick Travel
+**P1-3 · Przepisana taksonomia błędów.** Nowe klasy `temporaryKey` (kody 10–13, wznowienie
+automatyczne po 10 min), `endpointUnavailable` (kody 6, 7, 19, 21, 22, 23, 25–30, wyłączają
+tylko swój endpoint), `ipBlocked` (kod 8, godzina ciszy). `pauseDuration` zamiast jednej
+stałej pauzy dla wszystkiego. `handleRecoverableKeyError` zatrzymuje polling i planuje
+wznowienie zamiast wymagać interwencji użytkownika.
+Pliki: `TornAPIError.swift`, `AppState+PollingUserFetch.swift`.
 
-- Zaktualizowano 11 kierunków do oficjalnych czasów po Torn Patch #438.
-- Dodano jawny wybór Standard / Airstrip + pilot i informację o wymaganym upgrade/pilocie.
-- UI informuje o wariancji ±3%.
-- Aktywny lot nadal używa API `timestamp`, `departed` i `time_left`, nie lokalnej estymaty.
-- Preferencja Private Island steruje wyłącznie skrótem/ikoną powrotu.
+**P2-4 · Usunięcie selekcji `bazaar`.** Na v2 zwraca katalog bazarów bez cen, więc gałąź
+parsująca `cost`/`quantity` nie mogła zadziałać. Selekcja, gałąź i błędny fixture usunięte.
+Pliki: `TornEndpoint.swift`, `TornModels.swift`, `MarketWatchService.swift`,
+`TornAPIFixtures.swift`, `AppStateWatchlistTests.swift`, `TornResponseTests.swift`.
 
-#### Prywatność i zależności
+**P2-5 · Dokończenie obserwowania kategorii forum.** `ForumWatchService.fetchCategoryThreads`
+i `applyCategory`, wywołanie w pętli pollingu forum, przełącznik i pole ID w Ustawieniach.
+Pierwszy odczyt jest cichy, sterowany nową flagą `hasSeededFactionThreads`, bo pusty zbiór
+ID nie odróżnia „nigdy nie patrzyłem" od „patrzyłem, było pusto".
+Pliki: `ForumWatchService.swift`, `AppState+MarketForum.swift`, `SettingsView.swift`,
+`TornModels.swift`.
 
-- Sentry Cocoa zaktualizowano z 9.12.0 do **9.23.0**.
-- Sentry pozostaje off-by-default, nie startuje w UI tests, ma wyłączone PII/network tracking i scrubbery URL.
-- Usunięto wrażliwe wartości domenowe oraz surowe transportowe opisy z logów.
-- Diagnostics pozostaje bez PII.
+**P2-6 · Egzekwowanie budżetu wierszy.** `isWithinRecordBudget` wpięte w bramkę.
+Plik: `TornEndpointGate.swift`.
 
-#### CI i lokalne bramki
+**P2-7 · Poprawne rozliczanie wierszy listingu kategorii forum.** `sendsLimitQuery: true`,
+`limit` wysyłany jawnie.
+Pliki: `TornEndpoint.swift`, `TornModels.swift`.
 
-- Workflow macOS ma osobne joby unit/coverage, fixture UI oraz analyze/universal ad-hoc Release.
-- Akcje GitHub są przypięte do pełnych SHA.
-- Dodano read-only diagnostykę lokalnego runnera XCTest.
-- Makefile rozróżnia lokalny ad-hoc Release i opcjonalny, nieużywany `release-signed`.
+**P2-8 · Pauza całego rejestru przy błędach kontowych.** `noteAccountWideFailure(_:)`:
+blokada IP i zawieszony klucz pauzują wszystkie endpointy, nie tylko ten, który zauważył.
+Pliki: `TornEndpointGate.swift`, `AppState+PollingUserFetch.swift`.
 
-### Testy dodane lub rozszerzone
+**P3-9 · Fixture UI-testów wyprowadzony z rejestru.** Ręczna lista udzielonych selekcji
+zastąpiona wyliczeniem z `TornEndpointRegistry`, plus dwa testy pilnujące zgodności.
+Pliki: `UITestSupport.swift`, `UITestHarnessTests.swift`.
 
-- izolacja A→B, reset konta i spóźnione odpowiedzi/walidacje;
-- wszystkie request paths i wspólny hard cap;
-- semantyczne kontrakty full/custom/underprivileged/empty payload;
-- bounded concurrency i anulowanie watchlist/forum;
-- freshness, recovery i endpoint health;
-- walidacja progu ceny i Undo;
-- grouped navigation, Commands i sekcje Settings;
-- Sentry opt-in/off, crash-only i PII scrubber;
-- pięć wydzielonych serwisów/store: 31 izolowanych metod testowych;
-- Quick Travel: 24 testy, w tym komplet Standard/Airstrip i API-driven active flight;
-- hermetyczny syntetyczny scenariusz UI account A→B.
+---
 
-Aktualna liczba metod w źródłach:
+## Dodane funkcje
 
-- unit: **428**;
-- UI: **8**;
-- razem: **436**.
+**Liczniki powiadomień.** Selekcja `notifications` dołączona do istniejącego wywołania v2,
+więc zero dodatkowych żądań. Odznaka nieprzeczytanych wiadomości w Statusie zastąpiona wierszem
+czterech liczników (wiadomości, zdarzenia, nagrody, konkursy). Selekcja `messages` usunięta
+z wywołania wierszowego, bo ten sam licznik przychodzi teraz za darmo. O ⅓ mniej wierszy w
+kategorii `activity`.
+Pliki: `TornEndpoint.swift`, `TornModels.swift`, `UserSnapshotService.swift`,
+`AppState.swift`, `AppState+PollingUserFetch.swift`, `StatusView.swift`.
 
-### Walidacja
+**Odliczanie programowania wirusa.** Nowy endpoint `user.virus` (`/v2/user/virus`; `virus`
+nie jest selekcją łączoną, brakuje jej w enumie `UserSelectionName`). Wirus dołącza do osi
+Next Action i wywołuje powiadomienie po zakończeniu. Odczyt tylko wtedy, gdy odpowiedź mogła
+się zmienić: po minięciu znanego terminu albo po pół godziny niewiedzy.
+Pliki: `TornEndpoint.swift`, `TornModels.swift`, `UserSnapshotService.swift`,
+`AppState+PollingUserFetch.swift`, `NextAction.swift`, `AppState+LiveNextAction.swift`,
+`NotificationManager.swift`.
 
-- `make coverage-gate`: PASS.
-- MacTornTests: **428 passed, 0 failed, 0 skipped**.
-- Result bundle: `/Users/pawelorzech/Programowanie/MacTorn/TestResults.xcresult`.
-- Coverage: `TornAPIError` 99,07%, `TornEndpoint` 83,56%, `PollingCoordinator` 100%, `NotificationCoordinator` 100%, `NextAction` 96,51%.
-- Final Debug build: PASS.
-- Final `build-for-testing`: PASS.
-- Final post-merge `make analyze`: PASS, ponowiony po poprawce AX SecureField.
-- Final `make scan`: PASS, brak wycieków.
-- 320 pt accessibility-display navigation smoke: PASS.
-- Synthetic account A→B UI regression: PASS.
-- Final MacTornUITests: **8/8 passed, 0 failed, 0 skipped, 0 expected failures**.
-- UI result bundle: `/tmp/mactorn-final-ui-suite-20260730-1058-clean.xcresult`.
-- All-modules + Settings AX: PASS, 48.535 s.
-- Stale account switch: PASS, 15.534 s.
-- `make release`: PASS po wyczyszczeniu wyłącznie przestarzałego cache Sentry PCM w `DerivedData/Release`; początkowy błąd cache nie był błędem kodu.
-- `make verify-release`: PASS.
-- Artefakt: `DerivedData/Release/Build/Products/Release/MacTorn.app`.
-- Architektury: `x86_64 arm64`.
-- Podpis: `Signature=adhoc`, brak `TeamIdentifier`; strict/deep codesign i designated requirement są poprawne.
+**Katalog przedmiotów i wyszukiwanie po nazwie.** Nowy endpoint `torn.items`, cache w
+`UserDefaults` na tydzień, wyszukiwanie z rankingiem prefiks-przed-podciągiem, uzupełnianie
+nazw pozycji zapisanych jako `Item #<id>`. Nazwy wpisane przez użytkownika nietykane.
+Pliki: `AppState+ItemCatalog.swift` (nowy), `TornEndpoint.swift`, `TornModels.swift`,
+`AppState.swift`, `WatchlistView.swift`, `AppState+MarketForum.swift`.
 
-### Nadal oczekujące manualnie
+**Sekcja „Not being requested" w Diagnostyce.** Lista pominiętych endpointów z powodem, w
+panelu zdaniami po ludzku (`userExplanation`), w kopiowanym raporcie etykietami maszynowymi
+(`label`).
+Pliki: `Diagnostics.swift`, `DiagnosticsView.swift`, `AppState+LiveNextAction.swift`,
+`TornEndpointGate.swift`.
 
-- manualny VoiceOver audio;
-- rzeczywisty Full Keyboard Access;
-- systemowe Reduce Motion / Increase Contrast / Reduce Transparency;
-- dwa rzeczywiste konta testowe;
-- systemowe notifications i Launch at Login.
+---
 
-Pierwszy rzeczywisty run nowego workflow CI pozostaje niezweryfikowany do czasu publikacji zmian.
+## Zmiany zachowania
 
-### Decyzja dystrybucyjna T16
+Rzeczy, które użytkownik może zauważyć, także te niezamierzone:
 
-Pozostajemy przy **T16-A: universal strict ad-hoc Release do użytku lokalnego**. Developer ID, notarization, stapling, Gatekeeper distribution smoke i publikacja nie zostały wykonane i nie są blockerem lokalnego zakresu. Każde rozszerzenie dystrybucji wymaga nowej decyzji oraz jawnej zgody.
+1. **Mniej żądań.** Gracz bez frakcji nie wysyła już trzech żądań frakcyjnych na cykl.
+   Klucz o niskich uprawnieniach nie wysyła żądań, których nie obsłuży.
+2. **Zawężone żądania zwracają mniej danych.** Klucz, który wcześniej dostawał błąd 16 na
+   całe wywołanie, dostaje teraz częściową odpowiedź. Moduły odpowiadające niedozwolonym
+   selekcjom pozostają puste, celowo, ale bez wyjaśnienia w samym module (patrz
+   rekomendacja A1 w `UX_RECOMMENDATIONS.md`).
+3. **Inny komunikat błędu przy problemach przejściowych klucza.** Zamiast „Your API key is
+   invalid or paused" pojawia się zdanie o federal jail / cooldownie i automatyczne
+   wznowienie.
+4. **Licznik nieprzeczytanych odświeża się z każdym pollem**, nie co pięć minut.
+5. **Cena na watchliście pochodzi wyłącznie z item marketu.** Wcześniej kod *próbował*
+   uwzględnić bazar, ale nie mógł, więc widoczna cena się nie zmienia. Fixture testowy się
+   zmienił, żeby przestać udawać, że mógł.
+6. **Nazwy pozycji watchlisty zapisane jako `Item #<id>` zmienią się na prawdziwe** przy
+   pierwszym pobraniu katalogu.
+7. **Pierwsze uruchomienie po aktualizacji wykona jedno dodatkowe żądanie** (`/key/info`) i
+   jedno duże (`/torn/items`, kilkaset kB, raz na tydzień).
+8. **Klucz API v2 wędruje w nagłówku, nie w URL-u.** Niewidoczne, chyba że ktoś ogląda
+   ruch; wtedy widoczne bardzo.
+9. **Każde żądanie podpisane `comment=MacTorn`** w logu klucza na torn.com.
+
+---
+
+## Potencjalne regresje
+
+Rzeczy, które mogą pójść źle i na które trzeba patrzeć po wydaniu:
+
+| Ryzyko | Dlaczego mogłoby wystąpić | Jak rozpoznać |
+|---|---|---|
+| **Torn nie akceptuje nagłówka `Authorization` na v2** | Zmiana oparta na dokumentacji, nie na żywym teście. | Diagnostyka: `user.v2`, `market.item`, `key.info` z wynikiem `error` zamiast `ok`. |
+| **`/key/info` pomija nazwę selekcji, którą v1 przyjmuje** | Zawężenie po cichu obcięłoby funkcję. Sprawdzono, że wszystkie dziewięć nazw z `user.fast` jest w enumie specyfikacji, ale to sprawdzenie na papierze. | Moduł pusty mimo klucza Full Access; Diagnostyka wymieni go w „Not being requested". |
+| **Bramka blokuje działający endpoint** | Błąd w mapowaniu kategorii albo w `/key/info`. | Jak wyżej. Obejście: bramka nie blokuje nic, dopóki `keyInfo == nil`, więc usunięcie i ponowne wpisanie klucza bez klikania Test Connection przywraca stary tryb do czasu pierwszego udanego `/key/info`. |
+| **Katalog przedmiotów nadpisuje ręcznie wpisaną nazwę** | Warunek uzupełniania sprawdza dokładne dopasowanie do `Item #<id>`. | Nazwa własna zmieniona po aktualizacji. Pokryte testem `testBackfillLeavesUserChosenNamesAlone`. |
+| **Obserwowanie kategorii forum zalewa powiadomieniami** | Gdyby flaga zasiewu nie zapisała się przed pierwszym powiadomieniem. | Seria powiadomień o starych wątkach zaraz po włączeniu. Pokryte pięcioma testami. |
+| **Konfiguracja forum ze starszego builda resetuje się** | Nowe pole w `Codable`. | Znikają obserwowane wątki albo interwał wraca do 3 min. Pokryte testem `testAnOlderConfigWithoutTheSeededFlagStillLoads`. |
+
+---
+
+## Bramki jakości
+
+| Bramka | Przed | Po |
+|---|---|---|
+| `make test` | 569 ✅ | 643 ✅ |
+| `xcodebuild build` | ✅ | ✅ |
+| `make analyze` | 0 ostrzeżeń | 0 ostrzeżeń |
+| `make coverage-gate` (80 % na modułach krytycznych) | PASSED | PASSED |
+| `make scan` (gitleaks, 182 commity) | brak wycieków | brak wycieków |
+| `make test-ui` | ❌ nie uruchamia się | ❌ nie uruchamia się |
+
+---
+
+## Do ręcznego QA
+
+Pełna lista jest na końcu `UX_RECOMMENDATIONS.md`. Trzy punkty, które trzeba sprawdzić
+**zanim** wydanie trafi do kogokolwiek poza Pawłem:
+
+1. **Diagnostyka → Endpoints: wszystkie v2 z wynikiem `ok`.** To jedyny test tego, czy Torn
+   akceptuje przeniesienie klucza do nagłówka. Jeśli któryś jest `error`, cofnąć
+   `TornAPIClient.usesHeaderAuth` do `false` i wydać patch.
+2. **Szybki poll aktualizuje paski i cooldowny.** Weryfikuje zawężanie selekcji na
+   najbardziej krytycznej ścieżce.
+3. **`make test-ui` na odblokowanej sesji.** Nie została zaliczona przed wydaniem; to jedyna
+   bramka, o której nie mogę nic powiedzieć.

@@ -37,6 +37,7 @@ struct UserV2Payload {
     let refills: Refills?
     let education: EducationStatus?
     let bounties: [Bounty]
+    let notifications: TornNotifications?
 }
 
 protocol UserSnapshotServicing: Sendable {
@@ -48,6 +49,7 @@ protocol UserSnapshotServicing: Sendable {
     ) async -> UserServiceResult<UserSnapshotPayload>
     func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload>
     func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload>
+    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?>
 }
 
 /// Transport and decoding boundary for user-owned Torn endpoints. It does not know
@@ -60,8 +62,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     }
 
     func load(_ url: URL) async throws -> UserHTTPResponse {
-        var request = URLRequest(url: url)
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        let request = TornAPIClient.request(for: url)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
@@ -198,15 +199,42 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
             bounties = (try? decoder.decode([Bounty].self, from: encoded)) ?? []
         }
 
+        var notifications: TornNotifications?
+        if let dictionary = json["notifications"] as? [String: Any],
+           let encoded = try? JSONSerialization.data(withJSONObject: dictionary) {
+            notifications = try? decoder.decode(TornNotifications.self, from: encoded)
+        }
+
         return .success(
             UserV2Payload(
                 organizedCrime: organizedCrime,
                 refills: refills,
                 education: education,
-                bounties: bounties
+                bounties: bounties,
+                notifications: notifications
             ),
             responseBytes: data.count
         )
+    }
+
+    /// Decodes `/v2/user/virus`. A `null` virus is the normal "not programming anything"
+    /// answer, not a failure — hence the double optional collapsing to `.success(nil)`.
+    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
+        let response = try await load(url)
+        let data = response.data
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .malformed(responseBytes: data.count)
+        }
+        if let apiError = tornAPIError(in: json) {
+            return .apiError(apiError, responseBytes: data.count)
+        }
+        guard let dictionary = json["virus"] as? [String: Any],
+              let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
+              let virus = try? JSONDecoder().decode(VirusProgramming.self, from: encoded)
+        else {
+            return .success(nil, responseBytes: data.count)
+        }
+        return .success(virus, responseBytes: data.count)
     }
 
     private static func parseMoney(_ json: [String: Any]) -> MoneyData {

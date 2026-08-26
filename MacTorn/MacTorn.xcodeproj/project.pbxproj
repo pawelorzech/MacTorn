@@ -74,6 +74,13 @@
 		BBB00021 /* AppStateStocksMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10021 /* AppStateStocksMetadataTests.swift */; };
 		BBB00022 /* AppStatePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10022 /* AppStatePerformanceTests.swift */; };
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
+		AAA00053 /* TornEndpointGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10053 /* TornEndpointGate.swift */; };
+		AAA00054 /* TornEndpointGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10054 /* TornEndpointGateTests.swift */; };
+		AAA00055 /* TornAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10055 /* TornAPIClientTests.swift */; };
+		AAA00056 /* UserV2AdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10056 /* UserV2AdditionsTests.swift */; };
+		AAA00057 /* AppState+ItemCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10057 /* AppState+ItemCatalog.swift */; };
+		AAA00058 /* ItemCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10058 /* ItemCatalogTests.swift */; };
+		AAA00059 /* ForumCategoryWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10059 /* ForumCategoryWatchTests.swift */; };
 		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
 		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
 		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
@@ -189,6 +196,13 @@
 		BBB10022 /* AppStatePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePerformanceTests.swift; sourceTree = "<group>"; };
 		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
+		AAA10053 /* TornEndpointGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGate.swift; sourceTree = "<group>"; };
+		AAA10054 /* TornEndpointGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGateTests.swift; sourceTree = "<group>"; };
+		AAA10055 /* TornAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIClientTests.swift; sourceTree = "<group>"; };
+		AAA10056 /* UserV2AdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2AdditionsTests.swift; sourceTree = "<group>"; };
+		AAA10057 /* AppState+ItemCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ItemCatalog.swift"; sourceTree = "<group>"; };
+		AAA10058 /* ItemCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ItemCatalogTests.swift"; sourceTree = "<group>"; };
+		AAA10059 /* ForumCategoryWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ForumCategoryWatchTests.swift"; sourceTree = "<group>"; };
 		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
 		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
 		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
@@ -291,6 +305,7 @@
 		AAA30004 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10057 /* AppState+ItemCatalog.swift */,
 				AAA10005 /* AppState.swift */,
 				AAA10041 /* AccountSessionStore.swift */,
 				AAA10042 /* UserSnapshotService.swift */,
@@ -363,6 +378,7 @@
 		AAA30008 /* Networking */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10053 /* TornEndpointGate.swift */,
 				AAA10022 /* NetworkSession.swift */,
 				AAA10030 /* TornEndpoint.swift */,
 				AAA10031 /* TornAPIError.swift */,
@@ -412,6 +428,9 @@
 		BBB30003 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10056 /* UserV2AdditionsTests.swift */,
+				AAA10054 /* TornEndpointGateTests.swift */,
+				AAA10055 /* TornAPIClientTests.swift */,
 				BBB10004 /* BarTests.swift */,
 				BBB10005 /* TravelTests.swift */,
 				BBB10006 /* StatusTests.swift */,
@@ -437,6 +456,8 @@
 		BBB30004 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10059 /* ForumCategoryWatchTests.swift */,
+				AAA10058 /* ItemCatalogTests.swift */,
 				BBB10011 /* AppStateTests.swift */,
 				BBB10012 /* AppStateWatchlistTests.swift */,
 				BBB10013 /* AppStateFeedbackTests.swift */,
@@ -601,6 +622,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA00057 /* AppState+ItemCatalog.swift in Sources */,
+				AAA00053 /* TornEndpointGate.swift in Sources */,
 				AAA00001 /* MacTornApp.swift in Sources */,
 				AAA00002 /* ContentView.swift in Sources */,
 				AAA00004 /* TornModels.swift in Sources */,
@@ -660,6 +683,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA00059 /* ForumCategoryWatchTests.swift in Sources */,
+				AAA00058 /* ItemCatalogTests.swift in Sources */,
+				AAA00056 /* UserV2AdditionsTests.swift in Sources */,
+				AAA00054 /* TornEndpointGateTests.swift in Sources */,
+				AAA00055 /* TornAPIClientTests.swift in Sources */,
 				BBB00001 /* MockNetworkSession.swift in Sources */,
 				BBB00002 /* TestHelpers.swift in Sources */,
 				BBB00003 /* TornAPIFixtures.swift in Sources */,
@@ -859,7 +887,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -869,7 +897,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.11.1;
+				MARKETING_VERSION = 1.12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -886,7 +914,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -896,7 +924,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.11.1;
+				MARKETING_VERSION = 1.12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -909,11 +937,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.1;
+				MARKETING_VERSION = 1.12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -927,11 +955,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.1;
+				MARKETING_VERSION = 1.12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -944,11 +972,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.1;
+				MARKETING_VERSION = 1.12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -961,11 +989,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 39;
+				CURRENT_PROJECT_VERSION = 40;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.11.1;
+				MARKETING_VERSION = 1.12.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

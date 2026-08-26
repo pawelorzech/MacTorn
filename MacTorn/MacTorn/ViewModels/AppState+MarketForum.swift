@@ -66,7 +66,7 @@ extension AppState {
         guard !watchlistItems.contains(where: { $0.id == itemId }) else {
             return .alreadyWatched
         }
-        guard addToWatchlist(itemId: itemId, name: "Item #\(itemId)") else {
+        guard addToWatchlist(itemId: itemId, name: itemName(for: itemId)) else {
             // The service applies the same bounds we just checked, so reaching here
             // means those two definitions drifted apart.
             logger.error("addToWatchlist(input:) passed its own checks but the service still rejected \(itemId)")
@@ -145,7 +145,7 @@ extension AppState {
     ) async {
         guard isCurrentAccount(requestedKey, generation: generation),
               !requestedKey.isEmpty,
-              let url = TornAPI.marketURL(itemId: itemId, apiKey: requestedKey) else { return }
+              let url = endpointURL("market.item", parameter: itemId, key: requestedKey) else { return }
         guard reserveRequest("market.item") else {
             updateItemError(itemId: itemId, error: "Request limit reached", save: save)
             return
@@ -304,10 +304,68 @@ extension AppState {
             )
         }
 
+        await checkFactionForumForNewThreads(apiKey: requestedKey, generation: generation)
+
         guard !Task.isCancelled,
               isCurrentAccount(requestedKey, generation: generation) else { return }
         lastForumFetchAt = Date()
         saveForumWatch()
+    }
+
+    /// Watches a whole forum category and announces threads that were not there last time.
+    ///
+    /// The scaffolding for this shipped a while ago and was never connected: the config
+    /// fields, the `factionNewThread` notification type, the `forum.threads` endpoint and
+    /// its tests all existed, and nothing ever called them — so the README and the
+    /// onboarding disclosure both promised a feature the app did not have. This is the
+    /// missing half.
+    private func checkFactionForumForNewThreads(apiKey requestedKey: String,
+                                                generation: UInt) async {
+        guard forumWatchConfig.factionForumAutoMonitor,
+              let categoryID = forumWatchConfig.factionForumCategoryId,
+              categoryID > 0,
+              isCurrentAccount(requestedKey, generation: generation),
+              let url = endpointURL("forum.threads", parameter: categoryID, key: requestedKey),
+              reserveRequest("forum.threads") else { return }
+
+        let startTime = Date()
+        do {
+            let result = try await forumWatchService.fetchCategoryThreads(from: url)
+            guard !Task.isCancelled,
+                  isCurrentAccount(requestedKey, generation: generation) else { return }
+
+            switch result {
+            case .success(let threads, let responseBytes):
+                for thread in forumWatchService.applyCategory(threads) {
+                    NotificationManager.shared.send(
+                        title: "New forum thread",
+                        body: thread.title,
+                        type: .factionNewThread,
+                        customURL: URL(string: "https://www.torn.com/forums.php#/p=threads&t=\(thread.id)")
+                    )
+                }
+                recordHealth("forum.threads", outcome: .ok, since: startTime, bytes: responseBytes)
+
+            case .apiError(let apiError, let responseBytes):
+                noteEndpointFailure(apiError, for: "forum.threads")
+                recordHealth("forum.threads", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: apiError.classification.rawValue)
+
+            case .httpError(let statusCode, let responseBytes):
+                recordHealth("forum.threads", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: "http\(statusCode)")
+
+            case .malformed(let responseBytes):
+                recordHealth("forum.threads", outcome: .error, since: startTime,
+                             bytes: responseBytes, errorClass: "malformedResponse")
+            }
+        } catch {
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth("forum.threads",
+                         outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: startTime, bytes: 0,
+                         errorClass: mapped?.classification.rawValue ?? "transport")
+        }
     }
 
     private func checkThreadForUpdates(
@@ -316,7 +374,7 @@ extension AppState {
         generation: UInt
     ) async {
         guard isCurrentAccount(requestedKey, generation: generation),
-              let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: requestedKey) else { return }
+              let url = endpointURL("forum.thread", parameter: threadId, key: requestedKey) else { return }
         guard reserveRequest("forum.thread") else {
             updateThreadError(threadId: threadId, error: "Request limit reached")
             return
@@ -361,7 +419,7 @@ extension AppState {
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         guard !requestedKey.isEmpty,
-              let url = TornAPI.forumThreadURL(threadId: threadId, apiKey: requestedKey) else { return }
+              let url = endpointURL("forum.thread", parameter: threadId, key: requestedKey) else { return }
         guard reserveRequest("forum.thread") else {
             updateThreadError(threadId: threadId, error: "Request limit reached")
             return

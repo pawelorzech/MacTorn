@@ -6,7 +6,7 @@ extension AppState {
     // MARK: - Fetch Faction Data
 
     func fetchFactionData(apiKey: String, generation: UInt) async {
-        guard let url = TornAPI.factionURL(for: apiKey),
+        guard let url = endpointURL("faction.basic", key: apiKey),
               reserveRequest("faction.basic") else { return }
         let startTime = Date()
 
@@ -76,7 +76,7 @@ extension AppState {
         }
         var issuedRequest = false
 
-        if let url = TornAPI.factionRankedWarsURL(for: apiKey),
+        if let url = endpointURL("faction.rankedwars", key: apiKey),
            reserveRequest("faction.rankedwars") {
             issuedRequest = true
             let startTime = Date()
@@ -139,7 +139,7 @@ extension AppState {
             }
         }
 
-        if !isRowSourcePaused("faction.news"), let url = TornAPI.factionNewsURL(for: apiKey) {
+        if !isRowSourcePaused("faction.news"), let url = endpointURL("faction.news", key: apiKey) {
             guard reserveRequest("faction.news") else {
                 if issuedRequest { lastFactionV2Fetch = Date() }
                 return

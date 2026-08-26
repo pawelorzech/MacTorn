@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.0] — 2026-08-26 — a better Torn API citizen
+
+### Added
+- **Search Torn's item catalog by name.** Adding a watchlist entry used to mean knowing
+  its numeric item ID and typing the name yourself. Type "xanax", pick it from the
+  matches, and it lands correctly labelled. Entries you added earlier as `Item #206` get
+  relabelled once the catalog loads. Names you chose yourself stay as you wrote them. The
+  catalog is cached for a week, and everything still works before it arrives.
+- **Virus programming countdown.** The virus you are writing now shows up on the Next
+  Action timeline beside education, Organized Crime and the bars, with a notification when
+  it finishes.
+- **Awards and competitions in the Status badges.** The unread-messages badge became a row
+  of four counters: waiting messages, events, awards and open competitions. These are the
+  same numbers Torn shows in its own header. Awards and competitions had no place in
+  MacTorn before.
+- **Watch a whole forum category for new threads.** Turn it on in Settings, give it a
+  category ID, and MacTorn tells you when a thread appears that was not there before. The
+  first check only learns which threads already exist, so switching it on does not produce
+  a hundred notifications about months-old conversations.
+- **Diagnostics explains what is not being requested.** A new section lists every endpoint
+  MacTorn is skipping on purpose and why: a key without the right permission, no faction,
+  a daily read limit still cooling off.
+
+### Changed
+- **MacTorn reads your key's permissions and asks only for what it can get.** It used to
+  fire every request regardless. If you have no faction, that meant a call for faction
+  data every thirty seconds, forever, purely to be told no. Those calls are gone.
+- **A request naming several selections gets trimmed instead of rejected.** Torn refuses an
+  entire request if it names one selection your key cannot read. Asking a Minimal-access
+  key for battle stats therefore cost you the bars, the cooldowns and the travel timer in
+  the same call. MacTorn now asks for the readable ones and shows what comes back.
+- **The unread count is current instead of five minutes old**, and it costs nothing. It
+  moved off a row-based call that spends against Torn's daily read limit and onto the
+  point-in-time counter that rides the poll MacTorn already makes.
+- **Every request identifies itself as `MacTorn` in your key log**, so you can pick its
+  traffic out from every other tool you have handed the same key. API v2 requests send the
+  key in an `Authorization` header instead of the URL.
+
+### Fixed
+- **A spell in federal jail no longer looks like a broken key.** Torn's "key owner in
+  federal jail", "key change cooldown" and "key temporary disabled" errors all clear by
+  themselves, and MacTorn treated all three as permanent: it stopped polling and told you
+  to fix a key that was fine. It now waits and resumes on its own.
+- **Requests that can never succeed are no longer retried forever.** An error meaning "this
+  request is wrong" (wrong API version, wrong category, an ID that no longer exists) used
+  to be retried at poll cadence indefinitely. It now disables that one endpoint.
+- **An IP block gets an hour of quiet** instead of the continued requests that earned it.
+- **The client-side daily row budget became an actual limit.** MacTorn measured it and
+  showed it in Diagnostics without ever consulting it, so nothing stopped a runaway row
+  source except Torn answering with an error.
+- **Forum category listings are counted honestly.** That endpoint accepts a row limit and
+  defaults to 100. MacTorn declared it did not and booked 20 per call, five times under
+  what a default request pulls against the daily cap.
+- **The watchlist stopped asking for bazaar prices Torn no longer publishes.** On API v2
+  the per-item `bazaar` selection returns a directory of bazaars stocking an item and no
+  prices at all, so the code reading `cost` out of it could never match. Prices come from
+  the item market, which is where they were already coming from.
+
+### Quality
+- Verified against Torn's OpenAPI document, spec version 6.13.1 (2026-08-26).
+- README's API table is now compared against the endpoint registry by a test, character
+  for character. It had been advertising a forum endpoint the app declared and never
+  called.
+- 74 new tests covering the request gate, key placement, selection narrowing, the error
+  taxonomy, the item catalog and the forum category watch.
+
 ## [1.11.1] — 2026-07-31 — focused account views
 
 ### Changed

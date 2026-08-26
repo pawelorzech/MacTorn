@@ -166,6 +166,9 @@ class AppState {
     var propertiesData: [PropertyInfo]?
     var stocksData: [StockHolding] = []
     var stocksMetadata: [Int: StockMetadata] = [:]
+    /// Torn's global item catalogue, id → name. Empty until the first successful fetch;
+    /// everything that reads it degrades to `Item #id` rather than waiting on it.
+    var itemCatalog: [Int: String] = [:]
     var watchlistItems: [WatchlistItem] {
         get { marketWatchService.items }
         set { marketWatchService.items = newValue }
@@ -175,6 +178,11 @@ class AppState {
     var refills: Refills?
     var education: EducationStatus?
     var bountiesOnMe: [Bounty] = []
+    /// Unread messages / events / awards / competition, from the point-in-time
+    /// `notifications` selection. Cheap enough to refresh on every poll.
+    var notificationCounts: TornNotifications?
+    /// The virus currently being written, if any. Read rarely — see `fetchVirusIfNeeded`.
+    var virus: VirusProgramming?
     // MARK: - Faction v2 state (ranked wars, news)
     var rankedWars: [RankedWar] {
         factionService.wars
@@ -262,7 +270,12 @@ class AppState {
     /// 5 min → ≤288 calls/day × 25-row limit ≈ 7,200 rows/day, well under the 50k cap.
     @ObservationIgnored var lastFactionV2Fetch: Date?
 
-    /// Throttle for the row-based user activity call (events + messages + attacks).
+    /// Throttle for the virus read. The response is an absolute finish timestamp, so
+    /// between reads the countdown runs locally and the endpoint only needs re-reading
+    /// once that timestamp has passed.
+    @ObservationIgnored var lastVirusFetch: Date?
+
+    /// Throttle for the row-based user activity call (events + attacks).
     /// Same 50k-rows/day-per-category budget as faction news — keep the cadence slow.
     @ObservationIgnored var lastActivityFetch: Date?
 
@@ -289,6 +302,11 @@ class AppState {
     var stocksFailureCount = 0
     var stocksNextRetryAfter: Date?
 
+    // Item catalog backoff + in-flight guard, mirroring the stocks metadata ladder above.
+    var itemCatalogFailureCount = 0
+    var itemCatalogNextRetryAfter: Date?
+    @ObservationIgnored var itemCatalogTask: Task<Void, Never>?
+
     /// Non-secret persistence store. Injected so tests get an isolated
     /// `UserDefaults` suite instead of the process-wide `.standard`, which under
     /// parallel testing races across test classes on shared keys (e.g. "watchlist").
@@ -309,16 +327,24 @@ class AppState {
     /// Shared clock (injected). Used for the daily-row-limit pause windows below.
     @ObservationIgnored let time: TimeSource
 
-    /// Row-based sources paused after a Torn "daily read limit" hit (error code 14),
-    /// keyed by endpoint id → re-arm instant (ISC-15.1). Keyed by endpoint (NOT budget
-    /// category): `faction.news` and `faction.basic` share the `faction` budget, but only
-    /// the row-based `news` can trip code 14 — pausing it must never stop the point-in-time
-    /// `faction.basic` chain data that drives the chain alert. Point-in-time endpoints never
-    /// land here, so the live bars/countdowns keep running while a row source is paused.
-    @ObservationIgnored var rowSourcePausedUntil: [String: Date] = [:]
+    /// Decides per endpoint whether a request may be spent at all: live cool-offs after a
+    /// self-healing failure, selections the validated key cannot read, faction endpoints
+    /// for a factionless player, and the per-category row budget.
+    ///
+    /// Pauses are keyed by endpoint, never by budget category: `faction.news` and
+    /// `faction.basic` share the `faction` budget, but only the row-based `news` can trip
+    /// code 14 — pausing it must never stop the point-in-time `faction.basic` chain data
+    /// that drives the chain alert.
+    @ObservationIgnored let endpointGate: TornEndpointGate
 
-    /// How long a row source stays paused after a code-14 hit before it is retried. The cap
-    /// is a rolling 24 h window, so a conservative 1 h pause backs off without giving up.
+    /// In-flight background `/key/info` load (see `refreshKeyInfoIfNeeded`). Held so a
+    /// burst of poll ticks cannot start several at once.
+    @ObservationIgnored var keyInfoTask: Task<Void, Never>?
+
+    /// Scheduled resume after a recoverable key error (federal jail, key cooldown, IP
+    /// block). Held so a newer error, or an account change, can cancel the old wake-up.
+    @ObservationIgnored var keyResumeTask: Task<Void, Never>?
+
     /// Chain timeout (seconds remaining) below which the "Chain Expiring!" alert arms.
     static let chainWarningThreshold = 60
 
@@ -345,6 +371,7 @@ class AppState {
             forumWatchService ?? ForumWatchService(defaults: defaults, session: session)
         self.notificationCoordinator = NotificationCoordinator(defaults: defaults, time: time)
         self.pollingCoordinator = pollingCoordinator ?? PollingCoordinator(time: time)
+        self.endpointGate = TornEndpointGate(time: time)
         self.endpointHealth = EndpointHealthTracker(time: time)
 
         // Was provided by @AppStorage; now manual seed from UserDefaults so the
@@ -367,6 +394,7 @@ class AppState {
         loadForumWatch()
         loadFeedbackState()
         loadStocksMetadataFromCache()
+        loadItemCatalogFromCache()
         loadHiddenNextActionCategories()
 
         // Etap D: when the network comes back after an outage, refresh once immediately
@@ -400,6 +428,9 @@ class AppState {
         refills = nil
         education = nil
         bountiesOnMe = []
+        notificationCounts = nil
+        virus = nil
+        lastVirusFetch = nil
         cooldownEnds = nil
         serverClock = .synchronized
         travelSecondsRemaining = 0
@@ -408,7 +439,11 @@ class AppState {
         notifiedBountyKeys = []
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
-        rowSourcePausedUntil = [:]
+        endpointGate.reset()
+        keyInfoTask?.cancel()
+        keyInfoTask = nil
+        keyResumeTask?.cancel()
+        keyResumeTask = nil
         liveTimerCancellable?.cancel()
         liveTimerCancellable = nil
     }

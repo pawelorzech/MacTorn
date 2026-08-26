@@ -6,19 +6,22 @@ import Foundation
 // This is the source of truth the rest of the app derives from instead of keeping
 // several hand-maintained lists:
 //
-//   1. Request building        — `TornEndpoint.url(key:parameter:)`
-//   2. "API Data Usage" screen  — the metadata fields below (Diagnostics, Etap F)
-//   3. README documentation     — `TornEndpointRegistry.markdownTable()`
-//   4. Onboarding disclosure     — `TornEndpointRegistry.disclosure()` (Etap C)
+//   1. Request building        — `TornEndpoint.url(key:parameter:granted:)`, reached
+//                                 through `AppState.endpointURL(_:parameter:key:)`
+//   2. Request gating           — `TornEndpointGate` (what this key may ask for)
+//   3. "API Data Usage" screen  — the metadata fields below (Diagnostics, Etap F)
+//   4. README documentation     — `TornEndpointRegistry.markdownTable()`, which a test
+//                                 asserts is byte-identical to README's table
 //
-// The legacy `TornAPI` builders in `TornModels.swift` remain the code path that
-// AppState calls today; `TornEndpointContractTests` asserts every registry entry
-// produces the *exact* same URL as its `TornAPI` counterpart, so the two can never
-// silently drift while the migration to a single builder is completed in a later
-// stage (see ISA backlog A-02).
+// AppState builds every request through the registry (ISA backlog A-02, done). The
+// legacy `TornAPI` builders in `TornModels.swift` are no longer a code path; they stay
+// as the independent second implementation that `TornEndpointTests` compares each
+// registry URL against, so a change to one and not the other fails the build.
 
-/// Torn API major version. v1 is frozen (not sunset — every selection MacTorn relies
-/// on still returns its v1 shape); v2 is the actively developed OpenAPI surface.
+/// Torn API major version. v1 is frozen but not sunset: Torn's own OpenAPI document
+/// states that a v2 selection "will default to the API v1 version" where it has not been
+/// migrated, and every selection MacTorn relies on still returns its v1 shape. v2 is the
+/// actively developed surface. Checked against spec version 6.13.1 on 2026-08-26.
 enum TornAPIVersion: String, Equatable, Sendable {
     case v1
     case v2
@@ -107,15 +110,19 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// Row cap requested per call for row-based endpoints (used for the rows/day
     /// estimate). `nil` for point-in-time endpoints.
     let recordLimit: Int?
-    /// Whether `recordLimit` is also sent as a `limit` query item. Some row-based
-    /// endpoints (forum thread/threads) accept no `limit`, so accounting and the URL
-    /// diverge.
+    /// Whether `recordLimit` is also sent as a `limit` query item. `forum.thread` accepts
+    /// no `limit`, so for that one alone the accounting and the URL diverge.
     let sendsLimitQuery: Bool
     let cachePolicy: TornCachePolicy
     let budget: TornBudgetCategory
     /// true = part of the app's core (an outage degrades the whole app);
     /// false = optional module the user can live without.
     let critical: Bool
+    /// true when the endpoint only returns anything for a key whose owner is in a
+    /// faction. `/key/info` reports `user.faction_id`, so MacTorn can skip these
+    /// outright for a factionless player instead of spending a request every poll on a
+    /// call that can only come back empty.
+    var requiresFaction: Bool = false
 
     var isParameterized: Bool { path.contains("{param}") }
 
@@ -123,18 +130,36 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// endpoints count as 1 "request" but 0 row-based records.
     var recordsPerCall: Int { dataShape == .rowBased ? (recordLimit ?? 0) : 0 }
 
+    /// The selections this endpoint should actually ask for, given what `/key/info` says
+    /// the key can read. `granted == nil` (key never validated) means ask for everything.
+    ///
+    /// Narrowing matters because Torn rejects the *whole request* with error 16 when it
+    /// contains one selection the key cannot read. Asking a Minimal-access key for
+    /// `battlestats` therefore does not cost you battle stats — it costs you the bars,
+    /// the cooldowns and the travel timer in the same call. Trimming the request to what
+    /// the key can serve turns a total failure into a partial answer.
+    func resolvedSelections(granted: Set<String>?) -> [String] {
+        guard let granted, !selections.isEmpty else { return selections }
+        return selections.filter { granted.contains($0) }
+    }
+
     /// Builds the request URL with the same percent-encoding + sorted query items as
     /// the legacy `TornAPI` builders. `parameter` fills a `{param}` placeholder and is
     /// required for parameterized endpoints (returns nil if missing).
-    func url(key: String, parameter: Int? = nil) -> URL? {
+    ///
+    /// Returns nil when `granted` rules out every selection the endpoint needs — there is
+    /// no request left to make, and the caller should skip rather than send an empty one.
+    func url(key: String, parameter: Int? = nil, granted: Set<String>? = nil) -> URL? {
         var resolvedPath = path
         if isParameterized {
             guard let parameter else { return nil }
             resolvedPath = resolvedPath.replacingOccurrences(of: "{param}", with: String(parameter))
         }
-        var query: [String: String] = ["key": key]
+        var query: [String: String] = ["key": key, "comment": TornAPIClient.comment]
         if !selections.isEmpty {
-            query["selections"] = selections.joined(separator: ",")
+            let usable = resolvedSelections(granted: granted)
+            guard !usable.isEmpty else { return nil }
+            query["selections"] = usable.joined(separator: ",")
         }
         if sendsLimitQuery, let recordLimit {
             query["limit"] = String(recordLimit)
@@ -175,10 +200,10 @@ enum TornEndpointRegistry {
             name: "User v2 (combined)",
             version: .v2,
             path: "https://api.torn.com/v2/user",
-            selections: ["organizedcrime", "refills", "education", "bounties"],
+            selections: ["organizedcrime", "refills", "education", "bounties", "notifications"],
             extraQuery: [:],
             minimumAccessLevel: .limited,
-            purpose: "Own Organized Crime 2.0 status, daily refills remaining, in-progress education timer, and bounties placed on you.",
+            purpose: "Own Organized Crime 2.0 status, daily refills remaining, in-progress education timer, bounties placed on you, and the unread message/event/award/competition counters.",
             cadence: "Every refresh interval (rides the fast poll)",
             dataShape: .pointInTime,
             recordLimit: nil,
@@ -188,14 +213,31 @@ enum TornEndpointRegistry {
             critical: false
         ),
         TornEndpoint(
+            id: "user.virus",
+            name: "Virus programming",
+            version: .v2,
+            path: "https://api.torn.com/v2/user/virus",
+            selections: [],
+            extraQuery: [:],
+            minimumAccessLevel: .minimal,
+            purpose: "The virus currently being written and the moment it finishes, for the countdown and the ready alert.",
+            cadence: "On demand; re-read once the known finish time has passed, at least 30 min apart",
+            dataShape: .pointInTime,
+            recordLimit: nil,
+            sendsLimitQuery: false,
+            cachePolicy: .throttle(seconds: 1_800),
+            budget: .core,
+            critical: false
+        ),
+        TornEndpoint(
             id: "user.activity",
             name: "User activity",
             version: .v1,
             path: "https://api.torn.com/user/",
-            selections: ["events", "messages", "attacks"],
+            selections: ["events", "attacks"],
             extraQuery: [:],
             minimumAccessLevel: .limited,
-            purpose: "Events feed, unread message count and recent attacks (display-only).",
+            purpose: "Events feed and recent attacks (display-only). The unread message count now comes from the point-in-time `notifications` selection, which costs no rows.",
             cadence: "≥5 min (self-throttled; hard row limit)",
             dataShape: .rowBased,
             recordLimit: 25,
@@ -219,7 +261,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: false,
             cachePolicy: .none,
             budget: .faction,
-            critical: false
+            critical: false,
+            requiresFaction: true
         ),
         TornEndpoint(
             id: "faction.rankedwars",
@@ -230,13 +273,14 @@ enum TornEndpointRegistry {
             extraQuery: [:],
             minimumAccessLevel: .limited,
             purpose: "Active ranked war progress (your faction vs. the opponent).",
-            cadence: "≥5 min (throttled — large, slow-changing payload)",
+            cadence: "≥5 min (throttled; large, slow-changing payload)",
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
             cachePolicy: .throttle(seconds: 300),
             budget: .faction,
-            critical: false
+            critical: false,
+            requiresFaction: true
         ),
         TornEndpoint(
             id: "faction.news",
@@ -253,14 +297,15 @@ enum TornEndpointRegistry {
             sendsLimitQuery: true,
             cachePolicy: .throttle(seconds: 300),
             budget: .faction,
-            critical: false
+            critical: false,
+            requiresFaction: true
         ),
         TornEndpoint(
             id: "market.item",
             name: "Item market",
             version: .v2,
             path: "https://api.torn.com/v2/market/{param}",
-            selections: ["itemmarket", "bazaar"],
+            selections: ["itemmarket"],
             extraQuery: [:],
             minimumAccessLevel: .publicOnly,
             purpose: "Lowest item-market listings for each watchlist item, used to drive price alerts.",
@@ -286,6 +331,23 @@ enum TornEndpointRegistry {
             recordLimit: nil,
             sendsLimitQuery: false,
             cachePolicy: .throttle(seconds: 86_400),
+            budget: .metadata,
+            critical: false
+        ),
+        TornEndpoint(
+            id: "torn.items",
+            name: "Item catalog",
+            version: .v2,
+            path: "https://api.torn.com/v2/torn/items",
+            selections: [],
+            extraQuery: [:],
+            minimumAccessLevel: .publicOnly,
+            purpose: "Names for every Torn item, so the watchlist can be searched by name and priced items are labelled rather than numbered.",
+            cadence: "Rarely (cached for a week; refreshed on demand)",
+            dataShape: .pointInTime,
+            recordLimit: nil,
+            sendsLimitQuery: false,
+            cachePolicy: .throttle(seconds: 604_800),
             budget: .metadata,
             critical: false
         ),
@@ -318,7 +380,7 @@ enum TornEndpointRegistry {
             cadence: "Forum poll (opt-in feature)",
             dataShape: .rowBased,
             recordLimit: 20,
-            sendsLimitQuery: false,
+            sendsLimitQuery: true,
             cachePolicy: .throttle(seconds: 300),
             budget: .forum,
             critical: false
@@ -331,7 +393,7 @@ enum TornEndpointRegistry {
             selections: [],
             extraQuery: [:],
             minimumAccessLevel: .publicOnly,
-            purpose: "One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read — used by onboarding's Test Connection. Never polled.",
+            purpose: "One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read, for onboarding's Test Connection. Never polled.",
             cadence: "On demand (Test Connection / key change)",
             dataShape: .pointInTime,
             recordLimit: nil,

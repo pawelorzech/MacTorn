@@ -864,6 +864,83 @@ struct Refills: Codable, Equatable {
     }
 }
 
+// MARK: - Notification counters (v2 /user?selections=notifications)
+
+/// The four counters Torn's own header badges are built from.
+///
+/// This is the cheap way to know there is something waiting. MacTorn used to learn its
+/// unread-message count from the row-based `messages` selection, which spends rows against
+/// the 50,000-a-day-per-category cap just to produce one integer — so it could only afford
+/// to ask every five minutes. `notifications` is point-in-time, costs no rows, needs only a
+/// Minimal-access key, and rides the poll MacTorn already makes. It also carries two
+/// signals the app previously had no way to see at all: pending awards, and an active
+/// competition.
+struct TornNotifications: Codable, Equatable, Sendable {
+    let messages: Int
+    let events: Int
+    let awards: Int
+    let competition: Int
+
+    init(messages: Int = 0, events: Int = 0, awards: Int = 0, competition: Int = 0) {
+        self.messages = messages
+        self.events = events
+        self.awards = awards
+        self.competition = competition
+    }
+
+    var total: Int { messages + events + awards + competition }
+    var hasAny: Bool { total > 0 }
+}
+
+// MARK: - Virus programming (v2 /user/virus)
+
+/// A virus being written, and the instant it finishes.
+///
+/// `nil` at the response level means no virus is being programmed. Torn gives an absolute
+/// Unix timestamp rather than a duration, so the countdown is derived locally and the
+/// endpoint only needs re-reading when it lapses — see `AppState.fetchVirusIfNeeded`.
+struct VirusProgramming: Codable, Equatable, Sendable {
+    let itemID: Int
+    let name: String
+    /// Absolute Unix timestamp the virus is finished at.
+    let until: Int
+
+    init(itemID: Int, name: String, until: Int) {
+        self.itemID = itemID
+        self.name = name
+        self.until = until
+    }
+
+    private enum CodingKeys: String, CodingKey { case item, until }
+    private enum ItemKeys: String, CodingKey { case id, name }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let item = try container.nestedContainer(keyedBy: ItemKeys.self, forKey: .item)
+        itemID = try item.decode(Int.self, forKey: .id)
+        name = try item.decode(String.self, forKey: .name)
+        until = try container.decode(Int.self, forKey: .until)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        var item = container.nestedContainer(keyedBy: ItemKeys.self, forKey: .item)
+        try item.encode(itemID, forKey: .id)
+        try item.encode(name, forKey: .name)
+        try container.encode(until, forKey: .until)
+    }
+
+    /// Seconds left, measured against the Torn-side clock the caller supplies (issue #46:
+    /// every countdown in the app reads through `ServerClock`, never a bare `Date()`).
+    /// Never negative — a finished virus reads as zero, not as a countdown running
+    /// backwards.
+    func secondsRemaining(at serverNow: Date) -> Int {
+        max(0, until - Int(serverNow.timeIntervalSince1970))
+    }
+
+    func isReady(at serverNow: Date) -> Bool { Int(serverNow.timeIntervalSince1970) >= until }
+}
+
 // MARK: - Education (v2 /user?selections=education)
 struct EducationStatus: Codable, Equatable {
     let complete: [Int]
@@ -1164,6 +1241,20 @@ struct WatchlistItem: Codable, Identifiable {
         lastAlertedPrice = try container.decodeIfPresent(Int.self, forKey: .lastAlertedPrice)
     }
 
+    /// A copy under a different display name. `id` is the identity — renaming an entry
+    /// keeps its prices, its threshold and its alert history intact.
+    func renamed(to newName: String) -> WatchlistItem {
+        WatchlistItem(id: id,
+                      name: newName,
+                      lowestPrice: lowestPrice,
+                      lowestPriceQuantity: lowestPriceQuantity,
+                      secondLowestPrice: secondLowestPrice,
+                      lastUpdated: lastUpdated,
+                      error: error,
+                      priceThreshold: priceThreshold,
+                      lastAlertedPrice: lastAlertedPrice)
+    }
+
     var priceDifference: Int {
         guard secondLowestPrice > 0 && lowestPrice > 0 else { return 0 }
         return secondLowestPrice - lowestPrice
@@ -1298,7 +1389,11 @@ enum TornAPI {
 
     /// Slow poll: the row-based / display-only categories. Capped with `limit` and
     /// fetched every few minutes so each category stays well under 50k rows/day.
-    static let activitySelections = "events,messages,attacks"
+    ///
+    /// `messages` used to be here purely to produce one unread count, at the price of 25
+    /// rows a call against the daily cap. That count now comes free from the point-in-time
+    /// `notifications` selection on the v2 poll, so this call carries a third fewer rows.
+    static let activitySelections = "events,attacks"
     /// Rows per category per activity call. The UI only ever shows a handful, so 25 is
     /// generous; at a 5-minute cadence that is 25 × 288 ≈ 7,200 rows/day/category.
     static let activityRowLimit = 25
@@ -1306,8 +1401,14 @@ enum TornAPI {
     /// Build a Torn API URL with proper percent-encoding via URLComponents/URLQueryItem.
     /// String interpolation (the previous approach) would silently mangle keys that
     /// happen to contain `&`, `=`, or whitespace if pasted with junk.
+    ///
+    /// Every request carries `comment=MacTorn` (see `TornAPIClient.comment`), so the
+    /// key owner can tell MacTorn's traffic apart from every other tool sharing their
+    /// key in Torn's own key log.
     private static func build(_ urlString: String, query: [String: String]) -> URL? {
         guard var comps = URLComponents(string: urlString) else { return nil }
+        var query = query
+        query["comment"] = TornAPIClient.comment
         comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
             .sorted { $0.name < $1.name }
         return comps.url
@@ -1334,7 +1435,7 @@ enum TornAPI {
     /// Combined API v2 `user` call. v2 accepts multiple selections in one request
     /// (verified live), so a single call covers organized crime, refills, education
     /// and bounties. v1 selections stay on the frozen v1 endpoints above.
-    static let userV2Selections = "organizedcrime,refills,education,bounties"
+    static let userV2Selections = "organizedcrime,refills,education,bounties,notifications"
     static func userV2URL(for apiKey: String) -> URL? {
         build("https://api.torn.com/v2/user",
               query: ["selections": userV2Selections, "key": apiKey])
@@ -1361,9 +1462,31 @@ enum TornAPI {
               query: ["cat": cat, "limit": String(activityRowLimit), "key": apiKey])
     }
 
+    /// Item-market listings for one item.
+    ///
+    /// `bazaar` used to ride along here. It no longer carries prices: on API v2 the
+    /// per-item `bazaar` selection returns a *directory* of the player bazaars stocking
+    /// the item — `{id, name, is_open, weekly_customers}` — with no cost or quantity
+    /// anywhere in the shape (`BazaarResponseSpecialized` in Torn's OpenAPI document,
+    /// spec 6.13.1). Torn does not expose per-item bazaar prices on v2 at all, so asking
+    /// for it bought a larger payload and nothing else.
     static func marketURL(itemId: Int, apiKey: String) -> URL? {
         build("https://api.torn.com/v2/market/\(itemId)",
-              query: ["selections": "itemmarket,bazaar", "key": apiKey])
+              query: ["selections": "itemmarket", "key": apiKey])
+    }
+
+    /// Virus programming has no combinable `/user` selection — it is absent from Torn's
+    /// `UserSelectionName` enum — so it needs its own path. Read rarely: the response is an
+    /// absolute finish timestamp, and the countdown between reads is derived locally.
+    static func userVirusURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/user/virus", query: ["key": apiKey])
+    }
+
+    /// The global item catalog. `cat` is deliberately omitted: the default category is
+    /// "All", which is the only one that returns every item, and its details are stripped —
+    /// exactly the trade MacTorn wants, since it needs names and nothing else.
+    static func tornItemsURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/torn/items", query: ["key": apiKey])
     }
 
     static func tornStocksURL(for apiKey: String) -> URL? {
@@ -1374,8 +1497,68 @@ enum TornAPI {
         build("https://api.torn.com/v2/forum/\(threadId)/thread", query: ["key": apiKey])
     }
 
+    /// Unlike a single thread, a category listing accepts `limit` — and defaults to 100.
+    /// Sending the cap explicitly is what makes the row accounting honest: without it the
+    /// registry booked 20 rows for a call that was pulling five times that.
     static func forumCategoryThreadsURL(categoryId: Int, apiKey: String) -> URL? {
-        build("https://api.torn.com/v2/forum/\(categoryId)/threads", query: ["key": apiKey])
+        build("https://api.torn.com/v2/forum/\(categoryId)/threads",
+              query: ["key": apiKey, "limit": String(forumCategoryRowLimit)])
+    }
+
+    /// Threads fetched per category check. The alert only needs to spot ids it has not
+    /// seen, and a busy category turns over far fewer than 20 threads in a poll interval.
+    static let forumCategoryRowLimit = 20
+}
+
+// MARK: - Request construction
+
+/// The one place MacTorn turns a built Torn API URL into the request it actually sends.
+///
+/// Two things happen here that every call site needs and none of them should re-implement:
+///
+///  1. **The key leaves the URL on API v2.** Torn's OpenAPI document declares an
+///     `Authorization: ApiKey <key>` header and states the `key` query parameter "is not
+///     required … when passing the API key via the Authorization header". A key in a
+///     query string is a key in every URL that gets logged, cached, or attached to a
+///     crash report; a key in a header is not. v1 has no documented header form, so v1
+///     URLs keep `key=` — `tornRedactedURL` remains the guard there.
+///  2. **The URL cache is bypassed.** Torn may itself serve a response up to ~30 s old;
+///     letting `URLCache` stack a second layer on top of that is how a countdown ends up
+///     minutes stale.
+enum TornAPIClient {
+    /// Sent as `comment` on every request. Torn surfaces it in the key owner's key log
+    /// (`/v2/key/log`), which is how a user tells MacTorn's calls apart from those of
+    /// every other tool they have handed the same key to.
+    static let comment = "MacTorn"
+
+    /// Header name Torn documents for key auth.
+    static let authorizationHeader = "Authorization"
+
+    /// True for the `/v2/...` paths, the only ones where header auth is documented.
+    static func usesHeaderAuth(_ url: URL) -> Bool {
+        url.path.hasPrefix("/v2/") || url.path == "/v2"
+    }
+
+    /// Builds the request for `url`, relocating the key into the Authorization header
+    /// where Torn supports it. Returns the URL unchanged when it carries no `key` item.
+    static func request(for url: URL) -> URLRequest {
+        guard usesHeaderAuth(url),
+              var comps = URLComponents(url: url, resolvingAgainstBaseURL: false),
+              let items = comps.queryItems,
+              let key = items.first(where: { $0.name == "key" })?.value,
+              !key.isEmpty
+        else {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            return request
+        }
+
+        let remaining = items.filter { $0.name != "key" }
+        comps.queryItems = remaining.isEmpty ? nil : remaining
+        var request = URLRequest(url: comps.url ?? url)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.setValue("ApiKey \(key)", forHTTPHeaderField: authorizationHeader)
+        return request
     }
 }
 
@@ -1521,12 +1704,43 @@ struct ForumWatchConfig: Codable {
     var factionForumCategoryId: Int?
     var pollingIntervalSeconds: Int
     var knownFactionThreadIds: Set<Int>
+    /// Whether the category has been read at least once.
+    ///
+    /// Kept separately from `knownFactionThreadIds` because an empty id set is ambiguous:
+    /// it means both "never looked" and "looked, and the category was empty". Conflating
+    /// them costs the announcement of the very first thread posted to a quiet category —
+    /// the one most worth hearing about.
+    var hasSeededFactionThreads: Bool
 
-    init(factionForumAutoMonitor: Bool = false, factionForumCategoryId: Int? = nil, pollingIntervalSeconds: Int = 180, knownFactionThreadIds: Set<Int> = []) {
+    init(factionForumAutoMonitor: Bool = false,
+         factionForumCategoryId: Int? = nil,
+         pollingIntervalSeconds: Int = 180,
+         knownFactionThreadIds: Set<Int> = [],
+         hasSeededFactionThreads: Bool = false) {
         self.factionForumAutoMonitor = factionForumAutoMonitor
         self.factionForumCategoryId = factionForumCategoryId
         self.pollingIntervalSeconds = pollingIntervalSeconds
         self.knownFactionThreadIds = knownFactionThreadIds
+        self.hasSeededFactionThreads = hasSeededFactionThreads
+    }
+
+    /// Decoded field by field so a config written by an older build — which has no
+    /// `hasSeededFactionThreads` key — still loads. Synthesized `Codable` would throw on
+    /// the missing key and silently reset every forum preference the user had set.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        factionForumAutoMonitor =
+            try container.decodeIfPresent(Bool.self, forKey: .factionForumAutoMonitor) ?? false
+        factionForumCategoryId =
+            try container.decodeIfPresent(Int.self, forKey: .factionForumCategoryId)
+        pollingIntervalSeconds =
+            try container.decodeIfPresent(Int.self, forKey: .pollingIntervalSeconds) ?? 180
+        knownFactionThreadIds =
+            try container.decodeIfPresent(Set<Int>.self, forKey: .knownFactionThreadIds) ?? []
+        // An older config that already has ids was plainly seeded by an older build.
+        hasSeededFactionThreads =
+            try container.decodeIfPresent(Bool.self, forKey: .hasSeededFactionThreads)
+            ?? !knownFactionThreadIds.isEmpty
     }
 }
 

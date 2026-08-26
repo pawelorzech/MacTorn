@@ -1370,6 +1370,10 @@ private final class ControlledHTTPErrorUserSnapshotService: UserSnapshotServicin
     func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
         .malformed(responseBytes: 0)
     }
+
+    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
+        .success(nil, responseBytes: 0)
+    }
 }
 
 /// Simulates URLSession work that completes even after its caller is cancelled. This

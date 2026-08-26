@@ -281,7 +281,7 @@ final class AppStateWatchlistTests: XCTestCase {
 
         let item = appState.watchlistItems.first
         XCTAssertNotNil(item)
-        // Prices should be updated from fixtures (950 is lowest from bazaar)
+        // Prices should be updated from fixtures (950 is the lowest item-market listing)
         XCTAssertGreaterThan(item?.lowestPrice ?? 0, 0)
     }
 
@@ -342,7 +342,7 @@ final class AppStateWatchlistTests: XCTestCase {
 
     func testPriceAlert_triggeredWhenBelowThreshold() async throws {
         appState.apiKey = "valid_key"
-        // marketItemSuccess fixture returns lowest price of 950 (from bazaar)
+        // marketItemSuccess fixture returns a lowest price of 950
         try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
 
         // Add item with threshold of 1000 — fixture price 950 is below threshold

@@ -16,12 +16,11 @@ extension AppState {
     }
 
     func fetchStocksMetadata() async {
-        guard !apiKey.isEmpty, let url = TornAPI.tornStocksURL(for: apiKey) else { return }
+        guard !apiKey.isEmpty, let url = endpointURL("torn.stocks", key: apiKey) else { return }
         guard reserveRequest("torn.stocks") else { return }
         let startTime = Date()
         do {
-            var request = URLRequest(url: url)
-            request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            let request = TornAPIClient.request(for: url)
             let (data, _) = try await session.data(for: request)
             let parsed = AppState.parseStocksMetadata(from: data, logger: logger)
             guard !parsed.isEmpty else {

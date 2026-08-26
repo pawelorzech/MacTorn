@@ -296,4 +296,47 @@ final class UITestHarnessTests: XCTestCase {
         )
     }
 }
+
+// MARK: - Fixture / registry agreement
+
+/// The UI-test fixture's `/key/info` must grant everything the registry asks for.
+///
+/// This is not a hypothetical. The endpoint gate refuses any endpoint whose selections
+/// the key cannot read, so a fixture that has drifted behind the registry silently
+/// disables a module for the whole UI-test run — and the failure shows up as an empty
+/// panel somewhere else entirely, not as "the fixture is out of date".
+@MainActor
+final class FixtureKeyInfoTests: XCTestCase {
+
+    private func decodedFixture() throws -> TornKeyInfo {
+        let data = try JSONSerialization.data(withJSONObject: FixtureNetworkSession.keyInfoResponse())
+        return try JSONDecoder().decode(TornKeyInfo.Response.self, from: data).info
+    }
+
+    func testFixtureGrantsEverySelectionTheRegistryRequests() throws {
+        let info = try decodedFixture()
+        for endpoint in TornEndpointRegistry.all {
+            let availability = KeyValidator.availability(of: endpoint, given: info)
+            XCTAssertTrue(availability.available,
+                          "fixture key cannot read \(endpoint.id): missing \(availability.missingSelections)")
+        }
+    }
+
+    func testTheGateLetsEveryEndpointThroughUnderTheFixtureKey() throws {
+        let info = try decodedFixture()
+        let clock = MutableTimeSource()
+        let gate = TornEndpointGate(time: clock)
+        let coordinator = PollingCoordinator(time: clock)
+        for endpoint in TornEndpointRegistry.all {
+            XCTAssertNil(gate.denial(for: endpoint.id, keyInfo: info, coordinator: coordinator),
+                         "fixture key is refused for \(endpoint.id)")
+        }
+    }
+
+    /// Faction endpoints are skipped for a factionless player, so the fixture has to be
+    /// in a faction or the whole Faction module goes dark in UI tests.
+    func testFixtureKeyOwnerIsInAFaction() throws {
+        XCTAssertNotNil(try decodedFixture().user.factionId)
+    }
+}
 #endif

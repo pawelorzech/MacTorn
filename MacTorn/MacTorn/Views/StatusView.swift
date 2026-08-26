@@ -63,9 +63,9 @@ struct StatusView: View {
                 // Dailies (refills + education) — from the v2 user call
                 dailiesSection
 
-                // Messages badge
-                if appState.unreadMessages > 0 {
-                    messagesBadge
+                // What's waiting: messages, events, awards, an open competition
+                if appState.notificationCounts?.hasAny == true || appState.unreadMessages > 0 {
+                    notificationBadges
                 }
 
                 // Events
@@ -119,25 +119,83 @@ struct StatusView: View {
         }
     }
     
-    // MARK: - Messages Badge
-    private var messagesBadge: some View {
-        Button {
-            if let url = URL(string: "https://www.torn.com/messages.php") {
+    // MARK: - Notification Badges
+
+    /// One row of "there is something waiting for you", from Torn's own header counters.
+    ///
+    /// Awards and competitions are new here. They were never shown before because the only
+    /// counter MacTorn had came from the row-based `messages` selection — which cost rows
+    /// against a daily cap to produce one integer. The `notifications` selection returns
+    /// all four for free, so the app can now show what it could only ever guess at.
+    private var notificationBadges: some View {
+        let counts = appState.notificationCounts
+        // Icon + count only. Spelling the noun out reads better but does not fit: four
+        // badges of "2 competitions" width overflow a 320pt popover, and this row can show
+        // all four at once. The noun lives in the accessibility label and the tooltip,
+        // where it costs no horizontal space.
+        return HStack(spacing: 6) {
+            if let messages = counts?.messages ?? (appState.unreadMessages > 0 ? appState.unreadMessages : nil),
+               messages > 0 {
+                badge(count: messages,
+                      noun: "message",
+                      systemImage: "envelope.fill",
+                      tint: .blue,
+                      destination: "https://www.torn.com/messages.php")
+            }
+            if let events = counts?.events, events > 0 {
+                badge(count: events,
+                      noun: "event",
+                      systemImage: "bell.fill",
+                      tint: .orange,
+                      destination: "https://www.torn.com/events.php")
+            }
+            if let awards = counts?.awards, awards > 0 {
+                badge(count: awards,
+                      noun: "award",
+                      systemImage: "rosette",
+                      tint: .yellow,
+                      destination: "https://www.torn.com/awards.php")
+            }
+            if let competition = counts?.competition, competition > 0 {
+                badge(count: competition,
+                      noun: "competition",
+                      systemImage: "flag.checkered",
+                      tint: .green,
+                      destination: "https://www.torn.com/competition.php")
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func badge(count: Int,
+                       noun: String,
+                       systemImage: String,
+                       tint: Color,
+                       destination: String) -> some View {
+        let spoken = "\(count) \(noun)\(count == 1 ? "" : "s")"
+        return Button {
+            if let url = URL(string: destination) {
                 BrowserManager.shared.open(url)
             }
         } label: {
-            HStack {
-                Image(systemName: "envelope.fill")
-                    .foregroundColor(.blue)
-                Text("\(appState.unreadMessages) unread messages")
+            HStack(spacing: 3) {
+                // The icon distinguishes the four badges; the tint only reinforces it, so
+                // the row still reads without colour.
+                Image(systemName: systemImage)
+                    .foregroundColor(tint)
+                Text("\(count)")
                     .font(.caption)
+                    .monospacedDigit()
+                    .lineLimit(1)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 8)
             .padding(.vertical, 6)
-            .background(Color.blue.opacity(reduceTransparency ? 0.2 : 0.1))
+            .background(tint.opacity(reduceTransparency ? 0.2 : 0.1))
             .cornerRadius(6)
         }
         .buttonStyle(.plain)
+        .help(spoken)
+        .accessibilityLabel("\(spoken) waiting. Opens Torn.")
     }
     
     // MARK: - Error

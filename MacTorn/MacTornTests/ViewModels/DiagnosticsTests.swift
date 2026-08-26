@@ -46,8 +46,37 @@ final class DiagnosticsTests: XCTestCase {
             recordsPerDayByCategory: ["activity": 300, "faction": 150],
             endpoints: [
                 EndpointHealth(endpointID: "user.fast", outcome: .ok, latencyMs: 120, responseBytes: 8000, at: Date(), errorClass: nil)
-            ]
+            ],
+            suppressedEndpoints: ["faction.basic": "notInFaction"],
+            suppressionExplanations: ["faction.basic": "You are not in a faction"]
         )
+    }
+
+    /// The report answers "why is my faction tab empty?" without anyone reading a log.
+    func testSanitizedTextNamesSuppressedEndpointsAndTheirReason() {
+        let text = sampleReport().sanitizedText()
+        XCTAssertTrue(text.contains("faction.basic: notInFaction"))
+    }
+
+    /// The copied report carries the machine labels only. The plain-words version is for
+    /// the screen; duplicating it would make an issue paste longer without adding anything.
+    func testSanitizedTextCarriesTheMachineLabelNotThePlainWordsVersion() {
+        let text = sampleReport().sanitizedText()
+        XCTAssertTrue(text.contains("notInFaction"))
+        XCTAssertFalse(text.contains("You are not in a faction"))
+    }
+
+    func testSanitizedTextSaysSoWhenNothingIsSuppressed() {
+        let report = DiagnosticsReport(
+            appVersion: "1.9.2", build: "1", osVersion: "Version 14.5", architecture: "arm64",
+            isOnline: true, notificationPermission: "authorized",
+            lastSuccessfulRefresh: nil, lastErrorSummary: nil,
+            keyPresent: true, requiredAccessLevel: "Limited Access",
+            requestsLastMinute: 0, requestsLastDay: 0,
+            recordsPerDayByCategory: [:], endpoints: [], suppressedEndpoints: [:],
+            suppressionExplanations: [:]
+        )
+        XCTAssertTrue(report.sanitizedText().contains("Suppressed endpoints: none"))
     }
 
     /// The report must never contain the API key, a player name/ID, money, or a raw URL —

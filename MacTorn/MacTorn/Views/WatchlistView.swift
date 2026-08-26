@@ -64,7 +64,7 @@ struct WatchlistView: View {
                         }
 
                         HStack {
-                            TextField("Item ID", text: $itemIdInput)
+                            TextField(searchFieldPrompt, text: $itemIdInput)
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
                                 .onChange(of: itemIdInput) { _, _ in
@@ -82,29 +82,31 @@ struct WatchlistView: View {
                             .disabled(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
 
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
-                            ForEach(popularItems, id: \.1) { item in
-                                Button {
-                                    // Keep the panel open and say why when the add is
-                                    // refused — closing it looked identical to success.
-                                    if appState.addToWatchlist(itemId: item.1, name: item.0) {
-                                        addItemError = nil
-                                        withAnimation(reduceMotion ? nil : .default) {
-                                            showAddItem = false
-                                        }
-                                    } else {
-                                        addItemError = "\(item.0) is already on your watchlist."
-                                    }
-                                } label: {
-                                    Text(item.0)
-                                        .font(.caption2)
-                                        .lineLimit(1)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 6)
-                                        .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.1))
-                                        .cornerRadius(4)
+                        // Search results while the catalog is loaded, the old hard-coded
+                        // shortlist while it is not. The shortlist was six items someone
+                        // guessed at in 2026; the catalog is every item in the game.
+                        if !searchResults.isEmpty {
+                            VStack(spacing: 2) {
+                                ForEach(searchResults) { item in
+                                    suggestionRow(name: item.name, id: item.id)
                                 }
-                                .buttonStyle(.plain)
+                            }
+                        } else if appState.itemCatalog.isEmpty {
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
+                                ForEach(popularItems, id: \.1) { item in
+                                    Button {
+                                        add(name: item.0, id: item.1)
+                                    } label: {
+                                        Text(item.0)
+                                            .font(.caption2)
+                                            .lineLimit(1)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 6)
+                                            .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.1))
+                                            .cornerRadius(4)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
                             }
                         }
                     }
@@ -173,6 +175,60 @@ struct WatchlistView: View {
         }
     }
 
+    /// Catalog matches for whatever is in the field. Typing digits still means "this
+    /// item id", so a numeric entry searches nothing and goes straight through Add.
+    private var searchResults: [TornItemSummary] {
+        let typed = itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty, Int(typed) == nil else { return [] }
+        // Six rows, not the search default of twelve: this list renders inside an add
+        // panel inside the 320pt popover, and twelve suggestions push the rest of the
+        // watchlist off the visible area entirely.
+        return appState.searchItems(typed, limit: 6)
+    }
+
+    /// The field accepts a name only once the catalog is there to resolve it.
+    private var searchFieldPrompt: String {
+        appState.itemCatalog.isEmpty ? "Item ID" : "Item name or ID"
+    }
+
+    private func suggestionRow(name: String, id: Int) -> some View {
+        Button {
+            add(name: name, id: id)
+        } label: {
+            HStack {
+                Text(name)
+                    .font(.caption)
+                    .lineLimit(1)
+                Spacer()
+                Text("#\(id)")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .frame(maxWidth: .infinity)
+            .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.1))
+            .cornerRadius(4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Add \(name) to the watchlist")
+    }
+
+    /// Keep the panel open and say why when the add is refused — closing it looked
+    /// identical to success.
+    private func add(name: String, id: Int) {
+        if appState.addToWatchlist(itemId: id, name: name) {
+            addItemError = nil
+            itemIdInput = ""
+            withAnimation(reduceMotion ? nil : .default) {
+                showAddItem = false
+            }
+        } else {
+            addItemError = "\(name) is already on your watchlist."
+        }
+    }
+
+    /// The fallback shortlist, shown only until Torn's item catalog arrives.
     private let popularItems = [
         ("Xanax", 206),
         ("FHC", 367),
