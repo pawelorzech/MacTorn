@@ -82,9 +82,15 @@ struct WatchlistView: View {
                             .disabled(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
 
-                        // Search results while the catalog is loaded, the old hard-coded
-                        // shortlist while it is not. The shortlist was six items someone
-                        // guessed at in 2026; the catalog is every item in the game.
+                        // Search results when there are any, a "no match" line when a typed
+                        // name finds nothing, and otherwise the shortlist.
+                        //
+                        // The shortlist is the fallback for every remaining state, not just
+                        // an unloaded catalog. In 1.11.1 those six items were the *entire*
+                        // add mechanism — there was no text field — and 1.12.0 delivered the
+                        // search field and gated the grid off in the same change. Opening the
+                        // panel cold then gave a blank field where six clickable items used
+                        // to be.
                         if !searchResults.isEmpty {
                             VStack(spacing: 2) {
                                 ForEach(searchResults) { item in
@@ -100,7 +106,7 @@ struct WatchlistView: View {
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 4)
-                        } else if appState.itemCatalog.isEmpty {
+                        } else {
                             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
                                 ForEach(popularItems, id: \.1) { item in
                                     Button {

@@ -81,6 +81,38 @@ final class FirstPollOrderingTests: XCTestCase {
         app.stopPolling()
     }
 
+    // MARK: - Account changes
+
+    /// An account change must tear down the previous account's timer, or `startPolling`'s
+    /// early-return guard reads `timerCancellable` and `lastFetchTime` from the old account
+    /// and skips establishing the ordering for the new key entirely.
+    func testAnAccountChangeTearsDownThePreviousTimer() {
+        let app = makeApp()
+        app.apiKey = "first-\(UUID().uuidString)"
+        app.startPolling()
+        XCTAssertNotNil(app.timerCancellable)
+
+        app.apiKey = "second-\(UUID().uuidString)"
+
+        XCTAssertNil(app.timerCancellable,
+                     "the old account's timer must not poll under the new account's key")
+    }
+
+    /// A superseded attempt must not clear the window a newer one opened — the same shape
+    /// as the deferred-handle clobber, relocated to the flag.
+    func testASupersededFirstFetchDoesNotClearALiveWait() {
+        let app = makeApp()
+        app.apiKey = "superseded-\(UUID().uuidString)"
+        app.awaitingFirstKeyInfo = true
+        let stale = app.firstFetchGeneration
+
+        app.firstFetchGeneration &+= 1   // a newer attempt takes ownership
+
+        XCTAssertNotEqual(stale, app.firstFetchGeneration,
+                          "the generation is what lets the stale task recognise itself")
+        XCTAssertTrue(app.awaitingFirstKeyInfo)
+    }
+
     // MARK: - The wait always ends
 
     /// Cleared before the cancellation check, so a first fetch cancelled by an account

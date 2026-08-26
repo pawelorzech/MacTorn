@@ -467,6 +467,59 @@ przepustki, nie pustego wyniku — do przemyślenia na trzeźwo.
 
 ---
 
+## Otwarte po 1.12.3 — najważniejsza rzecz do naprawy
+
+### P1-18 · Gwarancja kolejności nie obejmuje ścieżki, którą klucz naprawdę wchodzi
+
+**Status:** potwierdzony. `Views/SettingsView.swift:259` to **jedyne** miejsce w aplikacji
+ustawiające `apiKey`, i zaraz po nim woła `refreshNow()`, nie `startPolling()`. Cała
+kolejność wprowadzona w 1.12.3 żyje w `startFirstFetch()`, wołanym wyłącznie z
+`startPolling()`. Ta sama luka dotyczy `onConnectivityRestored` (`AppState.swift:426`).
+
+**Dlaczego strażnik nie może zadziałać:** setter `apiKey` woła `resetAccountScopedState()`,
+które czyści `awaitingFirstKeyInfo` — i **słusznie**, bo zawieszona flaga zablokowałaby
+timer na zawsze. Skutek: flaga jest strukturalnie niezdolna zapalić się na jedynej
+tranzycji, która zeruje `keyInfo`. Strażnik, który nie może zareagować na zdarzenie, przed
+którym strzeże, nie jest strażnikiem.
+
+**Skutek:** pierwszy poll po wpisaniu klucza idzie niezawężony. To dokładnie scenariusz
+„pierwszy klucz w życiu użytkownika", czyli ten, dla którego cała rzecz powstała.
+
+**To nie jest regresja.** Na tych ścieżkach aplikacja robi to, co robiła zawsze przed 1.12.0
+— nikt nie stracił niczego, co miał. Zawężanie po prostu nie stosuje się tam, gdzie jest
+najbardziej potrzebne.
+
+**Próbowałem i wycofałem. To jest najważniejsza część tego wpisu.** Odroczenie w
+`refreshNow` zmienia jego kontrakt z „synchronicznie spróbuj pobrać" na „czasem odłóż", co
+unieważnia debounce ręcznego odświeżania, obsługę powrotu z offline i księgowanie budżetu —
+wszystkie czytają wartość zwracaną przez `fetchData()`. **Siedem istniejących testów to
+złapało** (`testRefreshNow_debouncesBurstAndAcceptsBoundaryAtThreeSeconds`,
+`testOfflineTransportFailureReopensDebounceForReconnect` i pięć innych). Kod wycofany,
+komentarz z diagnozą zostaje w miejscu.
+
+Druga rozważana droga — przeniesienie kolejności do `fetchData()` — potrzebuje **trzeciego**
+elementu stanu, żeby przerwać rekurencję, gdy `/key/info` padnie, i to na funkcji, przez
+którą przechodzi każdy poll. Tryb awarii przy pomyłce: nieskończona rekurencja w ścieżce
+pobierania. Nie o trzeciej w nocy.
+
+**Kształt poprawki (do rozstrzygnięcia na trzeźwo):** albo przepiąć „Save & Connect" i
+`onConnectivityRestored` na `startPolling()` zamiast `refreshNow()` — wtedy trzeba też
+sprawdzić, czy strażnik wczesnego wyjścia w `startPolling` (`:16`) nie połknie tego
+wywołania — albo dać `refreshNow` osobną, synchroniczną ścieżkę „ustanów kolejność", która
+nadal zwraca to samo, czego oczekują te siedem testów.
+
+### Naprawione w tym samym przebiegu (na `main`, **niewydane**)
+
+| # | Problem | Skąd |
+|---|---|---|
+| P2-16 | Przestarzałe zadanie pierwszego pobrania czyściło `awaitingFirstKeyInfo` bez sprawdzenia, czy nadal jest aktualne — ten sam błąd co wcześniejszy clobber uchwytu, przeniesiony na flagę. Teraz token `firstFetchGeneration`. | diff |
+| P2-17 | `resetAccountScopedState` nie ruszało `timerCancellable` ani `lastFetchTime`, więc strażnik wczesnego wyjścia w `startPolling` czytał stan poprzedniego konta i przy zmianie klucza w ciągu połowy interwału w ogóle nie ustanawiał kolejności — „rzut monetą przy każdej zmianie klucza". Timer starego konta jest teraz kasowany. | diff |
+| P2-18 | Migracja `seededCategoryId` wnioskowana z pustości listy zamiast z flagi: instalacja 1.12.1, która zasiała **pustą** kategorię, po aktualizacji zasiewała ją ponownie w ciszy i **połykała pierwszy wątek** — dokładnie to ogłoszenie, dla którego flaga powstała. | dane |
+| P2-19 | Nic nie ograniczało liczby wierszy odpowiedzi. Listing dłuższy niż limit listy widzianych zamieniał stronę i eksmisję w pętlę: każdy poll wypycha stronę na przód, eksmituje ogon i ogłasza go ponownie następnym razem — **trwale**. `limit=20` to parametr żądania, a nie gwarancja serwera. Teraz `maximumThreadsPerListing = 100`, mocno poniżej limitu 500. | dane |
+| P3-10 | 1.12.0 odcięło siatkę popularnych przedmiotów za `itemCatalog.isEmpty`. W 1.11.1 te sześć pozycji było **całym** mechanizmem dodawania (pola tekstowego nie było wcale), więc otwarcie panelu na zimno dawało puste pole tam, gdzie były klikalne pozycje. Potwierdzona regresja z tagów. Siatka jest znów fallbackiem dla każdego pozostałego stanu. | UX |
+
+---
+
 ## Walidacja po zmianach
 
 | Polecenie | Wynik |

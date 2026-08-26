@@ -345,6 +345,10 @@ class AppState {
     /// account change can cancel a fetch that is still waiting on `/key/info`.
     @ObservationIgnored var firstFetchTask: Task<Void, Never>?
 
+    /// Monotonic id for first-fetch attempts, so a superseded one cannot clear the window
+    /// a newer one opened.
+    @ObservationIgnored var firstFetchGeneration: UInt = 0
+
     /// True while the first poll of a session is waiting on `/key/info`.
     ///
     /// Holds back the timer and manual refresh for that window, so neither can issue the
@@ -470,6 +474,12 @@ class AppState {
         firstFetchTask?.cancel()
         firstFetchTask = nil
         awaitingFirstKeyInfo = false
+        // The old account's timer must not keep polling under the new account's key. It
+        // also fed `startPolling`'s early-return guard, which reads `timerCancellable` and
+        // `lastFetchTime` — neither of which an account change touched — so a switch within
+        // half a refresh interval returned early and never established the ordering.
+        timerCancellable?.cancel()
+        timerCancellable = nil
         itemCatalogTask?.cancel()
         itemCatalogTask = nil
         keyResumeTask?.cancel()
