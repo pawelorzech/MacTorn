@@ -40,6 +40,25 @@ ps -axo pid,ppid,etime,state,comm \
            if (name == "xcodebuild" || name == "xctest" || name == "testmanagerd") print
          }'
 
+section "Built app bundles still running"
+# A build hanging at `RegisterWithLaunchServices` is almost always this: `lsregister`
+# blocks while an instance of the bundle it is registering is alive, and an interrupted
+# test run leaves its host app behind to do exactly that. The symptom looks like a wedged
+# compiler (xcodebuild at 0% CPU, log frozen mid-phase) rather than a stuck daemon.
+#
+# The recovery, once you have confirmed it here, is: quit those instances, `lsregister -u`
+# the bundle, delete `Build/Products/Debug/*.app`, and split the run into
+# `build-for-testing` + `test-without-building`. This script does not do any of that.
+found=0
+while read -r pid comm; do
+  [[ -z "$pid" ]] && continue
+  printf 'running   pid %s  %s\n' "$pid" "$comm"
+  found=1
+done < <(ps -axo pid,comm | awk '$2 ~ /DerivedData\/.*\.app\/Contents\/MacOS\// { print $1, $2 }')
+if [[ "$found" -eq 0 ]]; then
+  printf 'none      no built app bundle is currently running\n'
+fi
+
 section "Writable runner paths"
 for path in "${TMPDIR:-/tmp}" \
             "$PROJECT_ROOT/DerivedData" \
