@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.1] — 2026-08-26 — hostile-response hardening
+
+Follow-up to 1.12.0 from an independent security review of that release.
+
+### Fixed
+- **A crafted Torn response could forge a second paragraph in a notification.** MacTorn
+  strips control characters from every server string before it reaches a notification or
+  an error message, and that was doing less than it looked like: Apple's
+  `CharacterSet.controlCharacters` is Unicode categories Cc and Cf, which leaves U+2028
+  LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR untouched. Both render as hard line
+  breaks. A forum thread title becomes the entire notification body, so two of them
+  bought an attacker a second paragraph reading as though MacTorn had written it. Both
+  sanitizers now strip everything that ends a line.
+- **The item catalog could write unbounded server text into your watchlist.** Names typed
+  into the watchlist were trimmed and capped at 64 characters; names arriving from Torn's
+  catalog were not, and the backfill wrote them straight into stored data. One rule now
+  covers both, and the catalog itself is bounded.
+- **The "Download Update" button only opens a github.com link.** The URL behind it comes
+  from the GitHub API, and MacTorn checked the scheme but not the host.
+- **Crash reports drop request headers.** The API key moved into an `Authorization`
+  header in 1.12.0, and the Sentry scrubber only knew about the URL and query string.
+  Nothing attaches headers today, but that was resting on an SDK internal rather than on
+  anything MacTorn controls.
+
+### Quality
+- 15 regression tests, including the crafted-forum-title case written out as the attack
+  it closes.
+
+
 ## [1.12.0] — 2026-08-26 — a better Torn API citizen
 
 ### Added

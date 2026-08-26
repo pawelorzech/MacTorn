@@ -169,7 +169,8 @@ Rzeczy, które mogą pójść źle i na które trzeba patrzeć po wydaniu:
 | `make analyze` | 0 ostrzeżeń | 0 ostrzeżeń |
 | `make coverage-gate` (80 % na modułach krytycznych) | PASSED | PASSED |
 | `make scan` (gitleaks, 182 commity) | brak wycieków | brak wycieków |
-| `make test-ui` | ❌ nie uruchamia się | ❌ nie uruchamia się |
+| `make test-ui` (lokalnie) | ❌ nie uruchamia się | ❌ nie uruchamia się |
+| CI `Tests` (z `Fixture UI Tests`) | — | ✅ przebieg 32914341887, wszystkie joby |
 
 ---
 
@@ -183,5 +184,20 @@ Pełna lista jest na końcu `UX_RECOMMENDATIONS.md`. Trzy punkty, które trzeba 
    `TornAPIClient.usesHeaderAuth` do `false` i wydać patch.
 2. **Szybki poll aktualizuje paski i cooldowny.** Weryfikuje zawężanie selekcji na
    najbardziej krytycznej ścieżce.
-3. **`make test-ui` na odblokowanej sesji.** Nie została zaliczona przed wydaniem; to jedyna
-   bramka, o której nie mogę nic powiedzieć.
+3. **`make test-ui` na odblokowanej sesji.** Lokalnie się nie uruchamia; na CI przeszła
+   (przebieg 32914341887), więc pokrycie jest, ale warto raz puścić u siebie.
+
+## Dodatek: 1.12.1
+
+Niezależny audyt bezpieczeństwa dotarł po opublikowaniu 1.12.0. Cztery naprawy, wszystkie w
+`AUDIT_REPORT.md` jako P2-10, P2-11, P3-5 i P3-6:
+
+- sanityzacja przepuszczała U+2028/U+2029, więc spreparowany tytuł wątku forum mógł dopisać
+  drugi akapit do powiadomienia (`NotificationManager`, `TornAPIError`),
+- katalog przedmiotów wpisywał nieograniczony tekst serwera do trwałej watchlisty
+  (`parseItemCatalog`, `WatchlistItem.renamed(to:)`),
+- „Download Update" otwierał dowolny host https (`UpdateManager.isTrustedReleaseURL`),
+- scrubber Sentry nie czyścił nagłówków (`SentryManager.scrub`).
+
+15 testów regresyjnych w `MacTornTests/Models/HostileResponseTests.swift`. 663 testy
+jednostkowe przechodzą.

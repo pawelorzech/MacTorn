@@ -81,6 +81,7 @@
 		AAA00057 /* AppState+ItemCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10057 /* AppState+ItemCatalog.swift */; };
 		AAA00058 /* ItemCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10058 /* ItemCatalogTests.swift */; };
 		AAA00059 /* ForumCategoryWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10059 /* ForumCategoryWatchTests.swift */; };
+		AAA0005A /* HostileResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005A /* HostileResponseTests.swift */; };
 		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
 		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
 		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
@@ -203,6 +204,7 @@
 		AAA10057 /* AppState+ItemCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ItemCatalog.swift"; sourceTree = "<group>"; };
 		AAA10058 /* ItemCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ItemCatalogTests.swift"; sourceTree = "<group>"; };
 		AAA10059 /* ForumCategoryWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ForumCategoryWatchTests.swift"; sourceTree = "<group>"; };
+		AAA1005A /* HostileResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostileResponseTests.swift"; sourceTree = "<group>"; };
 		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
 		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
 		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
@@ -428,6 +430,7 @@
 		BBB30003 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AAA1005A /* HostileResponseTests.swift */,
 				AAA10056 /* UserV2AdditionsTests.swift */,
 				AAA10054 /* TornEndpointGateTests.swift */,
 				AAA10055 /* TornAPIClientTests.swift */,
@@ -683,6 +686,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA0005A /* HostileResponseTests.swift in Sources */,
 				AAA00059 /* ForumCategoryWatchTests.swift in Sources */,
 				AAA00058 /* ItemCatalogTests.swift in Sources */,
 				AAA00056 /* UserV2AdditionsTests.swift in Sources */,
@@ -887,7 +891,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -897,7 +901,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.12.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -914,7 +918,7 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -924,7 +928,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.12.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -937,11 +941,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.12.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -955,11 +959,11 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.12.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -972,11 +976,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.12.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -989,11 +993,11 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = YES;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.12.0;
+				MARKETING_VERSION = 1.12.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.MacTornUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;

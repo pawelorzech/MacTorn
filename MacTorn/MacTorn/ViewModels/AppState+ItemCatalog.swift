@@ -99,10 +99,23 @@ extension AppState {
         itemCatalogNextRetryAfter = Date().addingTimeInterval(Self.itemCatalogBackoffLadder[index])
     }
 
+    /// Most entries MacTorn will keep from one catalog response.
+    ///
+    /// Torn ships on the order of 1,500 items, so this is generous headroom rather than a
+    /// working limit. It exists because the parsed map is written straight into
+    /// UserDefaults, which macOS materialises in full at every launch: without a ceiling a
+    /// hostile or MITM'd response could persist an arbitrarily large blob that reloads on
+    /// every start and only clears on the next *successful* fetch.
+    static let itemCatalogMaxEntries = 5_000
+
     /// Decodes `TornItemsResponse` down to id → name.
     ///
     /// `nonisolated` and `static` so it can run off the main actor on a payload with well
     /// over a thousand entries, matching `parseStocksMetadata`.
+    ///
+    /// Names are trimmed and capped at the same length a user-typed watchlist name is.
+    /// These strings end up in the user's persisted watchlist via `backfillWatchlistNames`,
+    /// so they get the discipline that path already applied to typed input.
     nonisolated static func parseItemCatalog(from data: Data, logger: Logger) -> [Int: String] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             logger.error("Item catalog: failed to parse JSON")
@@ -117,11 +130,19 @@ extension AppState {
             return [:]
         }
         var result: [Int: String] = [:]
-        result.reserveCapacity(items.count)
+        result.reserveCapacity(min(items.count, itemCatalogMaxEntries))
         for item in items {
+            guard result.count < itemCatalogMaxEntries else {
+                logger.warning("Item catalog truncated at \(itemCatalogMaxEntries) entries")
+                break
+            }
             guard let id = item["id"] as? Int,
-                  let name = (item["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !name.isEmpty else { continue }
+                  let raw = item["name"] as? String else { continue }
+            let name = String(
+                raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                    .prefix(WatchlistItem.maximumNameLength)
+            )
+            guard !name.isEmpty else { continue }
             result[id] = name
         }
         return result

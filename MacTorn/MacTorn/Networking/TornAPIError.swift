@@ -207,9 +207,13 @@ enum TornAPIError: Error, Equatable, Sendable {
         }
     }
 
+    /// Same rule as `NotificationManager.sanitize`, and for the same reason: these
+    /// messages can be Torn's own string verbatim, they render in the error bar of three
+    /// views, and `CharacterSet.controlCharacters` alone lets U+2028/U+2029 through as
+    /// hard line breaks. See the note on `NotificationManager.lineBreakingCharacters`.
     private func sanitized(_ text: String) -> String {
         let stripped = text.unicodeScalars
-            .filter { !CharacterSet.controlCharacters.contains($0) }
+            .filter { !NotificationManager.lineBreakingCharacters.contains($0) }
             .map(Character.init)
         return String(String(stripped).prefix(120))
     }

@@ -290,6 +290,73 @@ endpointu.
 
 ---
 
+## Poprawki 1.12.1 (audyt bezpieczeństwa po wydaniu)
+
+Niezależny audyt bezpieczeństwa 1.12.0 znalazł cztery rzeczy, których ten raport nie
+opisywał. Wszystkie potwierdzone empirycznie przed naprawą.
+
+### P2-10 · Sanityzacja przepuszczała separatory linii Unicode
+
+**Status:** potwierdzony własnym testem przed naprawą.
+**Lokalizacja:** `Utilities/NotificationManager.swift` (`sanitize`),
+`Networking/TornAPIError.swift` (`sanitized`).
+**Przyczyna źródłowa:** `CharacterSet.controlCharacters` to kategorie Unicode Cc i Cf.
+U+2028 LINE SEPARATOR (Zl) i U+2029 PARAGRAPH SEPARATOR (Zp) do nich nie należą, a CoreText
+łamie na nich linię. Sprawdzone:
+
+```
+U+000A LF   stripped: true
+U+2028 LS   stripped: false
+U+2029 PS   stripped: false
+U+202E RLO  stripped: true
+```
+
+**Reprodukcja:** tytuł wątku z `/forum/{id}/threads` jest CAŁYM ciałem powiadomienia
+(`AppState+MarketForum.swift`). Tytuł `Re: raid\u{2029}\u{2029}MacTorn: your API key
+expired, re-enter it at …` daje dwuakapitowe powiadomienie, którego druga część wygląda,
+jakby napisał ją MacTorn. Ta sama droga dotyczy nazwy wirusa, nazwy OC, `listerName`
+bounty i `TornAPIError.userMessage`, który dla kodów 1/2/18, 16 i domyślnej gałęzi
+`temporaryBackend` zwraca łańcuch Torna dosłownie.
+**Poprawka:** obie sanityzacje filtrują `CharacterSet.controlCharacters.union(.newlines)`,
+co pokrywa LF, CR, NEL, LS i PS. Stała jest jedna i wspólna, żeby nie rozjechały się znowu.
+
+### P2-11 · Katalog przedmiotów wpisywał nieograniczony tekst serwera do danych użytkownika
+
+**Status:** potwierdzony (mój własny kod z tej gałęzi).
+**Lokalizacja:** `AppState+ItemCatalog.swift` (`parseItemCatalog`, `backfillWatchlistNames`),
+`Models/TornModels.swift` (`WatchlistItem.renamed(to:)`).
+**Przyczyna źródłowa:** `MarketWatchService.add` przycinał nazwę wpisaną przez użytkownika do
+64 znaków. Nazwa z katalogu nie przechodziła przez żadne ograniczenie, a backfill zapisywał
+ją do trwałej watchlisty. Do tego `parseItemCatalog` nie ograniczał ani liczby wpisów, ani
+długości nazwy, a wynik ląduje w UserDefaults, które macOS materializuje w całości przy
+każdym starcie.
+**Poprawka:** jedna wspólna stała `WatchlistItem.maximumNameLength`, stosowana i przy
+wpisywaniu, i przy zmianie nazwy z katalogu; katalog ograniczony do 5 000 wpisów.
+
+### P3-5 · Przycisk „Download Update" otwierał dowolny host https
+
+**Lokalizacja:** `Views/SettingsView.swift`, `Models/TornModels.swift` (`GitHubRelease.htmlUrl`).
+**Przyczyna źródłowa:** `BrowserManager` sprawdzał schemat, nie host, a URL pochodzi z
+odpowiedzi api.github.com. **Poprawka:** `UpdateManager.isTrustedReleaseURL` z allowlistą
+github.com.
+
+### P3-6 · Scrubber Sentry nie znał nagłówka, który wprowadziło 1.12.0
+
+**Lokalizacja:** `Utilities/SentryManager.swift` (`scrub(_ event:)`).
+**Przyczyna źródłowa:** scrubber czyścił `url` i `queryString`, czyli dokładnie te miejsca,
+z których klucz właśnie się wyprowadził. **Poprawka:** `req.headers = nil`. Dziś
+niewykorzystywalne (tracking sieci wyłączony, a sentry-cocoa sam usuwa `Authorization`), ale
+to była cudza decyzja, a teraz jest nasza.
+
+### Zostawione Pawłowi
+
+| Priorytet | Problem | Dlaczego nie teraz |
+|---|---|---|
+| P3 | `.reloadIgnoringLocalAndRemoteCacheData` jest wg Apple niezaimplementowane; brak kluczy w cache'u opiera się na nagłówkach `no-store` Torna, nie na naszej konfiguracji | Naprawa to sesja efemeryczna albo `urlCache = nil`, czyli zmiana na każdej ścieżce żądania. Audytor sprawdził `Cache.db`: zero wierszy, więc dziś nic nie wycieka. Zmiana na jasny dzień, nie na łatkę o drugiej w nocy. |
+| P3 | 2 522 wpisy `com.mactorn.app.tests.*` w pęku kluczy i 44 000+ plików `.plist` po testach | Higiena maszyny deweloperskiej, nie produktu. Sprzątanie pęku kluczy wymaga i tak rąk Pawła. Docelowo: usuwanie w `tearDown`. |
+
+---
+
 ## Walidacja po zmianach
 
 | Polecenie | Wynik |
@@ -299,7 +366,8 @@ endpointu.
 | `make analyze` | ✅ 0 ostrzeżeń |
 | `make coverage-gate` | ✅ PASSED. `TornAPIError` 94,20 %, `TornEndpoint` 95,06 %, `PollingCoordinator` 100 %, `NotificationCoordinator` 98,36 %, `NextAction` 96,63 % |
 | `make scan` | ✅ brak wycieków |
-| `make test-ui` | ❌ nie uruchomiono, patrz Ograniczenia |
+| `make test-ui` (lokalnie) | ❌ nie uruchomiono, patrz Ograniczenia |
+| CI `Tests` na scalonym `main` (przebieg 32914341887) | ✅ wszystkie trzy joby, w tym `Fixture UI Tests` |
 
 Pokrycie nowych plików: `TornEndpointGate.swift` 83,16 %, `AppState+ItemCatalog.swift`
 76,15 %, `ForumWatchService.swift` 96,41 %.
@@ -327,17 +395,26 @@ startuje. Działająca sekwencja: wyrejestrować pakiet (`lsregister -u`), usun�
 przebieg na `build-for-testing` i `test-without-building`. Warto to zapamiętać, bo kosztowało
 kilkadziesiąt minut i wygląda jak zawieszony build, a nie jak problem środowiska.
 
-**Bez UI-testów.** `make test-ui` kończy się `Timed out while enabling automation mode`.
-Runner XCUITest potrzebuje aktywnej, odblokowanej sesji graficznej, a maszyna pracuje bez
-nadzoru. Ten sam błąd występuje na `main`, więc to ograniczenie środowiska, nie regresja.
-Wszystkie stwierdzenia o zachowaniu UI w tym raporcie są wnioskami z kodu, nie z uruchomienia.
+**UI-testy: lokalnie nie, na CI tak.** `make test-ui` kończy się na tej maszynie
+`Timed out while enabling automation mode` — runner XCUITest potrzebuje aktywnej,
+odblokowanej sesji graficznej, a maszyna pracowała bez nadzoru. Ten sam błąd występuje na
+`main`, więc to ograniczenie środowiska, nie regresja.
 
-**Bez niezależnego drugiego spojrzenia.** Zgodnie z procedurą rozesłałem cztery równoległe
-audyty (diff, security, integralność danych, dostępność/UX) jako osobne agenty. Żaden nie
-zwrócił wyniku przez 44 minuty ani nie odpowiedział na zapytanie o status. Nie czekałem
-dłużej i nie zmyślałem ich ustaleń: **wszystkie dziewięć defektów niżej znalazłem sam, tym
-samym okiem, które pisało poprawki.** To jest realna luka w tym przebiegu i najmocniejszy
-argument za wykonaniem listy Manual QA przed udostępnieniem wydania komukolwiek poza Pawłem.
+Zestaw przeszedł natomiast **na GitHub Actions**, na runnerze z prawdziwą sesją: przebieg
+32914341887 na scalonym `main` zaliczył wszystkie trzy joby, w tym `Fixture UI Tests`. To
+domyka lukę, którą wcześniejsza wersja tego raportu opisywała jako najpoważniejszą.
+Stwierdzenia o *wyglądzie* (przycięcie treści przy 320 pt, kontrast, mowa VoiceOver)
+pozostają wnioskami z kodu, bo tego UI-testy i tak nie sprawdzają.
+
+**Drugie spojrzenie przyszło po wydaniu 1.12.0.** Rozesłałem cztery równoległe audyty
+(diff, security, integralność danych, dostępność/UX) jako osobne agenty. Przez 44 minuty
+żaden nie odpowiedział, więc nie czekałem dłużej i nie zmyślałem ich ustaleń: dziewięć
+defektów opisanych wyżej znalazłem sam, tym samym okiem, które pisało poprawki.
+
+Audyt bezpieczeństwa dotarł **po** opublikowaniu 1.12.0 i znalazł rzeczy, których nie
+zauważyłem. Dwie z nich naprawione w 1.12.1 (osobna sekcja niżej), dwie zostawione Pawłowi.
+Wniosek na przyszłość: to wydanie poszło bez niezależnej weryfikacji, bo agenty milczały, a
+ja uznałem ciszę za brak ustaleń. Cisza agenta nie jest wynikiem audytu.
 
 **Bez SwiftLinta.** Nie jest zainstalowany w tym środowisku. Jego miejsce zajęła `xcodebuild
 analyze`, która pokrywa mniej.
