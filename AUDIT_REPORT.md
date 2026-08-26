@@ -519,9 +519,42 @@ byłaby **czwarta łatka na tę samą klasę**, i moja próba dokładnie nią by
 **przez jaki jeden punkt musi przejść każde pierwsze żądanie?**
 
 Uczciwa odpowiedź to prawdopodobnie `fetchData()` — jedyne miejsce, przez które przechodzą
-wszystkie cztery ścieżki. Dlatego notatka wyżej mówi, że ta droga potrzebuje trzeciego
-elementu stanu, żeby przerwać rekurencję, gdy `/key/info` padnie: to jest **właściwe**
-miejsce i zarazem trudne, a nie dwie osobne rzeczy.
+wszystkie cztery ścieżki.
+
+### Dlaczego cztery łatki przeciekły: brakujący stan, nie brakujący strażnik
+
+Ta diagnoza jest ostrzejsza niż moja („potrzeba trzeciego elementu stanu") i nazywa, **który**
+stan i **dlaczego** to generuje cały wzorzec.
+
+Podsystem modeluje dziś pytanie o uprawnienia dwoma bitami: `keyInfo == nil` oraz
+`awaitingFirstKeyInfo`. Razem wyrażają „nie pytano" i „pytam". **Nie potrafią wyrazić
+„zapytano i odpowiedź brzmi: nie wiadomo".** Sprawdzone: `keyInfoLoadedAt` jest zapisywane w
+dokładnie jednym miejscu — gałęzi sukcesu `loadKeyInfoIfNeeded` (`AppState+PollingUserFetch.swift:317`)
+— i czyszczone przy zmianie konta (`AppState.swift:473`). Obie ścieżki porażki (malformed
+`:312`, `catch` `:320`) tylko odnotowują zdrowie endpointu i wracają. Nic nigdzie nie
+zapisuje, że próba była i się nie udała.
+
+To jest ta rekurencja. Choke point w `fetchData` musi odmawiać, dopóki odpowiedź jest w toku,
+i przepuszczać, gdy jest **rozstrzygnięta** — a nieudane ładowanie rozstrzyga ją jako
+„nieznane", czyli jako *przepuść*, nie *czekaj*. Mając tylko te dwa bity, „padło" jest
+nieodróżnialne od „jeszcze nie pytano", więc dowolny strażnik napisany przeciw nim albo czeka
+w nieskończoność po nieudanym ładowaniu, albo nie czeka wcale.
+
+I to jest generator wzorca z tabelki wyżej. **Każda łatka kodowała brakujący stan gdzie
+indziej i doraźnie** — uchwyt zadania (P1-16), obecność timera (P1-17), flaga (P1-18) — a
+każde nowe wejście czytało inny z tych zastępników. Cztery błędy „drugiego wejścia", jeden
+niedomodelowany automat stanów.
+
+**Pytanie do rozstrzygnięcia jest więc węższe niż „gdzie postawić choke point":** czy
+ładowanie uprawnień dostaje prawdziwy stan rozstrzygnięcia — `unasked` / `inFlight` /
+`settled(known)` / `settled(unknown, z terminem ponowienia)`. Przy takim modelu strażnik w
+`fetchData` to dwie linijki, a nie czwarte balansowanie. `keyInfoLoadedAt` jest już prawie
+tym polem; brakuje mu stemplowania **także przy porażce**, z własnym backoffem, żeby
+„nieznane" było ponawiane, a nie zatrzaśnięte.
+
+Zastrzeżenie od autora tej diagnozy, które powtarzam, bo jest istotne: nie zostało to
+napisane ani przetestowane, i nie ma gwarancji, że przechodzi tych siedem testów — a to
+właśnie ten sprawdzian zabił poprzednią próbę.
 
 Warianty do rozważenia, w kolejności, w jakiej bym je oceniał:
 1. **Kolejność w `fetchData()`** — jeden choke point, zamyka klasę zamiast łatać instancję.
