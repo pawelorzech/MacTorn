@@ -1823,13 +1823,18 @@ struct ForumWatchConfig: Codable {
             seenFactionThreadIds =
                 Array(try container.decodeIfPresent(Set<Int>.self, forKey: .knownFactionThreadIds) ?? [])
         }
+        // An older config that already has ids was plainly seeded by an older build.
+        let seeded = try container.decodeIfPresent(Bool.self, forKey: .hasSeededFactionThreads)
+            ?? !seenFactionThreadIds.isEmpty
+        hasSeededFactionThreads = seeded
+        // Derived from the flag, not from list emptiness. A 1.12.1 install that had seeded
+        // an *empty* category carried `hasSeededFactionThreads: true` with no ids, so
+        // inferring from the list left `seededCategoryId` nil, `applyCategory` recomputed
+        // `wasSeeded` as false, and it re-seeded silently — swallowing the first thread
+        // posted to a quiet category, which is the exact case the flag was added for.
         seededCategoryId =
             try container.decodeIfPresent(Int.self, forKey: .seededCategoryId)
-            ?? (seenFactionThreadIds.isEmpty ? nil : factionForumCategoryId)
-        // An older config that already has ids was plainly seeded by an older build.
-        hasSeededFactionThreads =
-            try container.decodeIfPresent(Bool.self, forKey: .hasSeededFactionThreads)
-            ?? !seenFactionThreadIds.isEmpty
+            ?? (seeded ? factionForumCategoryId : nil)
     }
 }
 

@@ -178,6 +178,60 @@ final class ForumCategoryWatchTests: XCTestCase {
         XCTAssertTrue(config.factionForumAutoMonitor)
     }
 
+    /// The case the seeded flag was introduced for, carried across the migration.
+    ///
+    /// A 1.12.1 install that had seeded an *empty* category stored the flag as true with no
+    /// ids. Inferring `seededCategoryId` from list emptiness left it nil, so `applyCategory`
+    /// recomputed `wasSeeded` as false and re-seeded silently — swallowing the first thread
+    /// posted to a quiet category, which is precisely the announcement the flag protects.
+    func testASeededButEmptyCategoryStillAnnouncesItsFirstThreadAfterMigration() throws {
+        let legacy: [String: Any] = [
+            "factionForumAutoMonitor": true,
+            "factionForumCategoryId": 4,
+            "pollingIntervalSeconds": 180,
+            "knownFactionThreadIds": [Int](),
+            "hasSeededFactionThreads": true,
+        ]
+        let data = try JSONSerialization.data(withJSONObject: legacy)
+        let config = try JSONDecoder().decode(ForumWatchConfig.self, from: data)
+
+        XCTAssertTrue(config.hasSeededFactionThreads)
+        XCTAssertEqual(config.seededCategoryId, 4,
+                       "seeding is recorded by the flag, not by the list being non-empty")
+
+        let service = makeService()
+        service.config = config
+        XCTAssertEqual(service.applyCategory(threads([7]), for: 4).map(\.id), [7],
+                       "the first thread in a quiet category must not be swallowed")
+    }
+
+    /// `limit=20` is a request parameter, and what a server honours is not a guarantee.
+    /// A listing longer than the seen-list cap would make the page and eviction oscillate,
+    /// re-announcing the tail every poll forever.
+    func testAnOversizedListingIsCappedFarBelowTheSeenListCeiling() async throws {
+        let rows = (1...5_000).map { ["id": $0, "title": "Thread \($0)"] }
+        let service = try respond(["threads": rows])
+        guard case .success(let threads, _) = try await service.fetchCategoryThreads(from: url()) else {
+            return XCTFail("expected success")
+        }
+        XCTAssertEqual(threads.count, ForumWatchService.maximumThreadsPerListing)
+        XCTAssertLessThan(ForumWatchService.maximumThreadsPerListing,
+                          ForumWatchConfig.maximumSeenThreadIds,
+                          "the seen list must hold several pages or eviction fights the page")
+    }
+
+    /// Directly: feed the largest listing the parser will accept, repeatedly, and assert the
+    /// announcements stop instead of cycling.
+    func testRepeatedFullSizeListingsStopAnnouncing() {
+        let service = makeService()
+        let page = Array(1...ForumWatchService.maximumThreadsPerListing)
+        apply(service, page)
+        for poll in 2...6 {
+            XCTAssertTrue(apply(service, page).isEmpty,
+                          "poll \(poll) re-announced threads it had already seen")
+        }
+    }
+
     /// The pre-`hasSeededFactionThreads` shape, from before 1.12.0.
     func testAnOlderConfigWithoutTheSeededFlagStillLoads() throws {
         let legacy: [String: Any] = [

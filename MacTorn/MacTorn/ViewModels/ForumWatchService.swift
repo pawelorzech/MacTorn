@@ -257,13 +257,26 @@ final class ForumWatchService: ForumWatchServicing {
         }
         // A row without an id cannot be tracked, and one without a title cannot be
         // announced. Skip those rather than failing the whole listing over one bad row.
-        let threads: [ForumCategoryThread] = rows.compactMap { row in
+        // `limit=20` is a request parameter, and what a remote server honours is not a
+        // guarantee. Left uncapped, a listing longer than `maximumSeenThreadIds` turns the
+        // page and the eviction cap into a loop: each poll writes the page to the front,
+        // evicts the tail, and re-announces that tail on the next one, permanently. The
+        // eviction policy is sound but assumes page size is far below the cap, and nothing
+        // else enforces that.
+        let threads: [ForumCategoryThread] = rows.prefix(ForumWatchService.maximumThreadsPerListing).compactMap { row in
             guard let id = row["id"] as? Int else { return nil }
             return ForumCategoryThread(id: id,
                                        title: ForumWatchService.boundedTitle(row["title"]) ?? "Untitled thread")
         }
         return .success(threads, responseBytes: data.count)
     }
+
+    /// Most rows MacTorn will accept from one category listing.
+    ///
+    /// Generous against the 20 rows the request asks for, and far below
+    /// `ForumWatchConfig.maximumSeenThreadIds` so the seen list can always hold several
+    /// pages. That gap is what stops eviction and the page from oscillating.
+    static let maximumThreadsPerListing = 100
 
     /// A forum title, trimmed and length-capped, or nil when there is nothing usable.
     ///

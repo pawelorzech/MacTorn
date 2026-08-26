@@ -17,7 +17,9 @@ extension AppState {
            time.now.timeIntervalSince(lastFetchTime) < Double(refreshInterval) / 2 {
             return
         }
-        timerCancellable?.cancel()
+        // Assigning over an AnyCancellable cancels the old one, so a separate cancel here
+        // only served to make `timerCancellable != nil` stop meaning "a timer is running" —
+        // which `refreshNow` relies on.
         installPollingTimer()
         triggerReferenceDataFetchIfNeeded()
         startFirstFetch()
@@ -44,10 +46,17 @@ extension AppState {
 
         awaitingFirstKeyInfo = true
         let identity = accountSession.identity
+        firstFetchGeneration &+= 1
+        let generation = firstFetchGeneration
         firstFetchTask?.cancel()
         firstFetchTask = Task { [weak self] in
             await self?.loadKeyInfoIfNeeded()
             guard let self else { return }
+            // A superseded attempt must not clear the window a newer one just opened. This
+            // is the `defer`-clobber bug in a second costume: the handle was fixed, the
+            // flag was not, and clearing it here unguarded let a stale task unprotect a
+            // live load. The newer task owns the flag and will clear it.
+            guard self.firstFetchGeneration == generation else { return }
             // Cleared before the cancellation check on purpose: a cancelled first fetch
             // must still unblock the timer, or polling stops for the session.
             self.awaitingFirstKeyInfo = false
@@ -113,8 +122,28 @@ extension AppState {
         }
 
         // A manual refresh cannot jump the first key-capabilities load either; it would
-        // send the same un-narrowed request the timer is being held back from.
+        // send the same un-narrowed request the timer is being held back from. The pending
+        // first fetch will satisfy this refresh when it lands, so nothing is lost.
         guard !awaitingFirstKeyInfo else { return }
+
+        // NOT FIXED HERE, deliberately. `startPolling` is not how a key gets into this
+        // app: `SettingsView`'s "Save & Connect" is the only caller of the `apiKey` setter
+        // and it follows with `refreshNow()`, so the ordering established in
+        // `startFirstFetch` never covers the path a key actually arrives on — including
+        // the first key a user ever enters. Connectivity-restored reaches here the same
+        // way. The setter's `resetAccountScopedState` clears `awaitingFirstKeyInfo`
+        // (correctly — a stale flag would wedge the timer forever), which is exactly why
+        // the guard above cannot fire on the transition that nulls `keyInfo`.
+        //
+        // Deferring here was tried and is wrong: it changes `refreshNow` from
+        // "synchronously attempt a fetch" to "sometimes defer", which invalidates the
+        // manual debounce, the offline-reopen handling and the budget accounting that all
+        // read `fetchData()`'s return value. Seven tests correctly caught it. Moving the
+        // ordering into `fetchData` instead needs a third piece of state to break the
+        // recursion when `/key/info` fails, on the function every poll goes through.
+        //
+        // This is a pre-existing behaviour, not a regression: on these paths the app does
+        // what it did before narrowing existed. See AUDIT_REPORT.md.
 
         // `fetchData` performs connectivity/key/budget validation synchronously. Only
         // accepted requests consume the debounce, so an offline attempt cannot delay
