@@ -100,7 +100,10 @@ struct SettingsView: View {
         }
         .padding(12)
         .frame(width: 320)
-        .frame(height: 500, alignment: .top)
+        // Fill whatever height the window gives, rather than a number tuned against an
+        // older one. Locked at 500 inside a 640pt window this left ~100pt of dead space
+        // below the footer, which read as the panel having been truncated.
+        .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
             inputKey = appState.apiKey
             refreshAvailableBrowsers()
