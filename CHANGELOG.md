@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.3] — 2026-08-26 — the first poll, properly this time
+
+1.12.2 claimed that MacTorn reads your key's permissions before its first request.
+That was true only while Torn answered faster than one refresh interval.
+
+### Fixed
+- **A slow permissions check let the first poll go out unnarrowed anyway.** 1.12.2 started
+  the repeating timer before that first request, and the timer does not wait for anything.
+  If Torn took longer than your refresh interval to answer — a cold connection at the
+  15-second setting is enough — a tick fired exactly the request the wait exists to
+  prevent. The timer now starts immediately, as it always did, and the poll itself is what
+  waits.
+- **A second start could skip the wait entirely.** The guard against loading your key's
+  permissions twice also let every caller after the first carry straight on to fetching.
+- **A first poll left waiting could outlive the account it belonged to**, and resume into
+  an app that had already stopped polling.
+
+### Quality
+- 676 unit tests passed, up from 671.
+- Seven of the new tests exist because this ordering has now been got wrong twice, in
+  opposite directions. The first attempt at this fix withheld the polling timer until the
+  first fetch finished, which closed the hole and opened two worse ones — an existing test
+  caught it, and the suite now states the invariant three ways.
+
+
 ## [1.12.2] — 2026-08-26 — what the audits found
 
 Three independent reviews of 1.12.0 and 1.12.1 reported after those releases shipped.

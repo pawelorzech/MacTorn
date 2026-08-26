@@ -200,7 +200,10 @@ struct WatchlistView: View {
     private func commitTypedEntry() {
         if isSearchingByName {
             guard let best = searchResults.first else {
-                addItemError = "No item matches that name. Try fewer letters, or paste the item ID."
+                // Deliberately silent. The inline row below the field already says "No item
+                // matches “xanx”." and names the actual query; setting an error here put a
+                // second wording of the same fact above the field, in a different colour,
+                // at exactly the moment the user is reading.
                 return
             }
             add(name: best.name, id: best.id)

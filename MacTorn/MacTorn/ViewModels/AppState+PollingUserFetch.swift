@@ -20,23 +20,44 @@ extension AppState {
         timerCancellable?.cancel()
         installPollingTimer()
         triggerReferenceDataFetchIfNeeded()
+        startFirstFetch()
+    }
 
-        // The key's capabilities have to land BEFORE the first poll, not alongside it.
-        // Started concurrently, `fetchData()` ran while `keyInfo` was still nil, so the
-        // very request that needs narrowing always went out asking for everything — and a
-        // key that cannot read one of those selections answers with code 16, which halts
-        // the app before a narrowed retry can happen. Selection narrowing was unreachable
-        // on the one endpoint it exists for.
-        //
-        // A key already validated this session skips the wait entirely, so this costs one
-        // round-trip on a cold start and nothing thereafter.
-        if keyInfo == nil, !apiKey.isEmpty, connectivity.isConnected {
-            Task { [weak self] in
-                await self?.loadKeyInfoIfNeeded()
-                self?.fetchData()
-            }
-        } else {
+    /// Issues the first poll of a session, ordered behind the key-capabilities load.
+    ///
+    /// The order is the whole point. The key's capabilities have to land BEFORE the first
+    /// poll, because that poll is the one selection narrowing exists for: started
+    /// alongside it, `fetchData()` ran with `keyInfo` still nil and asked for everything,
+    /// and a key that cannot read one of those selections answers with code 16 — which
+    /// halts the app before a narrowed retry can happen.
+    ///
+    /// The ordering is enforced with `awaitingFirstKeyInfo` rather than by delaying the
+    /// timer. Withholding the timer until the fetch completed closed this hole and opened
+    /// two others: `refreshNow` installs a timer whenever it finds none, so a manual
+    /// refresh during the wait produced a second one and left the first orphaned, and a
+    /// cancelled first fetch left the app with no timer at all.
+    private func startFirstFetch() {
+        guard keyInfo == nil, !apiKey.isEmpty, connectivity.isConnected else {
             fetchData()
+            return
+        }
+
+        awaitingFirstKeyInfo = true
+        let identity = accountSession.identity
+        firstFetchTask?.cancel()
+        firstFetchTask = Task { [weak self] in
+            await self?.loadKeyInfoIfNeeded()
+            guard let self else { return }
+            // Cleared before the cancellation check on purpose: a cancelled first fetch
+            // must still unblock the timer, or polling stops for the session.
+            self.awaitingFirstKeyInfo = false
+            // The wait is unbounded, so re-check what may have changed across it. Without
+            // this the task resumes into a halted app, or into an account the user has
+            // since switched away from, and spends a request either way.
+            guard !Task.isCancelled,
+                  self.accountSession.isCurrent(identity),
+                  !self.keyHalted else { return }
+            self.fetchData()
         }
     }
 
@@ -44,9 +65,15 @@ extension AppState {
         timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                self?.refreshKeyInfoIfNeeded()
-                self?.fetchData()
-                self?.triggerReferenceDataFetchIfNeeded()
+                guard let self else { return }
+                // A tick during the first key-capabilities load would issue exactly the
+                // un-narrowed request that load exists to prevent. `/key/info` slower than
+                // one refresh interval is a plain cold handshake at the 15-second setting,
+                // not a rare event.
+                guard !self.awaitingFirstKeyInfo else { return }
+                self.refreshKeyInfoIfNeeded()
+                self.fetchData()
+                self.triggerReferenceDataFetchIfNeeded()
             }
     }
 
@@ -84,6 +111,10 @@ extension AppState {
                 return
             }
         }
+
+        // A manual refresh cannot jump the first key-capabilities load either; it would
+        // send the same un-narrowed request the timer is being held back from.
+        guard !awaitingFirstKeyInfo else { return }
 
         // `fetchData` performs connectivity/key/budget validation synchronously. Only
         // accepted requests consume the debounce, so an offline attempt cannot delay
@@ -223,7 +254,14 @@ extension AppState {
     /// factionless player went back to spending a request on faction data every poll.
     func loadKeyInfoIfNeeded() async {
         guard !apiKey.isEmpty, !keyHalted, connectivity.isConnected else { return }
-        guard keyInfoTask == nil else { return }
+        // Join an in-flight load rather than returning past it. Returning immediately made
+        // the guard that prevents a double-start also defeat the await-before-fetch
+        // ordering for every caller that was not first: a second `startPolling` awaited
+        // this, got nothing, and fetched with `keyInfo` still nil.
+        if let existing = keyInfoTask {
+            await existing.value
+            return
+        }
         if keyInfo != nil, let loadedAt = keyInfoLoadedAt,
            time.now.timeIntervalSince(loadedAt) < Self.keyInfoMaxAge {
             return
