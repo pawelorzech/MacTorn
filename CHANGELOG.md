@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.12.4] — 2026-08-26 — the panel fits its window again
+
+Collects everything that landed after 1.12.3, most of it defects the audits
+found in fixes 1.12.0 through 1.12.3 had shipped.
+
+### Fixed
+- **The panel stopped short of the bottom of its own window.** Settings was
+  locked to 500pt and Status capped its scroll area at 480pt, while the window is
+  640. Content could not reach the bottom edge, the footer sat wherever the
+  content happened to end with dead space beneath it, and the cue that a view
+  scrolls — content running to the edge and being clipped there — was gone. Both
+  now fill the height available, and the footer is pinned to the bottom.
+- **"Commands" was larger than the buttons beside it.** A menu takes its font
+  from its control size rather than from the font its surroundings set.
+- **A superseded first fetch could unprotect a live one**, and an account change
+  left the previous account's polling timer running, which also let a key change
+  within half a refresh interval skip the permissions check entirely.
+- **The forum watch could announce old threads as new after upgrading.** A
+  category that had been seeded while empty was re-seeded silently, swallowing
+  the first thread posted to it.
+- **A long forum listing could announce the same threads every poll, forever.**
+  The request asks for 20 rows, but what a server returns is not a guarantee, and
+  a listing longer than the remembered set made the page and its eviction cap
+  oscillate. Listings are now capped well below that ceiling.
+- **A transient key error no longer re-announces every bounty on you.**
+- **The popular-items grid is back.** 1.12.0 hid it once the item catalog
+  loaded; in 1.11.1 those six items were the entire way to add anything, so
+  opening the panel cold gave a blank field where clickable items used to be.
+
+### Changed
+- **Adding a field to a stored setting no longer wipes it.** Notification rules,
+  travel alerts, watched threads and custom shortcuts decode field by field now,
+  so a blob written by an older build still loads instead of being replaced by
+  defaults. This mattered more than it sounds: notification rules are keyed by
+  display strings, so editing one of those strings was a schema change.
+
+### Quality
+- 690 unit tests passed, up from 671.
+- Layout verified by eye on a Release build; XCUITest cannot run on the machine
+  this was cut from, so CI is the check for the UI suite.
+
+
 ## [1.12.3] — 2026-08-26 — the first poll, properly this time
 
 1.12.2 claimed that MacTorn reads your key's permissions before its first request.
