@@ -5,6 +5,34 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Chain countdown, chain-expiring alert and the Next Action "Chain timeout" entry
+  were dead in production.** Torn's v1 `faction/?selections=chain` reports `timeout`
+  as *seconds remaining* (live: `"timeout":146` beside `"end":1788292582`, with
+  `end − server_time == 146`), but every consumer treated it as an absolute Unix
+  timestamp. `146 − now` clamps to 0, so the chain card showed 0:00, the alert's
+  `remaining > 0` guard never passed, and Next Action pinned the chain to 1970.
+  `FactionChain` now decodes Torn's `end` and `fetchFactionData` resolves the wire
+  value to an absolute server-clock expiry at the boundary (`end` when present,
+  otherwise `server_now + timeout`, the same anchoring `travel.time_left` gets), so
+  `ChainView`, `FactionView`, the alert and the timeline keep their existing
+  absolute-timestamp contract. The UI-test faction fixture now carries the real wire
+  shape.
+
+### Audited
+- Torn's 2026-09 API changelog swept against every endpoint and selection in
+  `TornEndpointRegistry`, with each live response compared to its decoder on
+  2026-09-01: `torn/items` gained a `value.shops` array (additive, the catalogue only
+  reads `id`/`name`); attack rows now carry `chain: 0` (the app never decoded it);
+  `user/profile`'s revive fields are not read; the `comment` limit rose to 15 characters
+  (`MacTorn` fits either way); `faction → warfare`, `faction → inventory`,
+  `torn → pawnshop`, `user → publicStatus`, `user → gym`, `torn → itemdetails` and
+  the removed faction stock selections are not used. Access tiers of every v2 endpoint
+  the app calls still match the registry (`/key/info` remains the runtime authority).
+  OpenAPI spec version is still 6.13.1.
+
 ## [1.13.0] — 2026-08-26 — audited API and a new identity
 
 ### Fixed

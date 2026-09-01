@@ -738,31 +738,66 @@ struct FactionData: Codable {
         respect = (try? container.decode(Int.self, forKey: .respect)) ?? 0
         chain = (try? container.decode(FactionChain.self, forKey: .chain)) ?? FactionChain()
     }
+
+    /// A copy whose `chain.timeout` is an absolute server timestamp. See
+    /// `FactionChain.resolvingExpiry(fetchedAt:clock:)`.
+    func resolvingChainExpiry(fetchedAt: Date, clock: ServerClock) -> FactionData {
+        FactionData(name: name, factionId: factionId, respect: respect,
+                    chain: chain.resolvingExpiry(fetchedAt: fetchedAt, clock: clock))
+    }
 }
 
+/// The `chain` object of v1 `faction/?selections=chain`.
+///
+/// **Wire semantics (verified live 2026-09-01):** Torn sends `timeout` as the number of
+/// **seconds remaining** when the response was built, and `end` as the absolute Unix
+/// expiry — `{"current":1,"timeout":146,"start":1788292282,"end":1788292582}` next to a
+/// `server_time` of 1788292436. Every consumer in the app (`Chain`, `ChainView`,
+/// `FactionView`, the chain-expiring alert, Next Action) compares `timeout` against the
+/// server clock as an absolute timestamp, so a raw payload must go through
+/// `resolvingExpiry(fetchedAt:clock:)` before it is published. `AppState.fetchFactionData`
+/// does that; after it, `timeout == end`.
 struct FactionChain: Codable {
     let current: Int
     let max: Int
+    /// Raw off the wire: seconds remaining. After `resolvingExpiry`: absolute expiry.
     let timeout: Int
     let cooldown: Int
-    
-    init(current: Int = 0, max: Int = 0, timeout: Int = 0, cooldown: Int = 0) {
+    /// Absolute Unix expiry as reported by Torn (`nil` when absent or 0).
+    let end: Int?
+
+    init(current: Int = 0, max: Int = 0, timeout: Int = 0, cooldown: Int = 0, end: Int? = nil) {
         self.current = current
         self.max = max
         self.timeout = timeout
         self.cooldown = cooldown
+        self.end = end
     }
-    
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         current = (try? container.decode(Int.self, forKey: .current)) ?? 0
         max = (try? container.decode(Int.self, forKey: .max)) ?? 0
         timeout = (try? container.decode(Int.self, forKey: .timeout)) ?? 0
         cooldown = (try? container.decode(Int.self, forKey: .cooldown)) ?? 0
+        let rawEnd = (try? container.decode(Int.self, forKey: .end)) ?? 0
+        end = rawEnd > 0 ? rawEnd : nil
     }
-    
+
     enum CodingKeys: String, CodingKey {
-        case current, max, timeout, cooldown
+        case current, max, timeout, cooldown, end
+    }
+
+    /// Turns the wire shape (relative `timeout`) into the app shape (absolute `timeout`).
+    ///
+    /// Prefers Torn's own `end` timestamp; without one, anchors the remaining seconds to
+    /// the server clock at the moment the response arrived, the same way `travel.time_left`
+    /// and `bar.fulltime` are anchored. An inactive chain (no links or no time left) is
+    /// returned unchanged so `timeout` stays 0 and `isActive` stays false.
+    func resolvingExpiry(fetchedAt: Date, clock: ServerClock) -> FactionChain {
+        guard current > 0, timeout > 0 else { return self }
+        let expiry = end ?? clock.serverTimestamp(fetchedAt: fetchedAt, plus: timeout)
+        return FactionChain(current: current, max: max, timeout: expiry, cooldown: cooldown, end: expiry)
     }
 }
 

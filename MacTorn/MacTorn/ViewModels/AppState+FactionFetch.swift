@@ -17,7 +17,12 @@ extension AppState {
             switch result {
             case .success(let payload, let responseBytes):
                 endpointGate.noteSuccess(for: "faction.basic")
-                factionService.publishBasic(payload)
+                // Torn's `chain.timeout` is seconds remaining, not a timestamp. Resolve it
+                // to an absolute server-clock expiry here, at the boundary, so every
+                // consumer downstream keeps comparing it against `serverNow` — see
+                // `FactionChain.resolvingExpiry`.
+                let resolved = payload.resolvingChainExpiry(fetchedAt: Date(), clock: serverClock)
+                factionService.publishBasic(resolved)
                 // Chain data enters the app here — evaluate the expiry edge now, while
                 // it is fresh. (Audit C-01: this used to be checked against the user
                 // snapshot's `chain`, which Torn never populates.)

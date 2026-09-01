@@ -363,7 +363,10 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
                 // warning" bucket (60..<180s remaining) so the a11y UI test can
                 // pin the combined chain-card VoiceOver label (issue #45) without
                 // racing the "red / critical" (<60s) edge as the test runs.
-                "chain": ["current": 5, "max": 10, "timeout": now + 150, "cooldown": 0],
+                // Real wire shape: `timeout` is seconds remaining, `end` the absolute
+                // expiry (2026-09-01) — the app resolves the two at the fetch boundary.
+                "chain": ["current": 5, "max": 10, "timeout": 150, "cooldown": 0,
+                          "start": now - 150, "end": now + 150],
             ]
         }
 

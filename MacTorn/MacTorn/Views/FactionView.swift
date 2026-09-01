@@ -34,8 +34,10 @@ struct FactionView: View {
                         }
                         
                         // Chain Status — `faction.chain.timeout` is an absolute Unix
-                        // timestamp from the Torn API, so we tick `now` against it
-                        // every second and never extrapolate from a stored duration.
+                        // timestamp by the time it is published (Torn sends seconds
+                        // remaining; `fetchFactionData` resolves it against the server
+                        // clock), so we tick `now` against it every second and never
+                        // extrapolate from a stored duration.
                         if faction.chain.current > 0 {
                             TimelineView(.periodic(from: .now, by: 1.0)) { context in
                                 let remaining = max(0, faction.chain.timeout
