@@ -5,7 +5,7 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.13.1] — 2026-09-01 — the chain is alive
 
 ### Fixed
 - **Chain countdown, chain-expiring alert and the Next Action "Chain timeout" entry
