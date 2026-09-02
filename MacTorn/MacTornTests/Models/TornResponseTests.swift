@@ -166,6 +166,79 @@ final class TornResponseTests: XCTestCase {
         XCTAssertEqual(event.cleanEvent, "You received a message from SomePlayer.")
     }
 
+    /// Event bodies carry another player's name and message, so they are attacker-influenced
+    /// text on a string that reaches both `Text` and the VoiceOver label.
+    private func event(_ body: String) throws -> TornEvent {
+        let data = try JSONSerialization.data(withJSONObject: [
+            "timestamp": 1700000000, "event": body, "seen": 0
+        ])
+        return try JSONDecoder().decode(TornEvent.self, from: data)
+    }
+
+    func testTornEvent_cleanEvent_stripsBidiOverrides() throws {
+        // U+202E flips the following run right-to-left, which is how a display name is made
+        // to read as something other than what it is.
+        let spoof = try event("You were mugged by \u{202E}revilEvil\u{202C} for $500.")
+        XCTAssertEqual(spoof.cleanEvent, "You were mugged by revilEvil for $500.")
+        XCTAssertFalse(spoof.cleanEvent.unicodeScalars.contains { $0.value == 0x202E })
+    }
+
+    func testTornEvent_cleanEvent_stripsControlCharactersAndNewlines() throws {
+        let noisy = try event("Attack\u{0}ed by\n\rSomeone\u{1}\u{7}!")
+        XCTAssertEqual(noisy.cleanEvent, "Attacked bySomeone!")
+        XCTAssertFalse(noisy.cleanEvent.contains("\n"))
+    }
+
+    func testTornEvent_cleanEvent_stripsZeroWidthCharacters() throws {
+        let hidden = try event("Some\u{200B}Player attacked you")
+        XCTAssertEqual(hidden.cleanEvent, "SomePlayer attacked you")
+    }
+
+    func testTornEvent_cleanEvent_capsLength() throws {
+        let long = try event(String(repeating: "x", count: 500))
+        XCTAssertEqual(long.cleanEvent.count, 120)
+    }
+
+    /// The cap must measure what the user sees. Tags are stripped first, so markup does not
+    /// eat the budget and truncate legible text.
+    func testTornEvent_cleanEvent_capMeasuresVisibleTextNotMarkup() throws {
+        let padded = "<a href='" + String(repeating: "z", count: 300) + "'>Player</a> attacked you"
+        XCTAssertEqual(try event(padded).cleanEvent, "Player attacked you")
+    }
+
+    func testTornEvent_cleanEvent_leavesOrdinaryTextAlone() throws {
+        let plain = "You were mugged by SomePlayer for $500."
+        XCTAssertEqual(try event(plain).cleanEvent, plain)
+    }
+
+    /// U+200D is category Cf like the bidi overrides, but it is the glue in every emoji ZWJ
+    /// sequence. Stripping it decomposes one grapheme into several, which is corruption of
+    /// legitimate content rather than defence against spoofing.
+    func testTornEvent_cleanEvent_preservesEmojiZWJSequences() throws {
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"      // 👨‍👩‍👧
+        let flag = "\u{1F3F3}\u{FE0F}\u{200D}\u{1F308}"                 // 🏳️‍🌈
+        XCTAssertEqual(try event("Gift from \(family)").cleanEvent, "Gift from \(family)")
+        XCTAssertEqual(try event("Joined \(flag)").cleanEvent, "Joined \(flag)")
+        XCTAssertEqual(try event(family).cleanEvent.count, 1, "stays one grapheme")
+    }
+
+    /// The ZWJ exception must be exactly one scalar wide — every other format character
+    /// that enables spoofing has to keep going.
+    func testTornEvent_cleanEvent_zwjExceptionDoesNotLeakToOtherFormatChars() throws {
+        let noisy = try event("a\u{200B}b\u{202E}c\u{2066}d\u{200F}e")
+        XCTAssertEqual(noisy.cleanEvent, "abcde",
+                       "ZWSP, RLO, LRI and RLM must still be stripped")
+    }
+
+    /// Variation selectors and keycap marks are neither Cc nor Cf, so they were never at
+    /// risk — pinned so a future widening of the filter cannot quietly break them.
+    func testTornEvent_cleanEvent_preservesVariationSelectorsAndKeycaps() throws {
+        let keycap = "1\u{FE0F}\u{20E3}"                                 // 1️⃣
+        let thumbsUpToned = "\u{1F44D}\u{1F3FD}"                         // 👍🏽
+        XCTAssertEqual(try event(keycap).cleanEvent, keycap)
+        XCTAssertEqual(try event(thumbsUpToned).cleanEvent, thumbsUpToned)
+    }
+
     func testTornEvent_date() throws {
         let json: [String: Any] = [
             "timestamp": 1700000000,
@@ -295,6 +368,14 @@ final class TornAPIURLBuilderTests: XCTestCase {
 // MARK: - Notification Sanitizer (F-08)
 
 final class NotificationSanitizerTests: XCTestCase {
+    /// `String.prefix(_:)` has a precondition of `maxLength >= 0` and traps below it. No
+    /// caller passes a negative today, but the sanitiser is a shared `String` helper now, so
+    /// a future caller computing a limit must get an empty string rather than a crash.
+    func testSanitize_negativeMaxLengthDoesNotTrap() {
+        XCTAssertEqual(NotificationManager.sanitize("Travel: Mexico", maxLength: -1), "")
+        XCTAssertEqual(NotificationManager.sanitize("Travel: Mexico", maxLength: 0), "")
+    }
+
     func testSanitize_capsLength() {
         let input = String(repeating: "x", count: 500)
         let out = NotificationManager.sanitize(input, maxLength: 200)

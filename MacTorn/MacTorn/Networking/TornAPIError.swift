@@ -217,10 +217,7 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// views, and `CharacterSet.controlCharacters` alone lets U+2028/U+2029 through as
     /// hard line breaks. See the note on `NotificationManager.lineBreakingCharacters`.
     private func sanitized(_ text: String) -> String {
-        let stripped = text.unicodeScalars
-            .filter { !NotificationManager.lineBreakingCharacters.contains($0) }
-            .map(Character.init)
-        return String(String(stripped).prefix(120))
+        text.sanitizedForDisplay()
     }
 
     // MARK: - Classification
@@ -273,4 +270,48 @@ enum TornAPIError: Error, Equatable, Sendable {
             return .transport(detail: urlError.code.rawValue.description)
         }
     }
+}
+
+// MARK: - Display sanitising
+
+extension String {
+    /// Strips Unicode control *and* format characters plus line breaks, and caps the length.
+    ///
+    /// `CharacterSet.controlCharacters` covers categories Cc and Cf, so this removes bidi
+    /// overrides (U+202A–202E, U+2066–2069) and zero-width characters along with the usual
+    /// C0/C1 controls — the pieces used to build text that reads as something other than
+    /// what it is, on screen or through VoiceOver. It is *not* enough on its own: U+2028
+    /// LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR are categories Zl/Zp and still render
+    /// as hard line breaks, which is how a forum title can fake a second MacTorn-authored
+    /// paragraph. `NotificationManager.lineBreakingCharacters` unions in `.newlines` to
+    /// close that hole, and stays the single source of truth for both callers.
+    ///
+    /// Apply to every string reaching the UI from a source we do not control: Torn's own
+    /// error messages, and event text that another player can influence.
+    func sanitizedForDisplay(limit: Int = 120) -> String {
+        let stripped = unicodeScalars
+            .filter { !NotificationManager.lineBreakingCharacters.contains($0) || $0 == .emojiJoiner }
+            .map(Character.init)
+        // `prefix(_:)` has a precondition of maxLength >= 0 and traps below it. No caller
+        // passes a negative today — the three are 80, 200 and the 120 default — but this is
+        // a shared helper on String now, so a future caller computing a limit gets an empty
+        // string rather than a crash.
+        return String(String(stripped).prefix(max(0, limit)))
+    }
+}
+
+extension Unicode.Scalar {
+    /// U+200D ZERO WIDTH JOINER.
+    ///
+    /// It is category Cf, so `CharacterSet.controlCharacters` matches it — but it is also
+    /// the glue in every emoji ZWJ sequence, and dropping it decomposes one grapheme into
+    /// several: 👨‍👩‍👧 becomes three separate people, 🏳️‍🌈 becomes a white flag beside a
+    /// rainbow. That is visible corruption of legitimate content.
+    ///
+    /// Keeping it is a deliberately narrow exception. ZWJ only asks that adjacent glyphs be
+    /// joined: unlike the bidi overrides it cannot reorder text, and unlike U+200B ZERO
+    /// WIDTH SPACE — which stays stripped — it is not the character used to split a word
+    /// invisibly. Variation selectors (U+FE0F) and the keycap mark (U+20E3) need no
+    /// exception; they are in neither Cc nor Cf and were never removed.
+    static let emojiJoiner = Unicode.Scalar(0x200D)!
 }

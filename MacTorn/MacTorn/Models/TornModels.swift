@@ -509,9 +509,16 @@ struct TornEvent: Codable, Identifiable {
         Date(timeIntervalSince1970: TimeInterval(timestamp))
     }
     
-    // Strip HTML tags from event text
+    /// Event text with HTML tags removed, then run through the shared display sanitiser.
+    ///
+    /// Event bodies carry names and messages supplied by *other players*, so stripping tags
+    /// alone left control characters and bidi overrides intact on a string that reaches both
+    /// `Text` and the VoiceOver label. Tags come off first so the length cap applies to what
+    /// the user actually sees rather than to markup.
     var cleanEvent: String {
-        event.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        event
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .sanitizedForDisplay()
     }
 }
 
