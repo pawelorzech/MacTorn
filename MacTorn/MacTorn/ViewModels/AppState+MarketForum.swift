@@ -213,11 +213,7 @@ extension AppState {
     }
 
     private func formatAlertPrice(_ price: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencySymbol = "$"
-        formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: price)) ?? "$\(price)"
+        TornFormatter.formatMoney(price)
     }
 
     @MainActor

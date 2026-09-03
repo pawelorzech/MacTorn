@@ -78,13 +78,13 @@ final class TravelTests: XCTestCase {
             "time_left": 12,
         ]
         let travel = try decode(Travel.self, from: json)
+        let refDate = Date(timeIntervalSince1970: TimeInterval(now))
 
-        let remaining = travel.remainingSeconds(from: Date())
-        XCTAssertGreaterThanOrEqual(remaining, 598)
-        XCTAssertLessThanOrEqual(remaining, 600)
+        let remaining = travel.remainingSeconds(from: refDate)
+        XCTAssertEqual(remaining, 600)
 
-        let progress = travel.flightProgress(from: Date())
-        XCTAssertEqual(progress, 0.6, accuracy: 0.002)
+        let progress = travel.flightProgress(from: refDate)
+        XCTAssertEqual(progress, 0.6, accuracy: 0.0001)
     }
 
     // MARK: - isAbroad Tests

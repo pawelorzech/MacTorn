@@ -161,11 +161,7 @@ struct MoneyView: View {
     }
 
     private func formatMoney(_ amount: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencySymbol = "$"
-        formatter.maximumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
+        TornFormatter.formatMoney(amount)
     }
 
     private func openURL(_ urlString: String) {

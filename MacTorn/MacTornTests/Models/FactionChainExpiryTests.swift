@@ -97,4 +97,29 @@ final class FactionChainExpiryTests: XCTestCase {
         XCTAssertEqual(app.makeNextActionSnapshot().chainTimeoutAt, now + 146,
                        "Next Action sees the absolute expiry, not 146 seconds after 1970")
     }
+
+    func testLiveChainIsAvailableEvenWhenUserLastUpdatedIsNil() async throws {
+        let mock = MockNetworkSession()
+        let app = AppState(session: mock)
+        app.serverClock = .synchronized
+        let now = Int(Date().timeIntervalSince1970)
+        try mock.setSuccessResponse(json: [
+            "name": "The Masters",
+            "ID": 11_559,
+            "respect": 5_056_869,
+            "chain": [
+                "current": 5, "max": 10, "timeout": 120, "cooldown": 0,
+                "start": now - 180, "end": now + 120,
+            ],
+        ])
+
+        let payload = try await app.factionService.loadBasic(from: URL(string: "https://api.torn.com/faction/?selections=basic,chain")!)
+        guard case .success(let data, _) = payload else { return XCTFail("expected a decoded faction payload") }
+        app.factionService.publishBasic(data.resolvingChainExpiry(fetchedAt: Date(), clock: app.serverClock))
+
+        XCTAssertNil(app.lastUpdated, "User poll has not run yet, lastUpdated must be nil")
+        let chain = try XCTUnwrap(app.liveChain)
+        XCTAssertTrue(chain.isActive)
+        XCTAssertEqual(chain.current, 5)
+    }
 }

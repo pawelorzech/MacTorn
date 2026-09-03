@@ -509,9 +509,9 @@ struct TornEvent: Codable, Identifiable {
         Date(timeIntervalSince1970: TimeInterval(timestamp))
     }
     
-    // Strip HTML tags from event text
+    // Strip HTML tags and decode HTML entities from event text
     var cleanEvent: String {
-        event.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+        event.strippedHTMLAndDecodedEntities
     }
 }
 
@@ -1074,12 +1074,10 @@ struct FactionNews: Codable, Equatable, Identifiable {
     let text: String
     let timestamp: Int
 
-    /// News text arrives as HTML (profile/faction links); strip tags for display,
+    /// News text arrives as HTML (profile/faction links); strip tags and decode entities for display,
     /// matching `TornEvent.cleanEvent`.
     var plainText: String {
-        text.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        text.strippedHTMLAndDecodedEntities
     }
 }
 

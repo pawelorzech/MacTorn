@@ -79,6 +79,8 @@
 		AAA00055 /* TornAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10055 /* TornAPIClientTests.swift */; };
 		AAA00056 /* UserV2AdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10056 /* UserV2AdditionsTests.swift */; };
 		AAA0005C /* FactionChainExpiryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005C /* FactionChainExpiryTests.swift */; };
+		AAA0005D /* TornFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005D /* TornFormatter.swift */; };
+		AAA0005E /* TornFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005E /* TornFormatterTests.swift */; };
 		AAA00057 /* AppState+ItemCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10057 /* AppState+ItemCatalog.swift */; };
 		AAA00058 /* ItemCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10058 /* ItemCatalogTests.swift */; };
 		AAA00059 /* ForumCategoryWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10059 /* ForumCategoryWatchTests.swift */; };
@@ -204,6 +206,8 @@
 		AAA10055 /* TornAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIClientTests.swift; sourceTree = "<group>"; };
 		AAA10056 /* UserV2AdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2AdditionsTests.swift; sourceTree = "<group>"; };
 		AAA1005C /* FactionChainExpiryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionChainExpiryTests.swift; sourceTree = "<group>"; };
+		AAA1005D /* TornFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornFormatter.swift; sourceTree = "<group>"; };
+		AAA1005E /* TornFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornFormatterTests.swift; sourceTree = "<group>"; };
 		AAA10057 /* AppState+ItemCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ItemCatalog.swift"; sourceTree = "<group>"; };
 		AAA10058 /* ItemCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ItemCatalogTests.swift"; sourceTree = "<group>"; };
 		AAA10059 /* ForumCategoryWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ForumCategoryWatchTests.swift"; sourceTree = "<group>"; };
@@ -396,6 +400,7 @@
 		AAA30009 /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
+				AAA1005D /* TornFormatter.swift */,
 				AAA10025 /* TransparencyEnvironment.swift */,
 				AAA10033 /* TimeSource.swift */,
 				AAA10039 /* UITestSupport.swift */,
@@ -437,6 +442,7 @@
 				AAA1005A /* HostileResponseTests.swift */,
 				AAA10056 /* UserV2AdditionsTests.swift */,
 				AAA1005C /* FactionChainExpiryTests.swift */,
+				AAA1005E /* TornFormatterTests.swift */,
 				AAA10054 /* TornEndpointGateTests.swift */,
 				AAA10055 /* TornAPIClientTests.swift */,
 				BBB10004 /* BarTests.swift */,
@@ -631,6 +637,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AAA0005D /* TornFormatter.swift in Sources */,
 				AAA00057 /* AppState+ItemCatalog.swift in Sources */,
 				AAA00053 /* TornEndpointGate.swift in Sources */,
 				AAA00001 /* MacTornApp.swift in Sources */,
@@ -698,6 +705,7 @@
 				AAA00058 /* ItemCatalogTests.swift in Sources */,
 				AAA00056 /* UserV2AdditionsTests.swift in Sources */,
 				AAA0005C /* FactionChainExpiryTests.swift in Sources */,
+				AAA0005E /* TornFormatterTests.swift in Sources */,
 				AAA00054 /* TornEndpointGateTests.swift in Sources */,
 				AAA00055 /* TornAPIClientTests.swift in Sources */,
 				BBB00001 /* MockNetworkSession.swift in Sources */,

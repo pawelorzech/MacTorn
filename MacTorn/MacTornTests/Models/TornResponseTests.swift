@@ -166,6 +166,18 @@ final class TornResponseTests: XCTestCase {
         XCTAssertEqual(event.cleanEvent, "You received a message from SomePlayer.")
     }
 
+    func testTornEvent_cleanEvent_decodesHTMLEntities() throws {
+        let json: [String: Any] = [
+            "timestamp": 1700000000,
+            "event": "You bought 5x Xanax from <a href='bazaar.php?userId=123'>Bob&#039;s</a> &amp; Alice&apos;s bazaar &quot;Cheap&quot; &lt;deal&gt;.",
+            "seen": 0
+        ]
+        let data = try JSONSerialization.data(withJSONObject: json)
+        let event = try JSONDecoder().decode(TornEvent.self, from: data)
+
+        XCTAssertEqual(event.cleanEvent, "You bought 5x Xanax from Bob's & Alice's bazaar \"Cheap\" <deal>.")
+    }
+
     func testTornEvent_date() throws {
         let json: [String: Any] = [
             "timestamp": 1700000000,
