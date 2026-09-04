@@ -176,11 +176,19 @@ final class MarketWatchService: MarketWatchServicing {
                 guard let price = $0["price"] as? Int else { return nil }
                 return (price, $0["amount"] as? Int ?? 1)
             }
+            guard listings.count == array.count else {
+                return .malformed(responseBytes: data.count)
+            }
         } else if let array = json["itemmarket"] as? [[String: Any]] {
             listings += array.compactMap {
                 guard let price = $0["cost"] as? Int else { return nil }
                 return (price, $0["quantity"] as? Int ?? 1)
             }
+            guard listings.count == array.count else {
+                return .malformed(responseBytes: data.count)
+            }
+        } else {
+            return .malformed(responseBytes: data.count)
         }
         let sorted = listings.sorted { $0.price < $1.price }
         guard let best = sorted.first else {

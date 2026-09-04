@@ -441,19 +441,10 @@ struct WatchlistPriceRow: View {
                 Spacer()
 
                 // Price info
-                if let error = item.error {
-                     HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.red)
-                            .font(.caption2)
-                        Text(error)
-                            .font(.caption2)
-                            .foregroundColor(.red)
-                    }
-                } else if item.isLoading {
+                if item.isLoading && item.error == nil {
                     ProgressView()
                         .scaleEffect(0.6)
-                } else {
+                } else if item.lastUpdated != nil {
                     VStack(alignment: .trailing, spacing: 1) {
                         HStack(spacing: 4) {
                             Text(formatPrice(item.lowestPrice))
@@ -548,6 +539,19 @@ struct WatchlistPriceRow: View {
                 .accessibilityLabel("Remove \(item.name) from price watch")
             }
 
+            if let error = item.error {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+                    .accessibilityLabel("Price update error: \(error)")
+
+                if let lastUpdated = item.lastUpdated {
+                    (Text("Last known price · Updated ") + Text(lastUpdated, style: .relative) + Text(" ago"))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             // Threshold indicator
             if let threshold = item.priceThreshold {
                 HStack(spacing: 4) {
@@ -627,34 +631,5 @@ struct UndoBanner: View {
         .padding(.vertical, 8)
         .background(Color.accentColor.opacity(0.14))
         .cornerRadius(6)
-    }
-}
-
-extension AppState {
-    @discardableResult
-    func restoreWatchlistItem(_ item: WatchlistItem, at originalIndex: Int) -> Bool {
-        guard !watchlistItems.contains(where: { $0.id == item.id }) else {
-            return false
-        }
-
-        let insertionIndex = min(max(originalIndex, 0), watchlistItems.count)
-        watchlistItems.insert(item, at: insertionIndex)
-        saveWatchlist()
-        return true
-    }
-
-    /// Restores a previously-captured price-alert threshold, mirroring
-    /// `restoreWatchlistItem` so the price-alert Clear button can share the same
-    /// Undo mechanism as item removal (GitHub #54).
-    @discardableResult
-    func restoreWatchlistThreshold(itemId: Int, threshold: Int?, lastAlertedPrice: Int?) -> Bool {
-        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else {
-            return false
-        }
-
-        watchlistItems[index].priceThreshold = threshold
-        watchlistItems[index].lastAlertedPrice = lastAlertedPrice
-        saveWatchlist()
-        return true
     }
 }

@@ -111,6 +111,37 @@ final class MarketWatchServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.secondLowestPrice, 1_000)
     }
 
+    func testFetchPriceDistinguishesMalformedResponseFromEmptyListings() async throws {
+        let mock = MockNetworkSession()
+        let service = MarketWatchService(defaults: .createMockDefaults(), session: mock)
+        let url = URL(string: "https://api.torn.com/v2/market/123/itemmarket")!
+        let malformedResponses: [[String: Any]] = [
+            [:],
+            ["itemmarket": [:]],
+            ["itemmarket": ["listings": "invalid"]],
+            ["itemmarket": ["listings": [["amount": 1]]]],
+            ["itemmarket": [["quantity": 1]]]
+        ]
+        for json in malformedResponses {
+            try mock.setSuccessResponse(json: json)
+            guard case .malformed = try await service.fetchPrice(from: url) else {
+                XCTFail("Invalid market structure must be a parse error: \(json)")
+                continue
+            }
+        }
+        let emptyResponses: [[String: Any]] = [
+            ["itemmarket": ["listings": []]],
+            ["itemmarket": []]
+        ]
+        for json in emptyResponses {
+            try mock.setSuccessResponse(json: json)
+            guard case .noListings = try await service.fetchPrice(from: url) else {
+                XCTFail("An empty listings array must remain a valid empty market")
+                continue
+            }
+        }
+    }
+
     func testFetchPriceSurfacesV2APIError() async throws {
         let mock = MockNetworkSession()
         try mock.setTornAPIErrorV2(code: 5, message: "Too many requests")

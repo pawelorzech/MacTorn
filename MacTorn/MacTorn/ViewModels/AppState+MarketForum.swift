@@ -455,3 +455,25 @@ extension AppState {
         }
     }
 }
+
+extension AppState {
+    @discardableResult
+    func restoreWatchlistItem(_ item: WatchlistItem, at originalIndex: Int) -> Bool {
+        marketWatchService.restore(item, at: originalIndex)
+    }
+
+    /// Restores a previously-captured price-alert threshold, mirroring
+    /// `restoreWatchlistItem` so the price-alert Clear button can share the same
+    /// Undo mechanism as item removal (GitHub #54).
+    @discardableResult
+    func restoreWatchlistThreshold(itemId: Int, threshold: Int?, lastAlertedPrice: Int?) -> Bool {
+        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else {
+            return false
+        }
+
+        watchlistItems[index].priceThreshold = threshold
+        watchlistItems[index].lastAlertedPrice = lastAlertedPrice
+        saveWatchlist()
+        return true
+    }
+}
