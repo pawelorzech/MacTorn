@@ -104,6 +104,7 @@ extension AppState {
 
     func saveHiddenNextActionCategories() {
         defaults.set(hiddenNextActionCategories.map(\.rawValue), forKey: Self.hiddenNextActionKey)
+        publishWidgets()
     }
 
     /// Builds the timeline input. `now` is a *local* instant (the shared clock's); it is

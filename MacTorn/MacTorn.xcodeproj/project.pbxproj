@@ -9,23 +9,14 @@
 /* Begin PBXBuildFile section */
 		0B1525E92794A5931934A964 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 9D32C7372CF21C5A6D2443EC /* Sentry */; };
 		283327E20486060110E15CEF /* SentryOptInPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */; };
+		2ABEE44D92F50F39605C526F /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */; };
 		4105620C57CC1C7F080D013F /* SentryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */; };
+		8392A02CF47E5A17E4B562FE /* AppState+Widgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41799E4A7F97D996D739B4E /* AppState+Widgets.swift */; };
 		AAA00001 /* MacTornApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10001 /* MacTornApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10002 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA10003 /* Assets.xcassets */; };
 		AAA00004 /* TornModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10004 /* TornModels.swift */; };
 		AAA00005 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10005 /* AppState.swift */; };
-		AAA00041 /* AccountSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10041 /* AccountSessionStore.swift */; };
-		AAA00042 /* UserSnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10042 /* UserSnapshotService.swift */; };
-		AAA00043 /* MarketWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10043 /* MarketWatchService.swift */; };
-		AAA00044 /* ForumWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10044 /* ForumWatchService.swift */; };
-		AAA00045 /* FactionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10045 /* FactionService.swift */; };
-		AAA00046 /* AppState+MarketForum.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10046 /* AppState+MarketForum.swift */; };
-		AAA00047 /* AppState+NotificationsFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10047 /* AppState+NotificationsFeedback.swift */; };
-		AAA00048 /* AppState+PersistenceStocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10048 /* AppState+PersistenceStocks.swift */; };
-		AAA00049 /* AppState+LiveNextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10049 /* AppState+LiveNextAction.swift */; };
-		AAA00050 /* AppState+PollingUserFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10050 /* AppState+PollingUserFetch.swift */; };
-		AAA00051 /* AppState+FactionFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10051 /* AppState+FactionFetch.swift */; };
 		AAA00006 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10006 /* SettingsView.swift */; };
 		AAA00007 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10007 /* StatusView.swift */; };
 		AAA00008 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10008 /* ProgressBarView.swift */; };
@@ -41,7 +32,6 @@
 		AAA00018 /* FactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10019 /* FactionView.swift */; };
 		AAA00019 /* WatchlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10020 /* WatchlistView.swift */; };
 		AAA00020 /* PropertiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10021 /* PropertiesView.swift */; };
-		AAA00052 /* StocksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10052 /* StocksView.swift */; };
 		AAA00021 /* NetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10022 /* NetworkSession.swift */; };
 		AAA00022 /* TravelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10023 /* TravelView.swift */; };
 		AAA00023 /* CreditsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10024 /* CreditsView.swift */; };
@@ -50,6 +40,42 @@
 		AAA00026 /* BrowserManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10027 /* BrowserManager.swift */; };
 		AAA00028 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10028 /* NetworkMonitor.swift */; };
 		AAA00029 /* ForumWatchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10029 /* ForumWatchView.swift */; };
+		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
+		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
+		AAA00032 /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10032 /* NotificationCoordinator.swift */; };
+		AAA00033 /* TimeSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10033 /* TimeSource.swift */; };
+		AAA00034 /* PollingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10034 /* PollingCoordinator.swift */; };
+		AAA00035 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10035 /* Diagnostics.swift */; };
+		AAA00036 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10036 /* DiagnosticsView.swift */; };
+		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
+		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
+		AAA00039 /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10039 /* UITestSupport.swift */; };
+		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
+		AAA00041 /* AccountSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10041 /* AccountSessionStore.swift */; };
+		AAA00042 /* UserSnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10042 /* UserSnapshotService.swift */; };
+		AAA00043 /* MarketWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10043 /* MarketWatchService.swift */; };
+		AAA00044 /* ForumWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10044 /* ForumWatchService.swift */; };
+		AAA00045 /* FactionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10045 /* FactionService.swift */; };
+		AAA00046 /* AppState+MarketForum.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10046 /* AppState+MarketForum.swift */; };
+		AAA00047 /* AppState+NotificationsFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10047 /* AppState+NotificationsFeedback.swift */; };
+		AAA00048 /* AppState+PersistenceStocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10048 /* AppState+PersistenceStocks.swift */; };
+		AAA00049 /* AppState+LiveNextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10049 /* AppState+LiveNextAction.swift */; };
+		AAA00050 /* AppState+PollingUserFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10050 /* AppState+PollingUserFetch.swift */; };
+		AAA00051 /* AppState+FactionFetch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10051 /* AppState+FactionFetch.swift */; };
+		AAA00052 /* StocksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10052 /* StocksView.swift */; };
+		AAA00053 /* TornEndpointGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10053 /* TornEndpointGate.swift */; };
+		AAA00054 /* TornEndpointGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10054 /* TornEndpointGateTests.swift */; };
+		AAA00055 /* TornAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10055 /* TornAPIClientTests.swift */; };
+		AAA00056 /* UserV2AdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10056 /* UserV2AdditionsTests.swift */; };
+		AAA00057 /* AppState+ItemCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10057 /* AppState+ItemCatalog.swift */; };
+		AAA00058 /* ItemCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10058 /* ItemCatalogTests.swift */; };
+		AAA00059 /* ForumCategoryWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10059 /* ForumCategoryWatchTests.swift */; };
+		AAA0005A /* HostileResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005A /* HostileResponseTests.swift */; };
+		AAA0005B /* FirstPollOrderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005B /* FirstPollOrderingTests.swift */; };
+		AAA0005C /* FactionChainExpiryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005C /* FactionChainExpiryTests.swift */; };
+		AAA0005D /* TornFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005D /* TornFormatter.swift */; };
+		AAA0005E /* TornFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005E /* TornFormatterTests.swift */; };
+		AE0C03760232E434B8B89C81 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E283D57DB7C7CFC1906B751 /* Cocoa.framework */; };
 		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
 		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
 		BBB00003 /* TornAPIFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10003 /* TornAPIFixtures.swift */; };
@@ -70,51 +96,39 @@
 		BBB00018 /* AppStateForumWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10018 /* AppStateForumWatchTests.swift */; };
 		BBB00019 /* PropertyInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10019 /* PropertyInfoTests.swift */; };
 		BBB00020 /* StockMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10020 /* StockMetadataTests.swift */; };
-		BBB00023 /* UserV2ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10023 /* UserV2ModelsTests.swift */; };
 		BBB00021 /* AppStateStocksMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10021 /* AppStateStocksMetadataTests.swift */; };
 		BBB00022 /* AppStatePerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10022 /* AppStatePerformanceTests.swift */; };
-		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
-		AAA00053 /* TornEndpointGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10053 /* TornEndpointGate.swift */; };
-		AAA00054 /* TornEndpointGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10054 /* TornEndpointGateTests.swift */; };
-		AAA00055 /* TornAPIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10055 /* TornAPIClientTests.swift */; };
-		AAA00056 /* UserV2AdditionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10056 /* UserV2AdditionsTests.swift */; };
-		AAA0005C /* FactionChainExpiryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005C /* FactionChainExpiryTests.swift */; };
-		AAA0005D /* TornFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005D /* TornFormatter.swift */; };
-		AAA0005E /* TornFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005E /* TornFormatterTests.swift */; };
-		AAA00057 /* AppState+ItemCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10057 /* AppState+ItemCatalog.swift */; };
-		AAA00058 /* ItemCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10058 /* ItemCatalogTests.swift */; };
-		AAA00059 /* ForumCategoryWatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10059 /* ForumCategoryWatchTests.swift */; };
-		AAA0005A /* HostileResponseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005A /* HostileResponseTests.swift */; };
-		AAA0005B /* FirstPollOrderingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1005B /* FirstPollOrderingTests.swift */; };
-		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
-		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
-		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
-		AAA00032 /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10032 /* NotificationCoordinator.swift */; };
+		BBB00023 /* UserV2ModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10023 /* UserV2ModelsTests.swift */; };
 		BBB00024 /* TornEndpointTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10024 /* TornEndpointTests.swift */; };
-		BBB00031 /* KeyValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10031 /* KeyValidationTests.swift */; };
 		BBB00025 /* TornAPIErrorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10025 /* TornAPIErrorTests.swift */; };
 		BBB00026 /* NotificationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10026 /* NotificationCoordinatorTests.swift */; };
-		AAA00033 /* TimeSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10033 /* TimeSource.swift */; };
-		AAA00039 /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10039 /* UITestSupport.swift */; };
-		AAA00034 /* PollingCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10034 /* PollingCoordinator.swift */; };
 		BBB00027 /* PollingCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10027 /* PollingCoordinatorTests.swift */; };
-		AAA00035 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10035 /* Diagnostics.swift */; };
-		AAA00036 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10036 /* DiagnosticsView.swift */; };
 		BBB00028 /* DiagnosticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10028 /* DiagnosticsTests.swift */; };
+		BBB00029 /* NextActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10029 /* NextActionTests.swift */; };
 		BBB00030 /* UITestHarnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10030 /* UITestHarnessTests.swift */; };
+		BBB00031 /* KeyValidationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10031 /* KeyValidationTests.swift */; };
 		BBB00032 /* AccountSessionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10032 /* AccountSessionStoreTests.swift */; };
 		BBB00033 /* UserSnapshotServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10033 /* UserSnapshotServiceTests.swift */; };
 		BBB00034 /* MarketWatchServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10034 /* MarketWatchServiceTests.swift */; };
 		BBB00035 /* ForumWatchServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10035 /* ForumWatchServiceTests.swift */; };
 		BBB00036 /* FactionServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10036 /* FactionServiceTests.swift */; };
 		BBB00037 /* UpdateManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10037 /* UpdateManagerTests.swift */; };
-		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
-		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
-		BBB00029 /* NextActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10029 /* NextActionTests.swift */; };
 		BBB00038 /* ServerClockOffsetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10038 /* ServerClockOffsetTests.swift */; };
+		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
+		DBDA6DE7BC372C1466FE0C67 /* MacTornWidgets.appex in Embed Widget Extension */ = {isa = PBXBuildFile; fileRef = 55E88984582EA230E4769059 /* MacTornWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F2AE96DBDC7C03A0EE0BE4E1 /* WidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD85E9523C992FBE1C69B85 /* WidgetSnapshotTests.swift */; };
+		F50FB58B86CA8320878570F6 /* MacTornWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5EFB34F21576D67E5BADBB3 /* MacTornWidgets.swift */; };
+		FFF2256F1E0755FF9FF80525 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		90602E9BD31029A74C60498E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AAA00000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2F1509A68CE941152ABDBB9C;
+			remoteInfo = MacTornWidgets;
+		};
 		BBB20001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = AAA00000 /* Project object */;
@@ -131,25 +145,31 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		381DFE04EF112FD74EA500BD /* Embed Widget Extension */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				DBDA6DE7BC372C1466FE0C67 /* MacTornWidgets.appex in Embed Widget Extension */,
+			);
+			name = "Embed Widget Extension";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryManager.swift; sourceTree = "<group>"; };
+		3E283D57DB7C7CFC1906B751 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
+		55E88984582EA230E4769059 /* MacTornWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MacTornWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetSnapshot.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AAA10001 /* MacTornApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornApp.swift; sourceTree = "<group>"; };
 		AAA10002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		AAA10003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AAA10004 /* TornModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornModels.swift; sourceTree = "<group>"; };
 		AAA10005 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
-		AAA10041 /* AccountSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionStore.swift; sourceTree = "<group>"; };
-		AAA10042 /* UserSnapshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSnapshotService.swift; sourceTree = "<group>"; };
-		AAA10043 /* MarketWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketWatchService.swift; sourceTree = "<group>"; };
-		AAA10044 /* ForumWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchService.swift; sourceTree = "<group>"; };
-		AAA10045 /* FactionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionService.swift; sourceTree = "<group>"; };
-		AAA10046 /* AppState+MarketForum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+MarketForum.swift"; sourceTree = "<group>"; };
-		AAA10047 /* AppState+NotificationsFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+NotificationsFeedback.swift"; sourceTree = "<group>"; };
-		AAA10048 /* AppState+PersistenceStocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+PersistenceStocks.swift"; sourceTree = "<group>"; };
-		AAA10049 /* AppState+LiveNextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+LiveNextAction.swift"; sourceTree = "<group>"; };
-		AAA10050 /* AppState+PollingUserFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+PollingUserFetch.swift"; sourceTree = "<group>"; };
-		AAA10051 /* AppState+FactionFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+FactionFetch.swift"; sourceTree = "<group>"; };
 		AAA10006 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AAA10007 /* StatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusView.swift; sourceTree = "<group>"; };
 		AAA10008 /* ProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBarView.swift; sourceTree = "<group>"; };
@@ -166,7 +186,6 @@
 		AAA10019 /* FactionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionView.swift; sourceTree = "<group>"; };
 		AAA10020 /* WatchlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchlistView.swift; sourceTree = "<group>"; };
 		AAA10021 /* PropertiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesView.swift; sourceTree = "<group>"; };
-		AAA10052 /* StocksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StocksView.swift; sourceTree = "<group>"; };
 		AAA10022 /* NetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkSession.swift; sourceTree = "<group>"; };
 		AAA10023 /* TravelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TravelView.swift; sourceTree = "<group>"; };
 		AAA10024 /* CreditsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditsView.swift; sourceTree = "<group>"; };
@@ -175,6 +194,42 @@
 		AAA10027 /* BrowserManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserManager.swift; sourceTree = "<group>"; };
 		AAA10028 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		AAA10029 /* ForumWatchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchView.swift; sourceTree = "<group>"; };
+		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
+		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
+		AAA10032 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
+		AAA10033 /* TimeSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSource.swift; sourceTree = "<group>"; };
+		AAA10034 /* PollingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinator.swift; sourceTree = "<group>"; };
+		AAA10035 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
+		AAA10036 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
+		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
+		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
+		AAA10039 /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
+		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
+		AAA10041 /* AccountSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionStore.swift; sourceTree = "<group>"; };
+		AAA10042 /* UserSnapshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSnapshotService.swift; sourceTree = "<group>"; };
+		AAA10043 /* MarketWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketWatchService.swift; sourceTree = "<group>"; };
+		AAA10044 /* ForumWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchService.swift; sourceTree = "<group>"; };
+		AAA10045 /* FactionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionService.swift; sourceTree = "<group>"; };
+		AAA10046 /* AppState+MarketForum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+MarketForum.swift"; sourceTree = "<group>"; };
+		AAA10047 /* AppState+NotificationsFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+NotificationsFeedback.swift"; sourceTree = "<group>"; };
+		AAA10048 /* AppState+PersistenceStocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+PersistenceStocks.swift"; sourceTree = "<group>"; };
+		AAA10049 /* AppState+LiveNextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+LiveNextAction.swift"; sourceTree = "<group>"; };
+		AAA10050 /* AppState+PollingUserFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+PollingUserFetch.swift"; sourceTree = "<group>"; };
+		AAA10051 /* AppState+FactionFetch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+FactionFetch.swift"; sourceTree = "<group>"; };
+		AAA10052 /* StocksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StocksView.swift; sourceTree = "<group>"; };
+		AAA10053 /* TornEndpointGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGate.swift; sourceTree = "<group>"; };
+		AAA10054 /* TornEndpointGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGateTests.swift; sourceTree = "<group>"; };
+		AAA10055 /* TornAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIClientTests.swift; sourceTree = "<group>"; };
+		AAA10056 /* UserV2AdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2AdditionsTests.swift; sourceTree = "<group>"; };
+		AAA10057 /* AppState+ItemCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ItemCatalog.swift"; sourceTree = "<group>"; };
+		AAA10058 /* ItemCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemCatalogTests.swift; sourceTree = "<group>"; };
+		AAA10059 /* ForumCategoryWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumCategoryWatchTests.swift; sourceTree = "<group>"; };
+		AAA1005A /* HostileResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HostileResponseTests.swift; sourceTree = "<group>"; };
+		AAA1005B /* FirstPollOrderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstPollOrderingTests.swift; sourceTree = "<group>"; };
+		AAA1005C /* FactionChainExpiryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionChainExpiryTests.swift; sourceTree = "<group>"; };
+		AAA1005D /* TornFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornFormatter.swift; sourceTree = "<group>"; };
+		AAA1005E /* TornFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornFormatterTests.swift; sourceTree = "<group>"; };
+		ADD85E9523C992FBE1C69B85 /* WidgetSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotTests.swift; sourceTree = "<group>"; };
 		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
 		BBB10002 /* TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHelpers.swift; sourceTree = "<group>"; };
@@ -196,53 +251,40 @@
 		BBB10018 /* AppStateForumWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateForumWatchTests.swift; sourceTree = "<group>"; };
 		BBB10019 /* PropertyInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertyInfoTests.swift; sourceTree = "<group>"; };
 		BBB10020 /* StockMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StockMetadataTests.swift; sourceTree = "<group>"; };
-		BBB10023 /* UserV2ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2ModelsTests.swift; sourceTree = "<group>"; };
 		BBB10021 /* AppStateStocksMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStocksMetadataTests.swift; sourceTree = "<group>"; };
 		BBB10022 /* AppStatePerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStatePerformanceTests.swift; sourceTree = "<group>"; };
-		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
-		AAA10053 /* TornEndpointGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGate.swift; sourceTree = "<group>"; };
-		AAA10054 /* TornEndpointGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointGateTests.swift; sourceTree = "<group>"; };
-		AAA10055 /* TornAPIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIClientTests.swift; sourceTree = "<group>"; };
-		AAA10056 /* UserV2AdditionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2AdditionsTests.swift; sourceTree = "<group>"; };
-		AAA1005C /* FactionChainExpiryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionChainExpiryTests.swift; sourceTree = "<group>"; };
-		AAA1005D /* TornFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornFormatter.swift; sourceTree = "<group>"; };
-		AAA1005E /* TornFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornFormatterTests.swift; sourceTree = "<group>"; };
-		AAA10057 /* AppState+ItemCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+ItemCatalog.swift"; sourceTree = "<group>"; };
-		AAA10058 /* ItemCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ItemCatalogTests.swift"; sourceTree = "<group>"; };
-		AAA10059 /* ForumCategoryWatchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "ForumCategoryWatchTests.swift"; sourceTree = "<group>"; };
-		AAA1005A /* HostileResponseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HostileResponseTests.swift"; sourceTree = "<group>"; };
-		AAA1005B /* FirstPollOrderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "FirstPollOrderingTests.swift"; sourceTree = "<group>"; };
-		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
-		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
-		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
-		AAA10032 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
+		BBB10023 /* UserV2ModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserV2ModelsTests.swift; sourceTree = "<group>"; };
 		BBB10024 /* TornEndpointTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpointTests.swift; sourceTree = "<group>"; };
-		BBB10031 /* KeyValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyValidationTests.swift; sourceTree = "<group>"; };
 		BBB10025 /* TornAPIErrorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIErrorTests.swift; sourceTree = "<group>"; };
 		BBB10026 /* NotificationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinatorTests.swift; sourceTree = "<group>"; };
-		AAA10033 /* TimeSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeSource.swift; sourceTree = "<group>"; };
-		AAA10039 /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
-		AAA10034 /* PollingCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinator.swift; sourceTree = "<group>"; };
 		BBB10027 /* PollingCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingCoordinatorTests.swift; sourceTree = "<group>"; };
-		AAA10035 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
-		AAA10036 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		BBB10028 /* DiagnosticsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsTests.swift; sourceTree = "<group>"; };
+		BBB10029 /* NextActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionTests.swift; sourceTree = "<group>"; };
 		BBB10030 /* UITestHarnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHarnessTests.swift; sourceTree = "<group>"; };
+		BBB10031 /* KeyValidationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyValidationTests.swift; sourceTree = "<group>"; };
 		BBB10032 /* AccountSessionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionStoreTests.swift; sourceTree = "<group>"; };
 		BBB10033 /* UserSnapshotServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSnapshotServiceTests.swift; sourceTree = "<group>"; };
 		BBB10034 /* MarketWatchServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketWatchServiceTests.swift; sourceTree = "<group>"; };
 		BBB10035 /* ForumWatchServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchServiceTests.swift; sourceTree = "<group>"; };
 		BBB10036 /* FactionServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionServiceTests.swift; sourceTree = "<group>"; };
 		BBB10037 /* UpdateManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateManagerTests.swift; sourceTree = "<group>"; };
-		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
-		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
-		BBB10029 /* NextActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionTests.swift; sourceTree = "<group>"; };
 		BBB10038 /* ServerClockOffsetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerClockOffsetTests.swift; sourceTree = "<group>"; };
+		C41799E4A7F97D996D739B4E /* AppState+Widgets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AppState+Widgets.swift"; sourceTree = "<group>"; };
+		CCC10000 /* MacTornUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		CCC10001 /* MacTornUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTornUITests.swift; sourceTree = "<group>"; };
+		D5EFB34F21576D67E5BADBB3 /* MacTornWidgets.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MacTornWidgets.swift; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		049662455DBCEE3F95EF4997 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AE0C03760232E434B8B89C81 /* Cocoa.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		AAA20001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -268,6 +310,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		293E8A0C9D4B13798DE639CB /* WidgetShared */ = {
+			isa = PBXGroup;
+			children = (
+				93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */,
+			);
+			name = WidgetShared;
+			path = WidgetShared;
+			sourceTree = "<group>";
+		};
 		AAA30000 = {
 			isa = PBXGroup;
 			children = (
@@ -275,6 +326,9 @@
 				BBB30000 /* MacTornTests */,
 				CCC30000 /* MacTornUITests */,
 				AAA30002 /* Products */,
+				FECC5DAF3DFD117FE927DE55 /* Frameworks */,
+				293E8A0C9D4B13798DE639CB /* WidgetShared */,
+				CBE0BA4A7D79CE4AEE883A10 /* MacTornWidgets */,
 			);
 			sourceTree = "<group>";
 		};
@@ -300,6 +354,7 @@
 				AAA10000 /* MacTorn.app */,
 				BBB10000 /* MacTornTests.xctest */,
 				CCC10000 /* MacTornUITests.xctest */,
+				55E88984582EA230E4769059 /* MacTornWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -328,6 +383,7 @@
 				AAA10049 /* AppState+LiveNextAction.swift */,
 				AAA10050 /* AppState+PollingUserFetch.swift */,
 				AAA10051 /* AppState+FactionFetch.swift */,
+				C41799E4A7F97D996D739B4E /* AppState+Widgets.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -406,6 +462,14 @@
 				AAA10039 /* UITestSupport.swift */,
 			);
 			path = Helpers;
+			sourceTree = "<group>";
+		};
+		B63E5614197E10502A0EC063 /* OS X */ = {
+			isa = PBXGroup;
+			children = (
+				3E283D57DB7C7CFC1906B751 /* Cocoa.framework */,
+			);
+			name = "OS X";
 			sourceTree = "<group>";
 		};
 		BBB30000 /* MacTornTests */ = {
@@ -490,8 +554,18 @@
 				BBB10035 /* ForumWatchServiceTests.swift */,
 				BBB10036 /* FactionServiceTests.swift */,
 				BBB10038 /* ServerClockOffsetTests.swift */,
+				ADD85E9523C992FBE1C69B85 /* WidgetSnapshotTests.swift */,
 			);
 			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		CBE0BA4A7D79CE4AEE883A10 /* MacTornWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				D5EFB34F21576D67E5BADBB3 /* MacTornWidgets.swift */,
+			);
+			name = MacTornWidgets;
+			path = MacTornWidgets;
 			sourceTree = "<group>";
 		};
 		CCC30000 /* MacTornUITests */ = {
@@ -502,9 +576,34 @@
 			path = MacTornUITests;
 			sourceTree = "<group>";
 		};
+		FECC5DAF3DFD117FE927DE55 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B63E5614197E10502A0EC063 /* OS X */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		2F1509A68CE941152ABDBB9C /* MacTornWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C42B987C5689E3559D18AB08 /* Build configuration list for PBXNativeTarget "MacTornWidgets" */;
+			buildPhases = (
+				C8D7837B7465CF2E6414813E /* Sources */,
+				049662455DBCEE3F95EF4997 /* Frameworks */,
+				E16D5DA20E5D55E1ECFB5518 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = MacTornWidgets;
+			productName = MacTornWidgets;
+			productReference = 55E88984582EA230E4769059 /* MacTornWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		AAA40000 /* MacTorn */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AAA60000 /* Build configuration list for PBXNativeTarget "MacTorn" */;
@@ -512,10 +611,12 @@
 				AAA50000 /* Sources */,
 				AAA20001 /* Frameworks */,
 				AAA50001 /* Resources */,
+				381DFE04EF112FD74EA500BD /* Embed Widget Extension */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				F9CCD3B9E3FEF474CD81F43C /* PBXTargetDependency */,
 			);
 			name = MacTorn;
 			packageProductDependencies = (
@@ -603,6 +704,7 @@
 				AAA40000 /* MacTorn */,
 				BBB40000 /* MacTornTests */,
 				CCC40000 /* MacTornUITests */,
+				2F1509A68CE941152ABDBB9C /* MacTornWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -624,6 +726,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		CCC50001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E16D5DA20E5D55E1ECFB5518 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -692,6 +801,8 @@
 				AAA00029 /* ForumWatchView.swift in Sources */,
 				4105620C57CC1C7F080D013F /* SentryManager.swift in Sources */,
 				283327E20486060110E15CEF /* SentryOptInPromptView.swift in Sources */,
+				2ABEE44D92F50F39605C526F /* WidgetSnapshot.swift in Sources */,
+				8392A02CF47E5A17E4B562FE /* AppState+Widgets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -746,6 +857,16 @@
 				BBB00035 /* ForumWatchServiceTests.swift in Sources */,
 				BBB00036 /* FactionServiceTests.swift in Sources */,
 				BBB00037 /* UpdateManagerTests.swift in Sources */,
+				F2AE96DBDC7C03A0EE0BE4E1 /* WidgetSnapshotTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C8D7837B7465CF2E6414813E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FFF2256F1E0755FF9FF80525 /* WidgetSnapshot.swift in Sources */,
+				F50FB58B86CA8320878570F6 /* MacTornWidgets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -770,9 +891,57 @@
 			target = AAA40000 /* MacTorn */;
 			targetProxy = CCC20001 /* PBXContainerItemProxy */;
 		};
+		F9CCD3B9E3FEF474CD81F43C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MacTornWidgets;
+			target = 2F1509A68CE941152ABDBB9C /* MacTornWidgets */;
+			targetProxy = 90602E9BD31029A74C60498E /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		578532DD698F91C398A34226 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "MacTornWidgets/MacTornWidgets$(MACTORN_ENTITLEMENTS_SUFFIX).entitlements";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 46;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MacTornWidgets/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.13.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		733213B62008221094D37FF1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = "MacTornWidgets/MacTornWidgets$(MACTORN_ENTITLEMENTS_SUFFIX).entitlements";
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 46;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MacTornWidgets/Info.plist;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.13.1;
+				PRODUCT_BUNDLE_IDENTIFIER = com.mactorn.app.widgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
 		AAA70000 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -903,7 +1072,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = MacTorn/MacTorn.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "MacTorn/MacTorn$(MACTORN_ENTITLEMENTS_SUFFIX).entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -930,7 +1099,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = MacTorn/MacTorn.entitlements;
+				CODE_SIGN_ENTITLEMENTS = "MacTorn/MacTorn$(MACTORN_ENTITLEMENTS_SUFFIX).entitlements";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -1048,6 +1217,15 @@
 			buildConfigurations = (
 				BBB70000 /* Debug */,
 				BBB70001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C42B987C5689E3559D18AB08 /* Build configuration list for PBXNativeTarget "MacTornWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				578532DD698F91C398A34226 /* Release */,
+				733213B62008221094D37FF1 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

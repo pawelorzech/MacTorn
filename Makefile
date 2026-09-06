@@ -227,3 +227,20 @@ test-summary:
 	@echo "============="
 	@find . -name "*.swift" -path "*/MacTornTests/*" | xargs grep -l "func test" | wc -l | xargs echo "Test files:"
 	@find . -name "*.swift" -path "*/MacTornTests/*" | xargs grep "func test" | wc -l | xargs echo "Test cases:"
+
+# Local widget build: a real Apple signing identity is needed for App Groups.
+.PHONY: build-widgets
+build-widgets:
+ifndef DEVELOPMENT_TEAM
+	$(error DEVELOPMENT_TEAM is required for widget App Group access)
+endif
+	xcodebuild build \
+		-project MacTorn/MacTorn.xcodeproj \
+		-scheme MacTorn -configuration Debug \
+		-destination 'platform=macOS' \
+		-derivedDataPath DerivedData/Widgets \
+		DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" \
+		MACTORN_ENTITLEMENTS_SUFFIX=.widgets \
+		CODE_SIGN_STYLE=Manual \
+		CODE_SIGN_IDENTITY="$(or $(WIDGET_SIGN_IDENTITY),Apple Development)" \
+		CODE_SIGNING_REQUIRED=YES

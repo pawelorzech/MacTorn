@@ -26,13 +26,34 @@ struct MacTornApp: App {
         }
         #endif
         SentryManager.startIfEnabled()
-        _appState = State(initialValue: AppState())
+        let state = AppState()
+        if WidgetSnapshotStore.groupID != nil { state.widgetStore = .shared }
+        state.clearWidgets()
+        _appState = State(initialValue: state)
     }
 
     var body: some Scene {
         #if DEBUG
         uiTestWindow
         #endif
+        WindowGroup("MacTorn", id: "widget") {
+            ContentView()
+                .environment(appState)
+                .environment(navigation)
+                .environment(\.reduceTransparency,
+                              TransparencyPolicy.effective(system: systemAccessibility.reduceTransparency,
+                                                           userOverride: reduceTransparency))
+                .onAppear { updateAppearance() }
+                .onChange(of: appearanceModeRaw) { _, _ in updateAppearance() }
+                .handlesExternalEvents(preferring: ["mactorn"], allowing: ["mactorn"])
+                .onOpenURL { url in
+                    guard url.scheme == "mactorn" else { return }
+                    navigation.select(url.host == "travel" ? .travel : .status)
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+        }
+        .defaultSize(width: 360, height: 640)
+        .handlesExternalEvents(matching: ["mactorn"])
         MenuBarExtra {
             ContentView()
                 .environment(appState)

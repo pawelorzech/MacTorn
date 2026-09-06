@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 
 /// Deterministic UI tests (Etap G / ISC-20).
 ///
@@ -49,6 +50,25 @@ final class MacTornUITests: XCTestCase {
         let win = app.windows["MacTorn UI Tests"]
         XCTAssertTrue(win.waitForExistence(timeout: 15), "UI-test window never appeared")
         return win
+    }
+
+    func testWidgetTravelLinkOpensTravelWindow() throws {
+        let app = launch(fixture: "full", apiKey: "sample-full-user")
+        _ = window(app)
+        XCTAssertFalse(app.windows["MacTorn"].exists, "Widget window should only open on a link")
+        let appURL = Bundle.main.bundleURL.deletingLastPathComponent().appendingPathComponent("MacTorn.app")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: appURL.path))
+        let opened = expectation(description: "Widget URL delivered")
+        NSWorkspace.shared.open([URL(string: "mactorn://travel")!], withApplicationAt: appURL,
+                                configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            XCTAssertNil(error)
+            opened.fulfill()
+        }
+        wait(for: [opened], timeout: 10)
+        let widgetWindow = app.windows["MacTorn"]
+        XCTAssertTrue(widgetWindow.waitForExistence(timeout: 10))
+        XCTAssertTrue(widgetWindow.descendants(matching: .any)["uitest.tabContent.Travel"]
+            .waitForExistence(timeout: 10))
     }
 
     // MARK: - Onboarding

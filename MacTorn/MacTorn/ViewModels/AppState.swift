@@ -124,6 +124,7 @@ class AppState {
     }
 
     // MARK: - Observable State
+    var widgetStore: WidgetSnapshotStore?
     var data: TornResponse?
     var lastUpdated: Date?
     var errorMsg: String?
@@ -437,6 +438,7 @@ class AppState {
     /// Removes data that belongs to the previously authenticated Torn account. Local
     /// preferences (watchlist, watched threads, appearance) intentionally remain.
     func resetAccountScopedState() {
+        clearWidgets()
         data = nil
         lastUpdated = nil
         errorMsg = nil

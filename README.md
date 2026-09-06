@@ -62,6 +62,29 @@ forum updates without keeping the game open.
   category for new threads, with per-thread notification control and 2/3/5-minute
   polling options.
 
+### Desktop widgets
+
+Three WidgetKit widgets are included for macOS 14+: **Player Status** (small/medium),
+**What's Next?** (medium/large, 3/5 upcoming events), and **Travel** (small/medium).
+They show the last snapshot supplied by the running MacTorn app; they do not call Torn
+or store the API key. Known deadlines use system countdowns with server clock correction.
+Data older than five minutes is marked **Out of date**; estimated landing is not treated
+as confirmation of arrival. Clicking a widget opens the Status or Travel view.
+
+**Signing requirement:** the existing ad-hoc build can compile and embed the widgets,
+but cannot authorize their shared App Group. It displays a signing setup message.
+To use widgets with real data, build both targets with a valid Apple signing identity:
+
+```bash
+make build-widgets DEVELOPMENT_TEAM=YOUR_TEAM_ID WIDGET_SIGN_IDENTITY="Apple Development"
+```
+
+This uses the macOS-only `TEAM_ID.com.mactorn.widgets` group in both targets. It does
+not require registering a `group.` identifier or uploading anything to Apple. An
+installed signing certificate for that team is required. Install the resulting app,
+launch and connect MacTorn, then right-click the desktop, choose **Edit Widgets**, and
+search for **MacTorn**. Keep MacTorn running for fresh data; macOS controls refresh timing.
+
 ### Quality of life
 
 - Automatic update checks against GitHub Releases.
@@ -109,8 +132,10 @@ or corrupted artifact; it does not replace Apple notarization.
 
 - The Torn API key is stored as a generic password in macOS Keychain and is migrated
   away from legacy plaintext preferences automatically.
-- Torn account snapshots remain in memory; persisted preferences contain configuration,
-  watch items, and notification state rather than account stats or money.
+- Full Torn account snapshots remain in memory. Signed widget builds additionally save
+  a minimal local display snapshot (bars, status, destination and timer deadlines) in
+  the shared App Group. It contains no API key, money, messages or account identifier,
+  and is cleared at app startup and when the account is reset or changed.
 - The App Sandbox grants only outbound network access, and Hardened Runtime is enabled.
 - Request URLs, logs, notifications, and copied diagnostics are sanitized to avoid
   exposing keys or Torn PII.

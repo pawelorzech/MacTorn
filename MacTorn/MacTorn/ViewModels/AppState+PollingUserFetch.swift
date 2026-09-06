@@ -752,6 +752,7 @@ extension AppState {
         errorMsg = nil
 
         manageLiveTimer()
+        publishWidgets()
         checkFeedbackPrompt()
 
         logger.info("Data updated, lastUpdated: \(self.lastUpdated?.description ?? "nil")")
@@ -844,6 +845,7 @@ extension AppState {
                 endpointGate.noteSuccess(for: "user.virus")
                 let wasProgramming = virus
                 virus = value
+                publishWidgets()
                 if let wasProgramming, value == nil || value?.itemID != wasProgramming.itemID,
                    notificationCoordinator.shouldFireOnce("virus.ready", epoch: "\(wasProgramming.until)") {
                     NotificationManager.shared.send(
@@ -932,6 +934,7 @@ extension AppState {
     /// Applies only sections that were decoded successfully. This makes partial v2
     /// responses monotonic: one bad sibling cannot erase the last-good value of another.
     func applyUserV2Payload(_ payload: UserV2Payload) {
+        defer { publishWidgets() }
         switch payload.organizedCrime {
         case .unchanged:
             break
