@@ -1,4 +1,5 @@
 import Foundation
+@testable import MacTorn
 
 /// Sample JSON responses for testing
 enum TornAPIFixtures {
@@ -325,6 +326,14 @@ enum TornAPIFixtures {
             "reward": reward, "reason": NSNull(), "quantity": 1,
             "is_anonymous": true, "valid_until": 1790000000
         ]
+    }
+
+    /// The same fixture decoded into a `Bounty`, for tests that exercise bounty logic
+    /// directly instead of driving a whole fetch.
+    static func decodedBounty(reward: Int = 2_500_000, targetId: Int = 2362436) -> Bounty? {
+        let payload = bountyOnMe(targetId: targetId, reward: reward)
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
+        return try? JSONDecoder().decode(Bounty.self, from: data)
     }
 
     // MARK: - API v2 Faction (ranked wars, news)

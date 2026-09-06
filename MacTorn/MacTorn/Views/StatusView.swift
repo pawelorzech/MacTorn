@@ -378,9 +378,8 @@ struct StatusView: View {
     
     // MARK: - Bounty Alert
     private var bountyBadge: some View {
-        let total = appState.bountiesOnMe.reduce(0) { $0 + $1.reward }
         let count = appState.bountiesOnMe.count
-        let amount = AppState.decimalFormatter.string(from: NSNumber(value: total)) ?? "\(total)"
+        let amount = AppState.bountyTotalAmount(appState.bountiesOnMe)
         return Button {
             BrowserManager.shared.open(URL(string: "https://www.torn.com/bounties.php")!)
         } label: {

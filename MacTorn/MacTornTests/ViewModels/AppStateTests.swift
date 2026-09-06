@@ -496,6 +496,93 @@ final class AppStateTests: XCTestCase {
                        "a valid sibling section must still update")
     }
 
+    // MARK: - Bounty notification dedup (#53)
+
+    /// The bug: `notifiedBountyKeys` was an in-memory `Set`, so it was empty at every
+    /// launch and every bounty still hanging on the player re-announced itself. Five open
+    /// bounties meant five banners, on every single start.
+    func testBountyNotification_dedupSurvivesRelaunch() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(
+            json: TornAPIFixtures.userV2Response(bounties: [TornAPIFixtures.bountyOnMe(reward: 3_000_000)])
+        )
+
+        appState.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let bounty = try XCTUnwrap(appState.bountiesOnMe.first)
+        let key = "bounty.\(bounty.id)"
+
+        // The fetch consumed the one-shot, so asking again must report "already fired".
+        XCTAssertFalse(
+            appState.notificationCoordinator.shouldFireOnce(key, epoch: bounty.id),
+            "the bounty should have announced itself during the fetch and latched"
+        )
+
+        // A second AppState over the SAME defaults is a relaunch. Before this fix the
+        // in-memory set started empty here and the bounty fired again.
+        let relaunched = AppState(session: MockNetworkSession(), defaults: testDefaults)
+        XCTAssertFalse(
+            relaunched.notificationCoordinator.shouldFireOnce(key, epoch: bounty.id),
+            "dedup must survive a relaunch — this is the whole of #53"
+        )
+    }
+
+    /// Several new bounties in one poll collapse into one summary banner rather than a
+    /// stack of them, the way `flushPendingPriceAlerts()` handles price alerts.
+    func testBountyBanner_aggregatesWhenMoreThanOneIsNew() throws {
+        let one = try XCTUnwrap(TornAPIFixtures.decodedBounty(reward: 1_000_000))
+        let two = try XCTUnwrap(TornAPIFixtures.decodedBounty(reward: 2_500_000, targetId: 999))
+
+        XCTAssertNil(AppState.bountyBanner(for: []), "nothing new means no banner at all")
+
+        // Amounts are compared through the same formatter rather than against a literal
+        // like "1,000,000". `AppState.decimalFormatter` has no explicit locale, so it
+        // follows `Locale.current` — on a machine with German regional settings it emits
+        // "1.000.000" and a hardcoded assertion fails for a reason that has nothing to do
+        // with the behaviour under test.
+        let expected = { (v: Int) in AppState.decimalFormatter.string(from: NSNumber(value: v)) ?? "\(v)" }
+
+        let single = try XCTUnwrap(AppState.bountyBanner(for: [one]))
+        XCTAssertEqual(single.title, "⚠️ Bounty on you")
+        XCTAssertTrue(
+            single.body.contains(expected(1_000_000)),
+            "single banner keeps the amount, got \(single.body)"
+        )
+
+        let summary = try XCTUnwrap(AppState.bountyBanner(for: [one, two]))
+        XCTAssertEqual(summary.title, "⚠️ 2 bounties on you")
+        XCTAssertTrue(
+            summary.body.contains(expected(3_500_000)),
+            "summary totals both rewards, got \(summary.body)"
+        )
+    }
+
+    /// Regression: rewards are untrusted API integers. Recording each bounty as seen
+    /// must not be followed by a process trap when their display-only total exceeds Int.
+    func testBountyBanner_handlesCombinedRewardsAboveIntMaxAfterDedup() throws {
+        let maximum = try XCTUnwrap(TornAPIFixtures.decodedBounty(reward: .max))
+        let one = try XCTUnwrap(TornAPIFixtures.decodedBounty(reward: 1, targetId: 999))
+        let fresh = [maximum, one]
+
+        for bounty in fresh {
+            XCTAssertTrue(
+                appState.notificationCoordinator.shouldFireOnce("bounty.\(bounty.id)", epoch: bounty.id)
+            )
+        }
+
+        let summary = try XCTUnwrap(AppState.bountyBanner(for: fresh))
+        let total = Decimal(Int.max) + 1
+        let totalText = AppState.decimalFormatter.string(from: NSDecimalNumber(decimal: total)) ?? "\(total)"
+        XCTAssertEqual(summary.body, "$\(totalText) total")
+
+        for bounty in fresh {
+            XCTAssertFalse(
+                appState.notificationCoordinator.shouldFireOnce("bounty.\(bounty.id)", epoch: bounty.id)
+            )
+        }
+    }
+
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
     func testFetchData_populatesRankedWars_fromV2Faction() async throws {
         appState.apiKey = "valid_key"
