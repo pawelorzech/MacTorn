@@ -68,27 +68,29 @@ struct TornWidgetView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(s.status).font(.caption).foregroundStyle(.secondary)
             if s.meters.isEmpty { Text("Bars unavailable").font(.caption) }
-            ForEach(s.meters) { meter in
-                HStack {
-                    Text(meter.name).frame(width: 44, alignment: .leading)
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(color(meter.name).opacity(0.12))
-                            Capsule().fill(color(meter.name).opacity(0.4))
-                                .frame(width: geometry.size.width * meter.fraction)
-                        }
-                        .overlay {
-                            if family == .systemSmall {
-                                Text("\(meter.current)/\(meter.maximum)")
-                                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                                    .monospacedDigit().minimumScaleFactor(0.8)
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 5) {
+                ForEach(s.meters) { meter in
+                    GridRow {
+                        Text(meter.name).frame(width: 44, alignment: .leading)
+                        GeometryReader { geometry in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(color(meter.name).opacity(0.12))
+                                Capsule().fill(color(meter.name).opacity(0.4))
+                                    .frame(width: geometry.size.width * meter.fraction)
                             }
-                        }
-                    }.frame(height: 13)
-                    if family != .systemSmall { Text("\(meter.current)/\(meter.maximum)").monospacedDigit() }
-                }.font(.caption2)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(meter.name), \(meter.current) of \(meter.maximum)")
+                            .overlay {
+                                if family == .systemSmall {
+                                    Text("\(meter.current)/\(meter.maximum)")
+                                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                                        .monospacedDigit().minimumScaleFactor(0.8)
+                                }
+                            }
+                        }.frame(height: 13)
+                        if family != .systemSmall { Text("\(meter.current)/\(meter.maximum)").monospacedDigit() }
+                    }.font(.caption2)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(meter.name), \(meter.current) of \(meter.maximum)")
+                }
             }
         }
     }
