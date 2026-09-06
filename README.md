@@ -80,8 +80,9 @@ make build-widgets DEVELOPMENT_TEAM=YOUR_TEAM_ID WIDGET_SIGN_IDENTITY="Apple Dev
 ```
 
 This uses the macOS-only `TEAM_ID.com.mactorn.widgets` group in both targets. It does
-not require registering a `group.` identifier or uploading anything to Apple. An
-installed signing certificate for that team is required. Install the resulting app,
+not require registering a `group.` identifier. A free Personal Team is sufficient
+for a local build. Sign in under Xcode → Settings → Accounts; automatic signing can create the development certificate. This was verified
+locally with both the app and extension signed by a Personal Team. Install the resulting app,
 launch and connect MacTorn, then right-click the desktop, choose **Edit Widgets**, and
 search for **MacTorn**. Keep MacTorn running for fresh data; macOS controls refresh timing.
 
