@@ -5,6 +5,20 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.13.2] — 2026-09-08 — safer API data handling
+
+### Fixed
+- Prevent crashes from out-of-range API numbers in battle stats, stock valuations,
+  bounty and property totals, progress indicators, ranked wars, and activity times.
+- Reject invalid stock prices and discard invalid cached prices so a fresh request
+  can recover. Unrepresentable totals display "Unavailable".
+- Handle overflowing chain, travel, and resource countdowns without terminating
+  the app. Valid values retain their existing calculations and formatting.
+
+### Tests
+- Add regression coverage for all nine numeric safety findings, including hostile
+  API payloads, cache recovery, and rendering the affected views.
+
 ## [1.13.1] — 2026-09-01 — the chain is alive
 
 ### Fixed

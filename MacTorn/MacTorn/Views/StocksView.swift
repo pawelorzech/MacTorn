@@ -68,7 +68,7 @@ struct StocksView: View {
                             }
                         }
 
-                        if totalCostBasis > 0 {
+                        if totalCostBasis == nil || (totalCostBasis ?? 0) > 0 {
                             Divider()
                             HStack {
                                 Text("Cost basis")
@@ -99,17 +99,16 @@ struct StocksView: View {
         .accessibilityIdentifier("account.stocks")
     }
 
-    private var totalMarketValue: Int {
-        appState.stocksData.reduce(0) { sum, stock in
-            sum + stock.marketValue(using: appState.stocksMetadata)
-        }
+    private var totalMarketValue: Int? {
+        NumericSafety.optionalTotal(appState.stocksData.map { $0.marketValue(using: appState.stocksMetadata) })
     }
 
-    private var totalCostBasis: Int {
-        appState.stocksData.reduce(0) { $0 + $1.totalCostBasis }
+    private var totalCostBasis: Int? {
+        NumericSafety.optionalTotal(appState.stocksData.map(\.totalCostBasis))
     }
 
-    private func formatMoney(_ amount: Int) -> String {
+    private func formatMoney(_ amount: Int?) -> String {
+        guard let amount else { return "Unavailable" }
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.currencySymbol = "$"

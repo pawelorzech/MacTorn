@@ -8,8 +8,10 @@ extension AppState {
     // MARK: - Stocks Metadata
 
     func loadStocksMetadataFromCache() {
-        guard let data = defaults.data(forKey: Self.stocksMetadataCacheKey),
-              let cached = try? JSONDecoder().decode([Int: StockMetadata].self, from: data) else {
+        guard let data = defaults.data(forKey: Self.stocksMetadataCacheKey) else { return }
+        guard let cached = try? JSONDecoder().decode([Int: StockMetadata].self, from: data) else {
+            defaults.removeObject(forKey: Self.stocksMetadataCacheKey)
+            stocksMetadata = [:]
             return
         }
         stocksMetadata = cached
@@ -106,6 +108,7 @@ extension AppState {
             } else {
                 price = 0
             }
+            guard StockMetadata.isValidPrice(price) else { return [:] }
             result[id] = StockMetadata(id: id, name: name, acronym: acronym, currentPrice: price)
         }
         return result

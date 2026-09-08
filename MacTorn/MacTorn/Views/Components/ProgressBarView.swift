@@ -9,8 +9,7 @@ struct ProgressBarView: View {
     let icon: String
     
     private var progress: Double {
-        guard maximum > 0 else { return 0 }
-        return min(1.0, Double(current) / Double(maximum))
+        NumericSafety.progress(current: current, maximum: maximum)
     }
     
     private var isFull: Bool {
