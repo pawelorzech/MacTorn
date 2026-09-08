@@ -564,14 +564,14 @@ struct BattleStats: Codable {
     let defense: Int
     let speed: Int
     let dexterity: Int
-    let total: Int
+    let total: Int?
     
     init(strength: Int = 0, defense: Int = 0, speed: Int = 0, dexterity: Int = 0) {
         self.strength = strength
         self.defense = defense
         self.speed = speed
         self.dexterity = dexterity
-        self.total = strength + defense + speed + dexterity
+        self.total = NumericSafety.total([strength, defense, speed, dexterity])
     }
     
     init(from decoder: Decoder) throws {
@@ -580,7 +580,11 @@ struct BattleStats: Codable {
         defense = (try? container.decode(Int.self, forKey: .defense)) ?? 0
         speed = (try? container.decode(Int.self, forKey: .speed)) ?? 0
         dexterity = (try? container.decode(Int.self, forKey: .dexterity)) ?? 0
-        total = (try? container.decode(Int.self, forKey: .total)) ?? (strength + defense + speed + dexterity)
+        if let supplied = try? container.decode(Int.self, forKey: .total) {
+            total = supplied >= 0 ? supplied : nil
+        } else {
+            total = NumericSafety.total([strength, defense, speed, dexterity])
+        }
     }
     
     enum CodingKeys: String, CodingKey {
@@ -701,7 +705,7 @@ struct AttackResult: Codable, Identifiable {
     /// `timestampEnded` is Torn's clock, so `now` should be too (`AppState.serverNow`).
     func timeAgo(at now: Date) -> String {
         guard let ts = timestampEnded else { return "" }
-        let diff = Int(now.timeIntervalSince1970) - ts
+        guard let diff = NumericSafety.elapsed(since: ts, now: Int(now.timeIntervalSince1970)) else { return "" }
         if diff < 3600 { return "\(diff / 60)m" }
         if diff < 86400 { return "\(diff / 3600)h" }
         return "\(diff / 86400)d"
@@ -795,8 +799,14 @@ struct FactionChain: Codable {
     /// and `bar.fulltime` are anchored. An inactive chain (no links or no time left) is
     /// returned unchanged so `timeout` stays 0 and `isActive` stays false.
     func resolvingExpiry(fetchedAt: Date, clock: ServerClock) -> FactionChain {
+        guard timeout >= 0 else {
+            return FactionChain(current: current, max: max, timeout: 0, cooldown: cooldown, end: nil)
+        }
         guard current > 0, timeout > 0 else { return self }
-        let expiry = end ?? clock.serverTimestamp(fetchedAt: fetchedAt, plus: timeout)
+        guard let expiry = end ?? clock.serverTimestamp(fetchedAt: fetchedAt, plus: timeout) else {
+            // An invalid duration is not an active countdown.
+            return FactionChain(current: current, max: max, timeout: 0, cooldown: cooldown, end: nil)
+        }
         return FactionChain(current: current, max: max, timeout: expiry, cooldown: cooldown, end: expiry)
     }
 }
@@ -1181,19 +1191,24 @@ struct StockHolding: Codable, Identifiable {
         }
     }
 
-    var totalCostBasis: Int {
+    var totalCostBasis: Int? {
         guard let txns = transactions else { return 0 }
-        return txns.reduce(0) { $0 + ($1.shares * $1.boughtPrice) }
+        return NumericSafety.optionalTotal(txns.map { NumericSafety.product($0.shares, $0.boughtPrice) })
     }
 
-    func marketValue(using metadata: [Int: StockMetadata]) -> Int {
+    func marketValue(using metadata: [Int: StockMetadata]) -> Int? {
         guard let meta = metadata[stockId] else { return 0 }
-        return Int(Double(totalShares) * meta.currentPrice)
+        guard totalShares >= 0, StockMetadata.isValidPrice(meta.currentPrice) else { return nil }
+        return NumericSafety.integerAmount(Double(totalShares) * meta.currentPrice)
     }
 }
 
 // MARK: - Stock Metadata (global lookup from torn/?selections=stocks)
 struct StockMetadata: Codable, Identifiable, Equatable {
+    static func isValidPrice(_ value: Double) -> Bool {
+        NumericSafety.integerAmount(value) != nil
+    }
+
     let id: Int
     let name: String
     let acronym: String
@@ -1218,7 +1233,10 @@ struct StockMetadata: Codable, Identifiable, Equatable {
         id = (try? container.decode(Int.self, forKey: .stockId)) ?? 0
         name = (try? container.decode(String.self, forKey: .name)) ?? ""
         acronym = (try? container.decode(String.self, forKey: .acronym)) ?? ""
-        currentPrice = (try? container.decode(Double.self, forKey: .currentPrice)) ?? 0
+        currentPrice = try container.decodeIfPresent(Double.self, forKey: .currentPrice) ?? 0
+        guard Self.isValidPrice(currentPrice) else {
+            throw DecodingError.dataCorruptedError(forKey: .currentPrice, in: container, debugDescription: "Invalid stock price")
+        }
     }
 
     func encode(to encoder: Encoder) throws {

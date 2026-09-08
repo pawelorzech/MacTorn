@@ -115,11 +115,11 @@ struct MoneyView: View {
 
                 // MARK: - Total Tracked
                 if let money = appState.moneyData {
-                    let propertyMarketTotal = appState.propertiesData?.reduce(0) { $0 + $1.marketprice } ?? 0
-                    let stocksMarketTotal = appState.stocksData.reduce(0) { sum, stock in
-                        sum + stock.marketValue(using: appState.stocksMetadata)
-                    }
-                    let totalTracked = money.cash + money.vault + money.cayman + propertyMarketTotal + stocksMarketTotal
+                    let propertyMarketTotal = NumericSafety.total((appState.propertiesData ?? []).map(\.marketprice))
+                    let stocksMarketTotal = NumericSafety.optionalTotal(appState.stocksData.map {
+                        $0.marketValue(using: appState.stocksMetadata)
+                    })
+                    let totalTracked = NumericSafety.optionalTotal([money.cash, money.vault, money.cayman, propertyMarketTotal, stocksMarketTotal])
 
                     HStack {
                         Image(systemName: "sum")
@@ -160,8 +160,9 @@ struct MoneyView: View {
         .accessibilityIdentifier("account.money")
     }
 
-    private func formatMoney(_ amount: Int) -> String {
-        TornFormatter.formatMoney(amount)
+    private func formatMoney(_ amount: Int?) -> String {
+        guard let amount else { return "Unavailable" }
+        return TornFormatter.formatMoney(amount)
     }
 
     private func openURL(_ urlString: String) {

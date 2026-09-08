@@ -48,7 +48,7 @@ struct EventsView: View {
     
     private func timeAgo(_ timestamp: Int) -> String {
         let now = serverClock.serverUnix(Date())
-        let diff = now - timestamp
+        guard let diff = NumericSafety.elapsed(since: timestamp, now: now) else { return "Unknown" }
         
         if diff < 60 {
             return "now"

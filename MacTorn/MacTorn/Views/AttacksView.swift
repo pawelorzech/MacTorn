@@ -40,11 +40,11 @@ struct AttacksView: View {
                             Text("Total:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text(formatStat(stats.total))
+                            Text(stats.total.map(formatStat) ?? "Unavailable")
                                 .font(.caption.bold())
                         }
                         .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Total: \(formatStat(stats.total))")
+                        .accessibilityLabel("Total: \(stats.total.map(formatStat) ?? "Unavailable")")
                         .uiTestID("uitest.battleStats.total")
                     } else if appState.lastUpdated == nil {
                         Text("Loading stats...")

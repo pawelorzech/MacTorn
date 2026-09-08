@@ -378,9 +378,9 @@ struct StatusView: View {
     
     // MARK: - Bounty Alert
     private var bountyBadge: some View {
-        let total = appState.bountiesOnMe.reduce(0) { $0 + $1.reward }
+        let total = NumericSafety.total(appState.bountiesOnMe.map(\.reward))
         let count = appState.bountiesOnMe.count
-        let amount = AppState.decimalFormatter.string(from: NSNumber(value: total)) ?? "\(total)"
+        let amount = total.map { "$" + (AppState.decimalFormatter.string(from: NSNumber(value: $0)) ?? String($0)) } ?? "Unavailable"
         return Button {
             BrowserManager.shared.open(URL(string: "https://www.torn.com/bounties.php")!)
         } label: {
@@ -390,7 +390,7 @@ struct StatusView: View {
                 Text(count == 1 ? "Bounty on you" : "\(count) bounties on you")
                     .font(.caption.bold())
                 Spacer()
-                Text("$\(amount)")
+                Text(amount)
                     .font(.caption.monospacedDigit())
                     .foregroundColor(.red)
             }

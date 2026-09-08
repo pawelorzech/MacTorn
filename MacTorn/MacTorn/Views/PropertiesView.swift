@@ -26,7 +26,7 @@ struct PropertiesView: View {
                             .font(.caption.bold())
                         Spacer()
                         if let properties = appState.propertiesData, !properties.isEmpty {
-                            Text("Market: \(formatMoney(properties.reduce(0) { $0 + $1.marketprice }))")
+                            Text("Market: \(formatMoney(NumericSafety.total(properties.map(\.marketprice))))")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
@@ -73,8 +73,9 @@ struct PropertiesView: View {
         }
     }
 
-    private func formatMoney(_ amount: Int) -> String {
-        TornFormatter.formatMoney(amount)
+    private func formatMoney(_ amount: Int?) -> String {
+        guard let amount else { return "Unavailable" }
+        return TornFormatter.formatMoney(amount)
     }
 }
 
@@ -192,7 +193,8 @@ struct PropertyCard: View {
         return parts.joined(separator: ", ")
     }
 
-    private func formatMoney(_ amount: Int) -> String {
-        TornFormatter.formatMoney(amount)
+    private func formatMoney(_ amount: Int?) -> String {
+        guard let amount else { return "Unavailable" }
+        return TornFormatter.formatMoney(amount)
     }
 }

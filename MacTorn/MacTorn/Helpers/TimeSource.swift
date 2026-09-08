@@ -56,7 +56,7 @@ struct ServerClock: Equatable, Sendable {
     static let jitterToleranceSeconds = 3
 
     init(offset: Int) {
-        self.offset = offset
+        self.offset = (-Self.maxPlausibleSkewSeconds...Self.maxPlausibleSkewSeconds).contains(offset) ? offset : 0
     }
 
     /// Derives the skew from a response anchor (`TornResponse.anchorTimestamp`) and the
@@ -106,14 +106,16 @@ struct ServerClock: Equatable, Sendable {
 
     /// Turns a duration measured from the moment the server generated a response
     /// (`travel.time_left`, `bar.fulltime`) into an absolute *server* timestamp.
-    func serverTimestamp(fetchedAt: Date, plus seconds: Int) -> Int {
-        serverUnix(fetchedAt) + seconds
+    func serverTimestamp(fetchedAt: Date, plus seconds: Int) -> Int? {
+        guard seconds >= 0 else { return nil }
+        let (timestamp, overflow) = serverUnix(fetchedAt).addingReportingOverflow(seconds)
+        return overflow || timestamp <= 0 ? nil : timestamp
     }
 
     /// The local instant at which a server timestamp occurs. Needed whenever something
     /// outside the app holds the deadline — a scheduled local notification fires on the
     /// Mac's clock, so a server-absolute arrival time has to be converted back.
     func localDate(forServerTimestamp timestamp: Int) -> Date {
-        Date(timeIntervalSince1970: TimeInterval(timestamp - offset))
+        Date(timeIntervalSince1970: TimeInterval(timestamp) - TimeInterval(offset))
     }
 }

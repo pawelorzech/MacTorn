@@ -40,16 +40,16 @@ struct FactionView: View {
                         // extrapolate from a stored duration.
                         if faction.chain.current > 0 {
                             TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                                let remaining = max(0, faction.chain.timeout
-                                    - appState.serverClock.serverUnix(context.date))
-                                let color = chainColor(remaining: remaining)
+                                let remaining = NumericSafety.remaining(until: faction.chain.timeout,
+                                    now: appState.serverClock.serverUnix(context.date))
+                                let color = chainColor(remaining: remaining ?? 0)
                                 HStack {
                                     Image(systemName: "link")
                                         .foregroundColor(color)
                                     Text("Chain: \(faction.chain.current)/\(faction.chain.max)")
                                         .font(.caption.bold())
                                     Spacer()
-                                    Text(formatTime(remaining))
+                                    Text(remaining.map(formatTime) ?? "Unavailable")
                                         .font(.caption.monospacedDigit())
                                         .foregroundColor(color)
                                 }
@@ -207,8 +207,8 @@ struct OC2StatusView: View {
             // tick `now` against it every second — no drift vs the in-game OC panel.
             TimelineView(.periodic(from: .now, by: 1.0)) { context in
                 let now = serverClock.serverUnix(context.date)
-                let ready = oc.readyAt.map { $0 <= now } ?? false
-                let remaining = max(0, (oc.readyAt ?? 0) - now)
+                let remaining = NumericSafety.remaining(until: oc.readyAt, now: now)
+                let ready = remaining == 0
 
                 HStack {
                     Text(oc.name)
@@ -222,10 +222,12 @@ struct OC2StatusView: View {
                             .padding(.vertical, 2)
                             .background(Color.green)
                             .cornerRadius(4)
-                    } else if remaining > 0 {
+                    } else if let remaining, remaining > 0 {
                         Text(formatTime(remaining))
                             .font(.caption.monospacedDigit())
                             .foregroundColor(.orange)
+                    } else {
+                        Text("Unavailable").font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
@@ -304,9 +306,9 @@ struct RankedWarView: View {
                     .foregroundColor(.secondary)
             }
 
-            if let mine, let opp {
-                let lead = mine.score - opp.score
-                let progressValue = min(max(lead, 0), war.target)
+            if let mine, let opp,
+               let lead = NumericSafety.scoreLead(mine: mine.score, opponent: opp.score) {
+                let progressValue = min(max(lead, 0), max(0, war.target))
                 let progressTotal = max(war.target, 1)
                 HStack {
                     Text(mine.name)
@@ -333,6 +335,7 @@ struct RankedWarView: View {
                     .font(.caption2)
                     .foregroundColor(lead >= 0 ? .green : .red)
             } else {
+                Text("Lead unavailable").font(.caption).foregroundStyle(.secondary)
                 ForEach(war.factions) { f in
                     HStack {
                         Text(f.name).font(.caption).lineLimit(1)
