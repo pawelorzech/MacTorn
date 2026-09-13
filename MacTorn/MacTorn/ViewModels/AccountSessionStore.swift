@@ -17,6 +17,8 @@ enum AccountTaskKind: Hashable, Sendable {
     case userSnapshot
     case watchlist
     case forum
+    case stockMetadata
+    case itemCatalog
 }
 
 protocol APIKeyStoring: Sendable {

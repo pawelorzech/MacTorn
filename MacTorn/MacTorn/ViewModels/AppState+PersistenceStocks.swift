@@ -18,68 +18,71 @@ extension AppState {
     }
 
     func fetchStocksMetadata() async {
-        guard !apiKey.isEmpty, let url = endpointURL("torn.stocks", key: apiKey) else { return }
-        guard reserveRequest("torn.stocks") else { return }
-        let startTime = Date()
-        do {
-            let request = TornAPIClient.request(for: url)
-            let (data, _) = try await session.data(for: request)
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let apiError = tornAPIError(in: json) {
-                await MainActor.run {
-                    self.handleAPIError(apiError, for: "torn.stocks")
-                    self.recordStocksMetadataFailure()
-                    self.recordHealth(
-                        "torn.stocks",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: data.count,
-                        errorClass: apiError.classification.rawValue
-                    )
-                }
-                return
-            }
-            let parsed = AppState.parseStocksMetadata(from: data, logger: logger)
-            guard !parsed.isEmpty else {
-                await MainActor.run {
-                    self.recordStocksMetadataFailure()
-                    self.recordHealth("torn.stocks", outcome: .error, since: startTime, bytes: data.count, errorClass: "malformedResponse")
-                }
-                return
-            }
-            await MainActor.run {
-                self.stocksMetadata = parsed
-                if let encoded = try? JSONEncoder().encode(parsed) {
-                    defaults.set(encoded, forKey: Self.stocksMetadataCacheKey)
-                }
-                self.stocksFailureCount = 0
-                self.stocksNextRetryAfter = nil
-                self.endpointGate.noteSuccess(for: "torn.stocks")
-                self.recordHealth("torn.stocks", outcome: .ok, since: startTime, bytes: data.count)
-                self.logger.info("Stocks metadata loaded: \(parsed.count) stocks")
-            }
-        } catch {
-            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
-            await MainActor.run {
-                self.recordStocksMetadataFailure()
-                self.recordHealth(
-                    "torn.stocks",
-                    outcome: mapped?.classification == .offline ? .offline : .error,
-                    since: startTime,
-                    bytes: 0,
-                    errorClass: mapped?.classification.rawValue ?? "transport"
-                )
-            }
-            logger.error("Failed to fetch stocks metadata: \(String(describing: type(of: error)))")
+        await fetchReferenceData("torn.stocks", cacheKey: Self.stocksMetadataCacheKey,
+                                 parse: { Self.parseStocksMetadata(json: $0, logger: $1) },
+                                 onFailure: recordStocksMetadataFailure) { parsed in
+            stocksMetadata = parsed
+            stocksFailureCount = 0
+            stocksNextRetryAfter = nil
         }
     }
+
+    /// One in-flight request per reference source, with publication owned by its account
+    /// and token. An old completion cannot clear or mutate a newer request.
+    func fetchReferenceData<Value: Codable & Sendable>(
+        _ endpointID: String,
+        cacheKey: String,
+        parse: @escaping @Sendable ([String: Any], Logger) -> [Int: Value],
+        onFailure: () -> Void,
+        publish: ([Int: Value]) -> Void
+    ) async {
+        guard !Task.isCancelled, referenceFetchIDs[endpointID] == nil,
+              !apiKey.isEmpty, let url = endpointURL(endpointID),
+              reserveRequest(endpointID) else { return }
+        let identity = accountSession.identity
+        let token = UUID()
+        referenceFetchIDs[endpointID] = token
+        defer {
+            if referenceFetchIDs[endpointID] == token { referenceFetchIDs[endpointID] = nil }
+        }
+        let started = Date()
+        do {
+            let result: TornServiceResult<([Int: Value], Data)> = try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
+                let parsed = parse(json, Self.appReferenceLogger)
+                guard !parsed.isEmpty, let encoded = try? JSONEncoder().encode(parsed) else { return nil }
+                return (parsed, encoded)
+            }
+            guard !Task.isCancelled, accountSession.isCurrent(identity),
+                  referenceFetchIDs[endpointID] == token else { return }
+            if case .success(let (parsed, encoded), let bytes) = result {
+                defaults.set(encoded, forKey: cacheKey)
+                publish(parsed)
+                endpointGate.noteSuccess(for: endpointID)
+                recordHealth(endpointID, outcome: .ok, since: started, bytes: bytes)
+            } else {
+                onFailure()
+                recordServiceFailure(result, for: endpointID, since: started)
+            }
+        } catch {
+            guard !Task.isCancelled, !(error is CancellationError),
+                  accountSession.isCurrent(identity), referenceFetchIDs[endpointID] == token,
+                  (error as? URLError)?.code != .cancelled else { return }
+            onFailure()
+            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
+            recordHealth(endpointID, outcome: mapped?.classification == .offline ? .offline : .error,
+                         since: started, bytes: 0, errorClass: mapped?.classification.rawValue ?? "transport")
+        }
+    }
+
+    nonisolated private static let appReferenceLogger =
+        Logger(subsystem: TornConstants.logSubsystem, category: "ReferenceData")
 
     @MainActor
     func recordStocksMetadataFailure() {
         stocksFailureCount += 1
         let idx = min(stocksFailureCount - 1, Self.stocksBackoffLadder.count - 1)
         let delay = Self.stocksBackoffLadder[idx]
-        stocksNextRetryAfter = Date().addingTimeInterval(delay)
+        stocksNextRetryAfter = time.now.addingTimeInterval(delay)
     }
 
     nonisolated static func parseStocksMetadata(from data: Data, logger: Logger) -> [Int: StockMetadata] {
@@ -87,6 +90,10 @@ extension AppState {
             logger.error("Stocks metadata: failed to parse JSON")
             return [:]
         }
+        return parseStocksMetadata(json: json, logger: logger)
+    }
+
+    nonisolated private static func parseStocksMetadata(json: [String: Any], logger: Logger) -> [Int: StockMetadata] {
         if tornAPIErrorMessage(in: json) != nil {
             logger.error("Stocks metadata API returned an error envelope")
             return [:]

@@ -5,6 +5,30 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.14.0] - 2026-09-13 - leaner polling and safer account changes
+
+### Changed
+- Share network transport and error handling across user, faction, forum, and reference metadata services.
+- Decode user sections directly and move additional JSON work off the main actor.
+- Coalesce widget publications and stop idle countdown timers.
+- Remove unused production code while preserving the independent endpoint test oracle.
+
+### Fixed
+- Prevent cancelled and previous-account metadata requests from changing the current account.
+- Deduplicate concurrent metadata requests without losing ownership of newer requests.
+- Preserve optional data recovery after a malformed primary user snapshot.
+- Let window content adapt to smaller heights while keeping the menu panel size.
+
+### Included
+- Widget extension integration previously on main but absent from v1.13.2.
+  Live widget data requires Apple signing and App Groups; the public ad-hoc build
+  does not provide this capability and is not notarized.
+
+### Validation
+- 749 unit tests passed, including 11 new tests; existing tests and assertions retained.
+- All 14 UI scenarios passed across the suite and one unchanged retry after an external window obstruction.
+- Critical coverage gate, static analysis, and universal Release verification passed.
+
 ## [1.13.2] — 2026-09-08 — safer API data handling
 
 ### Fixed

@@ -56,6 +56,7 @@ struct MacTornApp: App {
         .handlesExternalEvents(matching: ["mactorn"])
         MenuBarExtra {
             ContentView()
+                .frame(height: 640)
                 .environment(appState)
                 .environment(navigation)
                 .environment(\.reduceTransparency,

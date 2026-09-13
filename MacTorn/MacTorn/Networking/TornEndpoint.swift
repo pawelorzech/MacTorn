@@ -14,7 +14,7 @@ import Foundation
 //                                 asserts is byte-identical to README's table
 //
 // AppState builds every request through the registry (ISA backlog A-02, done). The
-// legacy `TornAPI` builders in `TornModels.swift` are no longer a code path; they stay
+// legacy `TornAPI` builders in the test target are no longer a production code path; they stay
 // as the independent second implementation that `TornEndpointTests` compares each
 // registry URL against, so a change to one and not the other fails the build.
 

@@ -166,7 +166,8 @@ struct ContentView: View {
                 SentryOptInPromptView(isPresented: $showSentryOptIn)
             }
         }
-        .frame(width: 320, height: 640, alignment: .top)
+        .frame(width: 320)
+        .frame(maxHeight: .infinity, alignment: .top)
         .environment(\.openMacTornSettings, OpenMacTornSettingsAction {
             navigation.showSettings()
         })

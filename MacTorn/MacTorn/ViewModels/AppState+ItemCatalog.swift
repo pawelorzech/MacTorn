@@ -44,68 +44,36 @@ extension AppState {
         if itemCatalog.isEmpty { return true }
         let fetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
         guard fetchedAt > 0 else { return true }
-        return Date().timeIntervalSince1970 - fetchedAt > Self.itemCatalogMaxAge
+        return time.now.timeIntervalSince1970 - fetchedAt > Self.itemCatalogMaxAge
     }
 
     /// Refreshes the catalogue if it is stale and nothing is holding it back. Safe to call
     /// on every poll — it does nothing almost every time.
     func triggerItemCatalogFetchIfNeeded() {
         guard itemCatalogIsStale, !apiKey.isEmpty else { return }
-        if let retryAfter = itemCatalogNextRetryAfter, Date() < retryAfter { return }
-        guard itemCatalogTask == nil else { return }
-        itemCatalogTask = Task { await self.fetchItemCatalog() }
+        if let retryAfter = itemCatalogNextRetryAfter, time.now < retryAfter { return }
+        guard referenceFetchIDs["torn.items"] == nil else { return }
+        accountSession.startTask(.itemCatalog) { await self.fetchItemCatalog() }
     }
 
     // MARK: Fetch
 
     func fetchItemCatalog() async {
-        defer { itemCatalogTask = nil }
-        guard let url = endpointURL("torn.items"), reserveRequest("torn.items") else { return }
-        let startTime = Date()
-
-        do {
-            let (data, _) = try await session.data(for: TornAPIClient.request(for: url))
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let apiError = tornAPIError(in: json) {
-                handleAPIError(apiError, for: "torn.items")
-                recordItemCatalogFailure()
-                recordHealth("torn.items", outcome: .error, since: startTime,
-                             bytes: data.count, errorClass: apiError.classification.rawValue)
-                return
-            }
-            let parsed = AppState.parseItemCatalog(from: data, logger: logger)
-            guard !parsed.isEmpty else {
-                recordItemCatalogFailure()
-                recordHealth("torn.items", outcome: .error, since: startTime,
-                             bytes: data.count, errorClass: "malformedResponse")
-                return
-            }
+        await fetchReferenceData("torn.items", cacheKey: Self.itemCatalogCacheKey,
+                                 parse: { Self.parseItemCatalog(json: $0, logger: $1) },
+                                 onFailure: recordItemCatalogFailure) { parsed in
             itemCatalog = parsed
-            if let encoded = try? JSONEncoder().encode(parsed) {
-                defaults.set(encoded, forKey: Self.itemCatalogCacheKey)
-                defaults.set(Date().timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
-            }
+            defaults.set(time.now.timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
             itemCatalogFailureCount = 0
             itemCatalogNextRetryAfter = nil
-            endpointGate.noteSuccess(for: "torn.items")
             backfillWatchlistNames()
-            recordHealth("torn.items", outcome: .ok, since: startTime, bytes: data.count)
-            logger.info("Item catalog loaded: \(parsed.count) items")
-        } catch {
-            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
-            recordItemCatalogFailure()
-            recordHealth("torn.items",
-                         outcome: mapped?.classification == .offline ? .offline : .error,
-                         since: startTime, bytes: 0,
-                         errorClass: mapped?.classification.rawValue ?? "transport")
-            logger.error("Failed to fetch item catalog: \(String(describing: type(of: error)))")
         }
     }
 
     func recordItemCatalogFailure() {
         itemCatalogFailureCount += 1
         let index = min(itemCatalogFailureCount - 1, Self.itemCatalogBackoffLadder.count - 1)
-        itemCatalogNextRetryAfter = Date().addingTimeInterval(Self.itemCatalogBackoffLadder[index])
+        itemCatalogNextRetryAfter = time.now.addingTimeInterval(Self.itemCatalogBackoffLadder[index])
     }
 
     /// Most entries MacTorn will keep from one catalog response.
@@ -130,6 +98,10 @@ extension AppState {
             logger.error("Item catalog: failed to parse JSON")
             return [:]
         }
+        return parseItemCatalog(json: json, logger: logger)
+    }
+
+    nonisolated private static func parseItemCatalog(json: [String: Any], logger: Logger) -> [Int: String] {
         if tornAPIErrorMessage(in: json) != nil {
             logger.error("Item catalog API returned an error envelope")
             return [:]

@@ -2,6 +2,50 @@ import XCTest
 @testable import MacTorn
 
 final class UserSnapshotServiceTests: XCTestCase {
+    func testAllOptionalUserSourcesRejectHTTPErrorBodies() async throws {
+        for status in [403, 404, 429, 500] {
+            let mock = MockNetworkSession()
+            mock.setHTTPError(statusCode: status)
+            mock.mockData = Data(#"{"events":{},"virus":null,"notifications":{"messages":1,"events":0,"awards":0,"competition":0}}"#.utf8)
+            let service = UserSnapshotService(session: mock)
+            let url = URL(string: "https://api.torn.com/v2/user")!
+            guard case .httpError(let activity, _) = try await service.loadActivity(url),
+                  case .httpError(let user, _) = try await service.loadUserV2(url),
+                  case .httpError(let virus, _) = try await service.loadVirus(url) else {
+                return XCTFail("HTTP errors must not publish plausible bodies")
+            }
+            XCTAssertEqual(activity, status)
+            XCTAssertEqual(user, status)
+            XCTAssertEqual(virus, status)
+        }
+    }
+
+    @MainActor
+    func testSharedTransportDecodesOutsideMainThread() async throws {
+        let mock = MockNetworkSession(mockData: Data("{}".utf8))
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com")!, session: mock) { _, _ in
+            !Thread.isMainThread
+        }
+        guard case .success(let offMain, let bytes) = result else { return XCTFail("Expected decoded result") }
+        XCTAssertTrue(offMain)
+        XCTAssertEqual(bytes, 2)
+    }
+
+    func testSharedTransportRejectsNonHTTPResponseAndMalformedJSON() async throws {
+        let url = URL(string: "https://api.torn.com")!
+        let mock = MockNetworkSession(mockData: Data("{}".utf8),
+                                      mockResponse: URLResponse(url: url, mimeType: nil, expectedContentLength: 2, textEncodingName: nil))
+        let nonHTTP = try await TornAPIClient.loadJSON(from: url, session: mock) { _, _ in true }
+        guard case .httpError(let status, let bytes) = nonHTTP else { return XCTFail("Expected HTTP boundary failure") }
+        XCTAssertEqual(status, 0)
+        XCTAssertEqual(bytes, 2)
+        mock.mockResponse = nil
+        mock.mockData = Data("broken".utf8)
+        let malformed = try await TornAPIClient.loadJSON(from: url, session: mock) { _, _ in true }
+        guard case .malformed(let count) = malformed else { return XCTFail("Expected malformed JSON") }
+        XCTAssertEqual(count, 6)
+    }
+
     func testParsesValidSnapshotIntoTypedPayload() async throws {
         let service = UserSnapshotService(session: MockNetworkSession())
         var json = TornAPIFixtures.validFullResponse()

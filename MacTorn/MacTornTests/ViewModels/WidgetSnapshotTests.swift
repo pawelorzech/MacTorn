@@ -3,6 +3,48 @@ import XCTest
 
 @MainActor
 final class WidgetSnapshotTests: XCTestCase {
+    func testPublicationCoalescesBurstAndKeepsFreshness() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = AppState(defaults: .createMockDefaults())
+        app.widgetStore = WidgetSnapshotStore(directory: directory)
+        app.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
+        var reloads = 0
+        app.reloadWidgetTimelines = { reloads += 1 }
+        app.publishWidgets()
+        app.publishWidgets()
+        app.lastFetchTime = Date(timeIntervalSince1970: 1000)
+        app.publishWidgets()
+        await app.widgetPublicationTask?.value
+        XCTAssertEqual(reloads, 1)
+        XCTAssertEqual(app.widgetStore?.read()?.updatedAt, app.lastFetchTime)
+
+        app.lastFetchTime = Date(timeIntervalSince1970: 1100)
+        app.publishWidgets()
+        await app.widgetPublicationTask?.value
+        XCTAssertEqual(reloads, 2, "Unchanged values must still publish a fresh fetch timestamp")
+        XCTAssertEqual(app.widgetStore?.read()?.updatedAt, app.lastFetchTime)
+    }
+
+    func testAccountResetCancelsQueuedWidgetWrite() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let app = AppState(defaults: .createMockDefaults())
+        app.widgetStore = WidgetSnapshotStore(directory: directory)
+        app.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
+        var reloads = 0
+        app.reloadWidgetTimelines = { reloads += 1 }
+        app.publishWidgets()
+        let pending = app.widgetPublicationTask
+        app.resetAccountScopedState()
+        await pending?.value
+        XCTAssertNil(app.widgetStore?.read())
+        XCTAssertNil(app.widgetPublicationTask)
+        XCTAssertEqual(reloads, 1, "Only the immediate reset should reload widgets")
+    }
+
     func testTimersConvertServerClockToLocalDates() throws {
         let clock = MutableTimeSource(Date(timeIntervalSince1970: 1000))
         let app = AppState(defaults: .createMockDefaults(), time: clock)

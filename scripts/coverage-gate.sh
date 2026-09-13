@@ -20,6 +20,7 @@ TARGET="MacTorn.app"
 # Reliability-critical modules gated at >= THRESHOLD. Matched by basename so the check is
 # path-agnostic. Add the key-validation module here when Etap C (ISC-16) lands.
 CRITICAL_FILES=(
+  "NetworkSession.swift"
   "TornAPIError.swift"
   "TornEndpoint.swift"
   "PollingCoordinator.swift"

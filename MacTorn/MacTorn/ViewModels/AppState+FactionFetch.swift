@@ -1,6 +1,23 @@
 import Foundation
 
 extension AppState {
+    func recordServiceFailure<Value>(_ result: TornServiceResult<Value>, for endpointID: String, since start: Date) {
+        switch result {
+        case .success:
+            return
+        case .apiError(let error, let bytes):
+            handleAPIError(error, for: endpointID)
+            recordHealth(endpointID, outcome: .error, since: start, bytes: bytes,
+                         errorClass: error.classification.rawValue)
+        case .httpError(let status, let bytes):
+            recordHealth(endpointID, outcome: .error, since: start, bytes: bytes,
+                         errorClass: "http\(status)")
+        case .malformed(let bytes):
+            recordHealth(endpointID, outcome: .error, since: start, bytes: bytes,
+                         errorClass: "malformedResponse")
+        }
+    }
+
     private static var factionV2MinInterval: TimeInterval { 300 }
 
     // MARK: - Fetch Faction Data
@@ -14,8 +31,7 @@ extension AppState {
             let result = try await factionService.loadBasic(from: url)
             guard isCurrentAccount(apiKey, generation: generation) else { return }
 
-            switch result {
-            case .success(let payload, let responseBytes):
+            if case .success(let payload, let responseBytes) = result {
                 endpointGate.noteSuccess(for: "faction.basic")
                 // Torn's `chain.timeout` is seconds remaining, not a timestamp. Resolve it
                 // to an absolute server-clock expiry here, at the boundary, so every
@@ -29,35 +45,8 @@ extension AppState {
                 checkChainNotification()
                 logger.info("Faction data fetched")
                 recordHealth("faction.basic", outcome: .ok, since: startTime, bytes: responseBytes)
-
-            case .apiError(let apiError, let responseBytes):
-                handleAPIError(apiError, for: "faction.basic")
-                recordHealth(
-                    "faction.basic",
-                    outcome: .error,
-                    since: startTime,
-                    bytes: responseBytes,
-                    errorClass: apiError.classification.rawValue
-                )
-                logger.warning("Faction API error class: \(apiError.classification.rawValue)")
-
-            case .httpError(let statusCode, let responseBytes):
-                recordHealth(
-                    "faction.basic",
-                    outcome: .error,
-                    since: startTime,
-                    bytes: responseBytes,
-                    errorClass: "http\(statusCode)"
-                )
-
-            case .malformed(let responseBytes):
-                recordHealth(
-                    "faction.basic",
-                    outcome: .error,
-                    since: startTime,
-                    bytes: responseBytes,
-                    errorClass: "malformedResponse"
-                )
+            } else {
+                recordServiceFailure(result, for: "faction.basic", since: startTime)
             }
         } catch {
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
@@ -91,8 +80,7 @@ extension AppState {
                 let result = try await factionService.loadWars(from: url)
                 guard isCurrentAccount(apiKey, generation: generation) else { return }
 
-                switch result {
-                case .success(let wars, let responseBytes):
+                if case .success(let wars, let responseBytes) = result {
                     endpointGate.noteSuccess(for: "faction.rankedwars")
                     factionService.publishWars(wars)
                     recordHealth(
@@ -101,37 +89,8 @@ extension AppState {
                         since: startTime,
                         bytes: responseBytes
                     )
-
-                case .apiError(let apiError, let responseBytes):
-                    handleAPIError(apiError, for: "faction.rankedwars")
-                    recordHealth(
-                        "faction.rankedwars",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: responseBytes,
-                        errorClass: apiError.classification.rawValue
-                    )
-                    logger.warning(
-                        "Faction v2 (rankedwars) API error class: \(apiError.classification.rawValue)"
-                    )
-
-                case .httpError(let statusCode, let responseBytes):
-                    recordHealth(
-                        "faction.rankedwars",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: responseBytes,
-                        errorClass: "http\(statusCode)"
-                    )
-
-                case .malformed(let responseBytes):
-                    recordHealth(
-                        "faction.rankedwars",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: responseBytes,
-                        errorClass: "malformedResponse"
-                    )
+                } else {
+                    recordServiceFailure(result, for: "faction.rankedwars", since: startTime)
                 }
             } catch {
                 let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
@@ -159,42 +118,12 @@ extension AppState {
                 let result = try await factionService.loadNews(from: url)
                 guard isCurrentAccount(apiKey, generation: generation) else { return }
 
-                switch result {
-                case .success(let news, let responseBytes):
+                if case .success(let news, let responseBytes) = result {
                     endpointGate.noteSuccess(for: "faction.news")
                     factionService.publishNews(news)
                     recordHealth("faction.news", outcome: .ok, since: startTime, bytes: responseBytes)
-
-                case .apiError(let apiError, let responseBytes):
-                    handleAPIError(apiError, for: "faction.news")
-                    recordHealth(
-                        "faction.news",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: responseBytes,
-                        errorClass: apiError.classification.rawValue
-                    )
-                    logger.warning(
-                        "Faction v2 (news) API error class: \(apiError.classification.rawValue)"
-                    )
-
-                case .httpError(let statusCode, let responseBytes):
-                    recordHealth(
-                        "faction.news",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: responseBytes,
-                        errorClass: "http\(statusCode)"
-                    )
-
-                case .malformed(let responseBytes):
-                    recordHealth(
-                        "faction.news",
-                        outcome: .error,
-                        since: startTime,
-                        bytes: responseBytes,
-                        errorClass: "malformedResponse"
-                    )
+                } else {
+                    recordServiceFailure(result, for: "faction.news", since: startTime)
                 }
             } catch {
                 let mapped = (error as? URLError).map(TornAPIError.from(urlError:))

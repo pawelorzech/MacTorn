@@ -11,11 +11,7 @@ struct UserHTTPResponse {
     let statusCode: Int
 }
 
-enum UserServiceResult<Value> {
-    case success(Value, responseBytes: Int)
-    case apiError(TornAPIError, responseBytes: Int)
-    case malformed(responseBytes: Int)
-}
+typealias UserServiceResult<Value> = TornServiceResult<Value>
 
 struct UserSnapshotPayload {
     let snapshot: TornResponse
@@ -142,30 +138,20 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     }
 
     func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload> {
-        let response = try await load(url)
-        let data = response.data
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .malformed(responseBytes: data.count)
-        }
-        if let apiError = tornAPIError(in: json) {
-            return .apiError(apiError, responseBytes: data.count)
-        }
-
-        let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
-        // `TornResponse.recentEvents` / `.unreadMessagesCount` are non-optional and
-        // collapse a *missing* key to `[]` / `0`. `UserActivityPayload` must instead
-        // preserve the absent-vs-zero distinction the way `parseAttacks(_:)` does:
-        // `AppState.fetchActivityData` only overwrites its state when the payload field
-        // is non-nil, so a 200 body that simply omits `events` must report `nil` rather
-        // than silently emptying the user's event list (issue #84).
-        return .success(
-            UserActivityPayload(
+        try await TornAPIClient.loadJSON(from: url, session: session) { data, json in
+            let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
+            // `TornResponse.recentEvents` / `.unreadMessagesCount` are non-optional and
+            // collapse a *missing* key to `[]` / `0`. `UserActivityPayload` must instead
+            // preserve the absent-vs-zero distinction the way `parseAttacks(_:)` does:
+            // `AppState.fetchActivityData` only overwrites its state when the payload field
+            // is non-nil, so a 200 body that simply omits `events` must report `nil` rather
+            // than silently emptying the user's event list (issue #84).
+            return UserActivityPayload(
                 events: Self.isPresent(json["events"]) ? decoded?.recentEvents : nil,
                 unreadMessages: Self.isPresent(json["messages"]) ? decoded?.unreadMessagesCount : nil,
                 recentAttacks: Self.parseAttacks(json)
-            ),
-            responseBytes: data.count
-        )
+            )
+        }
     }
 
     /// True when a top-level JSON key is present and not `null`.
@@ -175,105 +161,36 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     }
 
     func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
-        let response = try await load(url)
-        let data = response.data
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .malformed(responseBytes: data.count)
+        try await TornAPIClient.loadJSON(from: url, session: session) { data, _ in
+            let selections = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "selections" })?.value
+            let requested = selections.map { Set($0.split(separator: ",").map(String.init)) }
+                ?? Set(TornEndpointRegistry.endpoint(id: "user.v2")?.selections ?? [])
+            let decoder = JSONDecoder()
+            decoder.userInfo[requestedUserSelectionsKey] = requested
+            return try? decoder.decode(UserV2Payload.self, from: data)
         }
-        if let apiError = tornAPIError(in: json) {
-            return .apiError(apiError, responseBytes: data.count)
-        }
-
-        let requested: Set<String> = {
-            guard let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "selections" })?.value else {
-                return Set(TornEndpointRegistry.endpoint(id: "user.v2")?.selections ?? [])
-            }
-            return Set(value.split(separator: ",").map(String.init))
-        }()
-        let decoder = JSONDecoder()
-        var malformed: [String] = []
-
-        func decodeSection<Value: Decodable>(
-            _ type: Value.Type,
-            selection: String,
-            key: String
-        ) -> UserV2Section<Value> {
-            guard requested.contains(selection) else { return .unchanged }
-            guard let raw = json[key], !(raw is NSNull),
-                  JSONSerialization.isValidJSONObject(raw),
-                  let encoded = try? JSONSerialization.data(withJSONObject: raw),
-                  let value = try? decoder.decode(type, from: encoded) else {
-                malformed.append(selection)
-                return .unchanged
-            }
-            return .replace(value)
-        }
-
-        let organizedCrime: UserV2Section<OrganizedCrime2?>
-        if !requested.contains("organizedcrime") {
-            organizedCrime = .unchanged
-        } else if !json.keys.contains("organizedCrime") {
-            malformed.append("organizedcrime")
-            organizedCrime = .unchanged
-        } else if json["organizedCrime"] is NSNull {
-            organizedCrime = .replace(nil)
-        } else if let raw = json["organizedCrime"], JSONSerialization.isValidJSONObject(raw),
-                  let encoded = try? JSONSerialization.data(withJSONObject: raw),
-                  let value = try? decoder.decode(OrganizedCrime2.self, from: encoded) {
-            organizedCrime = .replace(value)
-        } else {
-            malformed.append("organizedcrime")
-            organizedCrime = .unchanged
-        }
-
-        let refills = decodeSection(Refills.self, selection: "refills", key: "refills")
-        let education = decodeSection(EducationStatus.self, selection: "education", key: "education")
-        let bounties = decodeSection([Bounty].self, selection: "bounties", key: "bounties")
-        let notifications = decodeSection(
-            TornNotifications.self,
-            selection: "notifications",
-            key: "notifications"
-        )
-
-        return .success(
-            UserV2Payload(
-                organizedCrime: organizedCrime,
-                refills: refills,
-                education: education,
-                bounties: bounties,
-                notifications: notifications,
-                malformedSelections: malformed
-            ),
-            responseBytes: data.count
-        )
     }
 
     /// Decodes `/v2/user/virus`. An explicit `null` is the normal "not programming"
     /// answer. Missing or malformed data is a contract failure and must preserve the
     /// previous value rather than falsely announcing that a virus finished.
     func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
-        let response = try await load(url)
-        let data = response.data
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .malformed(responseBytes: data.count)
+        try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
+            guard json.keys.contains("virus") else {
+                return nil
+            }
+            if json["virus"] is NSNull {
+                return .some(nil)
+            }
+            guard let dictionary = json["virus"] as? [String: Any],
+                  let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
+                  let virus = try? JSONDecoder().decode(VirusProgramming.self, from: encoded)
+            else {
+                return nil
+            }
+            return .some(virus)
         }
-        if let apiError = tornAPIError(in: json) {
-            return .apiError(apiError, responseBytes: data.count)
-        }
-        guard json.keys.contains("virus") else {
-            return .malformed(responseBytes: data.count)
-        }
-        if json["virus"] is NSNull {
-            return .success(nil, responseBytes: data.count)
-        }
-        guard let dictionary = json["virus"] as? [String: Any],
-              let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
-              let virus = try? JSONDecoder().decode(VirusProgramming.self, from: encoded)
-        else {
-            return .malformed(responseBytes: data.count)
-        }
-        return .success(virus, responseBytes: data.count)
     }
 
     private static func parseMoney(_ json: [String: Any]) -> MoneyData {
@@ -388,5 +305,46 @@ enum UserSnapshotContract {
         default:
             return false
         }
+    }
+}
+
+private let requestedUserSelectionsKey = CodingUserInfoKey(rawValue: "requestedUserSelections")!
+
+extension UserV2Payload: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case organizedCrime, refills, education, bounties, notifications
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let requested = decoder.userInfo[requestedUserSelectionsKey] as? Set<String> ?? []
+        var malformed: [String] = []
+
+        func section<Value: Decodable>(_ type: Value.Type, key: CodingKeys) -> UserV2Section<Value> {
+            let selection = key.rawValue.lowercased()
+            guard requested.contains(selection) else { return .unchanged }
+            guard let value = try? container.decode(type, forKey: key) else {
+                malformed.append(selection)
+                return .unchanged
+            }
+            return .replace(value)
+        }
+
+        if !requested.contains("organizedcrime") {
+            organizedCrime = .unchanged
+        } else if container.contains(.organizedCrime),
+                  (try? container.decodeNil(forKey: .organizedCrime)) == true {
+            organizedCrime = .replace(nil)
+        } else {
+            switch section(OrganizedCrime2.self, key: .organizedCrime) {
+            case .unchanged: organizedCrime = .unchanged
+            case .replace(let value): organizedCrime = .replace(value)
+            }
+        }
+        refills = section(Refills.self, key: .refills)
+        education = section(EducationStatus.self, key: .education)
+        bounties = section([Bounty].self, key: .bounties)
+        notifications = section(TornNotifications.self, key: .notifications)
+        malformedSelections = malformed
     }
 }

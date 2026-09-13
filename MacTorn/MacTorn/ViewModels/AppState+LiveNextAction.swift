@@ -12,15 +12,17 @@ extension AppState {
             if liveTimerCancellable == nil {
                 startLiveTimer()
             }
-        } else {
-            stopLiveTimer()
         }
     }
 
     private var shouldRunLiveTimer: Bool {
         guard let data = data else { return false }
-        if let travel = data.travel, travel.isTraveling { return true }
-        if let status = data.status, status.isInHospital || status.isInJail { return true }
+        if let travel = data.travel, travel.isTraveling {
+            return travel.remainingSeconds(from: serverFetchTime, now: serverNow) > 0
+        }
+        if let status = data.status, status.isInHospital || status.isInJail {
+            return status.timeRemaining(at: serverNow) > 0
+        }
         if let ends = cooldownEnds, ends.soonestActive(at: serverNow) != nil { return true }
         return false
     }
@@ -35,18 +37,15 @@ extension AppState {
             }
     }
 
-    private func stopLiveTimer() {
-        liveTimerCancellable?.cancel()
-        liveTimerCancellable = nil
-        travelSecondsRemaining = 0
-        menuBarDisplay = computeMenuBarDisplay()
-    }
-
-    private func tick() {
+    func tick() {
         updateTravelSecondsRemaining()
         let next = computeMenuBarDisplay()
         if next != menuBarDisplay {
             menuBarDisplay = next
+        }
+        if !shouldRunLiveTimer {
+            liveTimerCancellable?.cancel()
+            liveTimerCancellable = nil
         }
     }
 

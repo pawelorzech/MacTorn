@@ -110,8 +110,9 @@ extension AppState {
 
     private func triggerStocksMetadataFetchIfNeeded() {
         guard stocksMetadata.isEmpty, !apiKey.isEmpty else { return }
-        if let nextRetry = stocksNextRetryAfter, Date() < nextRetry { return }
-        Task { await self.fetchStocksMetadata() }
+        if let nextRetry = stocksNextRetryAfter, time.now < nextRetry { return }
+        guard referenceFetchIDs["torn.stocks"] == nil else { return }
+        accountSession.startTask(.stockMetadata) { await self.fetchStocksMetadata() }
     }
 
     /// Slow-changing reference data, refreshed alongside the stock names. Both are cheap
@@ -569,56 +570,29 @@ extension AppState {
 
                 switch response.statusCode {
                 case 200:
-                    if let topLevel = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        if let apiError = tornAPIError(in: topLevel) {
-                            self.recordHealth(
-                                "user.fast",
-                                outcome: .error,
-                                since: startTime,
-                                bytes: data.count,
-                                errorClass: apiError.classification.rawValue
-                            )
-                            self.handleAPIError(apiError, for: "user.fast")
-                            self.logger.warning("User API error class: \(apiError.classification.rawValue)")
-                            return
-                        }
-                        let keys = topLevel.keys.sorted().joined(separator: ",")
-                        self.logger.debug("API response: \(data.count) bytes, keys=[\(keys)]")
-                    } else {
-                        self.logger.debug("API response: \(data.count) bytes (non-JSON or unparseable)")
-                    }
+                    let publication = await self.parseDataInBackground(
+                        data: data, receivedAt: receivedAt, since: startTime,
+                        apiKey: requestedKey, generation: generation
+                    )
+                    guard publication != .rejected else { return }
 
                     async let factionResult: Void = self.fetchFactionData(apiKey: requestedKey, generation: generation)
                     async let userV2Result: Void = self.fetchUserV2Data(apiKey: requestedKey, generation: generation)
                     async let factionV2Result: Void = self.fetchFactionV2Data(apiKey: requestedKey, generation: generation)
                     async let activityResult: Void = self.fetchActivityData(apiKey: requestedKey, generation: generation)
                     async let virusResult: Void = self.fetchVirusIfNeeded(apiKey: requestedKey, generation: generation)
-                    let parsed = await self.parseDataInBackground(
-                        data: data,
-                        receivedAt: receivedAt,
-                        apiKey: requestedKey,
-                        generation: generation
-                    )
                     await factionResult
                     await userV2Result
                     await factionV2Result
                     await activityResult
                     await virusResult
 
-                    guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
-                    if parsed {
+                    guard !Task.isCancelled,
+                          self.isCurrentAccount(requestedKey, generation: generation) else { return }
+                    if publication == .applied {
                         self.endpointGate.noteSuccess(for: "user.fast")
-                        self.logger.info("Data fetch completed successfully")
                         self.recordHealth("user.fast", outcome: .ok, since: startTime, bytes: data.count)
                         self.triggerReferenceDataFetchIfNeeded()
-                    } else {
-                        self.recordHealth(
-                            "user.fast",
-                            outcome: .error,
-                            since: startTime,
-                            bytes: data.count,
-                            errorClass: "malformedResponse"
-                        )
                     }
 
                 // NOTE: 403/404 is deliberately NOT treated as a bad key. Torn reports a
@@ -673,13 +647,16 @@ extension AppState {
         return true
     }
 
+    private enum SnapshotPublication { case applied, malformed, rejected }
+
     /// - Parameter receivedAt: the local instant the transport returned these bytes,
     ///   sampled by the caller *before* this decode (issue #46). It is both the anchor
     ///   for the Mac↔Torn offset and the value stored as `lastFetchTime`.
     private func parseDataInBackground(data: Data,
                                        receivedAt: Date,
+                                       since startTime: Date,
                                        apiKey: String,
-                                       generation: UInt) async -> Bool {
+                                       generation: UInt) async -> SnapshotPublication {
         let requestedSelections =
             TornEndpointRegistry.endpoint(id: "user.fast")?.selections ?? []
         let grantedSelections = keyInfo?.selections.user
@@ -689,18 +666,25 @@ extension AppState {
             grantedSelections: grantedSelections
         )
 
-        guard isCurrentAccount(apiKey, generation: generation) else { return false }
+        guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return .rejected }
         let payload: UserSnapshotPayload
         switch result {
         case .success(let value, _):
             payload = value
-        case .apiError(let apiError, _):
+        case .apiError(let apiError, let bytes):
+            recordHealth("user.fast", outcome: .error, since: startTime, bytes: bytes,
+                         errorClass: apiError.classification.rawValue)
             handleAPIError(apiError, for: "user.fast")
-            return false
-        case .malformed:
+            return .rejected
+        case .httpError(let status, _):
+            errorMsg = "HTTP Error: \(status)"
+            return .rejected
+        case .malformed(let bytes):
+            recordHealth("user.fast", outcome: .error, since: startTime, bytes: bytes,
+                         errorClass: "malformedResponse")
             errorMsg = "Failed to decode user data"
             logger.error("Data error: Failed to decode user data")
-            return false
+            return .malformed
         }
 
         let decoded = payload.snapshot
@@ -756,7 +740,7 @@ extension AppState {
         checkFeedbackPrompt()
 
         logger.info("Data updated, lastUpdated: \(self.lastUpdated?.description ?? "nil")")
-        return true
+        return .applied
     }
 
     // MARK: - Fetch Row-Based Activity Data
@@ -777,33 +761,14 @@ extension AppState {
             let result = try await userSnapshotService.loadActivity(url)
             guard isCurrentAccount(apiKey, generation: generation) else { return }
 
-            switch result {
-            case .success(let payload, let responseBytes):
+            if case .success(let payload, let responseBytes) = result {
                 endpointGate.noteSuccess(for: "user.activity")
                 if let events = payload.events { activityEvents = events }
                 if let unread = payload.unreadMessages { unreadMessages = unread }
                 if let attacks = payload.recentAttacks { recentAttacks = attacks }
                 recordHealth("user.activity", outcome: .ok, since: startTime, bytes: responseBytes)
-
-            case .apiError(let apiError, let responseBytes):
-                handleAPIError(apiError, for: "user.activity")
-                recordHealth(
-                    "user.activity",
-                    outcome: .error,
-                    since: startTime,
-                    bytes: responseBytes,
-                    errorClass: apiError.classification.rawValue
-                )
-                logger.warning("Activity API error class: \(apiError.classification.rawValue)")
-
-            case .malformed(let responseBytes):
-                recordHealth(
-                    "user.activity",
-                    outcome: .error,
-                    since: startTime,
-                    bytes: responseBytes,
-                    errorClass: "malformedResponse"
-                )
+            } else {
+                recordServiceFailure(result, for: "user.activity", since: startTime)
             }
         } catch {
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
@@ -840,8 +805,7 @@ extension AppState {
             let result = try await userSnapshotService.loadVirus(url)
             guard isCurrentAccount(apiKey, generation: generation) else { return }
 
-            switch result {
-            case .success(let value, let responseBytes):
+            if case .success(let value, let responseBytes) = result {
                 endpointGate.noteSuccess(for: "user.virus")
                 let wasProgramming = virus
                 virus = value
@@ -855,15 +819,8 @@ extension AppState {
                     )
                 }
                 recordHealth("user.virus", outcome: .ok, since: startTime, bytes: responseBytes)
-
-            case .apiError(let apiError, let responseBytes):
-                handleAPIError(apiError, for: "user.virus")
-                recordHealth("user.virus", outcome: .error, since: startTime,
-                             bytes: responseBytes, errorClass: apiError.classification.rawValue)
-
-            case .malformed(let responseBytes):
-                recordHealth("user.virus", outcome: .error, since: startTime,
-                             bytes: responseBytes, errorClass: "malformedResponse")
+            } else {
+                recordServiceFailure(result, for: "user.virus", since: startTime)
             }
         } catch {
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
@@ -885,8 +842,7 @@ extension AppState {
             let result = try await userSnapshotService.loadUserV2(url)
             guard isCurrentAccount(apiKey, generation: generation) else { return }
 
-            switch result {
-            case .success(let payload, let responseBytes):
+            if case .success(let payload, let responseBytes) = result {
                 endpointGate.noteSuccess(for: "user.v2")
                 applyUserV2Payload(payload)
                 logger.info("User v2 data fetched")
@@ -897,26 +853,8 @@ extension AppState {
                     bytes: responseBytes,
                     errorClass: payload.malformedSelections.isEmpty ? nil : "malformedResponse"
                 )
-
-            case .apiError(let apiError, let responseBytes):
-                handleAPIError(apiError, for: "user.v2")
-                recordHealth(
-                    "user.v2",
-                    outcome: .error,
-                    since: startTime,
-                    bytes: responseBytes,
-                    errorClass: apiError.classification.rawValue
-                )
-                logger.warning("User v2 API error class: \(apiError.classification.rawValue)")
-
-            case .malformed(let responseBytes):
-                recordHealth(
-                    "user.v2",
-                    outcome: .error,
-                    since: startTime,
-                    bytes: responseBytes,
-                    errorClass: "malformedResponse"
-                )
+            } else {
+                recordServiceFailure(result, for: "user.v2", since: startTime)
             }
         } catch {
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))

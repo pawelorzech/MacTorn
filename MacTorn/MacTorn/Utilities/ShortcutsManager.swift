@@ -132,18 +132,6 @@ class ShortcutsManager: ObservableObject {
         }
     }
     
-    func updateShortcut(_ shortcut: KeyboardShortcut) {
-        if let index = shortcuts.firstIndex(where: { $0.id == shortcut.id }) {
-            shortcuts[index] = shortcut
-            saveShortcuts()
-        }
-    }
-    
-    func resetToDefaults() {
-        shortcuts = KeyboardShortcut.defaults
-        saveShortcuts()
-    }
-    
     func openURL(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }
         BrowserManager.shared.open(url)

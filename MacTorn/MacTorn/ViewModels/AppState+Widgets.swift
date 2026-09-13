@@ -26,17 +26,31 @@ extension AppState {
     }
 
     func publishWidgets() {
+        guard widgetStore != nil, data != nil, widgetPublicationTask == nil else { return }
+        // Batch a burst of endpoint completions without waiting for slower siblings.
+        widgetPublicationTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: 100_000_000) }
+            catch { return }
+            guard !Task.isCancelled, let self else { return }
+            self.widgetPublicationTask = nil
+            self.writeWidgetSnapshot()
+        }
+    }
+
+    private func writeWidgetSnapshot() {
         guard let widgetStore, let snapshot = makeWidgetSnapshot() else { return }
         do {
             try widgetStore.write(snapshot)
-            WidgetCenter.shared.reloadAllTimelines()
+            reloadWidgetTimelines()
         } catch { logger.error("Could not save widget display data") }
     }
 
     func clearWidgets() {
+        widgetPublicationTask?.cancel()
+        widgetPublicationTask = nil
         guard let widgetStore else { return }
         do { try widgetStore.clear() }
         catch { logger.error("Could not clear widget display data") }
-        WidgetCenter.shared.reloadAllTimelines()
+        reloadWidgetTimelines()
     }
 }

@@ -6,12 +6,7 @@ struct ForumThreadSnapshot: Equatable {
     let postCount: Int
 }
 
-enum ForumThreadResult {
-    case success(ForumThreadSnapshot, responseBytes: Int)
-    case apiError(TornAPIError, responseBytes: Int)
-    case httpError(statusCode: Int, responseBytes: Int)
-    case malformed(responseBytes: Int)
-}
+typealias ForumThreadResult = TornServiceResult<ForumThreadSnapshot>
 
 struct ForumNewPosts: Equatable {
     let threadID: Int
@@ -25,12 +20,7 @@ struct ForumCategoryThread: Equatable, Identifiable, Sendable {
     let title: String
 }
 
-enum ForumCategoryResult {
-    case success([ForumCategoryThread], responseBytes: Int)
-    case apiError(TornAPIError, responseBytes: Int)
-    case httpError(statusCode: Int, responseBytes: Int)
-    case malformed(responseBytes: Int)
-}
+typealias ForumCategoryResult = TornServiceResult<[ForumCategoryThread]>
 
 @MainActor
 protocol ForumWatchServicing: AnyObject {
@@ -237,38 +227,25 @@ final class ForumWatchService: ForumWatchServicing {
     }
 
     func fetchCategoryThreads(from url: URL) async throws -> ForumCategoryResult {
-        let request = TornAPIClient.request(for: url)
-        let (data, response) = try await session.data(for: request)
-
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            return .httpError(
-                statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                responseBytes: data.count
-            )
+        try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
+            guard let rows = json["threads"] as? [[String: Any]] else {
+                return nil
+            }
+            // A row without an id cannot be tracked, and one without a title cannot be
+            // announced. Skip those rather than failing the whole listing over one bad row.
+            // `limit=20` is a request parameter, and what a remote server honours is not a
+            // guarantee. Left uncapped, a listing longer than `maximumSeenThreadIds` turns the
+            // page and the eviction cap into a loop: each poll writes the page to the front,
+            // evicts the tail, and re-announces that tail on the next one, permanently. The
+            // eviction policy is sound but assumes page size is far below the cap, and nothing
+            // else enforces that.
+            let threads: [ForumCategoryThread] = rows.prefix(ForumWatchService.maximumThreadsPerListing).compactMap { row in
+                guard let id = row["id"] as? Int else { return nil }
+                return ForumCategoryThread(id: id,
+                                           title: ForumWatchService.boundedTitle(row["title"]) ?? "Untitled thread")
+            }
+            return threads
         }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .malformed(responseBytes: data.count)
-        }
-        if let apiError = tornAPIError(in: json) {
-            return .apiError(apiError, responseBytes: data.count)
-        }
-        guard let rows = json["threads"] as? [[String: Any]] else {
-            return .malformed(responseBytes: data.count)
-        }
-        // A row without an id cannot be tracked, and one without a title cannot be
-        // announced. Skip those rather than failing the whole listing over one bad row.
-        // `limit=20` is a request parameter, and what a remote server honours is not a
-        // guarantee. Left uncapped, a listing longer than `maximumSeenThreadIds` turns the
-        // page and the eviction cap into a loop: each poll writes the page to the front,
-        // evicts the tail, and re-announces that tail on the next one, permanently. The
-        // eviction policy is sound but assumes page size is far below the cap, and nothing
-        // else enforces that.
-        let threads: [ForumCategoryThread] = rows.prefix(ForumWatchService.maximumThreadsPerListing).compactMap { row in
-            guard let id = row["id"] as? Int else { return nil }
-            return ForumCategoryThread(id: id,
-                                       title: ForumWatchService.boundedTitle(row["title"]) ?? "Untitled thread")
-        }
-        return .success(threads, responseBytes: data.count)
     }
 
     /// Most rows MacTorn will accept from one category listing.
@@ -276,7 +253,7 @@ final class ForumWatchService: ForumWatchServicing {
     /// Generous against the 20 rows the request asks for, and far below
     /// `ForumWatchConfig.maximumSeenThreadIds` so the seen list can always hold several
     /// pages. That gap is what stops eviction and the page from oscillating.
-    static let maximumThreadsPerListing = 100
+    nonisolated static let maximumThreadsPerListing = 100
 
     /// A forum title, trimmed and length-capped, or nil when there is nothing usable.
     ///
@@ -286,7 +263,7 @@ final class ForumWatchService: ForumWatchServicing {
     /// protected by `threadsLoadFailed`, a blob too large to decode is deliberately never
     /// overwritten, so the bloat sticks instead of healing. Same rule the item catalog and
     /// typed watchlist names already follow.
-    static func boundedTitle(_ raw: Any?) -> String? {
+    nonisolated static func boundedTitle(_ raw: Any?) -> String? {
         guard let text = raw as? String else { return nil }
         let cleaned = String(
             text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -296,43 +273,27 @@ final class ForumWatchService: ForumWatchServicing {
     }
 
     func fetchThread(from url: URL) async throws -> ForumThreadResult {
-        let request = TornAPIClient.request(for: url)
-        let (data, response) = try await session.data(for: request)
-
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            return .httpError(
-                statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                responseBytes: data.count
+        try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
+            let thread = json["thread"] as? [String: Any] ?? json
+            // The post count is the whole point of this call, so a response without a
+            // usable one is malformed — not a success with `postCount: 0`. Accepting the
+            // zero wrote it into `lastKnownPostCount`, and the `previousCount > 0` guard in
+            // `apply` then swallowed the next real increase: the "new posts" alert was lost
+            // for good and the counter silently jumped (audit finding D-02).
+            let postCount: Int
+            if let count = thread["posts"] as? Int {
+                postCount = count
+            } else if let text = thread["posts"] as? String, let count = Int(text) {
+                postCount = count   // tolerate a stringified number
+            } else {
+                return nil
+            }
+            // Likewise, never overwrite a good title with a placeholder.
+            let title = ForumWatchService.boundedTitle(thread["title"])
+            return ForumThreadSnapshot(
+                    title: title ?? "Unknown",
+                    postCount: postCount
             )
         }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .malformed(responseBytes: data.count)
-        }
-        if let apiError = tornAPIError(in: json) {
-            return .apiError(apiError, responseBytes: data.count)
-        }
-        let thread = json["thread"] as? [String: Any] ?? json
-        // The post count is the whole point of this call, so a response without a
-        // usable one is malformed — not a success with `postCount: 0`. Accepting the
-        // zero wrote it into `lastKnownPostCount`, and the `previousCount > 0` guard in
-        // `apply` then swallowed the next real increase: the "new posts" alert was lost
-        // for good and the counter silently jumped (audit finding D-02).
-        let postCount: Int
-        if let count = thread["posts"] as? Int {
-            postCount = count
-        } else if let text = thread["posts"] as? String, let count = Int(text) {
-            postCount = count   // tolerate a stringified number
-        } else {
-            return .malformed(responseBytes: data.count)
-        }
-        // Likewise, never overwrite a good title with a placeholder.
-        let title = ForumWatchService.boundedTitle(thread["title"])
-        return .success(
-            ForumThreadSnapshot(
-                title: title ?? "Unknown",
-                postCount: postCount
-            ),
-            responseBytes: data.count
-        )
     }
 }

@@ -1,6 +1,145 @@
 import XCTest
 @testable import MacTorn
 
+// Independent URL oracle, intentionally not derived from the production registry.
+// MARK: - API Configuration
+enum TornAPI {
+    static let baseURL = "https://api.torn.com/user/"
+    static let factionURL = "https://api.torn.com/faction/"
+    static let marketURL = "https://api.torn.com/market/"
+    static let tornURL = "https://api.torn.com/torn/"
+
+    /// Fast poll: only point-in-time selections. Deliberately EXCLUDES the row-based
+    /// cloud categories (`events`, `attacks`) — those count against Torn's 50,000-
+    /// rows/day-per-category cap (error code 14 "Daily read limit reached"), which is
+    /// a separate limit from the 100-requests/minute rate limit. Pulling a full
+    /// `events`/`attacks` page every 30 s, 24/7 blows past 50k rows/day ~5×. Row-based
+    /// data now lives on `activityURL` below (slow cadence + hard row limit).
+    static let selections = "basic,bars,cooldowns,travel,profile,money,battlestats,properties,stocks"
+
+    /// Slow poll: the row-based / display-only categories. Capped with `limit` and
+    /// fetched every few minutes so each category stays well under 50k rows/day.
+    ///
+    /// `messages` used to be here purely to produce one unread count, at the price of 25
+    /// rows a call against the daily cap. That count now comes free from the point-in-time
+    /// `notifications` selection on the v2 poll, so this call carries a third fewer rows.
+    static let activitySelections = "events,attacks"
+    /// Rows per category per activity call. The UI only ever shows a handful, so 25 is
+    /// generous; at a 5-minute cadence that is 25 × 288 ≈ 7,200 rows/day/category.
+    static let activityRowLimit = 25
+
+    /// Build a Torn API URL with proper percent-encoding via URLComponents/URLQueryItem.
+    /// String interpolation (the previous approach) would silently mangle keys that
+    /// happen to contain `&`, `=`, or whitespace if pasted with junk.
+    ///
+    /// Every request carries `comment=MacTorn` (see `TornAPIClient.comment`), so the
+    /// key owner can tell MacTorn's traffic apart from every other tool sharing their
+    /// key in Torn's own key log.
+    private static func build(_ urlString: String, query: [String: String]) -> URL? {
+        guard var comps = URLComponents(string: urlString) else { return nil }
+        var query = query
+        query["comment"] = TornAPIClient.comment
+        comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+            .sorted { $0.name < $1.name }
+        return comps.url
+    }
+
+    static func url(for apiKey: String) -> URL? {
+        build(baseURL, query: ["selections": selections, "key": apiKey])
+    }
+
+    /// Row-based activity call (events + messages + attacks) with a hard `limit` so
+    /// it can never exhaust the 50k-rows/day category budget. Polled slowly.
+    static func activityURL(for apiKey: String) -> URL? {
+        build(baseURL, query: ["selections": activitySelections,
+                               "limit": String(activityRowLimit),
+                               "key": apiKey])
+    }
+
+    static func factionURL(for apiKey: String) -> URL? {
+        // `crimes` dropped: OC 1.0 is dead (frozen history + Int/Bool decode break).
+        // The player's own OC 2.0 comes from `userV2URL` instead.
+        build(factionURL, query: ["selections": "basic,chain", "key": apiKey])
+    }
+
+    /// Combined API v2 `user` call. v2 accepts multiple selections in one request
+    /// (verified live), so a single call covers organized crime, refills, education
+    /// and bounties. v1 selections stay on the frozen v1 endpoints above.
+    static let userV2Selections = "organizedcrime,refills,education,bounties,notifications"
+    static func userV2URL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/user",
+              query: ["selections": userV2Selections, "key": apiKey])
+    }
+
+    /// Official key-info endpoint (Etap C). Returns the key's access level/type, the
+    /// owner's IDs, and the per-category selections the key can read — the authoritative
+    /// source for onboarding validation. Called on demand only (never polled).
+    static func keyInfoURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/key/info", query: ["key": apiKey])
+    }
+
+    /// Ranked wars use a dedicated v2 path (the combined `?selections=rankedwars,news`
+    /// call returns code 21 because `news` requires a `cat` parameter).
+    static func factionRankedWarsURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/faction/rankedwars", query: ["key": apiKey])
+    }
+
+    /// Faction news requires a category (`cat`); `main` is the general feed.
+    /// `news` is a row-based cloud category (counts against the 50k-rows/day cap),
+    /// so cap it with `limit` on top of the slow poll cadence.
+    static func factionNewsURL(for apiKey: String, cat: String = "main") -> URL? {
+        build("https://api.torn.com/v2/faction/news",
+              query: ["cat": cat, "limit": String(activityRowLimit), "key": apiKey])
+    }
+
+    /// Item-market listings for one item.
+    ///
+    /// `bazaar` used to ride along here. It no longer carries prices: on API v2 the
+    /// per-item `bazaar` selection returns a *directory* of the player bazaars stocking
+    /// the item — `{id, name, is_open, weekly_customers}` — with no cost or quantity
+    /// anywhere in the shape (`BazaarResponseSpecialized` in Torn's OpenAPI document,
+    /// spec 6.13.1). Torn does not expose per-item bazaar prices on v2 at all, so asking
+    /// for it bought a larger payload and nothing else.
+    static func marketURL(itemId: Int, apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/market/\(itemId)/itemmarket",
+              query: ["key": apiKey])
+    }
+
+    /// Virus programming has no combinable `/user` selection — it is absent from Torn's
+    /// `UserSelectionName` enum — so it needs its own path. Read rarely: the response is an
+    /// absolute finish timestamp, and the countdown between reads is derived locally.
+    static func userVirusURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/user/virus", query: ["key": apiKey])
+    }
+
+    /// The global item catalog. `cat` is deliberately omitted: the default category is
+    /// "All", which is the only one that returns every item, and its details are stripped —
+    /// exactly the trade MacTorn wants, since it needs names and nothing else.
+    static func tornItemsURL(for apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/torn/items", query: ["key": apiKey])
+    }
+
+    static func tornStocksURL(for apiKey: String) -> URL? {
+        build(tornURL, query: ["selections": "stocks", "key": apiKey])
+    }
+
+    static func forumThreadURL(threadId: Int, apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/forum/\(threadId)/thread", query: ["key": apiKey])
+    }
+
+    /// Unlike a single thread, a category listing accepts `limit` — and defaults to 100.
+    /// Sending the cap explicitly is what makes the row accounting honest: without it the
+    /// registry booked 20 rows for a call that was pulling five times that.
+    static func forumCategoryThreadsURL(categoryId: Int, apiKey: String) -> URL? {
+        build("https://api.torn.com/v2/forum/\(categoryId)/threads",
+              query: ["key": apiKey, "limit": String(forumCategoryRowLimit)])
+    }
+
+    /// Threads fetched per category check. The alert only needs to spot ids it has not
+    /// seen, and a busy category turns over far fewer than 20 threads in a poll interval.
+    static let forumCategoryRowLimit = 20
+}
+
 /// Etap A — the typed registry must stay in lockstep with the legacy `TornAPI`
 /// builders (single source of truth) and its metadata must be internally consistent.
 final class TornEndpointTests: XCTestCase {

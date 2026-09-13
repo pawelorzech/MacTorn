@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import SwiftUI
 import Observation
+import WidgetKit
 import os.log
 
 /// Runs an async operation over a snapshot of inputs without ever having more than
@@ -125,6 +126,8 @@ class AppState {
 
     // MARK: - Observable State
     var widgetStore: WidgetSnapshotStore?
+    @ObservationIgnored var widgetPublicationTask: Task<Void, Never>?
+    @ObservationIgnored var reloadWidgetTimelines: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
     var data: TornResponse?
     var lastUpdated: Date?
     var errorMsg: String?
@@ -306,7 +309,7 @@ class AppState {
     // Item catalog backoff + in-flight guard, mirroring the stocks metadata ladder above.
     var itemCatalogFailureCount = 0
     var itemCatalogNextRetryAfter: Date?
-    @ObservationIgnored var itemCatalogTask: Task<Void, Never>?
+    @ObservationIgnored var referenceFetchIDs: [String: UUID] = [:]
 
     /// Non-secret persistence store. Injected so tests get an isolated
     /// `UserDefaults` suite instead of the process-wide `.standard`, which under
@@ -482,8 +485,9 @@ class AppState {
         // half a refresh interval returned early and never established the ordering.
         timerCancellable?.cancel()
         timerCancellable = nil
-        itemCatalogTask?.cancel()
-        itemCatalogTask = nil
+        accountSession.cancelTask(.stockMetadata)
+        accountSession.cancelTask(.itemCatalog)
+        referenceFetchIDs.removeAll()
         keyResumeTask?.cancel()
         keyResumeTask = nil
         liveTimerCancellable?.cancel()
@@ -505,5 +509,4 @@ class AppState {
 // MARK: - Errors
 enum APIError: Error {
     case invalidResponse
-    case invalidData
 }
