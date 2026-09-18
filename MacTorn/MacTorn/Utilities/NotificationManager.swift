@@ -22,6 +22,7 @@ enum NotificationType: String {
     case bountyOnMe
     case forumNewPosts
     case factionNewThread
+    case ocOpportunity, stockBonus, tradeChanged
     case virusReady
 
     var url: URL {
@@ -42,7 +43,11 @@ enum NotificationType: String {
             return URL(string: "https://www.torn.com/hospitalview.php")!
         case .priceAlert:
             return URL(string: "https://www.torn.com/page.php?sid=ItemMarket")!
-        case .ocReady:
+        case .stockBonus:
+            return URL(string: "https://www.torn.com/page.php?sid=stocks")!
+        case .tradeChanged:
+            return URL(string: "https://www.torn.com/trade.php")!
+        case .ocReady, .ocOpportunity:
             return URL(string: "https://www.torn.com/factions.php?step=your#/tab=crimes")!
         case .bountyOnMe:
             return URL(string: "https://www.torn.com/bounties.php")!

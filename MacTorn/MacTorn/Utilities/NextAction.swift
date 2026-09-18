@@ -11,7 +11,7 @@ import Foundation
 enum NextActionCategory: String, CaseIterable, Codable, Sendable {
     case energy, nerve, happy, life
     case drug, medical, booster
-    case travel, hospital, jail, education, organizedCrime, chain, refills, virus
+    case travel, hospital, jail, education, organizedCrime, chain, refills, virus, stockBonus
 
     var label: String {
         switch self {
@@ -29,6 +29,7 @@ enum NextActionCategory: String, CaseIterable, Codable, Sendable {
         case .organizedCrime: return "OC ready"
         case .chain: return "Chain timeout"
         case .refills: return "Refills available"
+        case .stockBonus: return "Stock bonus ready"
         case .virus: return "Virus ready"
         }
     }
@@ -49,6 +50,7 @@ enum NextActionCategory: String, CaseIterable, Codable, Sendable {
         case .organizedCrime: return "person.3.sequence.fill"
         case .chain: return "link"
         case .refills: return "arrow.clockwise.circle.fill"
+        case .stockBonus: return "gift.fill"
         case .virus: return "externaldrive.badge.checkmark"
         }
     }
@@ -88,6 +90,7 @@ struct NextActionSnapshot: Equatable {
     var ocReadyAt: Int?
     var chainTimeoutAt: Int?
     var virusFinishesAt: Int?
+    var stockBonusReady = false
     var refillsAvailable: Bool
 
     init(now: Int) {
@@ -124,6 +127,10 @@ struct NextActionEngine {
 
         if s.refillsAvailable && !hidden.contains(.refills) {
             out.append(NextEvent(category: .refills, title: NextActionCategory.refills.label, fireAt: s.now, eta: 0))
+        }
+
+        if s.stockBonusReady && !hidden.contains(.stockBonus) {
+            out.append(NextEvent(category: .stockBonus, title: NextActionCategory.stockBonus.label, fireAt: s.now, eta: 0))
         }
 
         return out.sorted {

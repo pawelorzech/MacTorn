@@ -149,7 +149,9 @@ enum KeyValidator {
     /// `selections` parameter are checked against their documented access tier and any
     /// dedicated permission bit exposed by `/key/info`.
     static func availability(of endpoint: TornEndpoint, given info: TornKeyInfo) -> EndpointAvailability {
-        let required = endpoint.selections
+        let required = info.access.type.caseInsensitiveCompare("Custom") == .orderedSame
+            ? endpoint.selections + endpoint.requiredCapabilities
+            : endpoint.selections
         let missing: [String]
         if required.isEmpty {
             missing = []

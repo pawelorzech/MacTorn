@@ -22,6 +22,26 @@ struct TornItemSummary: Codable, Equatable, Sendable, Identifiable {
     let name: String
 }
 
+private struct CachedCatalogItem: Codable, Sendable {
+    let name: String
+    let marketPrice: Int
+    let shops: [CachedCatalogShop]
+}
+
+private struct CachedCatalogShop: Codable, Sendable {
+    let country: String
+    let shop: String
+    let buyPrice: Int?
+    let sellPrice: Int?
+}
+
+enum ShopCatalogRefreshResult {
+    case success([ShopItem])
+    case pending([ShopItem])
+    case denied(String, [ShopItem])
+    case failed([ShopItem])
+}
+
 extension AppState {
     private static var itemCatalogCacheKey: String { "itemCatalogCache" }
     private static var itemCatalogFetchedAtKey: String { "itemCatalogFetchedAt" }
@@ -32,16 +52,20 @@ extension AppState {
     // MARK: Cache
 
     func loadItemCatalogFromCache() {
-        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey),
-              let cached = try? JSONDecoder().decode([Int: String].self, from: data) else {
-            return
+        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else { return }
+        if let cached = try? JSONDecoder().decode([Int: CachedCatalogItem].self, from: data) {
+            itemCatalog = cached.mapValues(\.name)
+        } else if let legacy = try? JSONDecoder().decode([Int: String].self, from: data) {
+            // Pre-shop cache migration: keep names immediately and refresh once to add
+            // the public shop fields from the same `/torn/items` response.
+            itemCatalog = legacy
         }
-        itemCatalog = cached
     }
 
     /// True when the catalogue is missing or old enough to be worth re-reading.
     private var itemCatalogIsStale: Bool {
         if itemCatalog.isEmpty { return true }
+        guard cachedCatalogItems() != nil else { return true }
         let fetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
         guard fetchedAt > 0 else { return true }
         return time.now.timeIntervalSince1970 - fetchedAt > Self.itemCatalogMaxAge
@@ -53,21 +77,64 @@ extension AppState {
         guard itemCatalogIsStale, !apiKey.isEmpty else { return }
         if let retryAfter = itemCatalogNextRetryAfter, time.now < retryAfter { return }
         guard referenceFetchIDs["torn.items"] == nil else { return }
-        accountSession.startTask(.itemCatalog) { await self.fetchItemCatalog() }
+        accountSession.startTask(.itemCatalog) { _ = await self.fetchItemCatalog() }
     }
 
     // MARK: Fetch
 
-    func fetchItemCatalog() async {
+    @discardableResult
+    func fetchItemCatalog() async -> Bool {
+        let previousFetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
         await fetchReferenceData("torn.items", cacheKey: Self.itemCatalogCacheKey,
-                                 parse: { Self.parseItemCatalog(json: $0, logger: $1) },
+                                 parse: { Self.parseExpandedItemCatalog(json: $0, logger: $1) },
                                  onFailure: recordItemCatalogFailure) { parsed in
-            itemCatalog = parsed
+            itemCatalog = parsed.mapValues(\.name)
             defaults.set(time.now.timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
             itemCatalogFailureCount = 0
             itemCatalogNextRetryAfter = nil
             backfillWatchlistNames()
         }
+        return defaults.double(forKey: Self.itemCatalogFetchedAtKey) > previousFetchedAt
+    }
+
+    /// Supplies the optional shop module from the same public catalogue/cache used by
+    /// item-name search. A fresh catalogue never causes a second full download.
+    func shopCatalogRefreshingIfNeeded() async -> ShopCatalogRefreshResult {
+        loadItemCatalogFromCache()
+        let cached = cachedShopItems()
+        guard itemCatalogIsStale else { return .success(cached) }
+        guard referenceFetchIDs["torn.items"] == nil else { return .pending(cached) }
+        if let denial = endpointGate.denial(for: "torn.items", keyInfo: keyInfo,
+                                             coordinator: pollingCoordinator) {
+            return .denied(denial.userExplanation, cached)
+        }
+        if let retryAfter = itemCatalogNextRetryAfter, time.now < retryAfter {
+            return .pending(cached)
+        }
+        return await fetchItemCatalog() ? .success(cachedShopItems()) : .failed(cachedShopItems())
+    }
+
+    func cachedShopItems() -> [ShopItem] {
+        guard let cached = cachedCatalogItems() else { return [] }
+        return cached.compactMap { id, item in
+            guard !item.shops.isEmpty else { return nil }
+            return ShopItem(
+                id: id,
+                name: item.name,
+                value: ShopItem.Value(
+                    marketPrice: item.marketPrice,
+                    shops: item.shops.map {
+                        ShopItem.Shop(country: $0.country, shop: $0.shop,
+                                      buyPrice: $0.buyPrice, sellPrice: $0.sellPrice)
+                    }
+                )
+            )
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func cachedCatalogItems() -> [Int: CachedCatalogItem]? {
+        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else { return nil }
+        return try? JSONDecoder().decode([Int: CachedCatalogItem].self, from: data)
     }
 
     func recordItemCatalogFailure() {
@@ -98,10 +165,10 @@ extension AppState {
             logger.error("Item catalog: failed to parse JSON")
             return [:]
         }
-        return parseItemCatalog(json: json, logger: logger)
+        return parseExpandedItemCatalog(json: json, logger: logger).mapValues(\.name)
     }
 
-    nonisolated private static func parseItemCatalog(json: [String: Any], logger: Logger) -> [Int: String] {
+    nonisolated private static func parseExpandedItemCatalog(json: [String: Any], logger: Logger) -> [Int: CachedCatalogItem] {
         if tornAPIErrorMessage(in: json) != nil {
             logger.error("Item catalog API returned an error envelope")
             return [:]
@@ -110,7 +177,7 @@ extension AppState {
             logger.warning("Item catalog: no 'items' array in response")
             return [:]
         }
-        var result: [Int: String] = [:]
+        var result: [Int: CachedCatalogItem] = [:]
         result.reserveCapacity(min(items.count, itemCatalogMaxEntries))
         for item in items {
             guard result.count < itemCatalogMaxEntries else {
@@ -124,7 +191,21 @@ extension AppState {
                     .prefix(WatchlistItem.maximumNameLength)
             )
             guard !name.isEmpty else { continue }
-            result[id] = name
+            var shops: [CachedCatalogShop] = []
+            var marketPrice = 0
+            if let value = item["value"] as? [String: Any] {
+                marketPrice = value["market_price"] as? Int ?? 0
+                if let rows = value["shops"] as? [[String: Any]] {
+                    shops = rows.compactMap { row in
+                        guard let country = row["country"] as? String,
+                              let shop = row["shop"] as? String else { return nil }
+                        return CachedCatalogShop(country: country, shop: shop,
+                                                 buyPrice: row["buy_price"] as? Int,
+                                                 sellPrice: row["sell_price"] as? Int)
+                    }
+                }
+            }
+            result[id] = CachedCatalogItem(name: name, marketPrice: marketPrice, shops: shops)
         }
         return result
     }

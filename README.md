@@ -167,6 +167,25 @@ Automated accessibility and compact-window regressions run in CI. Manual validat
 with every macOS assistive setting remains an ongoing release-quality activity; see
 [IMPLEMENTATION_BACKLOG.md](IMPLEMENTATION_BACKLOG.md) for the explicit test matrix.
 
+## Optional Torn API v2 tools
+
+Enable each module in its existing tab; notifications are separately opt-in:
+
+- **Faction:** open OC slots with a minimum CPR filter, plus on-demand ranked-war,
+  raid, territory, completed-chain and dirty-bomb history with older-page loading.
+- **Stocks:** v2 holdings, fractional cost basis, bonus progress and ready alerts.
+  Enabling this replaces stock holdings in the fast v1 poll; ready bonuses also appear in Next Action.
+- **Status:** current competition and Elimination team standings, remaining players,
+  and attacks during the last completed minute. Team data is requested only during Elimination.
+- **Money:** active trades, change alerts and on-demand offered-item details.
+- **Travel / Watchlist:** searchable country shop prices compared with catalog or
+  last-known watchlist prices. Prices do not guarantee live shop inventory or profit.
+
+Modules preserve the last successful data with its checked time and error message on
+failures. Account changes discard responses and alert baselines. Initial loads do not
+send a burst of notifications. Private module responses stay in memory; only module
+preferences and the public weekly item/shop catalog are persisted. Optional request permissions are visible in API Data Usage.
+
 ## API Data Usage
 
 MacTorn's typed endpoint registry in
@@ -203,6 +222,19 @@ in an `Authorization` header instead of the URL.
 | Forum thread | v2 | — | point-in-time | Forum poll (opt-in feature) | — | forum | no | Post count of a watched forum thread, to alert on new replies. |
 | Forum category threads | v2 | — | row-based | Forum poll (opt-in feature) | 20 | forum | no | Thread list of a watched forum category, to alert on new threads. |
 | Key info | v2 | — | point-in-time | On demand (Test Connection / key change) | — | core | no | One-off validation of the API key: its access level/type, the owner's ID, and which selections it can read, for onboarding's Test Connection. Never polled. |
+| Open OC slots | v2 | — | point-in-time | Opt-in; at least 300s between background reads | — | core | no | Recruiting crimes and empty roles matching your CPR filter. |
+| Stock bonuses | v2 | — | point-in-time | Opt-in; at least 300s between background reads | — | core | no | Holdings, cost basis and collectible stock bonuses. |
+| Stock prices and benefits | v2 | — | point-in-time | Opt-in; at least 300s between background reads | — | metadata | no | Stock names, prices and benefit requirements. |
+| Current competition | v2 | — | point-in-time | Opt-in; at least 60s between background reads | — | core | no | Current event and your team, score and attacks. |
+| Elimination teams | v2 | — | point-in-time | Opt-in; at least 60s between background reads | — | core | no | Team standings and attacks in the last completed minute; only during Elimination. |
+| Active trades | v2 | — | point-in-time | Opt-in; at least 120s between background reads | — | core | no | Ongoing exchanges and change alerts. |
+| Trade details | v2 | — | point-in-time | Opt-in; at least 30s between background reads | — | core | no | Items offered by each participant in a trade; loaded on demand. |
+| Travel shop catalog | v2 | — | point-in-time | Opt-in; at least 604800s between background reads | — | metadata | no | Country shop prices and catalog market values; no live stock guarantee. |
+| Ranked wars | v2 | — | row-based | On demand | 20 | faction | no | Conflict history, loaded on demand with bounded pages. |
+| Raids | v2 | — | row-based | On demand | 20 | faction | no | Conflict history, loaded on demand with bounded pages. |
+| Territory wars | v2 | — | row-based | On demand | 20 | faction | no | Conflict history, loaded on demand with bounded pages. |
+| Completed chains | v2 | — | row-based | On demand | 20 | faction | no | Conflict history, loaded on demand with bounded pages. |
+| Dirty bombs | v2 | — | point-in-time | On demand | — | faction | no | Conflict history, loaded on demand with bounded pages. |
 
 All of these requests are read-only. MacTorn does not use the Torn API to submit game
 actions.

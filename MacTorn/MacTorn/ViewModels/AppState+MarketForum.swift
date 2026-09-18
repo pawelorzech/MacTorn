@@ -86,7 +86,12 @@ extension AppState {
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         guard !requestedKey.isEmpty else { return }
-        let itemIDs = watchlistItems.map(\.id)
+        let now = Date()
+        let itemIDs = watchlistItems.filter { item in
+            guard let timestamp = item.dataTimestamp,
+                  let delay = item.cacheDelay else { return true }
+            return timestamp.addingTimeInterval(delay) <= now
+        }.map(\.id)
         pendingPriceAlerts.removeAll(keepingCapacity: true)
         await BoundedTaskQueue.run(itemIDs, limit: 4) { [weak self] itemID in
             guard let self else { return }
@@ -160,13 +165,7 @@ extension AppState {
 
             switch result {
             case .success(let snapshot, _):
-                updateItemPrice(
-                    itemId: itemId,
-                    lowestPrice: snapshot.lowestPrice,
-                    lowestPriceQuantity: snapshot.lowestPriceQuantity,
-                    secondLowestPrice: snapshot.secondLowestPrice,
-                    save: save
-                )
+                updateItemPrice(itemId: itemId, snapshot: snapshot, save: save)
             case .apiError(let apiError, _):
                 // Code 6 (bad item id) means this request can never succeed. Without
                 // telling the gate, a watchlist entry holding a dead id was re-requested
@@ -192,12 +191,7 @@ extension AppState {
     }
 
     @MainActor
-    private func updateItemPrice(itemId: Int, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int, save: Bool = true) {
-        let snapshot = MarketPriceSnapshot(
-            lowestPrice: lowestPrice,
-            lowestPriceQuantity: lowestPriceQuantity,
-            secondLowestPrice: secondLowestPrice
-        )
+    private func updateItemPrice(itemId: Int, snapshot: MarketPriceSnapshot, save: Bool = true) {
         if let alert = marketWatchService.apply(snapshot, to: itemId) {
             if save {
                 NotificationManager.shared.send(

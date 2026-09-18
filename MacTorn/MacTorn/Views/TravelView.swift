@@ -121,6 +121,8 @@ struct TravelView: View {
                     Divider()
                 }
 
+                ShopPricesPanel()
+
                 // Pre-Arrival Alerts Section
                 preArrivalAlertsSection
 

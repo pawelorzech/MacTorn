@@ -63,6 +63,7 @@ enum AppearanceMode: String, CaseIterable {
 class AppState {
     private static let appLogger = Logger(subsystem: TornConstants.logSubsystem, category: "AppState")
     var logger: Logger { Self.appLogger }
+    let companion: CompanionStore
 
     // MARK: - Persisted
     var apiKey: String {
@@ -179,9 +180,13 @@ class AppState {
     }
     // MARK: - API v2 user state (organized crime, refills, education, bounties)
     var organizedCrime: OrganizedCrime2?
+    var organizedCrimeUnavailableReason: String?
     var refills: Refills?
     var education: EducationStatus?
     var bountiesOnMe: [Bounty] = []
+    var bountiesDataTimestamp: Date?
+    var bountiesFetchedAt: Date?
+    var bountiesCacheDelay: TimeInterval?
     /// Unread messages / events / awards / competition, from the point-in-time
     /// `notifications` selection. Cheap enough to refresh on every poll.
     var notificationCounts: TornNotifications?
@@ -387,6 +392,7 @@ class AppState {
          factionService: FactionServicing? = nil,
          marketWatchService: MarketWatchServicing? = nil,
          forumWatchService: ForumWatchServicing? = nil) {
+        self.companion = CompanionStore(defaults: defaults)
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
         self.defaults = defaults
@@ -454,10 +460,15 @@ class AppState {
         factionService.reset()
         propertiesData = nil
         stocksData = []
+        companion.reset()
         organizedCrime = nil
+        organizedCrimeUnavailableReason = nil
         refills = nil
         education = nil
         bountiesOnMe = []
+        bountiesDataTimestamp = nil
+        bountiesFetchedAt = nil
+        bountiesCacheDelay = nil
         notificationCounts = nil
         virus = nil
         lastVirusFetch = nil

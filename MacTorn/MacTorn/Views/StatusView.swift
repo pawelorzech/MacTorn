@@ -25,6 +25,8 @@ struct StatusView: View {
                     NextActionView(reduceTransparency: reduceTransparency)
                 }
 
+                CompetitionPanel()
+
                 // Error state
                 if let error = appState.errorMsg {
                     errorSection(error)

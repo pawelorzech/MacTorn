@@ -5,6 +5,30 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.0] - 2026-09-18 - Torn API tools and compatibility
+
+### Added
+- Optional recruiting OC finder with a minimum CPR filter and new-slot alerts.
+- Stock v2 holdings, fractional cost basis, bonus progress, collectible-bonus alerts and Next Action integration.
+- Competition tracker with Elimination standings, remaining participants and previous-minute attack summaries.
+- Active trade monitoring, change alerts and on-demand offered-item details.
+- Country shop catalog and market-price comparison in Travel and Watchlist.
+- On-demand global ranked-war, raid, territory, completed-chain and dirty-bomb history.
+
+### Fixed
+- Respect dedicated selection permissions on Custom API keys in both request gating and Test Connection.
+- Recognize nested OC migration errors without keeping stale OC state or disrupting other user data.
+- Preserve market and bounty cache timestamps; repeated snapshots no longer masquerade as new price data.
+- Honor market cache delays and show true price-data age on successful and failed refreshes.
+- Resolve source-file membership by target reference when registering Swift files in a project with extensions.
+
+### Notes
+- New tools and their notifications can be enabled independently in their tabs.
+- Reviewed against Torn OpenAPI 6.13.6. No migration to the deprecated warfare endpoint.
+- This public build follows the existing ad-hoc distribution format; it is not notarized.
+  Live desktop widgets still require Apple signing and App Groups.
+- Manual and local UI automation tests were intentionally excluded at the user's request.
+
 ## [1.14.0] - 2026-09-13 - leaner polling and safer account changes
 
 ### Changed

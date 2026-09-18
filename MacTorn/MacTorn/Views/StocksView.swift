@@ -16,6 +16,7 @@ struct StocksView: View {
                     onRetry: appState.refreshNow
                 )
 
+                if !appState.companion.enabled.contains(.stocks) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "chart.line.uptrend.xyaxis")
@@ -85,6 +86,9 @@ struct StocksView: View {
                 .padding()
                 .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.08))
                 .cornerRadius(8)
+
+                }
+                StockBonusPanel()
 
                 ActionButton(
                     title: "Stock Market",

@@ -109,6 +109,42 @@ final class MarketWatchServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.lowestPrice, 950)
         XCTAssertEqual(snapshot.lowestPriceQuantity, 2)
         XCTAssertEqual(snapshot.secondLowestPrice, 1_000)
+        XCTAssertEqual(snapshot.dataTimestamp, Date(timeIntervalSince1970: 1_783_107_206))
+        XCTAssertEqual(snapshot.cacheDelay, 30)
+    }
+
+    func testRepeatedOrOlderSnapshotPreservesDataAgeAndDoesNotAlertAgain() {
+        let service = MarketWatchService(defaults: .createMockDefaults(), session: MockNetworkSession())
+        service.items = [WatchlistItem(id: 7, name: "Target", lowestPrice: 0,
+                                       lowestPriceQuantity: 0, secondLowestPrice: 0,
+                                       lastUpdated: nil, error: nil, priceThreshold: 1_000)]
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = service.apply(MarketPriceSnapshot(lowestPrice: 900, lowestPriceQuantity: 1,
+                                                      secondLowestPrice: 950,
+                                                      dataTimestamp: timestamp, cacheDelay: 30), to: 7)
+        let repeated = service.apply(MarketPriceSnapshot(lowestPrice: 800, lowestPriceQuantity: 1,
+                                                         secondLowestPrice: 850,
+                                                         dataTimestamp: timestamp, cacheDelay: 30), to: 7)
+
+        XCTAssertNotNil(first)
+        XCTAssertNil(repeated)
+        XCTAssertEqual(service.items[0].lowestPrice, 900,
+                       "the same global snapshot must not masquerade as newer data")
+        XCTAssertEqual(service.items[0].dataTimestamp, timestamp)
+        XCTAssertNotNil(service.items[0].lastFetchedAt)
+    }
+
+    func testNewerSnapshotUpdatesPriceAndMissingDelayIsSafe() {
+        let service = MarketWatchService(defaults: .createMockDefaults(), session: MockNetworkSession())
+        service.items = [item(id: 7, name: "Target")]
+        service.apply(MarketPriceSnapshot(lowestPrice: 900, lowestPriceQuantity: 1,
+                                          secondLowestPrice: 950,
+                                          dataTimestamp: Date(timeIntervalSince1970: 100)), to: 7)
+        service.apply(MarketPriceSnapshot(lowestPrice: 800, lowestPriceQuantity: 1,
+                                          secondLowestPrice: 850,
+                                          dataTimestamp: Date(timeIntervalSince1970: 200)), to: 7)
+        XCTAssertEqual(service.items[0].lowestPrice, 800)
+        XCTAssertNil(service.items[0].cacheDelay)
     }
 
     func testFetchPriceDistinguishesMalformedResponseFromEmptyListings() async throws {

@@ -17,6 +17,8 @@ struct WatchlistView: View {
                     appState.refreshWatchlistPrices()
                 }
 
+                ShopPricesPanel()
+
                 // Watchlist Header
                 HStack {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -544,12 +546,13 @@ struct WatchlistPriceRow: View {
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .accessibilityLabel("Price update error: \(error)")
+            }
 
-                if let lastUpdated = item.lastUpdated {
-                    (Text("Last known price · Updated ") + Text(lastUpdated, style: .relative) + Text(" ago"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            if let dataTimestamp = item.dataTimestamp ?? item.lastUpdated {
+                let prefix = item.error == nil ? "Price data from " : "Last known price · Data from "
+                (Text(prefix) + Text(dataTimestamp, style: .relative) + Text(" ago"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
             // Threshold indicator

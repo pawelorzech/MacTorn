@@ -487,6 +487,8 @@ final class AppStateTests: XCTestCase {
             refills: .unchanged,
             education: .unchanged,
             bounties: .unchanged,
+            bountiesTimestamp: nil,
+            bountiesDelay: nil,
             notifications: .replace(TornNotifications(messages: 2)),
             malformedSelections: ["bounties"]
         ))
@@ -494,6 +496,35 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.bountiesOnMe, [existing])
         XCTAssertEqual(appState.notificationCounts?.messages, 2,
                        "a valid sibling section must still update")
+    }
+
+    func testRepeatedBountySnapshotDoesNotOverwriteNewerState() throws {
+        let existing = try JSONDecoder().decode(
+            Bounty.self,
+            from: TornAPIFixtures.toData(TornAPIFixtures.bountyOnMe(reward: 9_000_000))
+        )
+        let stale = try JSONDecoder().decode(
+            Bounty.self,
+            from: TornAPIFixtures.toData(TornAPIFixtures.bountyOnMe(reward: 1_000_000))
+        )
+        appState.bountiesOnMe = [existing]
+        appState.bountiesDataTimestamp = Date(timeIntervalSince1970: 200)
+
+        appState.applyUserV2Payload(UserV2Payload(
+            organizedCrime: .unchanged,
+            refills: .unchanged,
+            education: .unchanged,
+            bounties: .replace([stale]),
+            bountiesTimestamp: 200,
+            bountiesDelay: 30,
+            notifications: .unchanged,
+            malformedSelections: []
+        ))
+
+        XCTAssertEqual(appState.bountiesOnMe, [existing])
+        XCTAssertEqual(appState.bountiesDataTimestamp, Date(timeIntervalSince1970: 200))
+        XCTAssertNotNil(appState.bountiesFetchedAt)
+        XCTAssertEqual(appState.bountiesCacheDelay, 30)
     }
 
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.

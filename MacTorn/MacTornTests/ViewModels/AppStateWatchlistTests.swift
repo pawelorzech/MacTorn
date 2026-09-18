@@ -283,6 +283,42 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertNotNil(item)
         // Prices should be updated from fixtures (950 is the lowest item-market listing)
         XCTAssertGreaterThan(item?.lowestPrice ?? 0, 0)
+        XCTAssertEqual(item?.dataTimestamp, Date(timeIntervalSince1970: 1_783_107_206))
+        XCTAssertEqual(item?.cacheDelay, 30)
+        XCTAssertNotNil(item?.lastFetchedAt)
+    }
+
+    func testRepeatedNetworkSnapshotDoesNotReplacePriceOrRetriggerAlert() async throws {
+        appState.apiKey = "valid_key"
+        appState.watchlistItems = [
+            WatchlistItem(id: 123, name: "Xanax", lowestPrice: 0,
+                          lowestPriceQuantity: 0, secondLowestPrice: 0,
+                          lastUpdated: nil, error: nil, priceThreshold: 1_000)
+        ]
+        var response = TornAPIFixtures.marketItemSuccess
+        var market = try XCTUnwrap(response["itemmarket"] as? [String: Any])
+        market["cache_delay"] = 0
+        response["itemmarket"] = market
+        try mockSession.setSuccessResponse(json: response)
+
+        appState.refreshWatchlistPrices()
+        try await Task.sleep(nanoseconds: 500_000_000)
+        XCTAssertEqual(appState.watchlistItems.first?.lowestPrice, 950)
+        XCTAssertEqual(appState.watchlistItems.first?.lastAlertedPrice, 950)
+
+        market["listings"] = [["price": 800, "amount": 1], ["price": 850, "amount": 1]]
+        response["itemmarket"] = market
+        try mockSession.setSuccessResponse(json: response)
+        appState.refreshWatchlistPrices()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(appState.watchlistItems.first?.lowestPrice, 950,
+                       "same cache timestamp must not be published as a price change")
+        XCTAssertEqual(appState.watchlistItems.first?.lastAlertedPrice, 950,
+                       "same cache timestamp must not create another alert epoch")
+        XCTAssertEqual(appState.watchlistItems.first?.dataTimestamp,
+                       Date(timeIntervalSince1970: 1_783_107_206))
+        XCTAssertEqual(mockSession.requestedURLs.filter { $0.absoluteString.contains("/123/") }.count, 2)
     }
 
     func testPriceFetch_noListings() async throws {

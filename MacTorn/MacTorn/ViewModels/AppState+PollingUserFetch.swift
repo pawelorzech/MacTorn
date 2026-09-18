@@ -213,6 +213,15 @@ extension AppState {
         let resolvedKey = key ?? apiKey
         guard !resolvedKey.isEmpty else { return nil }
         let granted = keyInfo.map { Set($0.selections.names(for: KeyValidator.category(for: endpoint))) }
+        if endpointID == "user.fast", companion.enabled.contains(.stocks),
+           let original = endpoint.url(key: resolvedKey, parameter: parameter, granted: granted),
+           var components = URLComponents(url: original, resolvingAgainstBaseURL: false) {
+            components.queryItems = components.queryItems?.map { item in
+                guard item.name == "selections" else { return item }
+                return URLQueryItem(name: item.name, value: item.value?.split(separator: ",").filter { $0 != "stocks" }.joined(separator: ","))
+            }
+            return components.url
+        }
         return endpoint.url(key: resolvedKey, parameter: parameter, granted: granted)
     }
 
@@ -513,6 +522,7 @@ extension AppState {
             return false
         }
 
+        companion.start(app: self)
         let requestedKey = apiKey
         guard !requestedKey.isEmpty else {
             errorMsg = "API Key required"
@@ -729,7 +739,7 @@ extension AppState {
         battleStats = payload.battleStats
         if let attacks = payload.recentAttacks { recentAttacks = attacks }
         if let properties = payload.properties { propertiesData = properties }
-        stocksData = payload.stocks
+        if !companion.enabled.contains(.stocks) { stocksData = payload.stocks }
 
         lastUpdated = Date()
         lastFetchTime = receivedAt
@@ -878,6 +888,7 @@ extension AppState {
             break
         case .replace(let value):
             organizedCrime = value
+            organizedCrimeUnavailableReason = nil
             if shouldNotifyOCReady(value), let value {
                 NotificationManager.shared.send(
                     title: "OC Ready! 💼",
@@ -885,12 +896,21 @@ extension AppState {
                     type: .ocReady
                 )
             }
+        case .unavailable(let message):
+            organizedCrime = nil
+            organizedCrimeUnavailableReason = message
         }
         if case .replace(let value) = payload.refills { refills = value }
         if case .replace(let value) = payload.education { education = value }
         if case .replace(let value) = payload.bounties {
-            bountiesOnMe = value
-            notifyBountiesOnMe()
+            let incoming = payload.bountiesTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+            bountiesFetchedAt = Date()
+            bountiesCacheDelay = payload.bountiesDelay.map(TimeInterval.init)
+            if incoming == nil || bountiesDataTimestamp == nil || incoming! > bountiesDataTimestamp! {
+                bountiesDataTimestamp = incoming
+                bountiesOnMe = value
+                notifyBountiesOnMe()
+            }
         }
         if case .replace(let counts) = payload.notifications {
             notificationCounts = counts

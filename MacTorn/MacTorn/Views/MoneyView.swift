@@ -16,6 +16,8 @@ struct MoneyView: View {
                     onRetry: appState.refreshNow
                 )
 
+                TradesPanel()
+
                 // MARK: - Cash Section
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {

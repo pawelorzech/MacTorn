@@ -35,7 +35,7 @@ enum TornAPI {
     /// Every request carries `comment=MacTorn` (see `TornAPIClient.comment`), so the
     /// key owner can tell MacTorn's traffic apart from every other tool sharing their
     /// key in Torn's own key log.
-    private static func build(_ urlString: String, query: [String: String]) -> URL? {
+    fileprivate static func build(_ urlString: String, query: [String: String]) -> URL? {
         guard var comps = URLComponents(string: urlString) else { return nil }
         var query = query
         query["comment"] = TornAPIClient.comment
@@ -173,11 +173,33 @@ final class TornEndpointTests: XCTestCase {
         assertMatch("forum.thread", TornAPI.forumThreadURL(threadId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("forum.threads", TornAPI.forumCategoryThreadsURL(categoryId: sampleId, apiKey: key), parameter: sampleId)
         assertMatch("key.info", TornAPI.keyInfoURL(for: key))
+        let additions: [(String, String, [String: String])] = [
+            ("user.recruiting", "user/organizedcrimes", [:]),
+            ("user.stocksv2", "user/stocks", [:]),
+            ("torn.stocksv2", "torn/stocks", [:]),
+            ("user.competition", "user/competition", [:]),
+            ("torn.elimination", "torn/elimination", [:]),
+            ("user.trades", "user/trades", ["cat": "ongoing"]),
+            ("user.trade", "user/4242/trade", [:]),
+            ("torn.shops", "torn/items", [:]),
+            ("faction.warfareranked", "faction/warfareranked", ["limit": "20", "sort": "DESC"]),
+            ("faction.warfareraids", "faction/warfareraids", ["limit": "20", "sort": "DESC"]),
+            ("faction.warfareterritory", "faction/warfareterritory", ["limit": "20", "sort": "DESC"]),
+            ("faction.warfarechains", "faction/warfarechains", ["cat": "complete", "limit": "20", "sort": "DESC"]),
+            ("faction.dirtybombs", "faction/dirtybombs", [:])
+        ]
+        for (id, path, parameters) in additions {
+            var query = parameters
+            query["key"] = key
+            assertMatch(id, TornAPI.build("https://api.torn.com/v2/" + path, query: query),
+                        parameter: id == "user.trade" ? sampleId : nil)
+        }
+
     }
 
     /// The contract test above is only meaningful if it covers every endpoint.
     func testEveryEndpointIsCoveredByContract() {
-        XCTAssertEqual(TornEndpointRegistry.all.count, 13,
+        XCTAssertEqual(TornEndpointRegistry.all.count, 26,
                        "add the new endpoint to testRegistryURLsMatchLegacyBuilders too")
     }
 
@@ -222,6 +244,17 @@ final class TornEndpointTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testOngoingTradesArePointInTimeAndDoNotSpendActivityRows() throws {
+        let trades = try XCTUnwrap(TornEndpointRegistry.endpoint(id: "user.trades"))
+        XCTAssertEqual(trades.dataShape, .pointInTime)
+        XCTAssertNil(trades.recordLimit)
+        XCTAssertFalse(trades.sendsLimitQuery)
+        let coordinator = PollingCoordinator()
+        for _ in 0..<1_000 { coordinator.record(trades) }
+        XCTAssertEqual(coordinator.recordsInLastDay(.activity), 0)
+    }
+
     /// `/forum/{threadId}/thread` returns one details object. Only the separate `/posts`
     /// route returns a 20-row page, so watching thread metadata must not spend cloud rows.
     func testForumThreadDetailsDoNotConsumeTheForumRowBudget() throws {
@@ -237,6 +270,11 @@ final class TornEndpointTests: XCTestCase {
         XCTAssertEqual(url.path, "/v2/market/4242/itemmarket")
         XCTAssertNil(URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?.first { $0.name == "selections" })
+    }
+
+    func testSharedItemCatalogDeclaresCustomItemsCapability() throws {
+        let endpoint = try XCTUnwrap(TornEndpointRegistry.endpoint(id: "torn.items"))
+        XCTAssertEqual(endpoint.requiredCapabilities, ["items"])
     }
 
     func testDedicatedEndpointAccessLevelsMatchTheOpenAPISpec() throws {

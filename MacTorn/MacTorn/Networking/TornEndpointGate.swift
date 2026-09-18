@@ -144,6 +144,12 @@ final class TornEndpointGate {
                keyInfo.access.level < endpoint.minimumAccessLevel.rawValue {
                 return .keyAccessLevelTooLow(required: endpoint.minimumAccessLevel)
             }
+            if keyInfo.access.type.caseInsensitiveCompare("Custom") == .orderedSame,
+               !endpoint.requiredCapabilities.isEmpty {
+                let granted = Set(keyInfo.selections.names(for: KeyValidator.category(for: endpoint)))
+                let missing = endpoint.requiredCapabilities.filter { !granted.contains($0) }
+                if !missing.isEmpty { return .keyLacksSelections(missing) }
+            }
             // Only a *total* miss is a denial. A key that can read some of an endpoint's
             // selections still gets the call — `TornEndpoint.url(granted:)` trims the
             // request down to the readable ones, so a Minimal-access key keeps its bars

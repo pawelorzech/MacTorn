@@ -20,6 +20,7 @@ final class KeyValidationTests: XCTestCase {
                              factionSelections: [String] = ["basic", "chain"],
                              marketSelections: [String] = ["itemmarket", "bazaar"],
                              tornSelections: [String] = ["stocks"],
+                             forumSelections: [String] = [],
                              playerID: Int = 42,
                              factionID: Int? = 100) -> [String: Any] {
         [
@@ -36,7 +37,7 @@ final class KeyValidationTests: XCTestCase {
                     "property": [],
                     "torn": tornSelections,
                     "racing": [],
-                    "forum": [],
+                    "forum": forumSelections,
                     "key": ["info"],
                     "company": [],
                 ],
@@ -126,6 +127,23 @@ final class KeyValidationTests: XCTestCase {
             $0.endpointID == "faction.news"
         })
         XCTAssertFalse(news.available)
+    }
+
+    func testCustomDedicatedEndpointUsesCapabilityList() throws {
+        let missing = try decode(keyInfoJSON(level: 4, type: "Custom",
+                                             userSelections: fullUserSelections,
+                                             marketSelections: [], forumSelections: []))
+        let result = KeyValidator.validate(missing)
+        XCTAssertFalse(try XCTUnwrap(result.availability.first { $0.endpointID == "market.item" }).available)
+        XCTAssertFalse(try XCTUnwrap(result.availability.first { $0.endpointID == "forum.thread" }).available)
+
+        let granted = try decode(keyInfoJSON(level: 4, type: "Custom",
+                                             userSelections: fullUserSelections,
+                                             marketSelections: ["itemmarket"],
+                                             forumSelections: ["thread", "threads"]))
+        let grantedResult = KeyValidator.validate(granted)
+        XCTAssertTrue(try XCTUnwrap(grantedResult.availability.first { $0.endpointID == "market.item" }).available)
+        XCTAssertTrue(try XCTUnwrap(grantedResult.availability.first { $0.endpointID == "forum.thread" }).available)
     }
 
     func testCategoryMapping() throws {

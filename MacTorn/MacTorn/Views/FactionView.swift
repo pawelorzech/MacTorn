@@ -12,6 +12,7 @@ struct FactionView: View {
                         endpointIDs: ["faction.basic", "faction.rankedwars", "faction.news", "user.v2"],
                         hasContent: appState.factionData != nil
                             || appState.organizedCrime != nil
+                            || appState.organizedCrimeUnavailableReason != nil
                             || !appState.rankedWars.isEmpty
                             || !appState.factionNews.isEmpty,
                         staleAfter: 360
@@ -96,6 +97,14 @@ struct FactionView: View {
                 // Organized Crime 2.0 (your own current OC)
                 if let oc = appState.organizedCrime {
                     OC2StatusView(oc: oc, playerId: appState.data?.playerId, serverClock: appState.serverClock)
+                } else if let reason = appState.organizedCrimeUnavailableReason {
+                    Label("OC 2.0 unavailable: \(reason)", systemImage: "briefcase.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.08))
+                        .cornerRadius(8)
                 }
 
                 // Active ranked war (score vs target)
@@ -107,6 +116,9 @@ struct FactionView: View {
                 if !appState.factionNews.isEmpty {
                     FactionNewsView(news: appState.factionNews)
                 }
+
+                RecruitingPanel()
+                WarfarePanel()
 
                 // Armory Quick Actions
                 VStack(alignment: .leading, spacing: 8) {

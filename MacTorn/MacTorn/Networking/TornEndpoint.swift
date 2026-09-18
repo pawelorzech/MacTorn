@@ -21,7 +21,7 @@ import Foundation
 /// Torn API major version. v1 is frozen but not sunset: Torn's own OpenAPI document
 /// states that a v2 selection "will default to the API v1 version" where it has not been
 /// migrated, and every selection MacTorn relies on still returns its v1 shape. v2 is the
-/// actively developed surface. Checked against spec version 6.13.1 on 2026-08-26.
+/// actively developed surface. Reviewed against spec version 6.13.6 on 2026-09-18.
 enum TornAPIVersion: String, Equatable, Sendable {
     case v1
     case v2
@@ -116,6 +116,9 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// true = part of the app's core (an outage degrades the whole app);
     /// false = optional module the user can live without.
     let critical: Bool
+    /// Capability names reported by `/key/info` for dedicated endpoints that do not
+    /// send a `selections` query parameter. Enforced for Custom keys only.
+    var requiredCapabilities: [String] = []
     /// true when the endpoint only returns anything for a key whose owner is in a
     /// faction. `/key/info` reports `user.faction_id`, so MacTorn can skip these
     /// outright for a factionless player instead of spending a request every poll on a
@@ -300,6 +303,7 @@ enum TornEndpointRegistry {
             cachePolicy: .throttle(seconds: 300),
             budget: .faction,
             critical: false,
+            requiredCapabilities: ["news"],
             requiresFaction: true,
             requiresFactionAPIAccess: true
         ),
@@ -318,7 +322,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: false,
             cachePolicy: .none,
             budget: .market,
-            critical: false
+            critical: false,
+            requiredCapabilities: ["itemmarket"]
         ),
         TornEndpoint(
             id: "torn.stocks",
@@ -352,7 +357,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: false,
             cachePolicy: .throttle(seconds: 604_800),
             budget: .metadata,
-            critical: false
+            critical: false,
+            requiredCapabilities: ["items"]
         ),
         TornEndpoint(
             id: "forum.thread",
@@ -369,7 +375,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: false,
             cachePolicy: .throttle(seconds: 300),
             budget: .forum,
-            critical: false
+            critical: false,
+            requiredCapabilities: ["thread"]
         ),
         TornEndpoint(
             id: "forum.threads",
@@ -386,7 +393,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: true,
             cachePolicy: .throttle(seconds: 300),
             budget: .forum,
-            critical: false
+            critical: false,
+            requiredCapabilities: ["threads"]
         ),
         TornEndpoint(
             id: "key.info",
@@ -405,7 +413,7 @@ enum TornEndpointRegistry {
             budget: .core,
             critical: false
         ),
-    ]
+    ] + companion
 
     static func endpoint(id: String) -> TornEndpoint? {
         all.first { $0.id == id }
