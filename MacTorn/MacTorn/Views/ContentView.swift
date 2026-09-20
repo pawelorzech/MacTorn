@@ -24,6 +24,13 @@ enum AppGroup: String, CaseIterable {
     var defaultTab: AppTab {
         tabs[0]
     }
+
+    /// The group a tab belongs to. `AppGroup.tabs` is the single source of truth; the
+    /// reverse mapping used to be a second hand-maintained switch that could drift from it
+    /// (audit D-8).
+    static func group(of tab: AppTab) -> AppGroup {
+        allCases.first { $0.tabs.contains(tab) } ?? .now
+    }
 }
 
 enum AppTab: String, CaseIterable {
@@ -52,11 +59,7 @@ enum AppTab: String, CaseIterable {
     }
 
     var group: AppGroup {
-        switch self {
-        case .status, .travel, .attacks: return .now
-        case .money, .properties, .stocks, .faction: return .account
-        case .watchlist, .forums: return .watch
-        }
+        AppGroup.group(of: self)
     }
 }
 

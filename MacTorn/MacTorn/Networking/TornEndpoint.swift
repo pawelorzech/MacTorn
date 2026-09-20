@@ -51,14 +51,6 @@ enum TornBudgetCategory: String, Equatable, Sendable, CaseIterable {
     case metadata   // slow-changing global lookups (stock names)
 }
 
-/// Client-side cache/throttle policy. Torn itself may serve cached data for up to
-/// ~30s, so `.none` still fetches with `reloadIgnoringLocalAndRemoteCacheData` to
-/// avoid the URL cache stacking a second layer on top.
-enum TornCachePolicy: Equatable, Sendable {
-    case none
-    case throttle(seconds: TimeInterval)
-}
-
 /// Torn API key access tiers. A key is issued at one of these levels and each
 /// selection requires a minimum tier.
 ///
@@ -111,7 +103,6 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     let recordLimit: Int?
     /// Whether `recordLimit` is also sent as a `limit` query item.
     let sendsLimitQuery: Bool
-    let cachePolicy: TornCachePolicy
     let budget: TornBudgetCategory
     /// true = part of the app's core (an outage degrades the whole app);
     /// false = optional module the user can live without.
@@ -196,7 +187,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .none,
             budget: .core,
             critical: true
         ),
@@ -213,7 +203,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .none,
             budget: .core,
             critical: false
         ),
@@ -230,7 +219,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .throttle(seconds: 1_800),
             budget: .core,
             critical: false
         ),
@@ -247,7 +235,6 @@ enum TornEndpointRegistry {
             dataShape: .rowBased,
             recordLimit: 25,
             sendsLimitQuery: true,
-            cachePolicy: .throttle(seconds: 300),
             budget: .activity,
             critical: false
         ),
@@ -264,7 +251,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .none,
             budget: .faction,
             critical: false,
             requiresFaction: true
@@ -282,7 +268,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .throttle(seconds: 300),
             budget: .faction,
             critical: false,
             requiresFaction: true
@@ -300,7 +285,6 @@ enum TornEndpointRegistry {
             dataShape: .rowBased,
             recordLimit: 25,
             sendsLimitQuery: true,
-            cachePolicy: .throttle(seconds: 300),
             budget: .faction,
             critical: false,
             requiredCapabilities: ["news"],
@@ -320,7 +304,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .none,
             budget: .market,
             critical: false,
             requiredCapabilities: ["itemmarket"]
@@ -338,7 +321,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .throttle(seconds: 86_400),
             budget: .metadata,
             critical: false
         ),
@@ -355,7 +337,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .throttle(seconds: 604_800),
             budget: .metadata,
             critical: false,
             requiredCapabilities: ["items"]
@@ -373,7 +354,6 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .throttle(seconds: 300),
             budget: .forum,
             critical: false,
             requiredCapabilities: ["thread"]
@@ -391,7 +371,6 @@ enum TornEndpointRegistry {
             dataShape: .rowBased,
             recordLimit: 20,
             sendsLimitQuery: true,
-            cachePolicy: .throttle(seconds: 300),
             budget: .forum,
             critical: false,
             requiredCapabilities: ["threads"]
@@ -409,18 +388,22 @@ enum TornEndpointRegistry {
             dataShape: .pointInTime,
             recordLimit: nil,
             sendsLimitQuery: false,
-            cachePolicy: .none,
             budget: .core,
             critical: false
         ),
     ] + companion
 
     static func endpoint(id: String) -> TornEndpoint? {
-        all.first { $0.id == id }
+        endpointsByID[id]
     }
 
+    /// O(1) lookup over the registry. `endpoint(id:)` used to scan `all` linearly, and it
+    /// sits on the request hot path — twice per `reserveRequest`, ~6× per poll
+    /// (audit W-8).
+    private static let endpointsByID: [String: TornEndpoint] =
+        Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
     static var critical: [TornEndpoint] { all.filter(\.critical) }
-    static var optional: [TornEndpoint] { all.filter { !$0.critical } }
 
     /// Distinct selections across all endpoints, for onboarding disclosure.
     static var allSelections: [String] {

@@ -484,6 +484,34 @@ struct Chain: Codable, Equatable {
     var timeoutRemaining: Int { timeoutRemaining(at: Date()) }
 }
 
+/// How alarming the remaining chain time is. The thresholds (60 s / 180 s) and the
+/// red/orange/green mapping used to be reimplemented in `ChainView` and again in
+/// `FactionView` (audit D-4); this is the one definition, shared by colour and the
+/// VoiceOver description.
+enum ChainUrgency {
+    case critical
+    case warning
+    case healthy
+
+    init(remaining: Int) {
+        if remaining < 60 {
+            self = .critical
+        } else if remaining < 180 {
+            self = .warning
+        } else {
+            self = .healthy
+        }
+    }
+
+    var spokenDescription: String {
+        switch self {
+        case .critical: return "critical"
+        case .warning: return "warning"
+        case .healthy: return "healthy"
+        }
+    }
+}
+
 // MARK: - Events
 struct TornEvent: Codable, Identifiable {
     let timestamp: Int
@@ -844,11 +872,6 @@ struct OrganizedCrime2: Codable, Equatable, Identifiable {
         self.id = id; self.name = name; self.difficulty = difficulty; self.status = status
         self.createdAt = createdAt; self.readyAt = readyAt; self.expiredAt = expiredAt
         self.executedAt = executedAt; self.slots = slots
-    }
-
-    var readyDate: Date? {
-        guard let readyAt, readyAt > 0 else { return nil }
-        return Date(timeIntervalSince1970: TimeInterval(readyAt))
     }
 
     /// True once the OC has reached its ready time and hasn't been executed yet.

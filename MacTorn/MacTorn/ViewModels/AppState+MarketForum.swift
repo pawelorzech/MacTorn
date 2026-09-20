@@ -285,6 +285,16 @@ extension AppState {
 
     private func fetchForumUpdates() async {
         guard connectivity.isConnected, !apiKey.isEmpty else { return }
+
+        // Nothing to watch: skip the request budget and the UserDefaults encode/write.
+        // The timer still fires on its cadence, but with no watched threads and category
+        // auto-monitoring off, `saveForumWatch()` used to re-encode two unchanged blobs
+        // every 180 s (audit F12).
+        guard !watchedThreads.isEmpty || forumWatchConfig.factionForumAutoMonitor else {
+            lastForumFetchAt = Date()
+            return
+        }
+
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         let threadIDs = watchedThreads.map(\.id)

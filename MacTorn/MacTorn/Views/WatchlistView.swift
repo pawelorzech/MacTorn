@@ -134,23 +134,13 @@ struct WatchlistView: View {
 
                 // Watchlist Items with Prices
                 if appState.watchlistItems.isEmpty && !showAddItem {
-                    VStack(spacing: 8) {
-                        Image(systemName: "tag")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                        Text("No items watched")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Track Item Market prices")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
+                    EmptyStateView(icon: "tag",
+                                   title: "No items watched",
+                                   subtitle: "Track Item Market prices")
                 } else if !appState.watchlistItems.isEmpty {
                     ForEach(appState.watchlistItems) { item in
                         WatchlistPriceRow(item: item) {
-                            openURL("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
+                            openTorn("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
                         } onRemove: {
                             removeWithUndo(item)
                         } onSetThreshold: { threshold in
@@ -173,11 +163,11 @@ struct WatchlistView: View {
                 // Quick Market Links
                 HStack(spacing: 8) {
                     ActionButton(title: "Item Market", icon: "bag.fill", color: .blue) {
-                        openURL("https://www.torn.com/page.php?sid=ItemMarket")
+                        openTorn("https://www.torn.com/page.php?sid=ItemMarket")
                     }
                     
                     ActionButton(title: "Points", icon: "star.fill", color: .orange) {
-                        openURL("https://www.torn.com/pmarket.php")
+                        openTorn("https://www.torn.com/pmarket.php")
                     }
                 }
             }
@@ -291,11 +281,6 @@ struct WatchlistView: View {
         )
     }
     
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
 
     private func addItemByID() {
         switch appState.addToWatchlist(input: itemIdInput) {

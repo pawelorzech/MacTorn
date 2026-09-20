@@ -142,9 +142,7 @@ struct DiagnosticsView: View {
 
     private func lastRefreshText(_ date: Date?) -> String {
         guard let date else { return "never" }
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .short
-        return f.localizedString(for: date, relativeTo: Date())
+        return TornFormatter.relativeDate(date)
     }
 
     private func byteText(_ bytes: Int) -> String {
@@ -265,8 +263,6 @@ struct ModuleStateView: View {
     }
 
     private func relativeDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        TornFormatter.relativeDate(date, abbreviated: true)
     }
 }

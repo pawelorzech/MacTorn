@@ -37,9 +37,7 @@ enum TornWidgetKind: String {
 struct TornWidgetView: View {
     let entry: TornEntry
     let kind: TornWidgetKind
-    @Environment(\.widgetFamily) private var systemFamily
-    var previewFamily: WidgetFamily? = nil
-    private var family: WidgetFamily { previewFamily ?? systemFamily }
+    @Environment(\.widgetFamily) private var family
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(kind.title, systemImage: kind.symbol).font(family == .systemSmall ? .subheadline.bold() : .headline).lineLimit(1)
@@ -113,16 +111,8 @@ struct TornWidgetView: View {
                 if arrival > entry.date {
                     Text(timerInterval: entry.date...arrival, countsDown: true).font(.title2.monospacedDigit())
                     if let departure = s.departure, departure < arrival {
-                        #if WIDGET_GALLERY
-                        GeometryReader { geometry in
-                            Capsule().fill(.blue.opacity(0.15)).overlay(alignment: .leading) {
-                                Capsule().fill(.blue).frame(width: geometry.size.width * (s.flightProgress(at: entry.date) ?? 0))
-                            }
-                        }.frame(height: 4)
-                        #else
                         ProgressView(timerInterval: departure...arrival, countsDown: false)
                             .progressViewStyle(.linear).labelsHidden().tint(.blue)
-                        #endif
                     }
                     HStack { Text("Arrival"); Text(arrival, style: .time) }.font(.caption)
                 } else { Text("Arrival time reached. Open MacTorn to confirm.").font(.caption) }
@@ -154,10 +144,7 @@ struct TravelWidget: Widget {
             .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
-#if !WIDGET_GALLERY
 @main
 struct MacTornWidgetBundle: WidgetBundle {
     var body: some Widget { PlayerStatusWidget(); NextActionWidget(); TravelWidget() }
 }
-
-#endif

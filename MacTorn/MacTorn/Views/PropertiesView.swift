@@ -26,7 +26,7 @@ struct PropertiesView: View {
                             .font(.caption.bold())
                         Spacer()
                         if let properties = appState.propertiesData, !properties.isEmpty {
-                            Text("Market: \(formatMoney(NumericSafety.total(properties.map(\.marketprice))))")
+                            Text("Market: \(TornFormatter.formatMoney(NumericSafety.total(properties.map(\.marketprice))))")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
@@ -37,28 +37,18 @@ struct PropertiesView: View {
                             PropertyCard(property: property)
                         }
                     } else {
-                        VStack(spacing: 8) {
-                            Image(systemName: "house.slash")
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                                .accessibilityHidden(true)
-                            Text("No properties found")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
+                        EmptyStateView(icon: "house.slash", title: "No properties found")
                     }
                 }
                 
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Properties", icon: "house.fill", color: .brown) {
-                        openURL("https://www.torn.com/properties.php")
+                        openTorn("https://www.torn.com/properties.php")
                     }
                     
                     ActionButton(title: "Estate Agents", icon: "building.2.fill", color: .blue) {
-                        openURL("https://www.torn.com/estateagents.php")
+                        openTorn("https://www.torn.com/estateagents.php")
                     }
                 }
             }
@@ -67,16 +57,6 @@ struct PropertiesView: View {
         .accessibilityIdentifier("account.properties")
     }
     
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
-
-    private func formatMoney(_ amount: Int?) -> String {
-        guard let amount else { return "Unavailable" }
-        return TornFormatter.formatMoney(amount)
-    }
 }
 
 // MARK: - Property Card
@@ -114,7 +94,7 @@ struct PropertyCard: View {
                     Text("Market")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text(formatMoney(property.marketprice))
+                    Text(TornFormatter.formatMoney(property.marketprice))
                         .font(.caption.bold().monospacedDigit())
                         .foregroundColor(.green)
                 }
@@ -126,7 +106,7 @@ struct PropertyCard: View {
                         Text("Cost")
                             .font(.caption2)
                             .foregroundColor(.secondary)
-                        Text(formatMoney(property.cost))
+                        Text(TornFormatter.formatMoney(property.cost))
                             .font(.caption.bold().monospacedDigit())
                             .foregroundColor(.secondary)
                     }
@@ -177,9 +157,9 @@ struct PropertyCard: View {
             parts.append("rented out")
         }
 
-        parts.append("market value \(formatMoney(property.marketprice))")
+        parts.append("market value \(TornFormatter.formatMoney(property.marketprice))")
         if property.cost > 0 {
-            parts.append("cost \(formatMoney(property.cost))")
+            parts.append("cost \(TornFormatter.formatMoney(property.cost))")
         }
         if property.happy > 0 {
             parts.append("\(property.happy) happy")
@@ -191,10 +171,5 @@ struct PropertyCard: View {
         }
 
         return parts.joined(separator: ", ")
-    }
-
-    private func formatMoney(_ amount: Int?) -> String {
-        guard let amount else { return "Unavailable" }
-        return TornFormatter.formatMoney(amount)
     }
 }

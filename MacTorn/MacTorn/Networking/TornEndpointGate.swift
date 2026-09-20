@@ -73,16 +73,6 @@ enum TornEndpointDenial: Equatable, Sendable {
             return "Unknown endpoint"
         }
     }
-
-    /// Whether this denial is expected to lift without the user doing anything. Used to
-    /// decide if the reason is worth showing in the UI at all.
-    var isSelfHealing: Bool {
-        switch self {
-        case .paused, .rowBudgetExhausted, .perMinuteCapReached: return true
-        case .keyLacksSelections, .keyAccessLevelTooLow, .factionAPIAccessDisabled,
-             .notInFaction, .unknownEndpoint: return false
-        }
-    }
 }
 
 /// Decides, per endpoint, whether MacTorn is allowed to spend a request right now.

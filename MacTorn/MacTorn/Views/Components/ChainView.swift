@@ -12,7 +12,8 @@ struct ChainView: View {
         if chain.isActive {
             TimelineView(.periodic(from: fetchTime ?? .now, by: 1.0)) { context in
                 let remaining = chain.timeoutRemaining(at: serverClock.serverNow(context.date))
-                let color = timeoutColor(for: remaining)
+                let urgency = ChainUrgency(remaining: remaining)
+                let color = Self.color(for: urgency)
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
@@ -24,7 +25,7 @@ struct ChainView: View {
 
                         Spacer()
 
-                        Text(formatTime(remaining))
+                        Text(TornFormatter.minutesSeconds(remaining))
                             .font(.caption.monospacedDigit())
                             .foregroundColor(color)
                     }
@@ -35,7 +36,7 @@ struct ChainView: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
                     "Chain \(chain.current ?? 0)/\(chain.maximum ?? 0), " +
-                    "\(urgencyDescription(for: remaining)), \(formatTime(remaining)) remaining"
+                    "\(urgency.spokenDescription), \(TornFormatter.minutesSeconds(remaining)) remaining"
                 )
                 .uiTestID("uitest.chain")
             }
@@ -54,30 +55,11 @@ struct ChainView: View {
         }
     }
 
-    private func timeoutColor(for remaining: Int) -> Color {
-        if remaining < 60 {
-            return .red
-        } else if remaining < 180 {
-            return .orange
+    private static func color(for urgency: ChainUrgency) -> Color {
+        switch urgency {
+        case .critical: return .red
+        case .warning: return .orange
+        case .healthy: return .green
         }
-        return .green
-    }
-
-    /// Puts the colour-only urgency bucket (red/orange/green) into words so
-    /// VoiceOver users get the same "how worried should I be" signal sighted
-    /// users read from the badge colour alone.
-    private func urgencyDescription(for remaining: Int) -> String {
-        if remaining < 60 {
-            return "critical"
-        } else if remaining < 180 {
-            return "warning"
-        }
-        return "healthy"
-    }
-
-    private func formatTime(_ seconds: Int) -> String {
-        let mins = seconds / 60
-        let secs = seconds % 60
-        return String(format: "%d:%02d", mins, secs)
     }
 }

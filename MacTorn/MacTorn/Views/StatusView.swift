@@ -242,7 +242,7 @@ struct StatusView: View {
                     Text("Arriving in:")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text(formatTime(appState.travelSecondsRemaining))
+                    Text(TornFormatter.clock(appState.travelSecondsRemaining))
                         .font(.caption.monospacedDigit())
                         .foregroundColor(.blue)
                 }
@@ -382,7 +382,7 @@ struct StatusView: View {
     private var bountyBadge: some View {
         let total = NumericSafety.total(appState.bountiesOnMe.map(\.reward))
         let count = appState.bountiesOnMe.count
-        let amount = total.map { "$" + (AppState.decimalFormatter.string(from: NSNumber(value: $0)) ?? String($0)) } ?? "Unavailable"
+        let amount = total.map { TornFormatter.formatMoney($0) } ?? "Unavailable"
         return Button {
             BrowserManager.shared.open(URL(string: "https://www.torn.com/bounties.php")!)
         } label: {
@@ -444,7 +444,7 @@ struct StatusView: View {
                                 .foregroundColor(.purple)
                                 .font(.caption2)
                             Text(remaining > 0
-                                 ? "Education: \(formatDuration(remaining)) left"
+                                 ? "Education: \(TornFormatter.coarseDuration(remaining)) left"
                                  : "Education: complete")
                                 .font(.caption)
                                 .foregroundColor(remaining > 0 ? .secondary : .green)
@@ -459,26 +459,6 @@ struct StatusView: View {
     }
 
     // MARK: - Helpers
-    private func formatTime(_ seconds: Int) -> String {
-        if seconds <= 0 { return "Ready" }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
-    }
-
-    /// Day-aware duration for long timers like education (can span days).
-    private func formatDuration(_ seconds: Int) -> String {
-        let days = seconds / 86400
-        let hours = (seconds % 86400) / 3600
-        let minutes = (seconds % 3600) / 60
-        if days > 0 { return "\(days)d \(hours)h" }
-        if hours > 0 { return "\(hours)h \(minutes)m" }
-        return "\(minutes)m"
-    }
 }
 
 // MARK: - Cooldown Item
@@ -507,48 +487,14 @@ struct CooldownItem: View {
     }
 
     private func cellContent(remaining: Int) -> some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(remaining > 0 ? .orange : .green)
-
-            Text(formattedTime)
-                .font(.caption2.monospacedDigit())
-                .foregroundColor(remaining > 0 ? .primary : .green)
-                .fontWeight(remaining <= 0 ? .bold : .regular)
-
-            if remaining <= 0, let actionLabel {
-                Text(actionLabel)
-                    .font(.caption2)
-                    .foregroundColor(.green)
-                    .opacity(0.7)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, remaining <= 0 && actionURL != nil ? 4 : 0)
-        .background(
-            remaining <= 0 && actionURL != nil
-                ? Color.green.opacity(reduceTransparency ? 0.25 : 0.12)
-                : Color.clear
+        CooldownCell(
+            label: label,
+            timeText: TornFormatter.clock(remaining, zeroText: "Ready"),
+            remaining: remaining,
+            hasAction: actionURL != nil,
+            actionLabel: actionLabel,
+            reduceTransparency: reduceTransparency
         )
-        .overlay {
-            if remaining <= 0 && actionURL != nil {
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.green.opacity(reduceTransparency ? 0.4 : 0.25))
-            }
-        }
-        .cornerRadius(6)
-    }
-
-    private var formattedTime: String {
-        if seconds <= 0 { return "Ready" }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
     }
 }
 
@@ -594,12 +540,34 @@ struct LiveCooldownItem: View {
     }
 
     private func cellContent(remaining: Int) -> some View {
+        CooldownCell(
+            label: label,
+            timeText: TornFormatter.clock(remaining, zeroText: "Ready"),
+            remaining: remaining,
+            hasAction: actionURL != nil,
+            actionLabel: actionLabel,
+            reduceTransparency: reduceTransparency
+        )
+    }
+}
+
+/// Shared body of the static and live cooldown cells. They differed only in how
+/// `remaining` was derived; the rendered cell was byte-for-byte identical (audit D-6).
+private struct CooldownCell: View {
+    let label: String
+    let timeText: String
+    let remaining: Int
+    let hasAction: Bool
+    let actionLabel: String?
+    let reduceTransparency: Bool
+
+    var body: some View {
         VStack(spacing: 2) {
             Text(label)
                 .font(.caption)
                 .foregroundColor(remaining > 0 ? .orange : .green)
 
-            Text(formattedTime(remaining))
+            Text(timeText)
                 .font(.caption2.monospacedDigit())
                 .foregroundColor(remaining > 0 ? .primary : .green)
                 .fontWeight(remaining <= 0 ? .bold : .regular)
@@ -612,29 +580,18 @@ struct LiveCooldownItem: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, remaining <= 0 && actionURL != nil ? 4 : 0)
+        .padding(.vertical, remaining <= 0 && hasAction ? 4 : 0)
         .background(
-            remaining <= 0 && actionURL != nil
+            remaining <= 0 && hasAction
                 ? Color.green.opacity(reduceTransparency ? 0.25 : 0.12)
                 : Color.clear
         )
         .overlay {
-            if remaining <= 0 && actionURL != nil {
+            if remaining <= 0 && hasAction {
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(Color.green.opacity(reduceTransparency ? 0.4 : 0.25))
             }
         }
         .cornerRadius(6)
-    }
-
-    private func formattedTime(_ seconds: Int) -> String {
-        if seconds <= 0 { return "Ready" }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
     }
 }

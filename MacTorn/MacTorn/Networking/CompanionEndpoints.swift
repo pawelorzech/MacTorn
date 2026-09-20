@@ -33,7 +33,7 @@ extension TornEndpointRegistry {
                      selections: [], extraQuery: query, minimumAccessLevel: level, purpose: purpose,
                      cadence: id.hasPrefix("faction.") ? "On demand" : "Opt-in; at least \(Int(seconds))s between background reads",
                      dataShape: rows == nil ? .pointInTime : .rowBased, recordLimit: rows,
-                     sendsLimitQuery: rows != nil, cachePolicy: .throttle(seconds: seconds), budget: budget,
+                     sendsLimitQuery: rows != nil, budget: budget,
                      critical: false, requiredCapabilities: [capability], requiresFaction: faction)
     }
 }

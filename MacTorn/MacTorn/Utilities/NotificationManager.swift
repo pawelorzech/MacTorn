@@ -1,6 +1,5 @@
 import Foundation
 import UserNotifications
-import AppKit
 import os.log
 
 private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "NotificationManager")
@@ -172,11 +171,6 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     func cancelTravelNotifications() {
         let identifiers = TravelNotificationSetting.defaults.map { "\($0.id)_alert" }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
-    }
-
-    /// Cancel a specific notification by identifier
-    func cancelNotification(identifier: String) {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 
     // MARK: - UNUserNotificationCenterDelegate

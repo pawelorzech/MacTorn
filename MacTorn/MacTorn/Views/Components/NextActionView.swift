@@ -33,7 +33,7 @@ struct NextActionView: View {
 
             Spacer()
 
-            Text(event.isReady ? "now" : Self.formatETA(event.eta))
+            Text(event.isReady ? "now" : TornFormatter.compactETA(event.eta))
                 .font(.caption.monospacedDigit().weight(.semibold))
                 .foregroundStyle(event.isReady ? Color.green : Color.primary)
         }
@@ -44,20 +44,12 @@ struct NextActionView: View {
                 .fill(Color.accentColor.opacity(reduceTransparency ? 0.14 : 0.08))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Next: \(event.title), \(event.isReady ? "ready now" : "in \(Self.formatETA(event.eta))")")
+        .accessibilityLabel("Next: \(event.title), \(event.isReady ? "ready now" : "in \(TornFormatter.compactETA(event.eta))")")
         .uiTestID("uitest.nextAction")
     }
 
     /// Compact human countdown: "45s", "4:32", "2h 05m", "1d 3h".
     static func formatETA(_ seconds: Int) -> String {
-        let s = max(0, seconds)
-        if s < 60 { return "\(s)s" }
-        if s < 3600 {
-            return String(format: "%d:%02d", s / 60, s % 60)
-        }
-        if s < 86_400 {
-            return String(format: "%dh %02dm", s / 3600, (s % 3600) / 60)
-        }
-        return String(format: "%dd %dh", s / 86_400, (s % 86_400) / 3600)
+        TornFormatter.compactETA(seconds)
     }
 }

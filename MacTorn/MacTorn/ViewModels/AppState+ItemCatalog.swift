@@ -55,20 +55,25 @@ extension AppState {
         guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else { return }
         if let cached = try? JSONDecoder().decode([Int: CachedCatalogItem].self, from: data) {
             itemCatalog = cached.mapValues(\.name)
+            itemCatalogCacheExpanded = true
         } else if let legacy = try? JSONDecoder().decode([Int: String].self, from: data) {
             // Pre-shop cache migration: keep names immediately and refresh once to add
             // the public shop fields from the same `/torn/items` response.
             itemCatalog = legacy
+            itemCatalogCacheExpanded = false
         }
+        let fetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
+        itemCatalogFetchedAt = fetchedAt > 0 ? Date(timeIntervalSince1970: fetchedAt) : nil
     }
 
     /// True when the catalogue is missing or old enough to be worth re-reading.
+    ///
+    /// Reads only in-memory state. The previous version decoded the whole persisted blob
+    /// from `UserDefaults` here, and this runs ~2× per poll (audit W-1).
     private var itemCatalogIsStale: Bool {
-        if itemCatalog.isEmpty { return true }
-        guard cachedCatalogItems() != nil else { return true }
-        let fetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
-        guard fetchedAt > 0 else { return true }
-        return time.now.timeIntervalSince1970 - fetchedAt > Self.itemCatalogMaxAge
+        guard !itemCatalog.isEmpty, itemCatalogCacheExpanded,
+              let fetchedAt = itemCatalogFetchedAt else { return true }
+        return time.now.timeIntervalSince(fetchedAt) > Self.itemCatalogMaxAge
     }
 
     /// Refreshes the catalogue if it is stale and nothing is holding it back. Safe to call
@@ -84,17 +89,20 @@ extension AppState {
 
     @discardableResult
     func fetchItemCatalog() async -> Bool {
-        let previousFetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
+        let previousFetchedAt = itemCatalogFetchedAt
         await fetchReferenceData("torn.items", cacheKey: Self.itemCatalogCacheKey,
                                  parse: { Self.parseExpandedItemCatalog(json: $0, logger: $1) },
                                  onFailure: recordItemCatalogFailure) { parsed in
             itemCatalog = parsed.mapValues(\.name)
-            defaults.set(time.now.timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
+            let now = time.now
+            itemCatalogFetchedAt = now
+            itemCatalogCacheExpanded = true
+            defaults.set(now.timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
             itemCatalogFailureCount = 0
             itemCatalogNextRetryAfter = nil
             backfillWatchlistNames()
         }
-        return defaults.double(forKey: Self.itemCatalogFetchedAtKey) > previousFetchedAt
+        return itemCatalogFetchedAt != previousFetchedAt
     }
 
     /// Supplies the optional shop module from the same public catalogue/cache used by
@@ -215,7 +223,14 @@ extension AppState {
     /// The catalogue name for an item, falling back to the numbered placeholder the app
     /// used before the catalogue existed.
     func itemName(for itemID: Int) -> String {
-        itemCatalog[itemID] ?? "Item #\(itemID)"
+        itemCatalog[itemID] ?? Self.placeholderItemName(for: itemID)
+    }
+
+    /// The fallback label for an item MacTorn has no catalogue entry for. One definition,
+    /// used by both the lookup and the backfill's "is this still a placeholder?" guard
+    /// (audit D-8).
+    static func placeholderItemName(for itemID: Int) -> String {
+        "Item #\(itemID)"
     }
 
     /// Catalogue entries whose name contains `query`, best matches first: names that start
@@ -230,18 +245,22 @@ extension AppState {
 
         var prefixMatches: [TornItemSummary] = []
         var containsMatches: [TornItemSummary] = []
-        for (id, name) in itemCatalog {
-            let lowered = name.lowercased()
-            if lowered.hasPrefix(needle) {
-                prefixMatches.append(TornItemSummary(id: id, name: name))
-            } else if lowered.contains(needle) {
-                containsMatches.append(TornItemSummary(id: id, name: name))
+        for entry in itemSearchIndex {
+            if entry.lowered.hasPrefix(needle) {
+                prefixMatches.append(TornItemSummary(id: entry.id, name: entry.name))
+            } else if entry.lowered.contains(needle) {
+                containsMatches.append(TornItemSummary(id: entry.id, name: entry.name))
             }
         }
         let byName: (TornItemSummary, TornItemSummary) -> Bool = {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
         return Array((prefixMatches.sorted(by: byName) + containsMatches.sorted(by: byName)).prefix(limit))
+    }
+
+    /// Rebuilds the lowercased search mirror. Called only when `itemCatalog` changes.
+    func rebuildItemSearchIndex() {
+        itemSearchIndex = itemCatalog.map { (id: $0.key, name: $0.value, lowered: $0.value.lowercased()) }
     }
 
     /// Replaces the `Item #id` placeholders on the watchlist once real names are known.
@@ -253,7 +272,7 @@ extension AppState {
         var changed = false
         for index in watchlistItems.indices {
             let item = watchlistItems[index]
-            guard item.name == "Item #\(item.id)", let real = itemCatalog[item.id] else { continue }
+            guard item.name == Self.placeholderItemName(for: item.id), let real = itemCatalog[item.id] else { continue }
             watchlistItems[index] = item.renamed(to: real)
             changed = true
         }

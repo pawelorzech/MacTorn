@@ -47,6 +47,7 @@
 		AAA00063 /* CompanionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10063 /* CompanionStore.swift */; };
 		AAA00064 /* CompanionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10064 /* CompanionViews.swift */; };
 		AAA00065 /* CompanionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10065 /* CompanionStoreTests.swift */; };
+		AAA00066 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10066 /* SharedComponents.swift */; };
 		AAA00030 /* TornEndpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10030 /* TornEndpoint.swift */; };
 		AAA00031 /* TornAPIError.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10031 /* TornAPIError.swift */; };
 		AAA00032 /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10032 /* NotificationCoordinator.swift */; };
@@ -208,6 +209,7 @@
 		AAA10063 /* CompanionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CompanionStore.swift"; sourceTree = "<group>"; };
 		AAA10064 /* CompanionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CompanionViews.swift"; sourceTree = "<group>"; };
 		AAA10065 /* CompanionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CompanionStoreTests.swift"; sourceTree = "<group>"; };
+		AAA10066 /* SharedComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedComponents.swift; sourceTree = "<group>"; };
 		AAA10030 /* TornEndpoint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornEndpoint.swift; sourceTree = "<group>"; };
 		AAA10031 /* TornAPIError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornAPIError.swift; sourceTree = "<group>"; };
 		AAA10032 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
@@ -429,6 +431,7 @@
 		AAA30006 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10066 /* SharedComponents.swift */,
 				AAA10008 /* ProgressBarView.swift */,
 				AAA10013 /* ChainView.swift */,
 				AAA10014 /* StatusBadgesView.swift */,
@@ -818,6 +821,7 @@
 				AAA00036 /* DiagnosticsView.swift in Sources */,
 				AAA00037 /* NextAction.swift in Sources */,
 				AAA00038 /* NextActionView.swift in Sources */,
+				AAA00066 /* SharedComponents.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
 				AAA00023 /* CreditsView.swift in Sources */,
 				AAA00024 /* TransparencyEnvironment.swift in Sources */,

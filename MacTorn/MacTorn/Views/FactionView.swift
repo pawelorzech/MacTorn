@@ -37,27 +37,17 @@ struct FactionView: View {
                         // Chain Status — `faction.chain.timeout` is an absolute Unix
                         // timestamp by the time it is published (Torn sends seconds
                         // remaining; `fetchFactionData` resolves it against the server
-                        // clock), so we tick `now` against it every second and never
-                        // extrapolate from a stored duration.
+                        // clock). `ChainView` owns the countdown, colour and deadline
+                        // probe; FactionView used to re-render the same card inline
+                        // (audit D-5).
                         if faction.chain.current > 0 {
-                            TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                                let remaining = NumericSafety.remaining(until: faction.chain.timeout,
-                                    now: appState.serverClock.serverUnix(context.date))
-                                let color = chainColor(remaining: remaining ?? 0)
-                                HStack {
-                                    Image(systemName: "link")
-                                        .foregroundColor(color)
-                                    Text("Chain: \(faction.chain.current)/\(faction.chain.max)")
-                                        .font(.caption.bold())
-                                    Spacer()
-                                    Text(remaining.map(formatTime) ?? "Unavailable")
-                                        .font(.caption.monospacedDigit())
-                                        .foregroundColor(color)
-                                }
-                                .padding(8)
-                                .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
-                                .cornerRadius(6)
-                            }
+                            ChainView(
+                                chain: Chain(current: faction.chain.current,
+                                             maximum: faction.chain.max,
+                                             timeout: faction.chain.timeout,
+                                             cooldown: faction.chain.cooldown),
+                                serverClock: appState.serverClock
+                            )
                         }
                         
                         // Respect
@@ -65,7 +55,7 @@ struct FactionView: View {
                             Text("Respect:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
-                            Text(formatNumber(faction.respect))
+                            Text(TornFormatter.formatNumber(faction.respect))
                                 .font(.caption.bold())
                         }
                     } else {
@@ -131,15 +121,15 @@ struct FactionView: View {
                     
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                         ArmoryButton(title: "Xanax", icon: "pills.fill", color: .blue) {
-                            openURL("https://www.torn.com/factions.php?step=your#/tab=armoury&start=0&sub=donate")
+                            openTorn("https://www.torn.com/factions.php?step=your#/tab=armoury&start=0&sub=donate")
                         }
                         
                         ArmoryButton(title: "Refill", icon: "drop.fill", color: .cyan) {
-                            openURL("https://www.torn.com/factions.php?step=your#/tab=armoury")
+                            openTorn("https://www.torn.com/factions.php?step=your#/tab=armoury")
                         }
                         
                         ArmoryButton(title: "SED", icon: "syringe.fill", color: .green) {
-                            openURL("https://www.torn.com/factions.php?step=your#/tab=armoury")
+                            openTorn("https://www.torn.com/factions.php?step=your#/tab=armoury")
                         }
                     }
                 }
@@ -150,44 +140,19 @@ struct FactionView: View {
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Faction", icon: "person.3.fill", color: .blue) {
-                        openURL("https://www.torn.com/factions.php?step=your")
+                        openTorn("https://www.torn.com/factions.php?step=your")
                     }
                     
                     ActionButton(title: "Wars", icon: "flame.fill", color: .red) {
-                        openURL("https://www.torn.com/factions.php?step=your#/tab=wars")
+                        openTorn("https://www.torn.com/factions.php?step=your#/tab=wars")
                     }
                     
                     ActionButton(title: "OC", icon: "briefcase.fill", color: .orange) {
-                        openURL("https://www.torn.com/factions.php?step=your#/tab=crimes")
+                        openTorn("https://www.torn.com/factions.php?step=your#/tab=crimes")
                     }
                 }
             }
             .padding()
-        }
-    }
-    
-    private func chainColor(remaining: Int) -> Color {
-        if remaining < 60 {
-            return .red
-        } else if remaining < 180 {
-            return .orange
-        }
-        return .green
-    }
-
-    private func formatTime(_ seconds: Int) -> String {
-        let mins = seconds / 60
-        let secs = seconds % 60
-        return String(format: "%d:%02d", mins, secs)
-    }
-    
-    private func formatNumber(_ value: Int) -> String {
-        TornFormatter.formatNumber(value)
-    }
-    
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
         }
     }
 }
@@ -235,7 +200,7 @@ struct OC2StatusView: View {
                             .background(Color.green)
                             .cornerRadius(4)
                     } else if let remaining, remaining > 0 {
-                        Text(formatTime(remaining))
+                        Text(TornFormatter.clock(remaining))
                             .font(.caption.monospacedDigit())
                             .foregroundColor(.orange)
                     } else {
@@ -284,16 +249,6 @@ struct OC2StatusView: View {
         .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
         .cornerRadius(8)
     }
-
-    private func formatTime(_ seconds: Int) -> String {
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
-    }
 }
 
 // MARK: - Ranked War
@@ -313,7 +268,7 @@ struct RankedWarView: View {
                 Text("Ranked War")
                     .font(.caption.bold())
                 Spacer()
-                Text("Target \(formatNumber(war.target))")
+                Text("Target \(TornFormatter.formatNumber(war.target))")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -327,7 +282,7 @@ struct RankedWarView: View {
                         .font(.caption.bold())
                         .lineLimit(1)
                     Spacer()
-                    Text("\(formatNumber(mine.score)) – \(formatNumber(opp.score))")
+                    Text("\(TornFormatter.formatNumber(mine.score)) – \(TornFormatter.formatNumber(opp.score))")
                         .font(.caption.monospacedDigit())
                         .foregroundColor(lead >= 0 ? .green : .red)
                     Spacer()
@@ -341,9 +296,9 @@ struct RankedWarView: View {
                              total: Double(progressTotal))
                     .tint(lead >= 0 ? .green : .red)
                     .accessibilityLabel("Ranked War lead progress")
-                    .accessibilityValue("\(formatNumber(progressValue)) of \(formatNumber(progressTotal))")
+                    .accessibilityValue("\(TornFormatter.formatNumber(progressValue)) of \(TornFormatter.formatNumber(progressTotal))")
                     .uiTestID("uitest.faction.warProgress")
-                Text(lead >= 0 ? "Leading by \(formatNumber(lead))" : "Behind by \(formatNumber(-lead))")
+                Text(lead >= 0 ? "Leading by \(TornFormatter.formatNumber(lead))" : "Behind by \(TornFormatter.formatNumber(-lead))")
                     .font(.caption2)
                     .foregroundColor(lead >= 0 ? .green : .red)
             } else {
@@ -352,7 +307,7 @@ struct RankedWarView: View {
                     HStack {
                         Text(f.name).font(.caption).lineLimit(1)
                         Spacer()
-                        Text(formatNumber(f.score)).font(.caption.monospacedDigit())
+                        Text(TornFormatter.formatNumber(f.score)).font(.caption.monospacedDigit())
                     }
                 }
             }
@@ -360,10 +315,6 @@ struct RankedWarView: View {
         .padding()
         .background(Color.red.opacity(reduceTransparency ? 0.25 : 0.06))
         .cornerRadius(8)
-    }
-
-    private func formatNumber(_ v: Int) -> String {
-        AppState.decimalFormatter.string(from: NSNumber(value: v)) ?? "\(v)"
     }
 }
 
@@ -401,26 +352,15 @@ struct FactionNewsView: View {
 
 // MARK: - Armory Button
 struct ArmoryButton: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let title: String
     let icon: String
     let color: Color
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: icon)
-                    .font(.caption)
-                Text(title)
-                    .font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .background(color.opacity(reduceTransparency ? 0.4 : 0.15))
-            .foregroundColor(color)
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
+        TileButton(title: title, icon: icon, color: color,
+                   iconFont: .caption, titleFont: .caption2,
+                   spacing: 2, verticalPadding: 6, cornerRadius: 6, opacity: 0.15,
+                   action: action)
     }
 }

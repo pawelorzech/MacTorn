@@ -55,8 +55,13 @@ enum NextActionCategory: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// Stable ordering for tie-breaks when two events share a fire time.
-    var order: Int { Self.allCases.firstIndex(of: self) ?? 0 }
+    /// Stable ordering for tie-breaks when two events share a fire time. Precomputed so
+    /// the per-event comparator is O(1) instead of scanning `allCases` on every compare.
+    var order: Int { Self.orderIndex[self] ?? 0 }
+
+    private static let orderIndex: [NextActionCategory: Int] = Dictionary(
+        uniqueKeysWithValues: allCases.enumerated().map { ($0.element, $0.offset) }
+    )
 }
 
 /// A single upcoming event. `fireAt` is absolute Unix seconds; `eta` is seconds from the

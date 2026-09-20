@@ -102,4 +102,38 @@ final class PollingCoordinatorTests: XCTestCase {
         for id in ["user.fast", "user.v2", "faction.basic"] { coord.record(endpoint(id)) }
         XCTAssertLessThan(coord.requestsInLastMinute, coord.softTargetPerMinute)
     }
+
+    // MARK: Sliding-window edge cases (regression for the O(1) rewrite)
+
+    /// The window is defined at whole-second resolution. A request recorded at the very
+    /// start of a minute must still be counted one second shy of the window, and must roll
+    /// off once the window has fully elapsed — the boundary the array-scan version and the
+    /// bucketed version must agree on.
+    func testSecondResolutionBoundaryIsStable() {
+        coord.record(endpoint("user.fast"))
+        clock.advance(59)
+        XCTAssertEqual(coord.requestsInLastMinute, 1, "59 s later it is still inside the minute")
+
+        clock.advance(1)
+        XCTAssertEqual(coord.requestsInLastMinute, 0, "60 s later the window has elapsed")
+    }
+
+    /// Bucketing must not merge counts across adjacent seconds, or a burst would be
+    /// under-reported. Ten requests spread over ten seconds all count.
+    func testRequestsAcrossAdjacentSecondsAllCount() {
+        for _ in 0..<10 {
+            coord.record(endpoint("user.fast"))
+            clock.advance(1)
+        }
+        XCTAssertEqual(coord.requestsInLastMinute, 10)
+    }
+
+    /// Row totals for a category must decay with the same day window as requests.
+    func testCategoryRowTotalDecaysWithTheDayWindow() {
+        coord.record(endpoint("user.activity")) // 25 rows
+        clock.advance(24 * 60 * 60 - 1)
+        XCTAssertEqual(coord.recordsInLastDay(.activity), 25, "one second shy of a day")
+        clock.advance(2)
+        XCTAssertEqual(coord.recordsInLastDay(.activity), 0, "a day and a second later it is gone")
+    }
 }

@@ -1,11 +1,12 @@
 import Foundation
-import WidgetKit
 
 extension AppState {
     func makeWidgetSnapshot() -> WidgetSnapshot? {
         guard let data else { return nil }
+        // Server→local conversion lives on `ServerClock`; this used to re-derive it by hand
+        // (audit D-8).
         func localDate(_ timestamp: Int) -> Date {
-            Date(timeIntervalSince1970: TimeInterval(timestamp - serverClock.offset))
+            serverClock.localDate(forServerTimestamp: timestamp)
         }
         let meters = data.bars.map { bars in
             [("Energy", bars.energy), ("Nerve", bars.nerve), ("Happy", bars.happy), ("Life", bars.life)]

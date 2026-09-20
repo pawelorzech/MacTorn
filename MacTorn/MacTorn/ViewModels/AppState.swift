@@ -48,14 +48,6 @@ enum AppearanceMode: String, CaseIterable {
     case system = "System"
     case light = "Light"
     case dark = "Dark"
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: return nil
-        case .light: return .light
-        case .dark: return .dark
-        }
-    }
 }
 
 @MainActor
@@ -118,12 +110,6 @@ class AppState {
             notificationCoordinator.refreshInterval = TimeInterval(refreshInterval)
         }
     }
-    var appearanceMode: String = AppearanceMode.system.rawValue {
-        didSet {
-            guard appearanceMode != oldValue else { return }
-            defaults.set(appearanceMode, forKey: "appearanceMode")
-        }
-    }
 
     // MARK: - Observable State
     var widgetStore: WidgetSnapshotStore?
@@ -173,7 +159,16 @@ class AppState {
     var stocksMetadata: [Int: StockMetadata] = [:]
     /// Torn's global item catalogue, id → name. Empty until the first successful fetch;
     /// everything that reads it degrades to `Item #id` rather than waiting on it.
-    var itemCatalog: [Int: String] = [:]
+    var itemCatalog: [Int: String] = [:] {
+        didSet {
+            guard itemCatalog != oldValue else { return }
+            rebuildItemSearchIndex()
+        }
+    }
+    /// Lowercased mirror of `itemCatalog`, used by `searchItems`. Rebuilt only when the
+    /// catalogue changes rather than on every keystroke, which previously lowercased the
+    /// whole ~1,500-item catalog in the search field's body (audit F15).
+    @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
     var watchlistItems: [WatchlistItem] {
         get { marketWatchService.items }
         set { marketWatchService.items = newValue }
@@ -314,6 +309,15 @@ class AppState {
     // Item catalog backoff + in-flight guard, mirroring the stocks metadata ladder above.
     var itemCatalogFailureCount = 0
     var itemCatalogNextRetryAfter: Date?
+    /// In-memory staleness anchor, seeded from `UserDefaults` once at launch and refreshed
+    /// on every successful fetch. `itemCatalogIsStale` used to re-decode the entire cached
+    /// blob from `UserDefaults` on every poll — twice per tick, on the main actor. The
+    /// predicate now reads only these fields (audit W-1).
+    @ObservationIgnored var itemCatalogFetchedAt: Date?
+    /// True once an *expanded* (`[Int: CachedCatalogItem]`) cache was decoded. A legacy
+    /// name-only cache leaves this false so the catalogue is refreshed into the expanded
+    /// shape, preserving the old migration behaviour.
+    @ObservationIgnored var itemCatalogCacheExpanded = false
     @ObservationIgnored var referenceFetchIDs: [String: UUID] = [:]
 
     /// Non-secret persistence store. Injected so tests get an isolated
@@ -419,9 +423,6 @@ class AppState {
         // didSet does not fire on init, so the dedup staleness window is seeded by hand
         // here and kept in step by the didSet from then on.
         self.notificationCoordinator.refreshInterval = TimeInterval(self.refreshInterval)
-        if let stored = defaults.string(forKey: "appearanceMode") {
-            self.appearanceMode = stored
-        }
 
         loadNotificationRules()
         loadTravelNotificationSettings()
@@ -508,12 +509,6 @@ class AppState {
     func isCurrentAccount(_ key: String, generation: UInt) -> Bool {
         accountSession.isCurrent(AccountIdentity(apiKey: key, generation: generation))
     }
-
-    static let decimalFormatter: NumberFormatter = {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        return f
-    }()
 
 }
 

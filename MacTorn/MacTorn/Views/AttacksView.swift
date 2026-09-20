@@ -142,15 +142,15 @@ struct AttacksView: View {
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Attack", icon: "bolt.fill", color: .red) {
-                        openURL("https://www.torn.com/loader.php?sid=attack&user2ID=")
+                        openTorn("https://www.torn.com/loader.php?sid=attack&user2ID=")
                     }
                     
                     ActionButton(title: "Hospital", icon: "cross.case.fill", color: .pink) {
-                        openURL("https://www.torn.com/hospitalview.php")
+                        openTorn("https://www.torn.com/hospitalview.php")
                     }
                     
                     ActionButton(title: "Bounties", icon: "target", color: .purple) {
-                        openURL("https://www.torn.com/bounties.php")
+                        openTorn("https://www.torn.com/bounties.php")
                     }
                 }
             }
@@ -169,11 +169,6 @@ struct AttacksView: View {
         return "\(value)"
     }
     
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
 }
 
 // MARK: - Stat Item

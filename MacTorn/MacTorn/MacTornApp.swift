@@ -169,15 +169,15 @@ struct MenuBarLabel: View {
         Group {
             switch appState.menuBarDisplay {
             case .traveling(let destination, let seconds):
-                Text("✈️\(Self.flag(for: destination))\(formatShortTime(seconds))")
+                Text("✈️\(Self.flag(for: destination))\(Self.formatShortTime(seconds))")
             case .hospitalAbroad(let destination, let seconds):
-                Text("🏥\(Self.flag(for: destination))\(formatShortTime(seconds))")
+                Text("🏥\(Self.flag(for: destination))\(Self.formatShortTime(seconds))")
             case .hospitalAtHome(let seconds):
-                Text("🏥\(formatShortTime(seconds))")
+                Text("🏥\(Self.formatShortTime(seconds))")
             case .jail(let seconds):
-                Text("🚓\(formatShortTime(seconds))")
+                Text("🚓\(Self.formatShortTime(seconds))")
             case .cooldown(let kind, let seconds):
-                Text("\(kind.emoji)\(formatShortTime(seconds))")
+                Text("\(kind.emoji)\(Self.formatShortTime(seconds))")
             case .fallbackIcon:
                 Image(systemName: menuBarIcon)
             }
@@ -221,24 +221,15 @@ struct MenuBarLabel: View {
         return "bolt"
     }
 
-    private func flagForDestination(_ destination: String) -> String {
-        TornDestination.flag(for: destination)
-    }
-
     /// Presentation-only mapping. `MenuBarDisplay` carries the destination *name*; the
     /// flag glyph is derived here so the model stays speakable (see `MenuBarDisplay`).
     private static func flag(for destination: String?) -> String {
         TornDestination.flag(for: destination ?? "?")
     }
 
-    private func formatShortTime(_ seconds: Int) -> String {
-        if seconds <= 0 { return "0:00" }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
+    /// Menu-bar label is the one surface where a zero countdown means "0:00" rather than
+    /// "Ready" — it must keep showing a time, not a word.
+    private static func formatShortTime(_ seconds: Int) -> String {
+        seconds <= 0 ? "0:00" : TornFormatter.clock(seconds)
     }
 }

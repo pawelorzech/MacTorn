@@ -196,10 +196,6 @@ extension AppState {
         }
     }
 
-    func pauseRowSource(_ endpointID: String, error: TornAPIError) {
-        noteEndpointFailure(error, for: endpointID)
-    }
-
     /// Builds the URL for a registered endpoint, narrowed to the selections this key is
     /// actually allowed to read.
     ///
@@ -325,6 +321,13 @@ extension AppState {
     /// player's key for faction data every thirty seconds.
     func refreshKeyInfoIfNeeded() {
         guard keyInfoTask == nil else { return }
+        // Skip the Task allocation entirely when the cached answer is still fresh — this
+        // runs on every timer tick, and the age check used to happen inside the spawned
+        // task, so a Task was allocated ~2/min just to return immediately (audit F2).
+        if keyInfo != nil, let loadedAt = keyInfoLoadedAt,
+           time.now.timeIntervalSince(loadedAt) < Self.keyInfoMaxAge {
+            return
+        }
         Task { [weak self] in await self?.loadKeyInfoIfNeeded() }
     }
 
@@ -928,7 +931,7 @@ extension AppState {
     private func notifyBountiesOnMe() {
         let currentKeys = Set(bountiesOnMe.map(\.id))
         for bounty in bountiesOnMe where !notifiedBountyKeys.contains(bounty.id) {
-            let amount = Self.decimalFormatter.string(from: NSNumber(value: bounty.reward)) ?? "\(bounty.reward)"
+            let amount = TornFormatter.formatNumber(bounty.reward)
             let who: String
             if bounty.isAnonymous == true {
                 who = " (anonymous)"

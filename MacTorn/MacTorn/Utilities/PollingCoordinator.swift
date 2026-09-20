@@ -31,8 +31,15 @@ final class PollingCoordinator {
     private static let minuteWindow: TimeInterval = 60
     private static let dayWindow: TimeInterval = 24 * 60 * 60
 
-    private var requestTimestamps: [Date] = []
-    private var recordEvents: [(at: Date, category: TornBudgetCategory, count: Int)] = []
+    /// One counter per window. The old implementation kept every timestamp in an array and
+    /// scanned the whole thing on each gate check (`prune()` on every record, and again on
+    /// every `canMakeRequest`), which grew to tens of thousands of entries over a day and
+    /// ran several O(n) scans per request on the main actor (audit W-2). Each counter now
+    /// buckets events by whole second and drops expired buckets from the front, so both
+    /// recording and reading are O(1) amortised.
+    private var requestsInMinute = SlidingWindowCounter(windowSeconds: Int(minuteWindow))
+    private var requestsInDay = SlidingWindowCounter(windowSeconds: Int(dayWindow))
+    private var recordsByCategory: [TornBudgetCategory: SlidingWindowCounter] = [:]
 
     init(time: TimeSource = SystemTimeSource(),
          hardCapPerMinute: Int = 60,
@@ -50,8 +57,7 @@ final class PollingCoordinator {
     /// cap. Every request-issuing path should consult this so no UI action can bypass
     /// the limiter.
     func canMakeRequest() -> Bool {
-        prune()
-        return requestsInLastMinute < hardCapPerMinute
+        requestsInMinute.count(nowSecond: currentSecond) < hardCapPerMinute
     }
 
     // MARK: Recording
@@ -60,33 +66,30 @@ final class PollingCoordinator {
     /// endpoints count as one request with zero rows; row-based endpoints also add
     /// `recordsPerCall` to their category's daily row total.
     func record(_ endpoint: TornEndpoint) {
-        let now = time.now
-        requestTimestamps.append(now)
+        let second = currentSecond
+        requestsInMinute.add(1, at: second)
+        requestsInDay.add(1, at: second)
         if endpoint.recordsPerCall > 0 {
-            recordEvents.append((now, endpoint.budget, endpoint.recordsPerCall))
+            recordsByCategory[endpoint.budget, default: SlidingWindowCounter(windowSeconds: Int(Self.dayWindow))]
+                .add(endpoint.recordsPerCall, at: second)
         }
-        prune()
     }
 
     // MARK: Readouts (for Diagnostics, Etap F)
 
-    var requestsInLastMinute: Int { count(requestTimestamps, within: Self.minuteWindow) }
-    var requestsInLastDay: Int { count(requestTimestamps, within: Self.dayWindow) }
+    var requestsInLastMinute: Int { requestsInMinute.count(nowSecond: currentSecond) }
+    var requestsInLastDay: Int { requestsInDay.count(nowSecond: currentSecond) }
 
     func recordsInLastDay(_ category: TornBudgetCategory) -> Int {
-        let cutoff = time.now.addingTimeInterval(-Self.dayWindow)
-        var total = 0
-        for event in recordEvents where event.category == category && event.at >= cutoff {
-            total += event.count
-        }
-        return total
+        recordsByCategory[category]?.count(nowSecond: currentSecond) ?? 0
     }
 
     /// Rows/day for every category that has traffic — for the diagnostics readout.
     func recordsPerDayByCategory() -> [TornBudgetCategory: Int] {
         var result: [TornBudgetCategory: Int] = [:]
-        for category in TornBudgetCategory.allCases {
-            let rows = recordsInLastDay(category)
+        let second = currentSecond
+        for (category, var counter) in recordsByCategory {
+            let rows = counter.count(nowSecond: second)
             if rows > 0 { result[category] = rows }
         }
         return result
@@ -99,15 +102,61 @@ final class PollingCoordinator {
 
     // MARK: Internals
 
-    private func count(_ times: [Date], within window: TimeInterval) -> Int {
-        let cutoff = time.now.addingTimeInterval(-window)
-        return times.filter { $0 >= cutoff }.count
+    /// Whole-second bucket for `now`. Budget windows are defined at second resolution.
+    private var currentSecond: Int { Int(time.now.timeIntervalSince1970) }
+}
+
+/// A time-bucketed sliding counter: reports how many events fall inside a moving window,
+/// with O(1) amortised record and query. Events are grouped by whole second and expired
+/// buckets are dropped from the front as time advances — each bucket is inserted once and
+/// removed once, so a day's worth of activity never costs a full-array scan.
+private struct SlidingWindowCounter {
+    private var buckets: [(second: Int, count: Int)] = []
+    private var total = 0
+    private let windowSeconds: Int
+
+    init(windowSeconds: Int) {
+        self.windowSeconds = windowSeconds
     }
 
-    /// Drop entries older than the day window so the arrays stay bounded.
-    private func prune() {
-        let cutoff = time.now.addingTimeInterval(-Self.dayWindow)
-        requestTimestamps.removeAll { $0 < cutoff }
-        recordEvents.removeAll { $0.at < cutoff }
+    mutating func add(_ count: Int, at second: Int) {
+        total += count
+        if let last = buckets.last, second == last.second {
+            buckets[buckets.count - 1].count += count
+        } else if let last = buckets.last, second < last.second {
+            // The clock moved backwards. Rare, so keep the array sorted with an insert
+            // rather than complicating the common append path.
+            var index = buckets.count - 1
+            while index >= 0, buckets[index].second > second { index -= 1 }
+            if index >= 0, buckets[index].second == second {
+                buckets[index].count += count
+            } else {
+                buckets.insert((second, count), at: index + 1)
+            }
+        } else {
+            buckets.append((second, count))
+        }
+    }
+
+    mutating func count(nowSecond: Int) -> Int {
+        prune(nowSecond: nowSecond)
+        return total
+    }
+
+    /// Drop buckets at or below `now - window`. The boundary second is dropped one tick
+    /// earlier than a strict `>= cutoff` reading would, which can only under-count, never
+    /// let a request slip past the cap.
+    private mutating func prune(nowSecond: Int) {
+        let cutoff = nowSecond - windowSeconds
+        var index = 0
+        var removed = 0
+        while index < buckets.count, buckets[index].second <= cutoff {
+            removed += buckets[index].count
+            index += 1
+        }
+        if index > 0 {
+            buckets.removeFirst(index)
+            total -= removed
+        }
     }
 }
