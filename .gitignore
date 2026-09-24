@@ -93,6 +93,7 @@ firebase-debug.log
 *.xcarchive
 *.zip
 *.dmg
+*.dmg.sha256
 *.pkg
 ExportOptions.plist
 

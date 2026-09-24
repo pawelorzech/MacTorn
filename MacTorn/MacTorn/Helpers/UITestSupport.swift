@@ -30,7 +30,7 @@ extension View {
 // When active it wires an `AppState` from fully controllable doubles:
 //   • `FixtureNetworkSession` — serves canned JSON per endpoint, never hits the network.
 //   • an isolated, ephemeral `UserDefaults` suite — a blank slate every run.
-//   • an in-memory Keychain (see `KeychainStore` in AppState.swift) — the real Torn
+//   • an in-memory Keychain (see `KeychainStore` in AccountSessionStore.swift) — the real Torn
 //     key on the developer's machine is never read or overwritten by a UI test.
 //   • `UITestConnectivity` — connectivity the test can flip by hand.
 //
