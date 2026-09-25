@@ -1814,3 +1814,53 @@ final class TravelNotificationAccountScopeTests: XCTestCase {
         XCTAssertGreaterThan(cancels(), before)
     }
 }
+
+// MARK: - Cadence changes take effect without a relaunch (audit F-03)
+
+@MainActor
+final class PollingCadenceChangeTests: XCTestCase {
+    private func makeApp() -> AppState {
+        let app = AppState(session: MockNetworkSession(),
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults())
+        app.apiKey = "cadence-\(UUID().uuidString)"
+        return app
+    }
+
+    /// Settings sets `refreshInterval` and then calls `startPolling()`, which returns early
+    /// while a timer is running and the last poll is recent — so the old cadence stuck.
+    func testChangingRefreshIntervalReinstallsTheRunningPollTimer() {
+        let app = makeApp()
+        app.refreshInterval = 30
+        app.startPolling()
+        XCTAssertEqual(app.pollingTimerInterval, 30)
+
+        app.refreshInterval = 60
+        app.startPolling()
+
+        XCTAssertEqual(app.pollingTimerInterval, 60)
+        app.stopPolling()
+    }
+
+    func testChangingRefreshIntervalWhileStoppedDoesNotStartPolling() {
+        let app = makeApp()
+        app.refreshInterval = 60
+        XCTAssertNil(app.timerCancellable)
+        XCTAssertNil(app.pollingTimerInterval)
+    }
+
+    func testChangingForumIntervalReinstallsTheRunningForumTimer() {
+        let app = makeApp()
+        app.forumWatchConfig.pollingIntervalSeconds = 180
+        app.startForumPolling()
+        XCTAssertEqual(app.forumTimerInterval, 180)
+        // A forum poll just landed — the state in which `startForumPolling` returns early.
+        app.lastForumFetchAt = Date()
+
+        app.forumWatchConfig.pollingIntervalSeconds = 300
+        app.startForumPolling()
+
+        XCTAssertEqual(app.forumTimerInterval, 300)
+        app.stopForumPolling()
+    }
+}

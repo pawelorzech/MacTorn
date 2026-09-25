@@ -265,7 +265,13 @@ extension AppState {
         // Initial fetch
         refreshForumWatch()
 
-        forumTimerCancellable = Timer.publish(every: Double(forumWatchConfig.pollingIntervalSeconds), on: .main, in: .common)
+        installForumTimer()
+    }
+
+    func installForumTimer() {
+        let interval = Double(forumWatchConfig.pollingIntervalSeconds)
+        forumTimerInterval = interval
+        forumTimerCancellable = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.refreshForumWatch()
@@ -275,6 +281,7 @@ extension AppState {
     func stopForumPolling() {
         forumTimerCancellable?.cancel()
         forumTimerCancellable = nil
+        forumTimerInterval = nil
     }
 
     func refreshForumWatch() {

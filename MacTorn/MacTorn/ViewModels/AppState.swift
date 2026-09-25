@@ -108,6 +108,10 @@ class AppState {
             // The notification dedup measures "how stale is the previous observation" in
             // multiples of the poll cadence, so it has to hear about a cadence change.
             notificationCoordinator.refreshInterval = TimeInterval(refreshInterval)
+            // A running timer keeps the cadence it was installed with, and `startPolling`
+            // returns early while one runs — so without this the change waited for a
+            // relaunch.
+            if timerCancellable != nil { installPollingTimer() }
         }
     }
 
@@ -205,7 +209,15 @@ class AppState {
     }
     var forumWatchConfig: ForumWatchConfig {
         get { forumWatchService.config }
-        set { forumWatchService.config = newValue }
+        set {
+            forumWatchService.config = newValue
+            // Same as `refreshInterval`: `startForumPolling` returns early while a timer
+            // runs, so a new cadence has to reinstall the running timer itself.
+            if forumTimerCancellable != nil,
+               forumTimerInterval != Double(forumWatchService.config.pollingIntervalSeconds) {
+                installForumTimer()
+            }
+        }
     }
 
     // MARK: - Update State
@@ -291,6 +303,10 @@ class AppState {
     // MARK: - Timer
     @ObservationIgnored var timerCancellable: AnyCancellable?
     @ObservationIgnored var forumTimerCancellable: AnyCancellable?
+    /// The cadence each running timer was installed with. Combine hides the interval, so
+    /// these are what tells a stale timer from a current one (and what tests read).
+    @ObservationIgnored var pollingTimerInterval: TimeInterval?
+    @ObservationIgnored var forumTimerInterval: TimeInterval?
     @ObservationIgnored var lastForumFetchAt: Date?
     @ObservationIgnored var pendingPriceAlerts: [(name: String, price: Int)] = []
 
@@ -505,6 +521,7 @@ class AppState {
         // half a refresh interval returned early and never established the ordering.
         timerCancellable?.cancel()
         timerCancellable = nil
+        pollingTimerInterval = nil
         accountSession.cancelTask(.stockMetadata)
         accountSession.cancelTask(.itemCatalog)
         referenceFetchIDs.removeAll()

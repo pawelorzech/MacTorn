@@ -88,8 +88,10 @@ extension AppState {
         return true
     }
 
-    private func installPollingTimer() {
-        timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
+    func installPollingTimer() {
+        let interval = Double(refreshInterval)
+        pollingTimerInterval = interval
+        timerCancellable = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -125,6 +127,7 @@ extension AppState {
     func stopPolling() {
         timerCancellable?.cancel()
         timerCancellable = nil
+        pollingTimerInterval = nil
         // Issue #56: an in-flight GitHub update-check must not outlive polling teardown.
         updateCheckTask?.cancel()
     }
