@@ -260,6 +260,9 @@ extension AppState {
     }
 
     func startForumPolling() {
+        // Same rule as `startPolling`: a permanent key error holds until the key changes,
+        // and the menu's onAppear must not quietly restart the forum timer.
+        guard !keyHalted else { return }
         // Same MenuBarExtra-onAppear churn as startPolling: skip restart if already
         // running and we polled recently.
         if forumTimerCancellable != nil,
@@ -299,7 +302,7 @@ extension AppState {
     }
 
     private func fetchForumUpdates() async {
-        guard connectivity.isConnected, !apiKey.isEmpty else { return }
+        guard connectivity.isConnected, !apiKey.isEmpty, !keyHalted else { return }
 
         // Nothing to watch: skip the request budget and the UserDefaults encode/write.
         // The timer still fires on its cadence, but with no watched threads and category

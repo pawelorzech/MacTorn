@@ -232,3 +232,64 @@ final class AppStateForumWatchTests: XCTestCase {
                           "on a v2 error the thread title must not be corrupted to 'Unknown'")
     }
 }
+
+// MARK: - A halted key stops Forum Watch too (audit F-06)
+
+@MainActor
+final class ForumWatchKeyHaltTests: XCTestCase {
+    private var mockSession: MockNetworkSession!
+    private var app: AppState!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        mockSession = MockNetworkSession()
+        app = AppState(session: mockSession,
+                       connectivity: ControllableConnectivity(),
+                       defaults: .createMockDefaults())
+        app.apiKey = "forum-halt-\(UUID().uuidString)"
+        app.watchedThreads = [WatchedThread(id: 111, title: "Thread A")]
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.forumThreadSuccess)
+    }
+
+    override func tearDown() async throws {
+        app.stopForumPolling()
+        app = nil
+        mockSession = nil
+        try await super.tearDown()
+    }
+
+    private var forumRequests: [URL] {
+        mockSession.requestedURLs.filter { $0.absoluteString.contains("/forum/") }
+    }
+
+    func testPermanentKeyErrorStopsTheForumTimer() {
+        app.startForumPolling()
+        XCTAssertNotNil(app.forumTimerCancellable)
+
+        app.handlePermanentKeyError(.permanentKey(code: 2, message: "Incorrect key"))
+
+        XCTAssertNil(app.forumTimerCancellable,
+                     "a rejected key must not keep polling threads every few minutes")
+    }
+
+    func testHaltedKeyIssuesNoForumThreadRequests() async throws {
+        app.keyHalted = true
+
+        app.refreshForumWatch()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertTrue(forumRequests.isEmpty)
+    }
+
+    /// The menu's onAppear calls `startForumPolling()` every time it opens; after a halt
+    /// that used to reinstall the timer.
+    func testStartForumPollingIsRefusedWhileHalted() async throws {
+        app.keyHalted = true
+
+        app.startForumPolling()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(app.forumTimerCancellable)
+        XCTAssertTrue(forumRequests.isEmpty)
+    }
+}

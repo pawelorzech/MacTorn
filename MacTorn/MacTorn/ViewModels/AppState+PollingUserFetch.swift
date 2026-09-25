@@ -247,6 +247,9 @@ extension AppState {
         keyValidation = .failure(error.userMessage)
         errorMsg = error.userMessage
         stopPolling()
+        // Forum Watch runs on its own timer and would otherwise keep spending the rejected
+        // key on thread requests until the user changed it.
+        stopForumPolling()
         logger.error("Polling halted on permanent key error (code \(error.tornCode ?? -1))")
     }
 
