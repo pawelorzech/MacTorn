@@ -143,14 +143,15 @@ private struct SlidingWindowCounter {
         return total
     }
 
-    /// Drop buckets at or below `now - window`. The boundary second is dropped one tick
-    /// earlier than a strict `>= cutoff` reading would, which can only under-count, never
-    /// let a request slip past the cap.
+    /// Drop buckets strictly below `now - window`; the boundary second is kept. Both
+    /// instants are truncated to whole seconds, so keeping it can hold an event up to one
+    /// second past its window (over-count, the safe side of a rate cap) but never drops one
+    /// that is still inside it — which would let a request slip past the cap.
     private mutating func prune(nowSecond: Int) {
         let cutoff = nowSecond - windowSeconds
         var index = 0
         var removed = 0
-        while index < buckets.count, buckets[index].second <= cutoff {
+        while index < buckets.count, buckets[index].second < cutoff {
             removed += buckets[index].count
             index += 1
         }

@@ -105,17 +105,34 @@ final class PollingCoordinatorTests: XCTestCase {
 
     // MARK: Sliding-window edge cases (regression for the O(1) rewrite)
 
-    /// The window is defined at whole-second resolution. A request recorded at the very
-    /// start of a minute must still be counted one second shy of the window, and must roll
-    /// off once the window has fully elapsed — the boundary the array-scan version and the
-    /// bucketed version must agree on.
+    /// The window is defined at whole-second resolution, and the boundary is inclusive —
+    /// the same `>= now - window` the Date-based array version used. At exactly 60 s the
+    /// request still counts; it rolls off one second later. Bucketing may only ever
+    /// over-count at the edge (the conservative side of a rate cap), never under-count.
+    ///
+    /// This test previously expected 0 at 60 s, which encoded the bucketed version
+    /// dropping the boundary second early (audit F-07).
     func testSecondResolutionBoundaryIsStable() {
         coord.record(endpoint("user.fast"))
         clock.advance(59)
         XCTAssertEqual(coord.requestsInLastMinute, 1, "59 s later it is still inside the minute")
 
         clock.advance(1)
-        XCTAssertEqual(coord.requestsInLastMinute, 0, "60 s later the window has elapsed")
+        XCTAssertEqual(coord.requestsInLastMinute, 1, "at exactly 60 s the boundary is inclusive")
+
+        clock.advance(1)
+        XCTAssertEqual(coord.requestsInLastMinute, 0, "61 s later the window has elapsed")
+    }
+
+    /// A request 59.6 s old is inside the minute. Truncating both instants to whole
+    /// seconds must not push it out early and let an extra request past the cap.
+    func testSubSecondRequestIsNotDroppedBeforeItsMinuteElapses() {
+        clock.set(Date(timeIntervalSince1970: 1_700_000_000.9))
+        coord.record(endpoint("user.fast"))
+
+        clock.set(Date(timeIntervalSince1970: 1_700_000_060.5))
+
+        XCTAssertEqual(coord.requestsInLastMinute, 1)
     }
 
     /// Bucketing must not merge counts across adjacent seconds, or a burst would be
