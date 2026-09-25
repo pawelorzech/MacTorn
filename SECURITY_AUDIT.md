@@ -54,7 +54,7 @@ Trust boundaries:
 4. **App → keychain / preferences.** API key lives in Keychain (`kSecClassGenericPassword`, accessible after first unlock) — F-01. Non-secret prefs (refresh interval, watchlist, appearance) remain in UserDefaults.
 
 Verified-absent attack surface (whole categories that simply do not apply):
-- No URL schemes, deep links, AppleEvents handlers
+- No AppleEvents handlers. **One URL scheme exists** (`mactorn://`, `Info.plist`, handler in `MacTornApp.swift` `onOpenURL`), added with the widget without the re-audit §F.4 asks for. Re-checked 2026-09-26: the handler reads only `url.host`, maps it to one of two tabs (`travel` → Travel, anything else → Status) and activates the app. No path, query or other input is read, so the worst an external caller can do is bring MacTorn forward. Any future parameter must be validated as untrusted input.
 - No WebView (`WKWebView`/`SFSafariViewController`)
 - No XPC, Mach ports, distributed notifications, local listener
 - No subprocess spawning, AppleScript, NSTask

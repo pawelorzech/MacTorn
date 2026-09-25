@@ -65,6 +65,8 @@ In scope: the MacTorn app, its build/release tooling, and its CI workflows.
 
 Out of scope: the Torn API itself and Torn's own infrastructure (report those to Torn),
 and social-engineering or physical-access attacks. The audit assumes the
-verified-absent attack surface listed in `SECURITY_AUDIT.md` §A (no URL schemes,
-WebView, XPC, IPC, AppleScript, file-open handlers, or third-party runtime
-dependencies beyond Sentry). Adding any of those requires a re-audit.
+verified-absent attack surface listed in `SECURITY_AUDIT.md` §A (no WebView, XPC,
+IPC, AppleScript, file-open handlers, or third-party runtime dependencies beyond
+Sentry). The one URL scheme, `mactorn://`, only switches between two tabs and reads
+no parameters (re-checked 2026-09-26). Adding any of the absent surfaces, or any
+parameter to the URL scheme, requires a re-audit.
