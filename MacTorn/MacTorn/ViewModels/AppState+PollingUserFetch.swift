@@ -209,15 +209,6 @@ extension AppState {
         let resolvedKey = key ?? apiKey
         guard !resolvedKey.isEmpty else { return nil }
         let granted = keyInfo.map { Set($0.selections.names(for: KeyValidator.category(for: endpoint))) }
-        if endpointID == "user.fast", companion.enabled.contains(.stocks),
-           let original = endpoint.url(key: resolvedKey, parameter: parameter, granted: granted),
-           var components = URLComponents(url: original, resolvingAgainstBaseURL: false) {
-            components.queryItems = components.queryItems?.map { item in
-                guard item.name == "selections" else { return item }
-                return URLQueryItem(name: item.name, value: item.value?.split(separator: ",").filter { $0 != "stocks" }.joined(separator: ","))
-            }
-            return components.url
-        }
         return endpoint.url(key: resolvedKey, parameter: parameter, granted: granted)
     }
 
@@ -742,7 +733,7 @@ extension AppState {
         battleStats = payload.battleStats
         if let attacks = payload.recentAttacks { recentAttacks = attacks }
         if let properties = payload.properties { propertiesData = properties }
-        if !companion.enabled.contains(.stocks) { stocksData = payload.stocks }
+        stocksData = payload.stocks
 
         lastUpdated = Date()
         lastFetchTime = receivedAt
