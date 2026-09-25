@@ -268,6 +268,46 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertTrue(state.watchlistItems.allSatisfy { $0.lastUpdated == nil })
     }
 
+    /// A refresh superseded mid-run must still deliver the alerts it already latched.
+    ///
+    /// `MarketWatchService.apply` writes `lastAlertedPrice` the moment a price crosses the
+    /// threshold, so the alert epoch is spent at that point. The pending alerts used to
+    /// live in one shared array that the next refresh cleared on entry, and the cancelled
+    /// run skipped its own flush — the latch was set, the banner never shown, and the
+    /// superseding run saw the same cache timestamp and stayed silent. (Audit F-04.)
+    func testSupersededRefreshStillDeliversAlertsItAlreadyLatched() async throws {
+        let probe = try ConcurrencyProbeNetworkSession(
+            json: TornAPIFixtures.marketItemSuccess,
+            delayNanoseconds: 300_000_000
+        )
+        let state = AppState(
+            session: probe,
+            connectivity: ControllableConnectivity(),
+            defaults: .createMockDefaults()
+        )
+        var delivered: [String] = []
+        state.deliverPriceAlerts = { alerts in delivered += alerts.map(\.name) }
+        state.apiKey = "valid_key"
+        // Five items at a 1,000 threshold; the fixture's lowest price is 950. With the
+        // queue limit at four, the first wave lands at ~300 ms and item 5 at ~600 ms.
+        state.watchlistItems = (1...5).map {
+            WatchlistItem(id: $0, name: "Item \($0)", lowestPrice: 0,
+                          lowestPriceQuantity: 0, secondLowestPrice: 0,
+                          lastUpdated: nil, error: nil, priceThreshold: 1_000)
+        }
+
+        state.refreshWatchlistPrices()
+        try await Task.sleep(nanoseconds: 450_000_000)
+        XCTAssertEqual(state.watchlistItems.filter { $0.lastAlertedPrice == 950 }.count, 4,
+                       "precondition: the first wave latched its alerts")
+        state.refreshWatchlistPrices()
+        try await Task.sleep(nanoseconds: 1_200_000_000)
+
+        XCTAssertEqual(Set(delivered), Set((1...5).map { "Item \($0)" }),
+                       "every latched alert must reach the user")
+        XCTAssertEqual(delivered.count, 5, "and each exactly once")
+    }
+
     // MARK: - Price Update Tests
 
     func testPriceFetch_updatesPrices() async throws {

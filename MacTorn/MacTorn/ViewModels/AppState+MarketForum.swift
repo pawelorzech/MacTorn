@@ -1,6 +1,12 @@
 import Foundation
 import Combine
 
+/// Price alerts latched during one watchlist refresh run, announced together when it ends.
+@MainActor
+final class PriceAlertBatch {
+    var alerts: [MarketPriceAlert] = []
+}
+
 extension AppState {
     // MARK: - Watchlist
 
@@ -92,31 +98,35 @@ extension AppState {
                   let delay = item.cacheDelay else { return true }
             return timestamp.addingTimeInterval(delay) <= now
         }.map(\.id)
-        pendingPriceAlerts.removeAll(keepingCapacity: true)
+        // Owned by this run alone. A shared pending list was cleared by the next refresh on
+        // entry, and a superseded run skipped its flush — while `apply` had already spent
+        // the alert epoch (`lastAlertedPrice`), so the alert was never shown. (Audit F-04.)
+        let batch = PriceAlertBatch()
         await BoundedTaskQueue.run(itemIDs, limit: 4) { [weak self] itemID in
             guard let self else { return }
             await self.fetchItemPrice(
                 itemId: itemID,
                 apiKey: requestedKey,
                 generation: generation,
-                save: false
+                batch: batch
             )
         }
-        guard !Task.isCancelled,
-              isCurrentAccount(requestedKey, generation: generation) else { return }
-        flushPendingPriceAlerts()
+        // Deliberately not gated on cancellation: whatever this run latched must be
+        // announced and persisted even when a newer refresh superseded it. Only an
+        // account change voids it.
+        guard isCurrentAccount(requestedKey, generation: generation) else { return }
+        if !batch.alerts.isEmpty { deliverPriceAlerts(batch.alerts) }
         saveWatchlist()
     }
 
-    private func flushPendingPriceAlerts() {
-        let alerts = pendingPriceAlerts
-        pendingPriceAlerts.removeAll(keepingCapacity: true)
+    /// One banner for a single alert, a summary banner for several.
+    static func postPriceAlertNotifications(_ alerts: [MarketPriceAlert]) {
         guard !alerts.isEmpty else { return }
         if alerts.count == 1 {
             let a = alerts[0]
             NotificationManager.shared.send(
                 title: "Price Alert: \(a.name)",
-                body: "Lowest price dropped to \(formatAlertPrice(a.price))",
+                body: "Lowest price dropped to \(TornFormatter.formatMoney(a.price))",
                 type: .priceAlert
             )
             return
@@ -131,14 +141,14 @@ extension AppState {
         )
     }
 
-    private func fetchItemPrice(itemId: Int, save: Bool = true) async {
+    private func fetchItemPrice(itemId: Int) async {
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         await fetchItemPrice(
             itemId: itemId,
             apiKey: requestedKey,
             generation: generation,
-            save: save
+            batch: nil
         )
     }
 
@@ -146,8 +156,11 @@ extension AppState {
         itemId: Int,
         apiKey requestedKey: String,
         generation: UInt,
-        save: Bool
+        batch: PriceAlertBatch?
     ) async {
+        // A single-item fetch persists and announces itself; a batched one leaves both to
+        // the end of its run.
+        let save = batch == nil
         guard isCurrentAccount(requestedKey, generation: generation),
               !requestedKey.isEmpty,
               let url = endpointURL("market.item", parameter: itemId, key: requestedKey) else { return }
@@ -165,7 +178,7 @@ extension AppState {
 
             switch result {
             case .success(let snapshot, _):
-                updateItemPrice(itemId: itemId, snapshot: snapshot, save: save)
+                updateItemPrice(itemId: itemId, snapshot: snapshot, batch: batch)
             case .apiError(let apiError, _):
                 // Code 6 (bad item id) means this request can never succeed. Without
                 // telling the gate, a watchlist entry holding a dead id was re-requested
@@ -191,23 +204,15 @@ extension AppState {
     }
 
     @MainActor
-    private func updateItemPrice(itemId: Int, snapshot: MarketPriceSnapshot, save: Bool = true) {
+    private func updateItemPrice(itemId: Int, snapshot: MarketPriceSnapshot, batch: PriceAlertBatch?) {
         if let alert = marketWatchService.apply(snapshot.localized(using: serverClock), to: itemId) {
-            if save {
-                NotificationManager.shared.send(
-                    title: "Price Alert: \(alert.name)",
-                    body: "Lowest price dropped to \(formatAlertPrice(alert.price))",
-                    type: .priceAlert
-                )
+            if let batch {
+                batch.alerts.append(alert)
             } else {
-                pendingPriceAlerts.append((name: alert.name, price: alert.price))
+                deliverPriceAlerts([alert])
             }
         }
-        if save { marketWatchService.save() }
-    }
-
-    private func formatAlertPrice(_ price: Int) -> String {
-        TornFormatter.formatMoney(price)
+        if batch == nil { marketWatchService.save() }
     }
 
     @MainActor

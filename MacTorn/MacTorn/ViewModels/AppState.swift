@@ -308,7 +308,11 @@ class AppState {
     @ObservationIgnored var pollingTimerInterval: TimeInterval?
     @ObservationIgnored var forumTimerInterval: TimeInterval?
     @ObservationIgnored var lastForumFetchAt: Date?
-    @ObservationIgnored var pendingPriceAlerts: [(name: String, price: Int)] = []
+    /// Posts price-alert banners. A seam (like `cancelScheduledTravelNotifications`) so a
+    /// test can see which alerts were actually delivered, not just which were latched.
+    @ObservationIgnored var deliverPriceAlerts: @MainActor ([MarketPriceAlert]) -> Void = { alerts in
+        AppState.postPriceAlertNotifications(alerts)
+    }
 
     /// Monotonic identity for accepted user snapshot polls. Deferred cleanup from an
     /// older, cancelled poll must never mutate the loading state owned by a newer one.
