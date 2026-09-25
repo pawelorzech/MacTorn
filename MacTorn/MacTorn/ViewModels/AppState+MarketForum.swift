@@ -87,13 +87,16 @@ extension AppState {
         }
     }
 
-    private func fetchWatchlistPrices() async {
-        guard connectivity.isConnected else { return }
+    /// - Parameter thresholdsOnly: refresh only items with a price alert set — the
+    ///   background timer's scope. Items without a threshold have nothing to announce.
+    private func fetchWatchlistPrices(thresholdsOnly: Bool = false) async {
+        guard connectivity.isConnected, !keyHalted else { return }
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         guard !requestedKey.isEmpty else { return }
         let now = Date()
         let itemIDs = watchlistItems.filter { item in
+            if thresholdsOnly, item.priceThreshold == nil { return false }
             guard let timestamp = item.dataTimestamp,
                   let delay = item.cacheDelay else { return true }
             return timestamp.addingTimeInterval(delay) <= now
@@ -491,5 +494,54 @@ extension AppState {
         watchlistItems[index].lastAlertedPrice = lastAlertedPrice
         saveWatchlist()
         return true
+    }
+}
+
+// MARK: - Background price alerts
+
+extension AppState {
+    /// How often threshold items are re-priced in the background. Five minutes keeps a
+    /// full watchlist far below the request budget; item-market data is cached by Torn
+    /// for about that long anyway, and `cacheDelay` skips anything not yet re-cached.
+    static let priceAlertPollInterval: TimeInterval = 300
+
+    var hasPriceThresholds: Bool {
+        watchlistItems.contains { $0.priceThreshold != nil }
+    }
+
+    /// Keeps the background price-alert timer in step with polling and thresholds.
+    ///
+    /// Price alerts used to be checked only while the Watchlist tab was on screen: the
+    /// view was the only caller of `refreshWatchlistPrices`. The timer runs only while
+    /// user polling does and at least one item has a threshold, so a watchlist with no
+    /// alerts spends no requests. Mirrors how Forum Watch polls on its own timer.
+    func syncPriceAlertPolling() {
+        guard timerCancellable != nil, !keyHalted, !apiKey.isEmpty, hasPriceThresholds else {
+            stopPriceAlertPolling()
+            return
+        }
+        guard priceAlertTimerCancellable == nil else { return }
+        priceAlertTimerCancellable = Timer.publish(every: Self.priceAlertPollInterval,
+                                                   tolerance: Self.priceAlertPollInterval / 10,
+                                                   on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.refreshPriceAlerts()
+            }
+    }
+
+    func stopPriceAlertPolling() {
+        priceAlertTimerCancellable?.cancel()
+        priceAlertTimerCancellable = nil
+    }
+
+    /// One background pass: threshold items only, through the same staleness filter,
+    /// bounded queue, request gate and account checks as a Watchlist-tab refresh. Alerts
+    /// are announced at the end of the run.
+    func refreshPriceAlerts() {
+        guard !keyHalted, hasPriceThresholds else { return }
+        accountSession.startTask(.priceAlerts) {
+            await self.fetchWatchlistPrices(thresholdsOnly: true)
+        }
     }
 }

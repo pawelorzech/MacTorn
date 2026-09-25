@@ -737,3 +737,136 @@ private final class ConcurrencyProbeNetworkSession: NetworkSession, @unchecked S
         return (responseData, response)
     }
 }
+
+// MARK: - Background price-alert timer (audit F-05)
+
+/// Price alerts used to be checked only while the Watchlist tab was on screen — the only
+/// caller of `refreshWatchlistPrices` was the view. These pin the background timer that
+/// refreshes threshold items with no view involved.
+@MainActor
+final class WatchlistPriceAlertTimerTests: XCTestCase {
+    private var mockSession: MockNetworkSession!
+    private var state: AppState!
+    private var delivered: [String] = []
+
+    override func setUp() async throws {
+        try await super.setUp()
+        mockSession = MockNetworkSession()
+        state = AppState(session: mockSession,
+                         connectivity: ControllableConnectivity(),
+                         defaults: .createMockDefaults())
+        delivered = []
+        state.deliverPriceAlerts = { [unowned self] alerts in delivered += alerts.map(\.name) }
+        state.apiKey = "price-alert-\(UUID().uuidString)"
+    }
+
+    override func tearDown() async throws {
+        state.stopPolling()
+        state = nil
+        mockSession = nil
+        try await super.tearDown()
+    }
+
+    private func item(_ id: Int, threshold: Int?) -> WatchlistItem {
+        WatchlistItem(id: id, name: "Item \(id)", lowestPrice: 0, lowestPriceQuantity: 0,
+                      secondLowestPrice: 0, lastUpdated: nil, error: nil,
+                      priceThreshold: threshold)
+    }
+
+    private var marketRequests: [URL] {
+        mockSession.requestedURLs.filter { $0.absoluteString.contains("/market/") }
+    }
+
+    func testBackgroundRefreshDeliversAlertWithoutAnyView() async throws {
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
+        state.watchlistItems = [item(123, threshold: 1_000)]
+
+        state.refreshPriceAlerts()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(state.watchlistItems.first?.lastAlertedPrice, 950)
+        XCTAssertEqual(delivered, ["Item 123"])
+    }
+
+    func testBackgroundRefreshOnlyRequestsItemsWithAThreshold() async throws {
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
+        state.watchlistItems = [item(123, threshold: 1_000), item(456, threshold: nil)]
+
+        state.refreshPriceAlerts()
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(marketRequests.count, 1)
+        XCTAssertTrue(marketRequests.first?.absoluteString.contains("/123") == true)
+    }
+
+    func testBackgroundRefreshRespectsTheCacheDelay() async throws {
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
+        var fresh = item(123, threshold: 1_000)
+        fresh.dataTimestamp = Date()
+        fresh.cacheDelay = 600
+        state.watchlistItems = [fresh]
+
+        state.refreshPriceAlerts()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertTrue(marketRequests.isEmpty, "a price Torn has not re-cached yet is not re-requested")
+    }
+
+    func testNoThresholdsMeansNoRequestAndNoTimer() async throws {
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
+        state.watchlistItems = [item(123, threshold: nil)]
+
+        state.refreshPriceAlerts()
+        state.startPolling()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertTrue(marketRequests.isEmpty)
+        XCTAssertNil(state.priceAlertTimerCancellable)
+    }
+
+    func testTimerFollowsPollingAndThresholds() {
+        state.watchlistItems = [item(123, threshold: nil)]
+        state.startPolling()
+        XCTAssertNil(state.priceAlertTimerCancellable)
+
+        state.watchlistItems[0].priceThreshold = 1_000
+        XCTAssertNotNil(state.priceAlertTimerCancellable, "setting a threshold starts it")
+
+        state.watchlistItems[0].priceThreshold = nil
+        XCTAssertNil(state.priceAlertTimerCancellable, "clearing the last threshold stops it")
+    }
+
+    func testTimerIsGoneAfterKeyClear() {
+        state.watchlistItems = [item(123, threshold: 1_000)]
+        state.startPolling()
+        XCTAssertNotNil(state.priceAlertTimerCancellable)
+
+        state.apiKey = ""
+
+        XCTAssertNil(state.priceAlertTimerCancellable)
+    }
+
+    func testTimerIsGoneAfterPermanentKeyError() async throws {
+        state.watchlistItems = [item(123, threshold: 1_000)]
+        state.startPolling()
+        XCTAssertNotNil(state.priceAlertTimerCancellable)
+
+        state.handlePermanentKeyError(.permanentKey(code: 2, message: "Incorrect key"))
+        XCTAssertNil(state.priceAlertTimerCancellable)
+
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
+        state.refreshPriceAlerts()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        XCTAssertTrue(marketRequests.isEmpty, "a halted key spends nothing")
+    }
+
+    func testTimerIsGoneAfterStopPolling() {
+        state.watchlistItems = [item(123, threshold: 1_000)]
+        state.startPolling()
+        XCTAssertNotNil(state.priceAlertTimerCancellable)
+
+        state.stopPolling()
+
+        XCTAssertNil(state.priceAlertTimerCancellable)
+    }
+}

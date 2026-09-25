@@ -108,6 +108,9 @@ extension AppState {
                 self.fetchData()
                 self.triggerReferenceDataFetchIfNeeded()
             }
+        // Every path that starts polling comes through here (startPolling, refreshNow, a
+        // cadence change), so the price-alert timer is started alongside in one place.
+        syncPriceAlertPolling()
     }
 
     private func triggerStocksMetadataFetchIfNeeded() {
@@ -128,6 +131,7 @@ extension AppState {
         timerCancellable?.cancel()
         timerCancellable = nil
         pollingTimerInterval = nil
+        stopPriceAlertPolling()
         // Issue #56: an in-flight GitHub update-check must not outlive polling teardown.
         updateCheckTask?.cancel()
     }

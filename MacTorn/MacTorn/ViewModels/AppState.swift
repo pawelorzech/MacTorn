@@ -180,7 +180,12 @@ class AppState {
     @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
     var watchlistItems: [WatchlistItem] {
         get { marketWatchService.items }
-        set { marketWatchService.items = newValue }
+        set {
+            marketWatchService.items = newValue
+            // The Watchlist tab sets and clears thresholds through this setter; the
+            // background price-alert timer exists only while one is set.
+            syncPriceAlertPolling()
+        }
     }
     // MARK: - API v2 user state (organized crime, refills, education, bounties)
     var organizedCrime: OrganizedCrime2?
@@ -303,6 +308,9 @@ class AppState {
     // MARK: - Timer
     @ObservationIgnored var timerCancellable: AnyCancellable?
     @ObservationIgnored var forumTimerCancellable: AnyCancellable?
+    /// Background price-alert refresh (see `syncPriceAlertPolling`). Nil unless polling is
+    /// running and at least one watchlist item has a threshold.
+    @ObservationIgnored var priceAlertTimerCancellable: AnyCancellable?
     /// The cadence each running timer was installed with. Combine hides the interval, so
     /// these are what tells a stale timer from a current one (and what tests read).
     @ObservationIgnored var pollingTimerInterval: TimeInterval?
@@ -526,6 +534,7 @@ class AppState {
         timerCancellable?.cancel()
         timerCancellable = nil
         pollingTimerInterval = nil
+        stopPriceAlertPolling()
         accountSession.cancelTask(.stockMetadata)
         accountSession.cancelTask(.itemCatalog)
         referenceFetchIDs.removeAll()
