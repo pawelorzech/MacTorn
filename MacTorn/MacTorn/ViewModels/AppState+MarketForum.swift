@@ -192,7 +192,7 @@ extension AppState {
 
     @MainActor
     private func updateItemPrice(itemId: Int, snapshot: MarketPriceSnapshot, save: Bool = true) {
-        if let alert = marketWatchService.apply(snapshot, to: itemId) {
+        if let alert = marketWatchService.apply(snapshot.localized(using: serverClock), to: itemId) {
             if save {
                 NotificationManager.shared.send(
                     title: "Price Alert: \(alert.name)",
