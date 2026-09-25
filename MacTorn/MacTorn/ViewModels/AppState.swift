@@ -115,6 +115,11 @@ class AppState {
     var widgetStore: WidgetSnapshotStore?
     @ObservationIgnored var widgetPublicationTask: Task<Void, Never>?
     @ObservationIgnored var reloadWidgetTimelines: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
+    /// Removes the pending "Landing Soon!" alerts. A seam for the same reason as
+    /// `reloadWidgetTimelines`: `NotificationManager.shared` is not injectable.
+    @ObservationIgnored var cancelScheduledTravelNotifications: () -> Void = {
+        NotificationManager.shared.cancelTravelNotifications()
+    }
     var data: TornResponse?
     var lastUpdated: Date?
     var errorMsg: String?
@@ -478,6 +483,9 @@ class AppState {
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
         previousTravel = nil
+        // Landing alerts were scheduled for the old account's flight. Left pending, they
+        // fire later for an account that is not travelling (or a key that no longer works).
+        cancelScheduledTravelNotifications()
         // Deliberately NOT cleared here, for the reason the apiKey setter documents: this
         // is a dedup latch, and a transient permanent-key error routes through this method.
         // Wiping it there re-announced every bounty the user had already been told about

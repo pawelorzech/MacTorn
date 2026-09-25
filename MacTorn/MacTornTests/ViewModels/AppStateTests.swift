@@ -1768,3 +1768,49 @@ final class ChainSourceTests: XCTestCase {
                        "the Next Action timeline must see the faction-sourced chain")
     }
 }
+
+// MARK: - Scheduled travel alerts are account-scoped (audit F-01)
+
+@MainActor
+final class TravelNotificationAccountScopeTests: XCTestCase {
+    private func makeApp() -> (AppState, () -> Int) {
+        let app = AppState(session: MockNetworkSession(),
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults())
+        var cancels = 0
+        app.cancelScheduledTravelNotifications = { cancels += 1 }
+        return (app, { cancels })
+    }
+
+    /// A "Landing Soon!" alert scheduled for account A must not fire after the user
+    /// switched to account B — B is not travelling.
+    func testChangingTheKeyCancelsScheduledTravelNotifications() {
+        let (app, cancels) = makeApp()
+        app.apiKey = "account_a"
+        let before = cancels()
+
+        app.apiKey = "account_b"
+
+        XCTAssertGreaterThan(cancels(), before)
+    }
+
+    func testClearingTheKeyCancelsScheduledTravelNotifications() {
+        let (app, cancels) = makeApp()
+        app.apiKey = "account_a"
+        let before = cancels()
+
+        app.apiKey = ""
+
+        XCTAssertGreaterThan(cancels(), before)
+    }
+
+    func testPermanentKeyErrorCancelsScheduledTravelNotifications() {
+        let (app, cancels) = makeApp()
+        app.apiKey = "account_a"
+        let before = cancels()
+
+        app.handlePermanentKeyError(.permanentKey(code: 2, message: "Incorrect key"))
+
+        XCTAssertGreaterThan(cancels(), before)
+    }
+}
