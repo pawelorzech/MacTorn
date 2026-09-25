@@ -463,7 +463,11 @@ extension AppState {
             }
 
             let decoded = try JSONDecoder().decode(TornKeyInfo.Response.self, from: data)
-            self.keyInfo = decoded.info
+            // `keyInfo` describes the *saved* key — the gate narrows its polls with it. A
+            // key typed into Settings but not yet saved only gets the validation panel.
+            if trimmed == apiKey.trimmingCharacters(in: .whitespacesAndNewlines) {
+                self.keyInfo = decoded.info
+            }
             self.keyValidation = .success(KeyValidator.validate(decoded.info))
             recordHealth("key.info", outcome: .ok, since: startTime, bytes: data.count)
             logger.info("Key validated: access level \(decoded.info.access.level)")

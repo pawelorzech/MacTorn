@@ -215,6 +215,32 @@ final class KeyValidationTests: XCTestCase {
         XCTAssertTrue(mock.requestedURLs.isEmpty, "no request should be made for an empty key")
     }
 
+    /// "Test Connection" on a typed-but-unsaved key reports on that key only. It used to
+    /// write the candidate's capabilities into `keyInfo`, which the endpoint gate reads
+    /// for the *saved* key — so testing a limited key narrowed the active account's polls.
+    /// (Audit F-02.)
+    @MainActor
+    func testValidatingAnUnsavedKeyDoesNotReplaceTheActiveKeyInfo() async throws {
+        let mock = MockNetworkSession()
+        try mock.setSuccessResponse(json: keyInfoJSON(level: 4, type: "Full Access",
+                                                      userSelections: fullUserSelections))
+        let state = makeState(mock)
+        state.apiKey = "sample-saved-value"
+        await state.validateKey()
+        XCTAssertEqual(state.keyInfo?.access.level, 4, "precondition: the saved key's info")
+
+        try mock.setSuccessResponse(json: keyInfoJSON(level: 1, type: "Public Only",
+                                                      userSelections: ["basic"]))
+        await state.validateKey("sample-typed-value")
+
+        guard case .success(let result) = state.keyValidation else {
+            return XCTFail("the typed key's result must still be reported, got \(state.keyValidation)")
+        }
+        XCTAssertEqual(result.accessType, "Public Only")
+        XCTAssertEqual(state.keyInfo?.access.level, 4,
+                       "the active account's capabilities must not be replaced by an unsaved key's")
+    }
+
     @MainActor
     func testChangingKeyResetsValidation() async throws {
         let mock = MockNetworkSession()
