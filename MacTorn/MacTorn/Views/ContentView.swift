@@ -86,6 +86,10 @@ struct ContentView: View {
         appState.isLoading && appState.lastUpdated == nil
     }
 
+    private var isShowingModalPrompt: Bool {
+        appState.showFeedbackPrompt || showSentryOptIn
+    }
+
     var body: some View {
 
         ZStack {
@@ -135,6 +139,10 @@ struct ContentView: View {
                 // Footer buttons — always interactive, see above.
                 footerView
             }
+            // A prompt overlay is modal: hide what's underneath from VoiceOver and keep
+            // the keyboard/pointer from reaching it until the prompt is answered.
+            .accessibilityHidden(isShowingModalPrompt)
+            .disabled(isShowingModalPrompt)
             
             // Loading Overlay
             if isBlockingInitialLoad {
@@ -159,6 +167,7 @@ struct ContentView: View {
 
                 FeedbackPromptView()
                     .environment(appState)
+                    .accessibilityAddTraits(.isModal)
             }
 
             // Sentry Opt-In Prompt Overlay
@@ -167,6 +176,7 @@ struct ContentView: View {
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
 
                 SentryOptInPromptView(isPresented: $showSentryOptIn)
+                    .accessibilityAddTraits(.isModal)
             }
         }
         .frame(width: 320)

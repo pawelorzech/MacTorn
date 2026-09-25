@@ -13,8 +13,12 @@ struct ForumWatchView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                ModuleStateView(state: moduleState) {
-                    appState.refreshForumWatch()
+                // With nothing watched there is nothing to fetch; the list's own empty
+                // state explains that, so a "No data yet · Retry" strip would contradict it.
+                if !appState.watchedThreads.isEmpty {
+                    ModuleStateView(state: moduleState) {
+                        appState.refreshForumWatch()
+                    }
                 }
 
                 // Header
@@ -31,6 +35,8 @@ struct ForumWatchView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .foregroundColor(.blue)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Refresh watched threads")
@@ -42,6 +48,8 @@ struct ForumWatchView: View {
                     } label: {
                         Image(systemName: showAddThread ? "minus.circle.fill" : "plus.circle.fill")
                             .foregroundColor(showAddThread ? .red : .green)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(showAddThread ? "Close add thread form" : "Add watched thread")
@@ -232,6 +240,7 @@ struct ForumThreadRow: View {
                 Image(systemName: "person.3.fill")
                     .font(.caption2)
                     .foregroundColor(.orange)
+                    .accessibilityLabel("Faction thread")
             }
 
             // Thread title (clickable)
