@@ -16,6 +16,25 @@ struct MarketPriceSnapshot: Equatable {
         self.dataTimestamp = dataTimestamp
         self.cacheDelay = cacheDelay
     }
+
+    /// Longest `cache_delay` honoured. The value comes off the wire and is persisted, so an
+    /// absurd one would otherwise freeze the item's refresh indefinitely.
+    static let maxCacheDelay: TimeInterval = 300
+
+    /// Re-expresses Torn's `cache_timestamp` (server clock) on the Mac's clock and clamps
+    /// the delay, so the refresh filter and the "Price data from … ago" label — both of
+    /// which compare against `Date()` — stay correct when the Mac clock is skewed.
+    func localized(using clock: ServerClock) -> MarketPriceSnapshot {
+        MarketPriceSnapshot(
+            lowestPrice: lowestPrice,
+            lowestPriceQuantity: lowestPriceQuantity,
+            secondLowestPrice: secondLowestPrice,
+            dataTimestamp: dataTimestamp.map {
+                clock.localDate(forServerTimestamp: Int($0.timeIntervalSince1970))
+            },
+            cacheDelay: cacheDelay.map { min(max($0, 0), Self.maxCacheDelay) }
+        )
+    }
 }
 
 enum MarketPriceResult {

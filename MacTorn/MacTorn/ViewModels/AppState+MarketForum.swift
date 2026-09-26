@@ -1,6 +1,12 @@
 import Foundation
 import Combine
 
+/// Price alerts latched during one watchlist refresh run, announced together when it ends.
+@MainActor
+final class PriceAlertBatch {
+    var alerts: [MarketPriceAlert] = []
+}
+
 extension AppState {
     // MARK: - Watchlist
 
@@ -81,42 +87,49 @@ extension AppState {
         }
     }
 
-    private func fetchWatchlistPrices() async {
-        guard connectivity.isConnected else { return }
+    /// - Parameter thresholdsOnly: refresh only items with a price alert set — the
+    ///   background timer's scope. Items without a threshold have nothing to announce.
+    private func fetchWatchlistPrices(thresholdsOnly: Bool = false) async {
+        guard connectivity.isConnected, !keyHalted else { return }
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         guard !requestedKey.isEmpty else { return }
         let now = Date()
         let itemIDs = watchlistItems.filter { item in
+            if thresholdsOnly, item.priceThreshold == nil { return false }
             guard let timestamp = item.dataTimestamp,
                   let delay = item.cacheDelay else { return true }
             return timestamp.addingTimeInterval(delay) <= now
         }.map(\.id)
-        pendingPriceAlerts.removeAll(keepingCapacity: true)
+        // Owned by this run alone. A shared pending list was cleared by the next refresh on
+        // entry, and a superseded run skipped its flush — while `apply` had already spent
+        // the alert epoch (`lastAlertedPrice`), so the alert was never shown. (Audit F-04.)
+        let batch = PriceAlertBatch()
         await BoundedTaskQueue.run(itemIDs, limit: 4) { [weak self] itemID in
             guard let self else { return }
             await self.fetchItemPrice(
                 itemId: itemID,
                 apiKey: requestedKey,
                 generation: generation,
-                save: false
+                batch: batch
             )
         }
-        guard !Task.isCancelled,
-              isCurrentAccount(requestedKey, generation: generation) else { return }
-        flushPendingPriceAlerts()
+        // Deliberately not gated on cancellation: whatever this run latched must be
+        // announced and persisted even when a newer refresh superseded it. Only an
+        // account change voids it.
+        guard isCurrentAccount(requestedKey, generation: generation) else { return }
+        if !batch.alerts.isEmpty { deliverPriceAlerts(batch.alerts) }
         saveWatchlist()
     }
 
-    private func flushPendingPriceAlerts() {
-        let alerts = pendingPriceAlerts
-        pendingPriceAlerts.removeAll(keepingCapacity: true)
+    /// One banner for a single alert, a summary banner for several.
+    static func postPriceAlertNotifications(_ alerts: [MarketPriceAlert]) {
         guard !alerts.isEmpty else { return }
         if alerts.count == 1 {
             let a = alerts[0]
             NotificationManager.shared.send(
                 title: "Price Alert: \(a.name)",
-                body: "Lowest price dropped to \(formatAlertPrice(a.price))",
+                body: "Lowest price dropped to \(TornFormatter.formatMoney(a.price))",
                 type: .priceAlert
             )
             return
@@ -131,14 +144,14 @@ extension AppState {
         )
     }
 
-    private func fetchItemPrice(itemId: Int, save: Bool = true) async {
+    private func fetchItemPrice(itemId: Int) async {
         let requestedKey = apiKey
         let generation = accountSession.identity.generation
         await fetchItemPrice(
             itemId: itemId,
             apiKey: requestedKey,
             generation: generation,
-            save: save
+            batch: nil
         )
     }
 
@@ -146,8 +159,11 @@ extension AppState {
         itemId: Int,
         apiKey requestedKey: String,
         generation: UInt,
-        save: Bool
+        batch: PriceAlertBatch?
     ) async {
+        // A single-item fetch persists and announces itself; a batched one leaves both to
+        // the end of its run.
+        let save = batch == nil
         guard isCurrentAccount(requestedKey, generation: generation),
               !requestedKey.isEmpty,
               let url = endpointURL("market.item", parameter: itemId, key: requestedKey) else { return }
@@ -165,7 +181,7 @@ extension AppState {
 
             switch result {
             case .success(let snapshot, _):
-                updateItemPrice(itemId: itemId, snapshot: snapshot, save: save)
+                updateItemPrice(itemId: itemId, snapshot: snapshot, batch: batch)
             case .apiError(let apiError, _):
                 // Code 6 (bad item id) means this request can never succeed. Without
                 // telling the gate, a watchlist entry holding a dead id was re-requested
@@ -191,23 +207,15 @@ extension AppState {
     }
 
     @MainActor
-    private func updateItemPrice(itemId: Int, snapshot: MarketPriceSnapshot, save: Bool = true) {
-        if let alert = marketWatchService.apply(snapshot, to: itemId) {
-            if save {
-                NotificationManager.shared.send(
-                    title: "Price Alert: \(alert.name)",
-                    body: "Lowest price dropped to \(formatAlertPrice(alert.price))",
-                    type: .priceAlert
-                )
+    private func updateItemPrice(itemId: Int, snapshot: MarketPriceSnapshot, batch: PriceAlertBatch?) {
+        if let alert = marketWatchService.apply(snapshot.localized(using: serverClock), to: itemId) {
+            if let batch {
+                batch.alerts.append(alert)
             } else {
-                pendingPriceAlerts.append((name: alert.name, price: alert.price))
+                deliverPriceAlerts([alert])
             }
         }
-        if save { marketWatchService.save() }
-    }
-
-    private func formatAlertPrice(_ price: Int) -> String {
-        TornFormatter.formatMoney(price)
+        if batch == nil { marketWatchService.save() }
     }
 
     @MainActor
@@ -252,6 +260,9 @@ extension AppState {
     }
 
     func startForumPolling() {
+        // Same rule as `startPolling`: a permanent key error holds until the key changes,
+        // and the menu's onAppear must not quietly restart the forum timer.
+        guard !keyHalted else { return }
         // Same MenuBarExtra-onAppear churn as startPolling: skip restart if already
         // running and we polled recently.
         if forumTimerCancellable != nil,
@@ -265,7 +276,13 @@ extension AppState {
         // Initial fetch
         refreshForumWatch()
 
-        forumTimerCancellable = Timer.publish(every: Double(forumWatchConfig.pollingIntervalSeconds), on: .main, in: .common)
+        installForumTimer()
+    }
+
+    func installForumTimer() {
+        let interval = Double(forumWatchConfig.pollingIntervalSeconds)
+        forumTimerInterval = interval
+        forumTimerCancellable = Timer.publish(every: interval, tolerance: interval / 10, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.refreshForumWatch()
@@ -275,6 +292,7 @@ extension AppState {
     func stopForumPolling() {
         forumTimerCancellable?.cancel()
         forumTimerCancellable = nil
+        forumTimerInterval = nil
     }
 
     func refreshForumWatch() {
@@ -284,7 +302,7 @@ extension AppState {
     }
 
     private func fetchForumUpdates() async {
-        guard connectivity.isConnected, !apiKey.isEmpty else { return }
+        guard connectivity.isConnected, !apiKey.isEmpty, !keyHalted else { return }
 
         // Nothing to watch: skip the request budget and the UserDefaults encode/write.
         // The timer still fires on its cadence, but with no watched threads and category
@@ -479,5 +497,54 @@ extension AppState {
         watchlistItems[index].lastAlertedPrice = lastAlertedPrice
         saveWatchlist()
         return true
+    }
+}
+
+// MARK: - Background price alerts
+
+extension AppState {
+    /// How often threshold items are re-priced in the background. Five minutes keeps a
+    /// full watchlist far below the request budget; item-market data is cached by Torn
+    /// for about that long anyway, and `cacheDelay` skips anything not yet re-cached.
+    static let priceAlertPollInterval: TimeInterval = 300
+
+    var hasPriceThresholds: Bool {
+        watchlistItems.contains { $0.priceThreshold != nil }
+    }
+
+    /// Keeps the background price-alert timer in step with polling and thresholds.
+    ///
+    /// Price alerts used to be checked only while the Watchlist tab was on screen: the
+    /// view was the only caller of `refreshWatchlistPrices`. The timer runs only while
+    /// user polling does and at least one item has a threshold, so a watchlist with no
+    /// alerts spends no requests. Mirrors how Forum Watch polls on its own timer.
+    func syncPriceAlertPolling() {
+        guard timerCancellable != nil, !keyHalted, !apiKey.isEmpty, hasPriceThresholds else {
+            stopPriceAlertPolling()
+            return
+        }
+        guard priceAlertTimerCancellable == nil else { return }
+        priceAlertTimerCancellable = Timer.publish(every: Self.priceAlertPollInterval,
+                                                   tolerance: Self.priceAlertPollInterval / 10,
+                                                   on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.refreshPriceAlerts()
+            }
+    }
+
+    func stopPriceAlertPolling() {
+        priceAlertTimerCancellable?.cancel()
+        priceAlertTimerCancellable = nil
+    }
+
+    /// One background pass: threshold items only, through the same staleness filter,
+    /// bounded queue, request gate and account checks as a Watchlist-tab refresh. Alerts
+    /// are announced at the end of the run.
+    func refreshPriceAlerts() {
+        guard !keyHalted, hasPriceThresholds else { return }
+        accountSession.startTask(.priceAlerts) {
+            await self.fetchWatchlistPrices(thresholdsOnly: true)
+        }
     }
 }

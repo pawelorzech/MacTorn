@@ -143,9 +143,24 @@ struct TravelView: View {
                 inTornStatusView
             }
         } else {
-            // No travel data
-            inTornStatusView
+            // No travel data: don't claim "In Torn City" — the player may well be abroad.
+            travelUnavailableView
         }
+    }
+
+    private var travelUnavailableView: some View {
+        HStack {
+            Image(systemName: "questionmark.circle")
+                .font(.title2)
+                .foregroundColor(.secondary)
+            Text("Travel status unavailable")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+        .padding()
+        .background(Color.secondary.opacity(reduceTransparency ? 0.2 : 0.1))
+        .cornerRadius(12)
     }
 
     private func abroadStatusView(_ travel: Travel) -> some View {

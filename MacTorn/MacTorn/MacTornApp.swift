@@ -186,7 +186,7 @@ struct MenuBarLabel: View {
         // The menu-bar label is the only surface of this app that is always on screen.
         // Without this, VoiceOver reads the raw glyphs ("airplane, flag of United
         // Kingdom, 2 colon 35") instead of the state they stand for.
-        .accessibilityLabel(appState.menuBarDisplay.accessibilityDescription)
+        .accessibilityLabel(accessibilityText)
         #if DEBUG
         // The menu-bar label renders at launch even for an accessory app, so it's the one
         // reliable place to explicitly open the UI-test window (a MenuBarExtra's own content
@@ -197,6 +197,25 @@ struct MenuBarLabel: View {
             }
         }
         #endif
+    }
+
+    /// The fallback icon itself encodes state (error / abroad / energy full), so speak
+    /// that state rather than the generic "no active timer". Derived from `menuBarIcon`
+    /// so the spoken label can never disagree with the glyph on screen.
+    private var accessibilityText: String {
+        guard case .fallbackIcon = appState.menuBarDisplay else {
+            return appState.menuBarDisplay.accessibilityDescription
+        }
+        switch menuBarIcon {
+        case "exclamationmark.triangle.fill":
+            return "MacTorn — error, open for details"
+        case "globe":
+            return "MacTorn — abroad"
+        case "bolt.fill":
+            return "MacTorn — energy full"
+        default:
+            return appState.menuBarDisplay.accessibilityDescription
+        }
     }
 
     private var menuBarIcon: String {

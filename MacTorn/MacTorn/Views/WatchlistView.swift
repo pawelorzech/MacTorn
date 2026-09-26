@@ -13,8 +13,12 @@ struct WatchlistView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                ModuleStateView(state: moduleState) {
-                    appState.refreshWatchlistPrices()
+                // With nothing watched there is nothing to fetch; the list's own empty
+                // state explains that, so a "No data yet · Retry" strip would contradict it.
+                if !appState.watchlistItems.isEmpty {
+                    ModuleStateView(state: moduleState) {
+                        appState.refreshWatchlistPrices()
+                    }
                 }
 
                 ShopPricesPanel()
@@ -34,6 +38,8 @@ struct WatchlistView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .foregroundColor(.blue)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Refresh watched prices")
@@ -45,6 +51,8 @@ struct WatchlistView: View {
                     } label: {
                         Image(systemName: showAddItem ? "minus.circle.fill" : "plus.circle.fill")
                             .foregroundColor(showAddItem ? .red : .green)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(showAddItem ? "Close add item panel" : "Add watched item")

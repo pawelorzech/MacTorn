@@ -108,6 +108,10 @@ class AppState {
             // The notification dedup measures "how stale is the previous observation" in
             // multiples of the poll cadence, so it has to hear about a cadence change.
             notificationCoordinator.refreshInterval = TimeInterval(refreshInterval)
+            // A running timer keeps the cadence it was installed with, and `startPolling`
+            // returns early while one runs — so without this the change waited for a
+            // relaunch.
+            if timerCancellable != nil { installPollingTimer() }
         }
     }
 
@@ -115,6 +119,11 @@ class AppState {
     var widgetStore: WidgetSnapshotStore?
     @ObservationIgnored var widgetPublicationTask: Task<Void, Never>?
     @ObservationIgnored var reloadWidgetTimelines: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
+    /// Removes the pending "Landing Soon!" alerts. A seam for the same reason as
+    /// `reloadWidgetTimelines`: `NotificationManager.shared` is not injectable.
+    @ObservationIgnored var cancelScheduledTravelNotifications: () -> Void = {
+        NotificationManager.shared.cancelTravelNotifications()
+    }
     var data: TornResponse?
     var lastUpdated: Date?
     var errorMsg: String?
@@ -171,7 +180,12 @@ class AppState {
     @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
     var watchlistItems: [WatchlistItem] {
         get { marketWatchService.items }
-        set { marketWatchService.items = newValue }
+        set {
+            marketWatchService.items = newValue
+            // The Watchlist tab sets and clears thresholds through this setter; the
+            // background price-alert timer exists only while one is set.
+            syncPriceAlertPolling()
+        }
     }
     // MARK: - API v2 user state (organized crime, refills, education, bounties)
     var organizedCrime: OrganizedCrime2?
@@ -200,7 +214,15 @@ class AppState {
     }
     var forumWatchConfig: ForumWatchConfig {
         get { forumWatchService.config }
-        set { forumWatchService.config = newValue }
+        set {
+            forumWatchService.config = newValue
+            // Same as `refreshInterval`: `startForumPolling` returns early while a timer
+            // runs, so a new cadence has to reinstall the running timer itself.
+            if forumTimerCancellable != nil,
+               forumTimerInterval != Double(forumWatchService.config.pollingIntervalSeconds) {
+                installForumTimer()
+            }
+        }
     }
 
     // MARK: - Update State
@@ -286,8 +308,19 @@ class AppState {
     // MARK: - Timer
     @ObservationIgnored var timerCancellable: AnyCancellable?
     @ObservationIgnored var forumTimerCancellable: AnyCancellable?
+    /// Background price-alert refresh (see `syncPriceAlertPolling`). Nil unless polling is
+    /// running and at least one watchlist item has a threshold.
+    @ObservationIgnored var priceAlertTimerCancellable: AnyCancellable?
+    /// The cadence each running timer was installed with. Combine hides the interval, so
+    /// these are what tells a stale timer from a current one (and what tests read).
+    @ObservationIgnored var pollingTimerInterval: TimeInterval?
+    @ObservationIgnored var forumTimerInterval: TimeInterval?
     @ObservationIgnored var lastForumFetchAt: Date?
-    @ObservationIgnored var pendingPriceAlerts: [(name: String, price: Int)] = []
+    /// Posts price-alert banners. A seam (like `cancelScheduledTravelNotifications`) so a
+    /// test can see which alerts were actually delivered, not just which were latched.
+    @ObservationIgnored var deliverPriceAlerts: @MainActor ([MarketPriceAlert]) -> Void = { alerts in
+        AppState.postPriceAlertNotifications(alerts)
+    }
 
     /// Monotonic identity for accepted user snapshot polls. Deferred cleanup from an
     /// older, cancelled poll must never mutate the loading state owned by a newer one.
@@ -478,6 +511,9 @@ class AppState {
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
         previousTravel = nil
+        // Landing alerts were scheduled for the old account's flight. Left pending, they
+        // fire later for an account that is not travelling (or a key that no longer works).
+        cancelScheduledTravelNotifications()
         // Deliberately NOT cleared here, for the reason the apiKey setter documents: this
         // is a dedup latch, and a transient permanent-key error routes through this method.
         // Wiping it there re-announced every bounty the user had already been told about
@@ -497,6 +533,8 @@ class AppState {
         // half a refresh interval returned early and never established the ordering.
         timerCancellable?.cancel()
         timerCancellable = nil
+        pollingTimerInterval = nil
+        stopPriceAlertPolling()
         accountSession.cancelTask(.stockMetadata)
         accountSession.cancelTask(.itemCatalog)
         referenceFetchIDs.removeAll()

@@ -242,7 +242,9 @@ struct StatusView: View {
                     Text("Arriving in:")
                         .font(.caption2)
                         .foregroundColor(.secondary)
-                    Text(TornFormatter.clock(appState.travelSecondsRemaining))
+                    // The row outlives the countdown until the next poll clears `isTraveling`;
+                    // at zero it must read "Ready", as it did before c71ee24.
+                    Text(TornFormatter.clock(appState.travelSecondsRemaining, zeroText: "Ready"))
                         .font(.caption.monospacedDigit())
                         .foregroundColor(.blue)
                 }

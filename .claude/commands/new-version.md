@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git tag:*), Bash(git push:*), Bash(git show:*), Bash(git diff:*), Bash(git branch:*), Bash(git log:*), Bash(grep:*), Bash(gh release:*), Bash(make:*), Bash(hdiutil create:*), Bash(shasum:*), Bash(ditto:*)
+allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git tag v:*), Bash(git push origin main), Bash(git push origin v:*), Bash(git show:*), Bash(git diff:*), Bash(git branch --show-current), Bash(git log:*), Bash(grep:*), Bash(gh release create:*), Bash(make:*), Bash(hdiutil create:*), Bash(shasum:*), Bash(ditto:*)
 description: Cut a MacTorn release — bump the Xcode version, update CHANGELOG and README, tag, push and publish a GitHub release.
 ---
 

@@ -19,6 +19,9 @@ enum AccountTaskKind: Hashable, Sendable {
     case forum
     case stockMetadata
     case itemCatalog
+    /// The background price-alert refresh. Separate from `.watchlist` so a timer tick
+    /// never cancels a refresh the user started from the Watchlist tab, or vice versa.
+    case priceAlerts
 }
 
 protocol APIKeyStoring: Sendable {

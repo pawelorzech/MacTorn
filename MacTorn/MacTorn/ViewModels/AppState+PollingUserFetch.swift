@@ -88,8 +88,10 @@ extension AppState {
         return true
     }
 
-    private func installPollingTimer() {
-        timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
+    func installPollingTimer() {
+        let interval = Double(refreshInterval)
+        pollingTimerInterval = interval
+        timerCancellable = Timer.publish(every: interval, tolerance: interval / 10, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -106,6 +108,9 @@ extension AppState {
                 self.fetchData()
                 self.triggerReferenceDataFetchIfNeeded()
             }
+        // Every path that starts polling comes through here (startPolling, refreshNow, a
+        // cadence change), so the price-alert timer is started alongside in one place.
+        syncPriceAlertPolling()
     }
 
     private func triggerStocksMetadataFetchIfNeeded() {
@@ -125,6 +130,8 @@ extension AppState {
     func stopPolling() {
         timerCancellable?.cancel()
         timerCancellable = nil
+        pollingTimerInterval = nil
+        stopPriceAlertPolling()
         // Issue #56: an in-flight GitHub update-check must not outlive polling teardown.
         updateCheckTask?.cancel()
     }
@@ -209,15 +216,6 @@ extension AppState {
         let resolvedKey = key ?? apiKey
         guard !resolvedKey.isEmpty else { return nil }
         let granted = keyInfo.map { Set($0.selections.names(for: KeyValidator.category(for: endpoint))) }
-        if endpointID == "user.fast", companion.enabled.contains(.stocks),
-           let original = endpoint.url(key: resolvedKey, parameter: parameter, granted: granted),
-           var components = URLComponents(url: original, resolvingAgainstBaseURL: false) {
-            components.queryItems = components.queryItems?.map { item in
-                guard item.name == "selections" else { return item }
-                return URLQueryItem(name: item.name, value: item.value?.split(separator: ",").filter { $0 != "stocks" }.joined(separator: ","))
-            }
-            return components.url
-        }
         return endpoint.url(key: resolvedKey, parameter: parameter, granted: granted)
     }
 
@@ -249,6 +247,9 @@ extension AppState {
         keyValidation = .failure(error.userMessage)
         errorMsg = error.userMessage
         stopPolling()
+        // Forum Watch runs on its own timer and would otherwise keep spending the rejected
+        // key on thread requests until the user changed it.
+        stopForumPolling()
         logger.error("Polling halted on permanent key error (code \(error.tornCode ?? -1))")
     }
 
@@ -472,7 +473,11 @@ extension AppState {
             }
 
             let decoded = try JSONDecoder().decode(TornKeyInfo.Response.self, from: data)
-            self.keyInfo = decoded.info
+            // `keyInfo` describes the *saved* key — the gate narrows its polls with it. A
+            // key typed into Settings but not yet saved only gets the validation panel.
+            if trimmed == apiKey.trimmingCharacters(in: .whitespacesAndNewlines) {
+                self.keyInfo = decoded.info
+            }
             self.keyValidation = .success(KeyValidator.validate(decoded.info))
             recordHealth("key.info", outcome: .ok, since: startTime, bytes: data.count)
             logger.info("Key validated: access level \(decoded.info.access.level)")
@@ -742,7 +747,7 @@ extension AppState {
         battleStats = payload.battleStats
         if let attacks = payload.recentAttacks { recentAttacks = attacks }
         if let properties = payload.properties { propertiesData = properties }
-        if !companion.enabled.contains(.stocks) { stocksData = payload.stocks }
+        stocksData = payload.stocks
 
         lastUpdated = Date()
         lastFetchTime = receivedAt

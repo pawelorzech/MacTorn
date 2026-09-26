@@ -107,6 +107,11 @@ struct SettingsView: View {
         .onAppear {
             inputKey = appState.apiKey
             refreshAvailableBrowsers()
+            // First run: put the cursor in the key field so setup needs no pointer.
+            // Deferred one runloop turn — focus set during onAppear is otherwise dropped.
+            if appState.apiKey.isEmpty && selectedSection == .account {
+                DispatchQueue.main.async { settingsFocus = .apiKey }
+            }
         }
         .sheet(isPresented: $showDiagnostics) {
             DiagnosticsView(appState: appState)
@@ -247,6 +252,11 @@ struct SettingsView: View {
                 .focused($settingsFocus, equals: .apiKey)
                 .accessibilityLabel("Torn API Key")
                 .uiTestID("uitest.apiKeyField")
+                // Return in the key field does what "Save & Connect" does, so first-run
+                // setup completes from the keyboard alone.
+                .onSubmit {
+                    if canSaveKey { saveAndConnect() }
+                }
                 // A validation result belongs to the key it was run against. Editing the
                 // field invalidates it — otherwise a green "✓ Full Access · ID 123456"
                 // from key A stays on screen under a freshly-typed key B, and the user
@@ -258,16 +268,9 @@ struct SettingsView: View {
                 }
 
             HStack(spacing: 8) {
-                Button("Save & Connect") {
-                    appState.apiKey = inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
-                    appState.refreshNow()
-                }
+                Button("Save & Connect", action: saveAndConnect)
                 .buttonStyle(.borderedProminent)
-                // Block repeated refreshes for the current key, but still allow an
-                // account switch while its old request is in flight. Updating the key
-                // advances the account generation and cancels those stale tasks.
-                .disabled(trimmedInputKey.isEmpty
-                          || (appState.isLoading && trimmedInputKey == appState.apiKey))
+                .disabled(!canSaveKey)
                 .uiTestID("uitest.saveKey")
 
                 Button {
@@ -293,10 +296,12 @@ struct SettingsView: View {
 
             keyValidationResult
 
-            Link(
-                "Get API Key from Torn",
-                destination: URL(string: "https://www.torn.com/preferences.php#tab=api")!
-            )
+            // Button + BrowserManager rather than `Link`, so the Preferred Browser setting
+            // is honoured.
+            Button("Get API Key from Torn") {
+                BrowserManager.shared.open(URL(string: "https://www.torn.com/preferences.php#tab=api")!)
+            }
+            .buttonStyle(.link)
             .font(.caption)
         }
     }
@@ -304,7 +309,9 @@ struct SettingsView: View {
     private var refreshSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Picker("Main refresh", selection: refreshIntervalBinding) {
-                Text("15s ⚡︎").tag(15)
+                Text("15s ⚡︎")
+                    .accessibilityLabel("15 seconds, fastest")
+                    .tag(15)
                 Text("30s").tag(30)
                 Text("60s").tag(60)
                 Text("2m").tag(120)
@@ -335,6 +342,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                     TextField("e.g. 4", text: forumCategoryIDBinding)
                         .textFieldStyle(.roundedBorder)
+                        .accessibilityLabel("Forum category ID")
                         .font(.caption)
                         .frame(width: 80)
                 }
@@ -464,10 +472,10 @@ struct SettingsView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
 
-                Link(
-                    "GitHub",
-                    destination: URL(string: "https://github.com/pawelorzech/MacTorn")!
-                )
+                Button("GitHub") {
+                    BrowserManager.shared.open(URL(string: "https://github.com/pawelorzech/MacTorn")!)
+                }
+                .buttonStyle(.link)
                 .font(.caption)
             }
 
@@ -552,6 +560,19 @@ struct SettingsView: View {
 
     private var trimmedInputKey: String {
         inputKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Block repeated refreshes for the current key, but still allow an account switch
+    /// while its old request is in flight. Updating the key advances the account
+    /// generation and cancels those stale tasks.
+    private var canSaveKey: Bool {
+        !trimmedInputKey.isEmpty
+            && !(appState.isLoading && trimmedInputKey == appState.apiKey)
+    }
+
+    private func saveAndConnect() {
+        appState.apiKey = trimmedInputKey
+        appState.refreshNow()
     }
 
     private func handleEscape() {
@@ -677,10 +698,10 @@ struct SettingsView: View {
                     .foregroundStyle(Color.accentColor)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Link(
-                    "View Torn API Terms of Service",
-                    destination: URL(string: "https://www.torn.com/api.html")!
-                )
+                Button("View Torn API Terms of Service") {
+                    BrowserManager.shared.open(URL(string: "https://www.torn.com/api.html")!)
+                }
+                .buttonStyle(.link)
                 .font(.caption)
             }
             .padding(.top, 4)

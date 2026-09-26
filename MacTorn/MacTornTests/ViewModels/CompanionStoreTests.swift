@@ -170,14 +170,32 @@ final class CompanionStoreTests: XCTestCase {
         XCTAssertNotNil(app.companion.errors["user.trades"])
         app.companion.reset()
     }
-    func testDisabledV2StocksDoNotChangeLegacyRequestAndEnabledAvoidsDuplicateHoldings() {
+    /// Enabling v2 "Stock bonuses" must not strip `stocks` from the fast poll: the Money
+    /// tab's Total Tracked and the Stocks tab state read `stocksData`, which only the
+    /// fast poll fills. The selection rides the same request, so keeping it costs nothing.
+    /// (Audit 2026-09-26, regression from 141a3cd.)
+    func testEnablingV2StocksKeepsLegacyStocksSelection() {
         let app = makeApp(MockNetworkSession())
         func selections() -> String? {
             URLComponents(url: app.endpointURL("user.fast")!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "selections" }?.value
         }
         XCTAssertTrue(selections()!.split(separator: ",").contains("stocks"))
         app.companion.setEnabled(.stocks, true)
-        XCTAssertFalse(selections()!.split(separator: ",").contains("stocks"))
+        XCTAssertTrue(selections()!.split(separator: ",").contains("stocks"))
+    }
+    func testEnablingV2StocksStillPopulatesStocksDataFromFastPoll() async throws {
+        let session = MockNetworkSession()
+        let app = makeApp(session)
+        app.apiKey = "valid_key"
+        app.companion.setEnabled(.stocks, true)
+        var json = TornAPIFixtures.validFullResponse()
+        json["stocks"] = TornAPIFixtures.stocksData["stocks"]
+        try session.setSuccessResponse(json: json)
+        app.fetchData()
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+        XCTAssertNotNil(app.data, "precondition: the fast poll applied")
+        XCTAssertFalse(app.stocksData.isEmpty,
+                       "Money Total Tracked must keep counting stocks with Stock bonuses on")
     }
     func testWarfareUsesOnlyTimestampFromNextLinkAndCompletedChainCategory() throws {
         let page = WarfarePage.parse(["warfarechains": [["id": 12, "chain": 100, "start": 200, "end": 300, "faction": ["name": "Team"]]],

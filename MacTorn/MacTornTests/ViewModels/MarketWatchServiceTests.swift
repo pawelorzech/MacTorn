@@ -272,4 +272,40 @@ final class MarketWatchCorruptStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.items.map(\.id), [206],
                        "once the user edits the list, writes must resume")
     }
+
+    // MARK: - Audit 2026-09-26: server-clock skew (regression from 141a3cd)
+
+    /// Torn's `cache_timestamp` is on the server clock. With the Mac two hours behind,
+    /// an un-converted timestamp sits two hours in the local future, so the refresh
+    /// filter skipped the item for two hours and the label read "in 2 hours ago".
+    func testLocalizedSnapshotMovesServerTimestampOntoLocalClock() {
+        let serverTimestamp = Date(timeIntervalSince1970: 1_800_000_000)
+        let clock = ServerClock(offset: 7_200) // Mac is 2 h behind Torn
+        let snapshot = MarketPriceSnapshot(lowestPrice: 1, lowestPriceQuantity: 1, secondLowestPrice: 0,
+                                           dataTimestamp: serverTimestamp, cacheDelay: 30)
+        let local = snapshot.localized(using: clock)
+        XCTAssertEqual(local.dataTimestamp, Date(timeIntervalSince1970: 1_800_000_000 - 7_200))
+        XCTAssertEqual(local.cacheDelay, 30)
+    }
+
+    func testLocalizedSnapshotIsIdentityWhenClocksAgree() {
+        let ts = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = MarketPriceSnapshot(lowestPrice: 5, lowestPriceQuantity: 2, secondLowestPrice: 6,
+                                           dataTimestamp: ts, cacheDelay: 30)
+        XCTAssertEqual(snapshot.localized(using: .synchronized), snapshot)
+    }
+
+    /// A hostile or corrupt `cache_delay` is persisted with the item; unclamped it would
+    /// freeze that item's refresh until it is removed and re-added.
+    func testLocalizedSnapshotClampsCacheDelay() {
+        func delay(_ raw: TimeInterval) -> TimeInterval? {
+            MarketPriceSnapshot(lowestPrice: 1, lowestPriceQuantity: 1, secondLowestPrice: 0,
+                                cacheDelay: raw).localized(using: .synchronized).cacheDelay
+        }
+        XCTAssertEqual(delay(1_000_000_000), MarketPriceSnapshot.maxCacheDelay)
+        XCTAssertEqual(delay(-50), 0)
+        XCTAssertEqual(delay(30), 30)
+        XCTAssertNil(MarketPriceSnapshot(lowestPrice: 1, lowestPriceQuantity: 1, secondLowestPrice: 0)
+            .localized(using: .synchronized).dataTimestamp)
+    }
 }

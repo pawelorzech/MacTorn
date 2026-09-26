@@ -51,7 +51,7 @@ struct SentryOptInPromptView: View {
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
-                        .background(Color.purple.opacity(reduceTransparency ? 0.5 : 0.85))
+                        .background(Color.purple.opacity(reduceTransparency ? 1.0 : 0.85))
                         .foregroundColor(.white)
                         .cornerRadius(6)
                 }
