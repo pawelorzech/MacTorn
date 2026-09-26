@@ -282,7 +282,7 @@ extension AppState {
     func installForumTimer() {
         let interval = Double(forumWatchConfig.pollingIntervalSeconds)
         forumTimerInterval = interval
-        forumTimerCancellable = Timer.publish(every: interval, on: .main, in: .common)
+        forumTimerCancellable = Timer.publish(every: interval, tolerance: interval / 10, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.refreshForumWatch()

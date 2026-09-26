@@ -30,7 +30,7 @@ extension AppState {
     private func startLiveTimer() {
         liveTimerCancellable?.cancel()
 
-        liveTimerCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
+        liveTimerCancellable = Timer.publish(every: 1.0, tolerance: 0.1, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.tick()

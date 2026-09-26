@@ -91,7 +91,7 @@ extension AppState {
     func installPollingTimer() {
         let interval = Double(refreshInterval)
         pollingTimerInterval = interval
-        timerCancellable = Timer.publish(every: interval, on: .main, in: .common)
+        timerCancellable = Timer.publish(every: interval, tolerance: interval / 10, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
