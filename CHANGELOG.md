@@ -5,6 +5,38 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.1] - 2026-09-26 - Audit fixes
+
+### Added
+- Watchlist price alerts now arrive in the background: items with a price threshold are
+  re-checked every 5 minutes (respecting Torn's cache delay and the request budget), not
+  only while the Watchlist tab is open. No extra requests when no threshold is set.
+
+### Fixed
+- Money "Total Tracked" includes stocks again when Stock bonuses is enabled (regression in 1.15.0).
+- Watchlist refresh and "Price data from … ago" no longer stall or read "in … ago" when the Mac clock differs from Torn's; absurd cache delays from the API are clamped.
+- Status "Arriving in" reads "Ready" at zero instead of "0:00".
+- The faction chain card shows "Unavailable" again when a chain has hits but no timeout (also visible on Status).
+- Switching or clearing the API key cancels the previous account's scheduled landing alerts.
+- "Test Connection" on a typed but unsaved key no longer changes the active account's permissions.
+- Changing the refresh interval (main or forum) takes effect immediately, not after a relaunch.
+- A watchlist refresh interrupted by another one no longer loses a price alert.
+- Forum Watch stops polling after a permanent key error.
+- The request-rate window no longer forgets a request up to a second early.
+- Travel shows "Travel status unavailable" instead of a false "In Torn City" when travel data is missing.
+
+### Accessibility
+- Return in the API key field saves and connects; the field is focused on first run.
+- Feedback and crash-report prompts are modal for VoiceOver and the keyboard.
+- The menu-bar icon speaks its state (error, abroad, energy full).
+- Settings links open in the Preferred Browser; larger hit areas and labels on header icon buttons.
+- Watchlist and Forum Watch no longer show "No data yet · Retry" over an empty list.
+
+### Notes
+- Timers use a small tolerance so macOS can coalesce wake-ups.
+- CI actions that see secrets are pinned to commit SHAs.
+- Local UI automation and manual tests were excluded at the user's request; CI ran the fixture UI suite.
+
 ## [1.15.0] - 2026-09-18 - Torn API tools and compatibility
 
 ### Added
