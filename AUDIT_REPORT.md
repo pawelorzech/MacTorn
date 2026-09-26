@@ -1,5 +1,157 @@
 # MacTorn — raport audytu technicznego
 
+Last verified: 2026-09-26 | baza `07b1f82` (v1.15.0) → gałąź `feature/audit-fixes`
+Poprzednie przebiegi (2026-08-26, 2026-08-01, 2026-07-30) są niżej i w historii gita.
+
+Zakres: cały projekt. Ograniczenie od Pawła: bez testów manualnych i bez uruchamiania
+aplikacji, a XCUITest (`make test-ui`) jest wyłączony. Paweł zgodził się na `make test`,
+mimo że test host uruchamia MacTorn.app (w pasku menu pojawia się wtedy ikona).
+
+Ten dokument zawiera fakty z lokalizacją `plik:linia` i statusem potwierdzenia. Oceny i
+rekomendacje są w `UX_RECOMMENDATIONS.md`, a wykaz zmian w `CHANGELOG_AGENT.md`. Ścieżki
+podane bez prefiksu są względne wobec `MacTorn/MacTorn/`.
+
+---
+
+## Streszczenie stanu
+
+- **Baseline na `07b1f82`:**
+  - `make test`: 781 testów zaliczonych, 0 niezaliczonych.
+  - `make analyze`: sukces, 0 ostrzeżeń w kodzie produkcyjnym.
+  - CI na `main` (run `36067836868`) zielone.
+- **Znalezione problemy:**
+  - **P0:** żadnego.
+  - **P1:** 9. Pięć to regresje z commitów `141a3cd` i `c71ee24` (reguła audytu każe traktować regresję jako co najmniej P1). Trzy dotyczą danych konta lub alertów. Jeden to funkcja obiecana w README, której nie było (timer alertów cenowych).
+  - **P2 i P3:** pełna lista niżej.
+- **Stan napraw:** wszystkie P1 naprawione na gałęzi. Naprawiono też 18 problemów P2/P3. Pozostałe są opisane jako otwarte, z powodem.
+- **Po zmianach:** wyniki są w sekcji „Walidacja po zmianach”.
+
+## Mapa projektu (bez zmian od 2026-08-26, uzupełnienia)
+
+- **Aplikacja:** natywna macOS 14+, SwiftUI, `MenuBarExtra`, plus rozszerzenie widgetów (App Group w wariancie `.widgets`).
+- **Sieć:** jedyna integracja sieciowa to `api.torn.com`, kluczem użytkownika z Keychaina.
+- **Sentry:** opt-in, domyślnie wyłączony.
+- **Zależności:** jedna, `sentry-cocoa` w wersji 9.23.0 (`Package.resolved`).
+- **Nowe od ostatniego audytu:**
+  - funkcje „companion” oparte na API v2 (`CompanionStore.swift`, `Networking/CompanionEndpoints.swift`);
+  - bramka uprawnień dla kluczy Custom (`Networking/TornEndpointGate.swift`);
+  - schemat URL `mactorn://` (`Info.plist`, `MacTornApp.swift` `onOpenURL`).
+- **Test host:** unit testy hostują się w MacTorn.app (`TEST_HOST` w `project.pbxproj:1170`). `MacTornApp.init()` nie rozpoznaje XCTestu (`MacTornApp.swift:19-33`), więc przy `make test` rejestruje się `MenuBarExtra`, a Sentry startuje, jeśli jest włączony w UserDefaults.
+
+## Stan bazowy — wykonane polecenia
+
+| Polecenie | Wynik |
+|---|---|
+| `make test` (na `07b1f82`) | `** TEST SUCCEEDED **`, 781 passed, 0 failed |
+| `make analyze` | `** ANALYZE SUCCEEDED **`, 0 ostrzeżeń w kodzie produkcyjnym |
+| ostrzeżenia kompilatora w testach | 10: `MockNetworkSession.swift:24-25` (`NSLock` w kontekście async, błąd w Swift 6) oraz 8× nieużyty wynik (`CompanionStoreTests.swift:89`, `ForumCategoryWatchTests.swift:152`, `MarketWatchServiceTests.swift:140,143`, `NotificationCoordinatorTests.swift:369,431,454,515`) |
+| `gitleaks git --log-opts=--all` (agent security) | 212 commitów, brak wycieków |
+| `make test-ui`, `make test-all` | **nie uruchamiane** (zakaz Pawła) |
+| lint / formatowanie | projekt nie ma SwiftLint ani swift-format; brak bramki do uruchomienia |
+
+## Problemy — P1
+
+| ID | Problem | Status | Lokalizacja | Przyczyna | Poprawka |
+|---|---|---|---|---|---|
+| R-01 | Po włączeniu „Stock bonuses” wartość akcji znika z „Total Tracked” (Money) albo zamarza. Stan zakładki Stocks też bazuje na zamrożonych danych | potwierdzony (test czerwony bez fixu) | `ViewModels/AppState+PollingUserFetch.swift:212-219,745` (przed fixem), `Views/MoneyView.swift:121-124`, `Views/StocksView.swift:13` | `141a3cd` wycinał selekcję `stocks` z `user.fast` i przestawał przypisywać `stocksData`, gdy companion stocks był włączony | naprawione `dc4fec4` |
+| R-02 | Watchlista porównywała znacznik czasu serwera Torna z zegarem Maca. Przy przesuniętym zegarze odświeżanie i alerty stały przez czas równy przesunięciu, a etykieta pokazywała „in 2 hours ago”. `cache_delay` z API był zapisywany bez limitu | potwierdzony odczytem kodu | `ViewModels/AppState+MarketForum.swift:89-94`, `ViewModels/MarketWatchService.swift:161-162` | regresja z `141a3cd` | naprawione `f82f5c0` |
+| R-04 | „Arriving in” w Statusie pokazuje „0:00” zamiast „Ready” | potwierdzony odczytem kodu | `Views/StatusView.swift:245` | `c71ee24` zamienił lokalny formatter na `TornFormatter.clock` | naprawione `e4f2db6` |
+| R-05 | Karta łańcucha znika przy `current > 0` i `timeout <= 0` (wcześniej czerwone „Unavailable”) | zmiana kodu potwierdzona; to, czy Torn wysyła taki stan, jest hipotezą | `Views/Components/ChainView.swift` | `c71ee24` przeniósł warunek na `Chain.isActive` | naprawione `20caaab` |
+| R-03 | Okno limitu requestów zapominało żądanie do 1 s za wcześnie; komentarz i test opisywały to odwrotnie | potwierdzony odczytem kodu | `Utilities/PollingCoordinator.swift` (`SlidingWindowCounter.prune`) | `c71ee24`, kubełki sekundowe z `<=` | naprawione `807c3cb`; test `testSecondResolutionBoundaryIsStable` kodował błąd i został skorygowany (opis w commicie) |
+| F-01 | Zaplanowane alerty lądowania poprzedniego konta odpalają się po zmianie lub usunięciu klucza | potwierdzony (test czerwony) | `ViewModels/AppState.swift` `resetAccountScopedState()` | brak `cancelTravelNotifications()` przy resecie konta | naprawione `52b2f04` |
+| F-02 | „Test Connection” z wpisanym, niezapisanym kluczem B nadpisuje `keyInfo` aktywnego konta A; bramka blokuje wtedy A na `faction.basic` do 1 h | potwierdzony (test czerwony) | `ViewModels/AppState+PollingUserFetch.swift` ~475 (`validateKey`) | bezwarunkowe przypisanie `keyInfo` | naprawione `886705a` |
+| F-05 | Alerty cenowe Watchlisty działały tylko przy otwartej zakładce Watchlist, choć README obiecuje timer | potwierdzony (wszystkie 3 wywołania `refreshWatchlistPrices()` były w `Views/WatchlistView.swift`) | `ViewModels/AppState+MarketForum.swift:78` | timer nigdy nie istniał | dodany 5-minutowy timer w tle (decyzja Pawła), `33ae701` |
+| F-04 | Alert cenowy ginie, gdy nowsze odświeżenie przerwie trwające | potwierdzony (test czerwony) | `ViewModels/AppState+MarketForum.swift:95` | współdzielona lista `pendingPriceAlerts` czyszczona przez następne odświeżenie po zapisaniu `lastAlertedPrice` | naprawione `20277ff` |
+
+## Problemy — P2
+
+| ID | Problem | Status | Lokalizacja | Stan |
+|---|---|---|---|---|
+| F-03 | Zmiana interwału odświeżania (główny i forum) nie działa do restartu | potwierdzony (test czerwony) | `ViewModels/AppState+PollingUserFetch.swift:16-19`, `ViewModels/AppState+MarketForum.swift` ~257 | naprawione `02799f3` |
+| S-01 | Workflowy z `CLAUDE_CODE_OAUTH_TOKEN` używały ruchomych tagów (`@v1`, `@v2`, `@v4`) | potwierdzony (konfiguracja) | `.github/workflows/claude.yml`, `claude-code-review.yml`, `gitleaks.yml` | naprawione `7c78ea6` (SHA). Marketplace pluginu w `claude-code-review.yml:43` nadal wskazuje domyślną gałąź obcego repo — **otwarte** |
+| P-01 | Timeline'y widgetów przeładowywane ok. 2× na poll (`publishWidgets()` z `parseDataInBackground` i z `applyUserV2Payload`) | wysoce prawdopodobny (odczyt kodu, niezmierzony) | `ViewModels/AppState+Widgets.swift:29-46`, `ViewModels/AppState+PollingUserFetch.swift:752,888` | **otwarte** |
+| P-02 | Cały `StatusView.body` przelicza się co sekundę podczas lotu, gdy otwarta jest zakładka Status | potwierdzony odczytem kodu, wpływ niezmierzony | `Views/StatusView.swift:245` | **otwarte** |
+| P-03 | Przy włączonych Shops i odmowie `torn.items` blob katalogu jest dekodowany dwa razy na poll na głównym wątku | potwierdzony odczytem kodu | `ViewModels/AppState+ItemCatalog.swift:111-145`, `ViewModels/CompanionStore.swift:168-195` | **otwarte** |
+| F-06a | Lot powrotny zaraz po lądowaniu nie daje „Landed” ani „Landing Soon” (liczy się tylko zmiana `isTraveling`) | potwierdzony odczytem kodu | `ViewModels/AppState+NotificationsFeedback.swift:48-61` | **otwarte** |
+| F-07a | Alert „Chain expiring” jest sprawdzany tylko przy fetchu frakcji; przy interwale 120 s okno <60 s bywa przeskakiwane | wysoce prawdopodobny (argument próbkowania) | `ViewModels/AppState+FactionFetch.swift:45` | **otwarte** |
+| A-01 | Klucz API nie dało się zatwierdzić Returnem; pole nie dostawało fokusu przy pierwszym uruchomieniu | potwierdzony odczytem kodu | `Views/SettingsView.swift:245-291` | naprawione `9d483b7` |
+| A-08 | Prompty Feedback/Sentry nie są modalne dla VoiceOvera i klawiatury | potwierdzony odczytem kodu | `Views/ContentView.swift:156-170` | naprawione `9d483b7` |
+| A-03 | Stany ikony w pasku menu (błąd, za granicą, pełna energia) nie są wypowiadane | potwierdzony odczytem kodu | `MacTornApp.swift:189` | naprawione `9d483b7` |
+| A-05 | Pusta lista w Watchlist/Forum pokazywała naraz „No data yet · Retry” i „No items watched” | potwierdzony odczytem kodu | `Views/WatchlistView.swift:16`, `Views/ForumWatchView.swift:16` | naprawione `9d483b7` |
+| A-09 | Nic nie jest ogłaszane VoiceOverowi (0 wywołań `AccessibilityNotification`) | potwierdzony (grep) | wynik walidacji klucza, błędy dodawania, Undo | **otwarte** |
+| A-10 | Undo znika po 6 s, przy zmianie zakładki i przy zamknięciu popovera | potwierdzony odczytem kodu | `Views/WatchlistView.swift:179`, `Views/ForumWatchView.swift:149` | **otwarte** |
+| A-11 | Brak możliwości usunięcia klucza API z aplikacji (przycisk zablokowany dla pustego pola) | potwierdzony odczytem kodu | `Views/SettingsView.swift:269` | **otwarte** |
+| A-12 | Prośba o zgodę na powiadomienia pojawia się przy pierwszym otwarciu, przed wpisaniem klucza; odmowa jest widoczna tylko w Diagnostyce | potwierdzony odczytem kodu | `Views/ContentView.swift:187` | **otwarte** |
+| A-13 | Kolorowy tekst (zielony, żółty, pomarańczowy) w trybie jasnym ma kontrast ok. 1,6–2:1 | wysoce prawdopodobny (wartości przybliżone, niezmierzone) | `Views/MoneyView.swift:38,134`, `Views/WatchlistView.swift:439,549`, `Views/StatusView.swift:578`, `Views/SettingsView.swift:347,439,621,634` | **otwarte** |
+| A-14 | Przełączniki companion stoją nad główną treścią pięciu zakładek | potwierdzony odczytem kodu | `Views/StatusView.swift:28`, `MoneyView.swift:19`, `WatchlistView.swift:20`, `TravelView.swift:115`, `FactionView.swift:110` | **otwarte** (decyzja produktowa) |
+| A-15 | Forum Watch nie pokazuje w aplikacji, że są nowe posty | potwierdzony odczytem kodu | `Views/ForumWatchView.swift:222-313` | **otwarte** |
+
+## Problemy — P3
+
+| ID | Problem | Status | Lokalizacja | Stan |
+|---|---|---|---|---|
+| F-06 | Timer forum działał dalej po trwałym błędzie klucza (zgłoszone już 2026-08-26) | potwierdzony (test czerwony) | `handlePermanentKeyError`, `fetchForumUpdates` | naprawione `88080a0` |
+| P-08 | Timery bez tolerancji (1 s, poll, forum) | potwierdzony | `AppState+LiveNextAction.swift:33`, `AppState+PollingUserFetch.swift:89`, `AppState+MarketForum.swift:268` | naprawione `6a2ff1f` |
+| S-02 | `/new-version` pozwalał bez pytania na force-push, kasowanie tagów i `gh release delete` | potwierdzony (konfiguracja) | `.claude/commands/new-version.md:2` | naprawione `3db1143` |
+| S-03 | `SECURITY.md` i `SECURITY_AUDIT.md` twierdziły, że nie ma schematów URL | potwierdzony | `SECURITY.md:68`, `SECURITY_AUDIT.md:57` | naprawione `0a345bc` |
+| S-04 | `claude-code-review.yml` bez bramki autora (dziś nie do wykorzystania: forki nie dostają sekretów) | potwierdzony (konfiguracja) | `.github/workflows/claude-code-review.yml` | naprawione `7c78ea6` |
+| A-02 | Przycisk „Enable” w prompcie Sentry jest bledszy przy Reduce Transparency | potwierdzony | `Views/Components/SentryOptInPromptView.swift:54` | naprawione `9d483b7` |
+| A-04 | Trzy linki w Ustawieniach omijały ustawienie Preferred Browser | potwierdzony | `Views/SettingsView.swift:296,467,680` | naprawione `9d483b7` |
+| A-06 | Brak danych o podróży pokazywał „In Torn City · Ready to travel” | potwierdzony | `Views/TravelView.swift:142-146` | naprawione `9d483b7` |
+| A-07 | Ikony-przyciski ok. 16 pt i pola bez etykiet | potwierdzony | `Views/WatchlistView.swift:35`, `Views/ForumWatchView.swift:32,232`, `Views/SettingsView.swift:307,336` | naprawione `9d483b7` |
+| R-06 | Liczby w trzech miejscach zmieniły się z lokalizacji systemu na en_US („$1,000,000”) | potwierdzony | odznaka bounty w `StatusView`, `RankedWarView` we `FactionView`, powiadomienie bounty w `AppState+PollingUserFetch.swift` | **otwarte** (możliwe, że zamierzone) |
+| R-07 | Bramka kluczy Custom blokuje `market.item`, `torn.items`, `forum.*`, `faction.news`, jeśli `/key/info` nie poda nazw selekcji w oczekiwanej formie | hipoteza (sam plan `Plans/torn-api-audit-2026-09-18.md` każe to sprawdzić) | `Networking/TornEndpointGate.swift` | **otwarte**, wymaga testu na żywym kluczu Custom |
+| P-04 | Przerwany poll zapisuje w stanie endpointów wynik `transport` i zużywa budżet `faction.news` | potwierdzony odczytem kodu | `ViewModels/AppState+FactionFetch.swift:95-143` | **otwarte** |
+| P-05 | Wybudzenie, powrót sieci i otwarcie popovera mogą wysłać nakładające się żądania | wysoce prawdopodobny | `startPolling`, `refreshNow`, `NetworkMonitor` | **otwarte** |
+| P-07 | Dwa zapisy do UserDefaults na poll (sprawdzenie łańcucha poza `batched`) | potwierdzony | `ViewModels/AppState+NotificationsFeedback.swift:148` | **otwarte**; próba naprawy pominięta, bo zmieniała moment alertu |
+| P-09 | Dekodowanie poza głównym wątkiem zależy od trybu Swift 5 | latentny | `TornAPIClient.loadJSON` | **otwarte** |
+| F-09 | Każdy aktywny bounty jest ogłaszany ponownie po każdym uruchomieniu (`notifiedBountyKeys` tylko w pamięci) | potwierdzony odczytem kodu | `ViewModels/AppState.swift:271`, `AppState+PollingUserFetch.swift:931-949` | **otwarte** |
+| F-10 | Brak tytułu wątku może nadpisać znany tytuł wartością „Unknown” | potwierdzony odczytem kodu | `ViewModels/ForumWatchService.swift:169,294` | **otwarte** |
+| I-01 | `kSecAttrAccessible` jest najpewniej ignorowany (legacy login keychain, brak `kSecUseDataProtectionKeychain`); dokumentacja przypisuje mu ochronę | wysoce prawdopodobny | `ViewModels/AccountSessionStore.swift:149-170`, `SECURITY_AUDIT.md:107,111` | **otwarte** (dryf dokumentacji) |
+| I-02 | URLs v1 mają `key=` w query; to, czy klucz trafia do `Cache.db`, zależy od nagłówków Torna | bez zmian od poprzedniego audytu (zaakceptowane P3) | `Networking/TornEndpoint.swift:154` | **otwarte**, zaakceptowane |
+| D-01 | `sentry-cocoa` 9.23.0; Dependabot proponuje 9.28.0; brak opublikowanych advisories | potwierdzony | `Package.resolved` | **otwarte** |
+| T-01 | Test host uruchamia pełną aplikację (MenuBarExtra, Keychain, Sentry, jeśli włączony) | potwierdzony odczytem kodu | `MacTornApp.swift:19-33` | **otwarte** |
+| A-16 | Nieprzetłumaczony żargon (Xanax, Refill, SED, FHC, CPR, OC 2.0); sekcja Armory widoczna bez frakcji | potwierdzony | `Views/FactionView.swift:123-131`, `Views/WatchlistView.swift:269` | **otwarte** |
+| A-17 | Brak powiększania tekstu: 123 teksty `caption2` i 18 punktów `lineLimit(1)` w stałym oknie 320×640 | potwierdzony (grep) | `Views/ContentView.swift:172`, `MacTornApp.swift:59` | **otwarte** |
+| — | Wcześniej zgłoszone i nadal otwarte: moduł nie mówi, dlaczego jest pusty (A1); ponowne zapisanie tego samego klucza po zatrzymaniu nic nie robi; surowy komunikat Torna przy trwałym błędzie klucza; odznaki bez rzeczownika; `[NotificationRule]` dekodowane wszystko albo nic | potwierdzone odczytem kodu | `Utilities/Diagnostics.swift:79-150`, `ViewModels/AccountSessionStore.swift:64`, `Networking/TornAPIError.swift:185`, `Views/StatusView.swift:196` | **otwarte** |
+
+## Obszary sprawdzone bez znalezisk
+
+- **Klucz API:** tylko w Keychainie. Nie trafia do App Group, widgetu, Diagnostyki, schowka, Sentry ani logów. Wszystkie logi zawierają tylko kody błędów, a `tornRedactedURL` usuwa wartości query.
+- **Sentry:** opt-in. `beforeSend` i `beforeBreadcrumb` redagują URL-e. Tracing i breadcrumbs sieciowe są wyłączone.
+- **Otwieranie URL-i:** tylko http i https z hostem, przez `BrowserManager.swift:97-126`. Link aktualizacji jest ograniczony do github.com.
+- **HTML:** brak `NSAttributedString(html:)` i brak WebView.
+- **Uprawnienia:** sandbox z samym `network.client`, Hardened Runtime włączony.
+- **Artefakty w repo:** żaden `.zip`, `build/`, `dist/` ani `.xcresult` nie jest śledzony przez gita. Historyczne zipy z przeszłych commitów zawierają tylko ścieżkę budowania.
+- **Poprzednie poprawki C-01, C-02, D-01, D-02, S-02, S-05 i P1-16…18** nadal obowiązują.
+- **Bufory w pamięci:** wszystkie kolekcje są ograniczone. Brak cykli referencji.
+
+## Walidacja po zmianach
+
+| Polecenie (na HEAD gałęzi, `6a2ff1f`) | Wynik | Rodzaj weryfikacji |
+|---|---|---|
+| `make coverage-gate` (cały `MacTornTests` z pokryciem) | `** TEST SUCCEEDED **`, 808 passed, 0 failed; `coverage-gate: PASSED` (NetworkSession 100%, TornAPIError 90,91%, TornEndpoint 96,34%, PollingCoordinator 88,89%, NotificationCoordinator 98,62%, NextAction 98,98%) | automatyczna |
+| `make analyze` | `** ANALYZE SUCCEEDED **`, 0 ostrzeżeń | automatyczna |
+| Testy czerwone przed fixem | potwierdzone dla R-01 (2 testy padły z cofniętym fixem), F-01, F-02, F-03, F-04, F-05 (6 z 8), F-06, R-03, R-05 | automatyczna |
+| Testy czerwone przed fixem **nie pokazane** | R-02 i R-04: test R-02 dotyczy nowej funkcji `localized(using:)`; R-04 nie ma testu (zmiana w widoku) | — |
+| Ostrzeżenia kompilatora | build był przyrostowy i nie wyemitował ponownie ostrzeżeń testów, więc brak porównania | — |
+| Zmiany UI (dostępność, karta łańcucha, podróż) | tylko kompilacja i odczyt kodu | **manualnie do sprawdzenia** |
+| `make test-ui` | nie uruchamiane | nieweryfikowalne w tym środowisku (zakaz) |
+| Workflowy CI po przypięciu SHA | poprawność zweryfikowana dopiero przy następnym runie na GitHubie | nieweryfikowalne lokalnie |
+
+## Ograniczenia audytu
+
+- **Aplikacji nikt nie uruchomił:** Paweł na to nie pozwolił. Wszystkie zmiany UI (dostępność, karta łańcucha, pusty stan podróży) są zweryfikowane kompilacją i odczytem kodu, a nie wzrokiem ani VoiceOverem.
+- **XCUITest nie był uruchamiany.** Nowy identyfikator `uitest.chain.unavailable` nie ma testu UI.
+- **Wydajność:** wszystkie wnioski pochodzą z odczytu kodu. Nic nie zostało zmierzone w Instruments.
+- **Niesprawdzone:** ustawienia projektu Sentry po stronie serwera, żywy `Cache.db`, ACL Keychaina w runtime, ustawienia Actions na GitHubie oraz prawdziwa odpowiedź `/key/info` dla klucza Custom.
+- **Jednorazowe przejście przy fixie R-02:** pozycje Watchlisty zapisane przed tym fixem mają znacznik w czasie serwera. Przy zegarze Maca spóźnionym o X sekund pierwsza nowa cena może zostać pominięta przez deduplikację najwyżej przez X sekund, po czym dane się wyrównują.
+
+---
+
+# Poprzedni przebieg (2026-08-26)
+
+
 Last verified: 2026-08-26 | wersja bazowa 1.11.1 → wydanie 1.12.0
 Gałąź: `feature/torn-api-2026-08`
 Poprzednie przebiegi: 2026-08-01 (1.11.1) i 2026-07-30 (1.10.0), zachowane w historii gita.

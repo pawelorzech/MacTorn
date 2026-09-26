@@ -1,5 +1,113 @@
 # MacTorn: ocena UX i rekomendacje
 
+Last verified: 2026-09-26 | baza v1.15.0 (`07b1f82`) → gałąź `feature/audit-fixes`
+Poprzedni przebieg (2026-08-26) jest niżej.
+
+Fakty i lokalizacje są w `AUDIT_REPORT.md` (identyfikatory A-xx, F-xx, P-xx). Tutaj są
+oceny, czyli rzeczy, co do których można się ze mną nie zgodzić.
+
+**Zastrzeżenie metodologiczne:** aplikacji nie uruchamiałem, bo Paweł na to nie pozwolił.
+Wszystko niżej wynika z czytania kodu, a przejścia person są odtworzone z widoków SwiftUI.
+Każda ocena to więc hipoteza do sprawdzenia na żywej aplikacji.
+
+---
+
+## Ocena ogólna
+
+MacTorn robi dobrze to, co obiecuje: szybki podgląd stanu gracza z paska menu. Poprzednie
+audyty zostawiły solidne podstawy dostępności. Są semantyczne fonty, respektowane są
+ustawienia Reduce Motion i Reduce Transparency, jest nawigacja ⌘1–⌘9 i Undo przy usuwaniu.
+
+Największy problem UX w tym przebiegu nie był wizualny. Był nim **zaufanie do alertów**.
+Alert cenowy działał tylko przy otwartej zakładce, alert lądowania z poprzedniego konta
+przychodził po zmianie konta, a wartość akcji znikała z sumy. Te trzy rzeczy są naprawione
+na gałęzi. Aplikacja, która ma pilnować za gracza, musi przede wszystkim nie kłamać i nie
+milczeć.
+
+Drugi wzorzec: aplikacja rośnie w funkcje (companion v2, sklepy, konkurencje), a popover
+ma dalej 320 pt szerokości. Przełączniki opt-in stoją nad treścią pięciu zakładek.
+
+## Przejścia person (z kodu)
+
+- **Nowy użytkownik:**
+  - Pierwsze otwarcie od razu prosi o zgodę na powiadomienia, zanim wiadomo, po co (A-12).
+  - Wpisanie klucza działało tylko myszą. Na gałęzi Return już zapisuje, a pole dostaje fokus.
+  - Żargon (Xanax, Refill, SED, FHC, OC 2.0) nie jest nigdzie wyjaśniony (A-16).
+- **Regularny gracz:**
+  - Liczby i odliczania działają.
+  - Zmiana interwału odświeżania nie działała do restartu. Naprawione.
+- **Powracający po przerwie z wstrzymanym kluczem:**
+  - Ponowne wklejenie tego samego klucza nic nie robi i niczego nie komunikuje. To dalej otwarte.
+  - Moduły pokazują „No data yet · Retry” bez wyjaśnienia (A1 z poprzedniego audytu).
+- **Użytkownik VoiceOvera:**
+  - Nic nie jest ogłaszane (A-09), a Undo znika po 6 s (A-10).
+  - Na gałęzi: modale są modalne, a stan ikony w pasku menu jest wypowiadany.
+- **Słaby wzrok, tryb jasny:** zielony, żółty i pomarańczowy tekst ma kontrast około 2:1 (A-13), a tekstu nie da się powiększyć (A-17).
+- **Wolny internet lub brak sieci:** zachowanie jest poprawne. Stan zostaje, a po powrocie sieci jest jedno odświeżenie.
+- **Użytkownik popełniający błędy:** próg ceny nie przyjmuje „1m”, „850k” ani „1,000,000”, a komunikat „Enter a whole number.” pojawia się też przy przepełnieniu.
+
+## A. Quick wins
+
+| # | Problem użytkownika | Rozwiązanie | Impact | Effort | Confidence | Risk | Score (I×C/E) | Priorytet |
+|---|---|---|---|---|---|---|---|---|
+| A1 | Nie wiem, czy mój alert zadziała, bo odmówiłem powiadomień | Obok przełączników alertów komunikat „Notifications are off → System Settings” | 4 | 1 | 5 | 1 | 20,0 | P2 |
+| A2 | VoiceOver nie mówi, że klucz przeszedł test albo że Undo jest dostępne | `AccessibilityNotification.Announcement` dla walidacji klucza, błędów dodawania i Undo | 3 | 1 | 5 | 1 | 15,0 | P2 |
+| A3 | Undo znika, zanim zdążę zareagować | Undo bez timera, do następnej akcji, na górze listy | 3 | 1 | 4 | 1 | 12,0 | P2 |
+| A4 | Próg ceny nie przyjmuje zapisu, którym gracze się posługują | Parser „1m / 850k / 1,000,000”; osobny komunikat przy przepełnieniu | 3 | 1 | 4 | 1 | 12,0 | P3 |
+| A5 | Nie mogę usunąć klucza, oddając Maca | „Remove key” z potwierdzeniem, `KeychainStore.delete()` | 3 | 1 | 5 | 1 | 15,0 | P2 |
+| A6 | Wstrzymany klucz i ponowne wklejenie tego samego klucza nic nie robią | „Re-check key”, które czyści `keyHalted` i odpala walidację | 4 | 1 | 5 | 1 | 20,0 | P2 |
+| A7 | Kolorowy tekst jest nieczytelny w trybie jasnym | Ciemniejsze warianty kolorów dla tekstu, jasne tylko dla ikon | 3 | 2 | 4 | 1 | 6,0 | P2 |
+
+## B. Średni zakres
+
+| # | Rozwiązanie | Impact | Effort | Confidence | Risk | Score | Uwagi |
+|---|---|---|---|---|---|---|---|
+| B1 | Stan „pominięty” w `ModulePresentationState` z istniejącym `denial.userExplanation` i przyciskiem Settings zamiast Retry | 4 | 2 | 5 | 1 | 10,0 | zamyka A1 z poprzedniego audytu |
+| B2 | Ustawienia › Extras: pięć przełączników companion w jednym miejscu, panele tylko gdy włączone | 4 | 2 | 4 | 2 | 8,0 | zdejmuje szum z pięciu zakładek |
+| B3 | Ustawienia › Alerts: wszystkie alerty i stan zgody systemowej w jednym miejscu | 4 | 3 | 4 | 2 | 5,3 | |
+| B4 | Nieprzeczytane posty w Forum Watch (licznik albo pogrubiony tytuł z `lastKnownPostCount`) | 3 | 2 | 4 | 1 | 6,0 | dziś jedynym kanałem jest powiadomienie |
+| B5 | „Landed” i ponowne zaplanowanie przy locie powrotnym (zmiana `timestamp` albo `destination` między pollami) | 3 | 2 | 4 | 2 | 6,0 | F-06a |
+| B6 | Alert „Chain expiring” sprawdzany w `tick()`, gdy łańcuch jest blisko końca | 4 | 2 | 4 | 2 | 8,0 | F-07a; ważne dla graczy frakcyjnych |
+| B7 | Widget: `reloadAllTimelines()` tylko przy zmianie treści albo co ≥240 s | 3 | 2 | 4 | 2 | 6,0 | P-01; chroni budżet przeładowań macOS |
+| B8 | Osobny widok dla „Arriving in”, żeby cały Status nie przeliczał się co sekundę | 2 | 1 | 4 | 1 | 8,0 | P-02; zmierzyć przed i po |
+
+## C. Eksperymenty (wartość niepewna)
+
+| # | Hipoteza | Jak zwalidować | Impact | Effort | Confidence | Risk | Score |
+|---|---|---|---|---|---|---|---|
+| C1 | „Create MacTorn key”, czyli link do formularza nowego klucza w Tornie z wypełnionym tytułem i poziomem dostępu, skróci pierwszą konfigurację | Sprawdzić parametry `addNewKey` Torna; porównać czas do pierwszej wartości na 3–5 nowych graczach | 5 | 2 | 3 | 1 | 7,5 |
+| C2 | Ustawienie „Larger text” (skala fontu w environment) i wyższe okno pomogą słabowidzącym | Prototyp jednej zakładki, test z 2–3 osobami używającymi Zoom | 3 | 3 | 3 | 2 | 3,0 |
+| C3 | Podpowiedzi przy żargonie (Xanax, Refill, SED, FHC) zmniejszą dezorientację nowych graczy | Tooltip i hint VO na jednej zakładce, pytanie na forum yeswas/Torn | 2 | 1 | 3 | 1 | 6,0 |
+
+## D. Odrzucone
+
+- **Przepisanie nawigacji na sidebar lub wiele okien:** popover 320 pt jest świadomym wyborem produktu, a przepisanie to duży koszt bez dowodu, że rozwiązuje realny problem.
+- **Telemetria użycia zakładek w Sentry:** wymagałaby zbierania danych o zachowaniu, a projekt ma opt-in i minimalne dane. Ryzyko prywatności jest większe niż wartość.
+- **Ukrywanie jednostek i liczb za kolorami zamiast tekstu:** pogarsza dostępność.
+- **Automatyczne tworzenie klucza API przez aplikację:** Torn na to nie pozwala, a obchodzenie tego wymagałoby logowania na konto, czyli poważnej zmiany modelu bezpieczeństwa.
+
+## Roadmapa
+
+- **Najbliższy patch (1.15.1, ta gałąź):** R-01…R-05, F-01…F-06, timer alertów cenowych, dostępność A-01…A-08, CI i doktryna.
+- **Następny release:** A1, A2, A5, A6, B1, B6, B7.
+- **Większy release:** B2, B3, B4, B5, A7 (kontrast) oraz decyzja w sprawie R-06 (locale liczb).
+- **Eksperymenty do walidacji:** C1, C2, C3 i test na żywym kluczu Custom dla R-07.
+
+## Metryki (bez zbierania danych wrażliwych)
+
+MacTorn nie ma analityki i nie proponuję jej dodawać. Da się mierzyć tym, co już jest:
+
+- **Crash-free users i app hangs:** z Sentry, wyłącznie u osób, które dały opt-in.
+- **Wskaźnik sukcesu `user.fast` i odsetek błędów per endpoint:** z `EndpointHealthTracker`, dziś widoczne w Diagnostyce; porównywać w raportach od użytkowników.
+- **Czas do pierwszej wartości:** od otwarcia do pierwszego zastosowanego snapshotu, mierzony lokalnie na testach z nowymi graczami (C1).
+- **Liczba zgłoszeń na GitHubie** z tagami `alerts`, `watchlist` i `accessibility` przed i po 1.15.1.
+- **Liczba przeładowań widgetów na godzinę:** licznik w Diagnostyce, przed i po B7.
+
+---
+
+# Poprzedni przebieg (2026-08-26)
+
+
 Last verified: 2026-08-26 | wersja 1.12.0
 Zakres tego przebiegu: powierzchnie zmienione przez gałąź `feature/torn-api-2026-08`.
 Odznaki powiadomień w Statusie, wyszukiwarka przedmiotów w Watchliście, obserwowanie

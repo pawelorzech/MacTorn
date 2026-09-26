@@ -1,5 +1,115 @@
 # CHANGELOG_AGENT: zmiany wykonane przez agenta
 
+Last verified: 2026-09-26 | gałąź `feature/audit-fixes` (z `main` @ `07b1f82`) → wydanie 1.15.1
+Zamówienie: `/audit` całego repo bez testów manualnych i bez uruchamiania aplikacji, potem
+commit, push, release i podmiana lokalnej instalacji.
+Poprzedni przebieg (2026-08-26) jest niżej.
+
+---
+
+## Commity (16, od najstarszego)
+
+| Commit | Zmiana | ID z `AUDIT_REPORT.md` |
+|---|---|---|
+| `dc4fec4` | Akcje wracają do „Total Tracked” przy włączonych Stock bonuses | R-01 |
+| `f82f5c0` | Watchlista: `cache_timestamp` przeliczany na zegar Maca, `cache_delay` ograniczony do 0…300 s | R-02 |
+| `e4f2db6` | „Arriving in” pokazuje „Ready” przy zerze | R-04 |
+| `7c78ea6` | Akcje CI przypięte do SHA, bramka autora w PR review | S-01, S-04 |
+| `3db1143` | Zawężone uprawnienia `/new-version` | S-02 |
+| `0a345bc` | Dokumentacja bezpieczeństwa opisuje `mactorn://` | S-03 |
+| `9d483b7` | Dostępność: Return i fokus w polu klucza, modalne prompty, wypowiadany stan ikony w pasku menu, linki przez BrowserManager, puste stany, „Travel status unavailable”, obszary kliknięcia i etykiety | A-01…A-08 |
+| `52b2f04` | Reset konta kasuje zaplanowane alerty lądowania | F-01 |
+| `886705a` | „Test Connection” na niezapisanym kluczu nie nadpisuje `keyInfo` | F-02 |
+| `02799f3` | Zmiana interwału (główny i forum) przeinstalowuje działający timer | F-03 |
+| `20277ff` | Przerwane odświeżenie Watchlisty dostarcza alerty, które już zapisało | F-04 |
+| `33ae701` | Timer alertów cenowych co 5 minut w tle | F-05 |
+| `88080a0` | Forum Watch zatrzymuje się po trwałym błędzie klucza | F-06 |
+| `807c3cb` | Okno limitu requestów zachowuje sekundę graniczną | R-03 |
+| `20caaab` | Karta łańcucha „Unavailable” przy braku timeoutu | R-05 |
+| `6a2ff1f` | Tolerancja timerów (0,1 s dla odliczania, 10% dla pollingu i forum) | P-08 |
+
+## Zmienione pliki
+
+- **Kod produkcyjny (`MacTorn/MacTorn/`):**
+  - `MacTornApp.swift`
+  - `ViewModels/`: `AppState.swift`, `AppState+PollingUserFetch.swift`, `AppState+MarketForum.swift`, `AppState+LiveNextAction.swift`, `AccountSessionStore.swift`, `MarketWatchService.swift`
+  - `Utilities/PollingCoordinator.swift`
+  - `Views/`: `StatusView.swift`, `ContentView.swift`, `SettingsView.swift`, `TravelView.swift`, `WatchlistView.swift`, `ForumWatchView.swift`, `Components/ChainView.swift`, `Components/SentryOptInPromptView.swift`
+- **Testy (`MacTorn/MacTornTests/`):**
+  - `ViewModels/`: `CompanionStoreTests.swift`, `MarketWatchServiceTests.swift`, `AppStateTests.swift`, `AppStateWatchlistTests.swift`, `AppStateForumWatchTests.swift`, `PollingCoordinatorTests.swift`
+  - `Models/`: `KeyValidationTests.swift`, `ChainTests.swift`
+- **CI, doktryna i dokumentacja:**
+  - `.github/workflows/`: `claude.yml`, `claude-code-review.yml`, `gitleaks.yml`
+  - `.claude/commands/new-version.md`, `SECURITY.md`, `SECURITY_AUDIT.md`
+  - raporty `AUDIT_REPORT.md`, `UX_RECOMMENDATIONS.md` i ten plik
+
+## Dodane i zmienione testy
+
+- **Liczba testów:** z 781 do 808 (+27).
+- **Nowe klasy i testy:**
+  - `TravelNotificationAccountScopeTests` (3)
+  - `PollingCadenceChangeTests` (3)
+  - `WatchlistPriceAlertTimerTests` (8)
+  - `ForumWatchKeyHaltTests` (3)
+  - `testValidatingAnUnsavedKeyDoesNotReplaceTheActiveKeyInfo`
+  - `testSupersededRefreshStillDeliversAlertsItAlreadyLatched`
+  - `testSubSecondRequestIsNotDroppedBeforeItsMinuteElapses`
+  - 3 testy `ChainView.mode(for:)` w `ChainTests`
+  - 3 testy `MarketPriceSnapshot.localized(using:)`
+  - 2 testy stocks w `CompanionStoreTests`
+- **Dwa testy zmieniły intencję.** Oba kodowały błąd, a nie wymaganie. Zmiana jest jawna, nie jest osłabieniem:
+  - `testDisabledV2StocksDoNotChangeLegacyRequestAndEnabledAvoidsDuplicateHoldings` wymagał wycinania `stocks`. Zastąpiły go `testEnablingV2StocksKeepsLegacyStocksSelection` i `testEnablingV2StocksStillPopulatesStocksDataFromFastPoll`. Zakładka Stocks i tak chowa panel v1 przy włączonym companion, więc na ekranie nic się nie dubluje.
+  - `testSecondResolutionBoundaryIsStable` oczekiwał 0 dokładnie po 60 s, czyli wcześniejszego zapominania żądania. Teraz oczekuje 1 po 60 s i 0 po 61 s, tak jak liczył kod sprzed `c71ee24`.
+- **Test do obserwacji:** `testSupersededRefreshStillDeliversAlertsItAlreadyLatched` opiera się na `Task.sleep` z marginesem ok. 150 ms i może być niestabilny na obciążonej maszynie.
+
+## Zmiany zachowania widoczne dla użytkownika
+
+- **Money:** „Total Tracked” zawsze liczy akcje.
+- **Watchlist:**
+  - Alerty cenowe przychodzą w tle co 5 minut, dla przedmiotów z ustawionym progiem. Nie ma żadnych żądań, gdy żaden próg nie jest ustawiony.
+  - Etykieta „Price data from … ago” liczy od czasu na zegarze Maca.
+  - Pusta lista nie pokazuje już paska „No data yet · Retry”.
+  - Ręczne odświeżenie przy wstrzymanym kluczu nic nie robi.
+- **Status i Faction:**
+  - „Arriving in: Ready” przy zerze.
+  - Czerwona karta „Unavailable”, gdy łańcuch ma trafienia, ale nie ma timeoutu ani cooldownu. `ChainView` jest współdzielony, więc karta pojawia się też w Statusie.
+- **Travel:** bez danych o podróży widać „Travel status unavailable” zamiast „In Torn City”.
+- **Settings:**
+  - Return w polu klucza zapisuje i łączy.
+  - Przy pierwszym uruchomieniu pole klucza ma fokus.
+  - Linki otwierają się w wybranej przeglądarce i VoiceOver czyta je jako przyciski.
+  - Zmiana interwału działa od razu.
+- **Konta:**
+  - Zmiana lub usunięcie klucza kasuje zaplanowane alerty lądowania.
+  - „Test Connection” na niezapisanym kluczu nie wpływa na aktywne konto.
+- **Forum Watch:** zatrzymuje się po trwałym błędzie klucza i wraca przy następnym otwarciu menu z poprawnym kluczem.
+- **Dostępność:** prompty Feedback i Sentry blokują treść pod spodem, a ikona w pasku menu mówi „error”, „abroad” albo „energy full”.
+
+## Potencjalne regresje
+
+- **Budżet requestów:** timer alertów cenowych dodaje żądania `market.item` w tle. Przy N przedmiotach z progiem to N żądań co 5 minut (ograniczonych przez `cache_delay`, limit 4 równoległych i bramkę `reserveRequest`).
+- **Watchlista po aktualizacji:** pozycje zapisane przed fixem R-02 mają znacznik w czasie serwera. Przy zegarze Maca spóźnionym o X sekund pierwsza nowa cena może być pominięta najwyżej przez X sekund.
+- **Karta łańcucha:** nowa karta „Unavailable” pojawi się w miejscach, gdzie wcześniej nie było nic (Status).
+- **Picker 15 s:** etykieta VO na segmencie może zostać zignorowana przez AppKit. Jest nieszkodliwa, ale może nic nie dawać.
+
+## Manual QA — do sprawdzenia przed publikacją lub po niej
+
+1. Włącz „Stock bonuses” i uruchom aplikację ponownie. „Total Tracked” w Money powinno zawierać akcje.
+2. Ustaw próg ceny na przedmiocie, zamknij popover i poczekaj ponad 5 minut. Powinno przyjść powiadomienie, gdy cena jest poniżej progu.
+3. Przy pierwszym uruchomieniu bez klucza: fokus w polu klucza, a Return zapisuje.
+4. VoiceOver na ikonie w pasku menu, w stanie błędu i za granicą.
+5. Prompt Sentry lub Feedback: Tab i VoiceOver nie powinny wychodzić poza prompt.
+6. W trakcie lotu: po dojściu do zera „Arriving in” pokazuje „Ready”.
+7. Zmień interwał odświeżania z 30 s na 2 min. Kolejne odświeżenie nastąpi po 2 minutach, nie po 30 s.
+8. Przełącz konto w trakcie lotu. Alert lądowania starego konta nie powinien przyjść.
+9. Pierwszy run CI po przypięciu SHA: workflowy `claude`, `claude-code-review` i `gitleaks` startują poprawnie.
+10. `make test-ui`, gdy ekran będzie wolny. Nie był uruchamiany w tym przebiegu.
+
+---
+
+# Poprzedni przebieg (2026-08-26)
+
+
 Last verified: 2026-08-26 | gałąź `feature/torn-api-2026-08` → wydanie 1.12.0
 Zamówienie: audyt i naprawa warstwy Torn API, wdrożenie tego, co się w API zmieniło,
 `/audit`, `/stop-slop`, wydanie produkcyjne.
