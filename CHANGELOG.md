@@ -5,6 +5,28 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.2] - 2026-09-30 - Quality audit fixes
+
+### Fixed
+- A failed Keychain write no longer switches the account in memory (the old account came back after a restart), and a failed migration keeps the old key instead of deleting it.
+- Saving the same key again after stopping the connection resumes polling.
+- Editing the key during "Test Connection" invalidates the running test; an older result can no longer overwrite a newer one.
+- "Updated" shows the time of the last successful fetch, not of the last failed attempt. Endpoint health resets on account switch, and a late error from the previous account no longer taints the new one.
+- An empty but successful list no longer offers Retry; data unavailable to a Custom key is labelled as such instead of looking like zero records. Watchlist and Forum Watch show "Data available" only after a real success.
+- Forum Watch surfaces HTTP and malformed-JSON errors on the row, keeps the known title and count, and a new thread no longer stays titled "Loading..." forever.
+- History and optional-module fetches explain why they can't run (offline, missing permission) instead of doing nothing. Recruiting no longer lists closed crimes as open slots.
+- Settings stays usable during the first load; the loading overlay no longer covers it.
+- An out-of-range travel timestamp from the API can no longer crash the app while showing a flight.
+- Credits uses the available window height.
+
+### Accessibility
+- Add-item, add-thread and price-threshold fields have explicit accessible names.
+- Actions without a known target (anonymous opponent, armory without faction data) are disabled.
+
+### Notes
+- The unit-test host runs isolated from the real app: own preferences, empty key store, offline transport; Sentry and system notifications are off under tests.
+- 25 new unit tests; full report in `QUALITY_AUDIT_2026-09-30.md`.
+
 ## [1.15.1] - 2026-09-26 - Audit fixes
 
 ### Added
