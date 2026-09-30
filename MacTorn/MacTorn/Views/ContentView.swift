@@ -120,6 +120,7 @@ struct ContentView: View {
                         // divider as well, and the VStack shared the window out between all
                         // five. Only the scrolling content should absorb the slack.
                         tabContent
+                            .disabled(isBlockingInitialLoad)
                             // `.top`, not the default centre: `TravelView` is a plain
                             // VStack rather than a ScrollView, so centring would float its
                             // content in the middle of the panel. Scroll views fill the
@@ -127,12 +128,6 @@ struct ContentView: View {
                             .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
-                // Only the *content* is inert while the first load runs. The footer sits
-                // outside this modifier on purpose: it holds Settings and Quit, and
-                // disabling those left the user with no way out of a slow or hung first
-                // fetch (URLSession's default timeout is 60 s) short of force-quitting.
-                .disabled(isBlockingInitialLoad)
-
                 Divider()
                     .padding(.vertical, 4)
 
@@ -145,7 +140,7 @@ struct ContentView: View {
             .disabled(isShowingModalPrompt)
             
             // Loading Overlay
-            if isBlockingInitialLoad {
+            if isBlockingInitialLoad && !navigation.isShowingSettings {
                 (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.4))
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
                     .allowsHitTesting(false)
@@ -193,7 +188,7 @@ struct ContentView: View {
         .task {
             // Skip system-permission prompts and the update-check network call under the
             // UI-test harness so runs stay hermetic and no modal steals focus.
-            guard !UITestConfiguration.isActive else { return }
+            guard !UITestConfiguration.isIsolated else { return }
             await NotificationManager.shared.requestPermission()
             appState.checkForAppUpdates()
         }
@@ -452,7 +447,7 @@ struct ContentView: View {
     }
     
     private func checkSentryOptInPrompt() {
-        guard !UITestConfiguration.isActive else { return }
+        guard !UITestConfiguration.isIsolated else { return }
         guard !appState.apiKey.isEmpty else { return }
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let shownFor = UserDefaults.standard.string(forKey: SentryManager.promptShownKey) ?? ""

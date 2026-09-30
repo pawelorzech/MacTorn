@@ -25,7 +25,7 @@ enum SentryManager {
 
     /// Call once at app launch. Starts the SDK only if the user has opted in.
     static func startIfEnabled() {
-        guard shouldStart(isEnabled: isEnabled, isUITesting: UITestConfiguration.isActive) else {
+        guard shouldStart(isEnabled: isEnabled, isUITesting: UITestConfiguration.isIsolated) else {
             return
         }
         start()
@@ -35,7 +35,7 @@ enum SentryManager {
     static func applyState() {
         // UI tests use fixture-backed networking and must remain completely hermetic,
         // including when a test happens to exercise the Settings toggle.
-        guard !UITestConfiguration.isActive else { return }
+        guard !UITestConfiguration.isIsolated else { return }
         if isEnabled {
             start()
         } else if isStarted {

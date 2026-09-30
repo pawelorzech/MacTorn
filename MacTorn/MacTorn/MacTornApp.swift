@@ -24,6 +24,10 @@ struct MacTornApp: App {
             _appState = State(initialValue: UITestConfiguration.makeAppState())
             return
         }
+        if UITestConfiguration.isUnitTesting {
+            _appState = State(initialValue: UITestConfiguration.makeUnitTestHostState())
+            return
+        }
         #endif
         SentryManager.startIfEnabled()
         let state = AppState()

@@ -224,7 +224,7 @@ struct ModuleStateView: View {
         case .loading:
             return "Loading data"
         case .empty:
-            return "No data yet"
+            return state.updatedAt == nil ? "No data yet" : "No records"
         case .fresh:
             return state.updatedAt.map { "Updated \(relativeDate($0))" } ?? "Data available"
         case .stale:

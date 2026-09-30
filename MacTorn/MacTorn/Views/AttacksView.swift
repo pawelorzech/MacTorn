@@ -46,7 +46,7 @@ struct AttacksView: View {
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Total: \(stats.total.map(formatStat) ?? "Unavailable")")
                         .uiTestID("uitest.battleStats.total")
-                    } else if appState.lastUpdated == nil {
+                    } else if appState.isLoading {
                         Text("Loading stats...")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -127,6 +127,7 @@ struct AttacksView: View {
                             .buttonStyle(.plain)
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("\(result), \(direction) \(opponentName)\(timeDescription)")
+                            .disabled(attack.opponentId(forUserId: userId) == nil)
                             .uiTestID("uitest.attack.\(attack.id)")
                         }
                     } else {

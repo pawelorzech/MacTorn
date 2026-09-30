@@ -89,10 +89,12 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     private override init() {
         super.init()
+        guard !UITestConfiguration.isIsolated else { return }
         UNUserNotificationCenter.current().delegate = self
     }
 
     func requestPermission() async {
+        guard !UITestConfiguration.isIsolated else { return }
         do {
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .sound, .badge])
@@ -119,6 +121,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func send(title: String, body: String, type: NotificationType, customURL: URL? = nil) {
+        guard !UITestConfiguration.isIsolated else { return }
         let content = UNMutableNotificationContent()
         content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
         content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
@@ -143,6 +146,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Schedule a notification for a specific date
     func scheduleNotification(title: String, body: String, type: NotificationType, at date: Date, identifier: String) {
+        guard !UITestConfiguration.isIsolated else { return }
         let content = UNMutableNotificationContent()
         content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
         content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
@@ -169,6 +173,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Cancel all travel-related notifications
     func cancelTravelNotifications() {
+        guard !UITestConfiguration.isIsolated else { return }
         let identifiers = TravelNotificationSetting.defaults.map { "\($0.id)_alert" }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
     }

@@ -7,6 +7,17 @@ import Sentry
 /// regression is caught in milliseconds without launching the app.
 #if DEBUG
 final class UITestHarnessTests: XCTestCase {
+    @MainActor
+    func testUnitTestHostStartsOfflineWithoutProductionCredentialsOrDefaults() {
+        let host = UITestConfiguration.makeUnitTestHostState()
+        XCTAssertTrue(host.apiKey.isEmpty)
+        XCTAssertFalse(host.connectivity.isConnected)
+        XCTAssertTrue(host.companion.enabled.isEmpty)
+        XCTAssertNil(host.data)
+        XCTAssertTrue(UITestConfiguration.isUnitTesting)
+        XCTAssertTrue(UITestConfiguration.isIsolated)
+    }
+
 
     private let fakeKey = "sample-harness-value"
 

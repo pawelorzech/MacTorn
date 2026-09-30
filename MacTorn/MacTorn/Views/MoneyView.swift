@@ -11,7 +11,8 @@ struct MoneyView: View {
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
                         hasContent: appState.moneyData != nil,
-                        staleAfter: 120
+                        staleAfter: 120,
+                        requiredUserSelections: ["money"]
                     ),
                     onRetry: appState.refreshNow
                 )
@@ -98,7 +99,7 @@ struct MoneyView: View {
                             .uiTestID("uitest.money.tokens")
                         }
                         .frame(maxWidth: .infinity)
-                    } else if appState.lastUpdated == nil {
+                    } else if appState.isLoading {
                         Text("Loading...")
                             .font(.caption)
                             .foregroundColor(.secondary)

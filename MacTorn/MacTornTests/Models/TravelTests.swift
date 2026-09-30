@@ -2,6 +2,25 @@ import XCTest
 @testable import MacTorn
 
 final class TravelTests: XCTestCase {
+    func testMalformedExtremeDepartureDoesNotOverflowFlightProgress() {
+        let travel = makeTravel(timestamp: Int.max, departed: Int.min, timeLeft: 60)
+        XCTAssertEqual(travel.flightProgress(from: Date()), 0)
+        XCTAssertEqual(Travel.flightProgress(arrival: Int.max, departure: Int.min, remainingSeconds: 60), 0)
+    }
+
+    func testFutureFetchTimeCannotOverflowRelativeCountdown() {
+        let now = Date()
+        let travel = makeTravel(timeLeft: Int.max)
+        XCTAssertEqual(travel.remainingSeconds(from: now.addingTimeInterval(60), now: now), Int.max)
+    }
+
+    func testLiveFlightProgressUsesSameCalculationAsModel() {
+        let now = Date(timeIntervalSince1970: 1060)
+        let travel = makeTravel(timestamp: 1100, departed: 1000, timeLeft: 40)
+        XCTAssertEqual(travel.flightProgress(from: now, now: now), 0.6, accuracy: 0.0001)
+        XCTAssertEqual(Travel.flightProgress(arrival: 1100, departure: 1000, remainingSeconds: 40), 0.6, accuracy: 0.0001)
+    }
+
 
     // MARK: - Current travel duration table
 

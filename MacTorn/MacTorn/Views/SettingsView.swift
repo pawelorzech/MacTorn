@@ -296,6 +296,14 @@ struct SettingsView: View {
 
             keyValidationResult
 
+            if let error = appState.accountSession.persistenceError {
+                Label(error, systemImage: "lock.trianglebadge.exclamationmark")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .uiTestID("uitest.keyPersistenceError")
+            }
+
             // Button + BrowserManager rather than `Link`, so the Preferred Browser setting
             // is honoured.
             Button("Get API Key from Torn") {
@@ -572,6 +580,7 @@ struct SettingsView: View {
 
     private func saveAndConnect() {
         appState.apiKey = trimmedInputKey
+        guard appState.accountSession.persistenceError == nil else { return }
         appState.refreshNow()
     }
 

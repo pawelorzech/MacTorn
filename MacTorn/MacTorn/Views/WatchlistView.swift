@@ -75,6 +75,7 @@ struct WatchlistView: View {
 
                         HStack {
                             TextField(searchFieldPrompt, text: $itemIdInput)
+                                .accessibilityLabel("Item name or ID")
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
                                 .onChange(of: itemIdInput) { _, _ in
@@ -282,11 +283,7 @@ struct WatchlistView: View {
     ]
 
     private var moduleState: ModulePresentationState {
-        appState.presentationState(
-            endpointIDs: ["market.item"],
-            hasContent: !appState.watchlistItems.isEmpty,
-            staleAfter: 180
-        )
+        appState.watchlistPresentationState
     }
     
 
@@ -487,6 +484,7 @@ struct WatchlistPriceRow: View {
                             .font(.caption.bold())
 
                         TextField("Price", text: $thresholdText)
+                            .accessibilityLabel("Price alert threshold")
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 120)
                             .onChange(of: thresholdText) { _, newValue in

@@ -11,7 +11,8 @@ struct PropertiesView: View {
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
                         hasContent: appState.propertiesData != nil,
-                        staleAfter: 120
+                        staleAfter: 120,
+                        requiredUserSelections: ["properties"]
                     ),
                     onRetry: appState.refreshNow
                 )
@@ -36,6 +37,9 @@ struct PropertiesView: View {
                         ForEach(properties) { property in
                             PropertyCard(property: property)
                         }
+                    } else if appState.propertiesData == nil {
+                        EmptyStateView(icon: "house.slash", title: "Property data unavailable",
+                                       subtitle: "Check the module status above.")
                     } else {
                         EmptyStateView(icon: "house.slash", title: "No properties found")
                     }

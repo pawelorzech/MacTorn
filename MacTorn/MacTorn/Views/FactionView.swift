@@ -68,7 +68,7 @@ struct FactionView: View {
                         // "Loading" only while nothing has ever arrived. Once a refresh
                         // has completed, absent faction data is a *state*, not progress
                         // — a player with no faction sat on "Loading…" forever.
-                        if appState.lastUpdated == nil {
+                        if appState.isLoading {
                             Text("Loading faction data...")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -136,6 +136,7 @@ struct FactionView: View {
                 .padding()
                 .background(Color.purple.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
+                .disabled(appState.factionData == nil)
 
                 // Actions
                 HStack(spacing: 8) {

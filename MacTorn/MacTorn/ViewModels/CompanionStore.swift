@@ -207,10 +207,21 @@ final class CompanionStore {
     /// All optional reads use existing health/error handling and the global budget.
     private func load<Value>(_ id: String, app: AppState, to: Int? = nil,
                              parameter: Int? = nil, parse: @escaping @Sendable (Data, [String: Any]) -> Value?) async -> Value? {
-        guard !Task.isCancelled, !app.apiKey.isEmpty, !app.keyHalted, app.connectivity.isConnected,
-              !loading.contains(id), let base = app.endpointURL(id, parameter: parameter) else { return nil }
+        guard !Task.isCancelled, !loading.contains(id) else { return nil }
+        guard !app.apiKey.isEmpty, !app.keyHalted else {
+            errors[id] = "Connect a valid API key in Settings to load this data."
+            return nil
+        }
+        guard app.connectivity.isConnected else {
+            errors[id] = "No internet connection. Reconnect and try again."
+            return nil
+        }
         if let denial = app.endpointGate.denial(for: id, keyInfo: app.keyInfo, coordinator: app.pollingCoordinator) {
             errors[id] = denial.userExplanation
+            return nil
+        }
+        guard let base = app.endpointURL(id, parameter: parameter) else {
+            errors[id] = "This data is unavailable with your current API key. Check Settings."
             return nil
         }
         guard app.reserveRequest(id) else { return nil }

@@ -64,6 +64,7 @@ struct ForumWatchView: View {
 
                         HStack {
                             TextField("forums.php...t=12345 or 12345", text: $threadInput)
+                                .accessibilityLabel("Thread URL or ID")
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
                                 .onChange(of: threadInput) { _, _ in
@@ -161,11 +162,7 @@ struct ForumWatchView: View {
     }
 
     private var moduleState: ModulePresentationState {
-        appState.presentationState(
-            endpointIDs: ["forum.thread"],
-            hasContent: !appState.watchedThreads.isEmpty,
-            staleAfter: TimeInterval(max(appState.forumWatchConfig.pollingIntervalSeconds, 180))
-        )
+        appState.forumPresentationState
     }
 
     private func addThread() {

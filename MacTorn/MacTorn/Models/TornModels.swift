@@ -259,23 +259,30 @@ struct Travel: Codable, Equatable {
     func remainingSeconds(from fetchTime: Date, now: Date = Date()) -> Int {
         // Primary: Use timestamp directly if available (more accurate)
         if let timestamp = timestamp, timestamp > 0 {
-            return max(0, timestamp - Int(now.timeIntervalSince1970))
+            guard let nowUnix = NumericSafety.integerAmount(now.timeIntervalSince1970) else { return 0 }
+            return NumericSafety.remaining(until: timestamp, now: nowUnix) ?? 0
         }
 
         // Fallback: Use timeLeft with fetchTime offset (backward compatibility)
         guard let timeLeft = timeLeft, timeLeft > 0 else { return 0 }
-        let elapsed = Int(now.timeIntervalSince(fetchTime))
+        guard let elapsed = NumericSafety.integerAmount(max(0, now.timeIntervalSince(fetchTime))) else { return 0 }
         return max(0, timeLeft - elapsed)
     }
 
     /// Calculate flight progress (0.0 to 1.0) based on fetch time
     func flightProgress(from fetchTime: Date, now: Date = Date()) -> Double {
         guard let departed = departed, let timestamp = timestamp else { return 0 }
-        let totalDuration = timestamp - departed
-        guard totalDuration > 0 else { return 0 }
         let remaining = remainingSeconds(from: fetchTime, now: now)
-        let elapsed = totalDuration - remaining
-        return min(1.0, max(0.0, Double(elapsed) / Double(totalDuration)))
+        return Self.flightProgress(arrival: timestamp, departure: departed, remainingSeconds: remaining)
+    }
+
+    /// Shared by the model and the live UI. Remote timestamps must not overflow Int
+    /// subtraction or crash rendering when a malformed response supplies Int.min.
+    static func flightProgress(arrival: Int, departure: Int, remainingSeconds: Int) -> Double {
+        guard departure > 0, arrival > departure else { return 0 }
+        let duration = Double(arrival) - Double(departure)
+        guard duration > 0 else { return 0 }
+        return min(1, max(0, (duration - Double(max(0, remainingSeconds))) / duration))
     }
 }
 

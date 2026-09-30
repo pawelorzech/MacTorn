@@ -186,6 +186,9 @@ final class ForumWatchService: ForumWatchServicing {
     func setError(_ error: String, for threadID: Int) {
         guard let index = threads.firstIndex(where: { $0.id == threadID }) else { return }
         threads[index].error = error
+        if threads[index].lastChecked == nil, threads[index].title == "Loading..." {
+            threads[index].title = "Thread #\(threadID)"
+        }
     }
 
     /// Diffs a category listing against the ids already seen and returns only what is

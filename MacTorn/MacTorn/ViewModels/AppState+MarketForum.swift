@@ -382,6 +382,7 @@ extension AppState {
                              bytes: responseBytes, errorClass: "malformedResponse")
             }
         } catch {
+            guard !Task.isCancelled, isCurrentAccount(requestedKey, generation: generation) else { return }
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
             recordHealth("forum.threads",
                          outcome: mapped?.classification == .offline ? .offline : .error,
@@ -425,8 +426,10 @@ extension AppState {
                 // poll otherwise, so the endpoint-scoped failure must reach the gate.
                 noteEndpointFailure(apiError, for: "forum.thread")
                 updateThreadError(threadId: threadId, error: apiError.userMessage)
-            case .httpError, .malformed:
-                return
+            case .httpError(let statusCode, _):
+                updateThreadError(threadId: threadId, error: "Torn returned HTTP \(statusCode). Try refreshing again.")
+            case .malformed:
+                updateThreadError(threadId: threadId, error: "Could not read this thread. Try refreshing again.")
             }
         } catch {
             guard !Task.isCancelled,
@@ -464,7 +467,7 @@ extension AppState {
             case .httpError:
                 updateThreadError(threadId: threadId, error: "HTTP Error")
             case .malformed:
-                return
+                updateThreadError(threadId: threadId, error: "Could not read this thread. Try refreshing again.")
             }
         } catch {
             guard !Task.isCancelled,

@@ -4,6 +4,92 @@ import XCTest
 /// Etap F — the health tracker and the PII-safety of the sanitized report.
 @MainActor
 final class DiagnosticsTests: XCTestCase {
+    func testWatchedListsDoNotClaimFreshDataBeforeLoadingOrAfterRowFailure() {
+        let clock = MutableTimeSource()
+        let app = AppState(session: MockNetworkSession(), connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults(), time: clock)
+        app.watchlistItems = [makeWatchlistItem(lastUpdated: nil)]
+        app.watchedThreads = [WatchedThread(id: 1, title: "Thread #1")]
+        XCTAssertNotEqual(app.watchlistPresentationState.kind, .fresh)
+        XCTAssertNotEqual(app.forumPresentationState.kind, .fresh)
+
+        app.watchlistItems[0].lastUpdated = clock.now
+        app.watchedThreads[0].lastChecked = clock.now
+        XCTAssertEqual(app.watchlistPresentationState.kind, .fresh)
+        XCTAssertEqual(app.forumPresentationState.kind, .fresh)
+        app.watchlistItems[0].error = "Could not connect"
+        app.watchedThreads[0].error = "Could not connect"
+        XCTAssertEqual(app.watchlistPresentationState.kind, .stale)
+        XCTAssertEqual(app.forumPresentationState.kind, .stale)
+        XCTAssertEqual(app.watchlistPresentationState.updatedAt, clock.now)
+        XCTAssertEqual(app.forumPresentationState.updatedAt, clock.now)
+    }
+
+    func testOfflineStateTakesPrecedenceOverPendingInitialLoad() {
+        let state = ModulePresentationState.resolve(health: [], hasContent: false, isLoading: true,
+                                                    fallbackError: "No internet connection", staleAfter: 120)
+        XCTAssertEqual(state.kind, .offline)
+        XCTAssertEqual(state.recovery, .retry)
+    }
+
+    func testPresentationUsesInjectedClockAndKnownSelectionPermissions() {
+        let clock = MutableTimeSource()
+        let app = AppState(session: MockNetworkSession(), defaults: .createMockDefaults(), time: clock)
+        app.endpointHealth.record(endpointID: "user.fast", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        XCTAssertEqual(app.presentationState(endpointIDs: ["user.fast"], hasContent: true,
+                                             staleAfter: 120).kind, .fresh)
+        clock.advance(121)
+        XCTAssertEqual(app.presentationState(endpointIDs: ["user.fast"], hasContent: true,
+                                             staleAfter: 120).kind, .stale)
+        app.keyInfo = TornKeyInfo(
+            access: .init(level: 1, type: "Custom", faction: false, company: false),
+            user: .init(id: 42, factionId: nil, companyId: nil),
+            selections: .init(user: ["bars"], faction: [], market: [], property: [], torn: [],
+                              racing: [], forum: [], key: ["info"], company: [])
+        )
+        let money = app.presentationState(endpointIDs: ["user.fast"], hasContent: false,
+                                          staleAfter: 120, requiredUserSelections: ["money"])
+        XCTAssertEqual(money.kind, .permission)
+        XCTAssertEqual(money.recovery, .settings)
+    }
+
+    func testFailureDoesNotAdvanceDisplayedDataTimestamp() throws {
+        let clock = MutableTimeSource()
+        let tracker = EndpointHealthTracker(time: clock)
+        let successfulAt = clock.now
+        tracker.record(endpointID: "user.fast", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        clock.advance(180)
+        tracker.record(endpointID: "user.fast", outcome: .error, latencyMs: 1, responseBytes: 0)
+        let state = ModulePresentationState.resolve(
+            health: [try XCTUnwrap(tracker.latest(for: "user.fast"))],
+            hasContent: true, isLoading: false, fallbackError: nil, now: clock.now, staleAfter: 120
+        )
+        XCTAssertEqual(state.updatedAt, successfulAt)
+        XCTAssertEqual(state.kind, .stale)
+    }
+
+    func testAccountSwitchClearsPreviousEndpointHealth() {
+        let app = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
+        app.apiKey = "account-a"
+        app.endpointHealth.record(endpointID: "faction.basic", outcome: .error,
+                                  latencyMs: 1, responseBytes: 0, errorClass: "insufficientPermissions")
+        app.apiKey = "account-b"
+        XCTAssertTrue(app.endpointHealth.all.isEmpty)
+        XCTAssertEqual(app.presentationState(endpointIDs: ["faction.basic"], hasContent: false,
+                                             staleAfter: 360).kind, .empty)
+    }
+
+    func testSuccessfullyLoadedEmptyModuleDoesNotSuggestRetry() {
+        let now = Date()
+        let state = ModulePresentationState.resolve(
+            health: [EndpointHealth(endpointID: "user.fast", outcome: .ok, latencyMs: 1,
+                                    responseBytes: 100, at: now, errorClass: nil)],
+            hasContent: false, isLoading: false, fallbackError: nil, now: now, staleAfter: 120
+        )
+        XCTAssertEqual(state.kind, .empty)
+        XCTAssertEqual(state.recovery, .none)
+    }
+
 
     // MARK: EndpointHealthTracker
 

@@ -3,6 +3,41 @@ import XCTest
 
 @MainActor
 final class AppStateForumWatchTests: XCTestCase {
+    func testForumPollHTTPFailurePreservesLastGoodDataAndShowsError() async throws {
+        appState.apiKey = "valid_key"
+        appState.watchedThreads = [WatchedThread(id: 111, title: "Known thread", lastKnownPostCount: 42)]
+        mockSession.setHTTPError(statusCode: 503)
+        appState.refreshForumWatch()
+        let deadline = Date().addingTimeInterval(2)
+        while appState.watchedThreads.first?.error == nil, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(appState.watchedThreads.first?.error)
+        XCTAssertEqual(appState.watchedThreads.first?.title, "Known thread")
+        XCTAssertEqual(appState.watchedThreads.first?.lastKnownPostCount, 42)
+    }
+
+    func testMalformedNewThreadLeavesLoadingStateAndCanRecover() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: [:])
+        XCTAssertTrue(appState.addWatchedThread(input: "111"))
+        let deadline = Date().addingTimeInterval(2)
+        while appState.watchedThreads.first?.error == nil, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(appState.watchedThreads.first?.error)
+        XCTAssertEqual(appState.watchedThreads.first?.title, "Thread #111")
+        try mockSession.setSuccessResponse(json: ["thread": ["title": "Recovered thread", "posts": 42]])
+        appState.refreshForumWatch()
+        let retryDeadline = Date().addingTimeInterval(2)
+        while appState.watchedThreads.first?.error != nil, Date() < retryDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNil(appState.watchedThreads.first?.error)
+        XCTAssertEqual(appState.watchedThreads.first?.title, "Recovered thread")
+        XCTAssertEqual(appState.watchedThreads.first?.lastKnownPostCount, 42)
+    }
+
 
     var mockSession: MockNetworkSession!
     var appState: AppState!

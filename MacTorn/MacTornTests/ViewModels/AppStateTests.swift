@@ -3,6 +3,77 @@ import XCTest
 
 @MainActor
 final class AppStateTests: XCTestCase {
+    func testDelayedKeyInfoFailureCannotOverwriteNewAccountHealth() async {
+        let session = SuspendedAccountFailureSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        app.apiKey = "account-a"
+        let old = Task { await app.loadKeyInfoIfNeeded() }
+        await session.waitForRequest()
+        app.apiKey = "account-b"
+        app.endpointHealth.record(endpointID: "key.info", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        let newHealth = app.endpointHealth.latest(for: "key.info")
+        await session.finish()
+        await old.value
+        XCTAssertEqual(app.endpointHealth.latest(for: "key.info"), newHealth)
+        XCTAssertNil(app.keyInfo)
+    }
+
+    func testCancelledNonCooperativeValidationLeavesValidatingState() async {
+        let session = SuspendedKeyValidationSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        let pending = Task { await app.validateKey("typed-key") }
+        await session.waitForRequests(1)
+        pending.cancel()
+        await session.finish(0)
+        await pending.value
+        XCTAssertEqual(app.keyValidation, .idle)
+        XCTAssertNil(app.keyInfo)
+    }
+
+    func testDelayedFactionFailureCannotOverwriteNewAccountHealth() async {
+        let session = SuspendedAccountFailureSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        app.apiKey = "account-a"
+        let identity = app.accountSession.identity
+        let old = Task { await app.fetchFactionData(apiKey: identity.apiKey, generation: identity.generation) }
+        await session.waitForRequest()
+        app.apiKey = "account-b"
+        app.endpointHealth.record(endpointID: "faction.basic", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        let newHealth = app.endpointHealth.latest(for: "faction.basic")
+        await session.finish()
+        await old.value
+        XCTAssertEqual(app.endpointHealth.latest(for: "faction.basic"), newHealth)
+    }
+
+    func testEditingKeyWhileValidationIsPendingDiscardsItsResult() async {
+        let session = SuspendedKeyValidationSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        let pending = Task { await app.validateKey("typed-key-a") }
+        await session.waitForRequests(1)
+        app.keyValidation = .idle // Settings invalidates the result as the field is edited.
+        await session.finish(0)
+        await pending.value
+        XCTAssertEqual(app.keyValidation, .idle)
+        XCTAssertNil(app.keyInfo)
+    }
+
+    func testOlderValidationCannotReplaceANewerValidationResult() async {
+        let session = SuspendedKeyValidationSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        let first = Task { await app.validateKey("typed-key-a") }
+        await session.waitForRequests(1)
+        let second = Task { await app.validateKey("typed-key-b") }
+        await session.waitForRequests(2)
+        await session.finish(1)
+        await second.value
+        let newest = app.keyValidation
+        await session.finish(0)
+        await first.value
+        XCTAssertEqual(app.keyValidation, newest)
+        guard case .success(let result) = newest else { return XCTFail("second validation must succeed") }
+        XCTAssertEqual(result.playerID, 43)
+    }
+
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
@@ -1370,6 +1441,40 @@ final class AppStateTests: XCTestCase {
         let ready6 = OrganizedCrime2(id: 6, name: "New OC", readyAt: now - 10)
         XCTAssertTrue(relaunched.shouldNotifyOCReady(ready6), "a new OC id re-arms")
     }
+}
+
+private actor SuspendedKeyValidationSession: NetworkSession {
+    private var continuations: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var requests = 0
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let index = requests
+        requests += 1
+        await withCheckedContinuation { continuations[index] = $0 }
+        let data = Data("""
+        {"info":{"access":{"level":4,"type":"Full Access","faction":true,"company":false},
+        "user":{"id":\(42 + index),"faction_id":100,"company_id":null},
+        "selections":{"user":[],"faction":[],"market":[],"property":[],"torn":[],
+        "racing":[],"forum":[],"key":["info"],"company":[]}}}
+        """.utf8)
+        return (data, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    }
+
+    func waitForRequests(_ count: Int) async {
+        while requests < count { await Task.yield() }
+    }
+
+    func finish(_ index: Int) { continuations.removeValue(forKey: index)?.resume() }
+}
+
+private actor SuspendedAccountFailureSession: NetworkSession {
+    private var continuation: CheckedContinuation<Void, Never>?
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        await withCheckedContinuation { continuation = $0 }
+        throw URLError(.timedOut)
+    }
+    func waitForRequest() async { while continuation == nil { await Task.yield() } }
+    func finish() { continuation?.resume(); continuation = nil }
 }
 
 /// Holds each request until the test completes it. A cancelled request can therefore

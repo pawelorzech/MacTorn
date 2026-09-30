@@ -11,7 +11,8 @@ struct StocksView: View {
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
                         hasContent: !appState.stocksData.isEmpty,
-                        staleAfter: 120
+                        staleAfter: 120,
+                        requiredUserSelections: ["stocks"]
                     ),
                     onRetry: appState.refreshNow
                 )

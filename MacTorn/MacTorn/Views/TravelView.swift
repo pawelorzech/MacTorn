@@ -18,9 +18,7 @@ struct FlyingStatusView: View {
         // The progress math lives on `Travel.flightProgress`; this view only holds the
         // live remaining-seconds value, so recompute from the same model formula rather
         // than a second copy (audit D-8).
-        let totalDuration = timestamp - departed
-        guard totalDuration > 0 else { return 0 }
-        return min(1.0, max(0.0, Double(totalDuration - secondsRemaining) / Double(totalDuration)))
+        Travel.flightProgress(arrival: timestamp, departure: departed, remainingSeconds: secondsRemaining)
     }
 
     var body: some View {

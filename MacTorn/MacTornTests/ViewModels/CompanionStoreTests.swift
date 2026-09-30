@@ -3,6 +3,29 @@ import XCTest
 
 @MainActor
 final class CompanionStoreTests: XCTestCase {
+    func testOnDemandHistoryExplainsOfflineAndDoesNotSpendBudget() async {
+        let app = makeApp(MockNetworkSession())
+        (app.connectivity as? ControllableConnectivity)?.goOffline()
+        await app.companion.loadWarfare(.ranked, app: app)
+        XCTAssertTrue(app.companion.errors["faction.warfareranked"]?.contains("No internet connection") == true)
+        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
+        XCTAssertTrue(app.companion.loading.isEmpty)
+    }
+
+    func testOptionalModuleExplainsMissingPermissionsBeforeBuildingNarrowedURL() async {
+        let app = makeApp(MockNetworkSession())
+        app.keyInfo = TornKeyInfo(
+            access: .init(level: 1, type: "Custom", faction: false, company: false),
+            user: .init(id: 42, factionId: nil, companyId: nil),
+            selections: .init(user: ["bars"], faction: [], market: [], property: [], torn: [],
+                              racing: [], forum: [], key: ["info"], company: [])
+        )
+        let value: CompetitionResponse? = await app.companion.request("user.competition", app: app)
+        XCTAssertNil(value)
+        XCTAssertNotNil(app.companion.errors["user.competition"])
+        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
+    }
+
     private func makeApp(_ session: NetworkSession, defaults: UserDefaults = .createMockDefaults()) -> AppState {
         AppState(session: session, connectivity: ControllableConnectivity(), defaults: defaults,
                  accountSession: AccountSessionStore(defaults: defaults, credentialStore: CompanionTestKeyStore()))
@@ -282,7 +305,7 @@ final class CompanionStoreTests: XCTestCase {
 private final class CompanionTestKeyStore: APIKeyStoring, @unchecked Sendable {
     private var key = "companion-test-key"
     func get() -> String? { key }
-    func set(_ value: String) { key = value }
+    @discardableResult func set(_ value: String) -> Bool { key = value; return true }
 }
 private actor CompanionSuspendedSession: NetworkSession {
     private var waiting: CheckedContinuation<Void, Never>?

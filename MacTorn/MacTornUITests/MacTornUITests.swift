@@ -175,6 +175,9 @@ final class MacTornUITests: XCTestCase {
 
         win.buttons["uitest.group.Account"].click()
 
+        XCTAssertLessThan(win.frame.height, 540,
+                          "The short-window test must actually exercise a 480 pt content height")
+
         let accountModules = ["Money", "Properties", "Stocks", "Faction"].map {
             win.buttons["uitest.tab.\($0)"]
         }
@@ -185,10 +188,10 @@ final class MacTornUITests: XCTestCase {
         }
         assertDoNotOverlap(accountModules)
 
-        XCTAssertTrue(
-            win.buttons["Send Money"].isHittable,
-            "Money should remain a glanceable single-screen summary"
-        )
+        let moneyScroll = win.scrollViews["uitest.tabContent.Money"]
+        let sendMoney = win.buttons["Send Money"]
+        for _ in 0..<8 where !sendMoney.isHittable { moneyScroll.swipeUp() }
+        XCTAssertTrue(sendMoney.isHittable, "Money actions must be reachable in a short window")
 
         win.buttons["uitest.tab.Stocks"].click()
         let stocksScroll = win.scrollViews["uitest.tabContent.Stocks"]

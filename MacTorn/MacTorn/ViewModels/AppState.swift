@@ -89,7 +89,13 @@ class AppState {
 
     // MARK: - Key validation (Etap C, ISC-16)
     /// Onboarding "Test Connection" state. Drives the SettingsView result panel.
-    var keyValidation: KeyValidationState = .idle
+    var keyValidation: KeyValidationState = .idle {
+        didSet {
+            // Editing Settings invalidates an in-flight test as well as its displayed result.
+            if keyValidation == .idle { keyValidationGeneration &+= 1 }
+        }
+    }
+    @ObservationIgnored var keyValidationGeneration: UInt = 0
     /// The last successfully-decoded key info. `nil` until validated / after a key change.
     /// PII (player id) lives here for display only — never logged or put in a report.
     var keyInfo: TornKeyInfo?
@@ -481,6 +487,7 @@ class AppState {
     /// Removes data that belongs to the previously authenticated Torn account. Local
     /// preferences (watchlist, watched threads, appearance) intentionally remain.
     func resetAccountScopedState() {
+        keyValidationGeneration &+= 1
         clearWidgets()
         data = nil
         lastUpdated = nil
@@ -521,6 +528,7 @@ class AppState {
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
         endpointGate.reset()
+        endpointHealth.reset()
         keyInfoTask?.cancel()
         keyInfoTask = nil
         keyInfoLoadedAt = nil

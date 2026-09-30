@@ -4,6 +4,7 @@ struct CompanionControls: View {
     @Environment(AppState.self) private var app
     let feature: CompanionStore.Feature
     let endpoints: [String]
+    @Environment(\.openMacTornSettings) private var openSettings
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle(feature.title, isOn: Binding(get: { app.companion.enabled.contains(feature) }, set: {
@@ -12,6 +13,12 @@ struct CompanionControls: View {
             }))
             .font(.caption.bold())
             if app.companion.enabled.contains(feature) {
+                if !app.connectivity.isConnected {
+                    Text("No internet connection. Reconnect to refresh this module.")
+                        .font(.caption).foregroundStyle(.orange)
+                } else if app.keyHalted {
+                    Button("Connect a valid key in Settings") { openSettings() }.font(.caption)
+                }
                 if [.recruiting, .stocks, .trades].contains(feature) {
                     Toggle("Notify on changes", isOn: Binding(get: { app.companion.alerts.contains(feature) }, set: {
                         app.companion.setAlerts(feature, $0)
@@ -28,6 +35,7 @@ struct CompanionControls: View {
                     }
                 }
                 Button("Refresh") { app.companion.retry(feature, app: app) }.font(.caption)
+                    .disabled(app.companion.task != nil || app.keyHalted || !app.connectivity.isConnected)
             }
         }
     }
@@ -45,10 +53,13 @@ struct RecruitingPanel: View {
                 if app.organizedCrime != nil {
                     Text("You already have an OC. Recruiting checks resume when you leave it.").font(.caption)
                 } else if app.companion.eligibleSlots.isEmpty {
-                    Text(app.companion.fetchedAt["user.recruiting"] == nil ? "Enable to check available slots." : "No open slots match your filter.")
+                    Text(app.companion.loading.contains("user.recruiting")
+                             ? "Checking available slots…"
+                             : app.companion.fetchedAt["user.recruiting"] == nil
+                             ? "No recruiting data available yet." : "No open slots match your filter.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
-                    ForEach(app.companion.recruiting) { crime in
+                    ForEach(app.companion.recruiting.filter { $0.status == "Recruiting" }) { crime in
                         let slots = crime.slots.filter { $0.user == nil && $0.checkpointPassRate >= app.companion.minimumCPR }
                         if !slots.isEmpty {
                             Text(crime.name).font(.caption.bold())
