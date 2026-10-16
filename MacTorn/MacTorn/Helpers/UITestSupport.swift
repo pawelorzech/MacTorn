@@ -1,6 +1,18 @@
 import Foundation
 import SwiftUI
 
+extension UITestConfiguration {
+    static var isUnitTesting: Bool {
+        #if DEBUG
+        return ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        #else
+        return false
+        #endif
+    }
+
+    static var isIsolated: Bool { isActive || isUnitTesting }
+}
+
 // MARK: - UI-test accessibility identifiers (always compiled? no — DEBUG only)
 
 extension View {
@@ -30,7 +42,7 @@ extension View {
 // When active it wires an `AppState` from fully controllable doubles:
 //   • `FixtureNetworkSession` — serves canned JSON per endpoint, never hits the network.
 //   • an isolated, ephemeral `UserDefaults` suite — a blank slate every run.
-//   • an in-memory Keychain (see `KeychainStore` in AppState.swift) — the real Torn
+//   • an in-memory Keychain (see `KeychainStore` in AccountSessionStore.swift) — the real Torn
 //     key on the developer's machine is never read or overwritten by a UI test.
 //   • `UITestConnectivity` — connectivity the test can flip by hand.
 //
@@ -88,9 +100,18 @@ enum UITestConfiguration {
     static var seededAPIKey: String { argValue(apiKeyKey) ?? "" }
 
     static var startsOnline: Bool { argValue(onlineKey) != "0" }
+
+    @MainActor
+    static func makeUnitTestHostState() -> AppState {
+        let defaults = UserDefaults(suiteName: "com.mactorn.unit-host.\(ProcessInfo.processInfo.processIdentifier)")!
+        let account = AccountSessionStore(defaults: defaults, credentialStore: UnitTestHostKeyStore())
+        return AppState(session: FixtureNetworkSession(scenario: .empty),
+                        connectivity: UITestConnectivity(connected: false), defaults: defaults,
+                        accountSession: account)
+    }
     static var windowHeight: CGFloat {
         let requested = argValue(windowHeightKey).flatMap(Double.init) ?? 640
-        return CGFloat(min(max(requested, 640), 1_000))
+        return CGFloat(min(max(requested, 360), 1_000))
     }
 
     /// In-memory Keychain backing store, consulted by `KeychainStore` while a UI test
@@ -219,6 +240,11 @@ enum UITestConfiguration {
 
         return appState
     }
+}
+
+private struct UnitTestHostKeyStore: APIKeyStoring {
+    func get() -> String? { nil }
+    func set(_ value: String) -> Bool { true }
 }
 
 // MARK: - Fixture network session

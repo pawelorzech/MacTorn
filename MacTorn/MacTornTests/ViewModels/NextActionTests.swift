@@ -49,6 +49,13 @@ final class NextActionTests: XCTestCase {
         XCTAssertEqual(events.first!.eta, 0)
     }
 
+    func testStockBonusAppearsReadyAndCanBeHidden() {
+        let s = snapshot { $0.stockBonusReady = true }
+        XCTAssertEqual(engine.events(from: s).map(\.category), [.stockBonus])
+        XCTAssertTrue(engine.events(from: s).first!.isReady)
+        XCTAssertTrue(engine.events(from: s, hidden: [.stockBonus]).isEmpty)
+    }
+
     func testHiddenCategoriesAreExcluded() {
         let s = snapshot {
             $0.chainTimeoutAt = now + 45

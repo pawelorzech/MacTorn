@@ -3,6 +3,41 @@ import XCTest
 
 @MainActor
 final class AppStateForumWatchTests: XCTestCase {
+    func testForumPollHTTPFailurePreservesLastGoodDataAndShowsError() async throws {
+        appState.apiKey = "valid_key"
+        appState.watchedThreads = [WatchedThread(id: 111, title: "Known thread", lastKnownPostCount: 42)]
+        mockSession.setHTTPError(statusCode: 503)
+        appState.refreshForumWatch()
+        let deadline = Date().addingTimeInterval(2)
+        while appState.watchedThreads.first?.error == nil, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(appState.watchedThreads.first?.error)
+        XCTAssertEqual(appState.watchedThreads.first?.title, "Known thread")
+        XCTAssertEqual(appState.watchedThreads.first?.lastKnownPostCount, 42)
+    }
+
+    func testMalformedNewThreadLeavesLoadingStateAndCanRecover() async throws {
+        appState.apiKey = "valid_key"
+        try mockSession.setSuccessResponse(json: [:])
+        XCTAssertTrue(appState.addWatchedThread(input: "111"))
+        let deadline = Date().addingTimeInterval(2)
+        while appState.watchedThreads.first?.error == nil, Date() < deadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNotNil(appState.watchedThreads.first?.error)
+        XCTAssertEqual(appState.watchedThreads.first?.title, "Thread #111")
+        try mockSession.setSuccessResponse(json: ["thread": ["title": "Recovered thread", "posts": 42]])
+        appState.refreshForumWatch()
+        let retryDeadline = Date().addingTimeInterval(2)
+        while appState.watchedThreads.first?.error != nil, Date() < retryDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTAssertNil(appState.watchedThreads.first?.error)
+        XCTAssertEqual(appState.watchedThreads.first?.title, "Recovered thread")
+        XCTAssertEqual(appState.watchedThreads.first?.lastKnownPostCount, 42)
+    }
+
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
@@ -230,5 +265,66 @@ final class AppStateForumWatchTests: XCTestCase {
                        "v2 forum error envelope must be surfaced, not parsed as an 'Unknown' thread")
         XCTAssertNotEqual(thread?.title, "Unknown",
                           "on a v2 error the thread title must not be corrupted to 'Unknown'")
+    }
+}
+
+// MARK: - A halted key stops Forum Watch too (audit F-06)
+
+@MainActor
+final class ForumWatchKeyHaltTests: XCTestCase {
+    private var mockSession: MockNetworkSession!
+    private var app: AppState!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        mockSession = MockNetworkSession()
+        app = AppState(session: mockSession,
+                       connectivity: ControllableConnectivity(),
+                       defaults: .createMockDefaults())
+        app.apiKey = "forum-halt-\(UUID().uuidString)"
+        app.watchedThreads = [WatchedThread(id: 111, title: "Thread A")]
+        try mockSession.setSuccessResponse(json: TornAPIFixtures.forumThreadSuccess)
+    }
+
+    override func tearDown() async throws {
+        app.stopForumPolling()
+        app = nil
+        mockSession = nil
+        try await super.tearDown()
+    }
+
+    private var forumRequests: [URL] {
+        mockSession.requestedURLs.filter { $0.absoluteString.contains("/forum/") }
+    }
+
+    func testPermanentKeyErrorStopsTheForumTimer() {
+        app.startForumPolling()
+        XCTAssertNotNil(app.forumTimerCancellable)
+
+        app.handlePermanentKeyError(.permanentKey(code: 2, message: "Incorrect key"))
+
+        XCTAssertNil(app.forumTimerCancellable,
+                     "a rejected key must not keep polling threads every few minutes")
+    }
+
+    func testHaltedKeyIssuesNoForumThreadRequests() async throws {
+        app.keyHalted = true
+
+        app.refreshForumWatch()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertTrue(forumRequests.isEmpty)
+    }
+
+    /// The menu's onAppear calls `startForumPolling()` every time it opens; after a halt
+    /// that used to reinstall the timer.
+    func testStartForumPollingIsRefusedWhileHalted() async throws {
+        app.keyHalted = true
+
+        app.startForumPolling()
+        try await Task.sleep(nanoseconds: 300_000_000)
+
+        XCTAssertNil(app.forumTimerCancellable)
+        XCTAssertTrue(forumRequests.isEmpty)
     }
 }

@@ -1,5 +1,4 @@
 import SwiftUI
-import AppKit
 
 // MARK: - Flying Status View (separate for proper live updates)
 struct FlyingStatusView: View {
@@ -16,20 +15,10 @@ struct FlyingStatusView: View {
     }
 
     private var progress: Double {
-        let totalDuration = timestamp - departed
-        guard totalDuration > 0 else { return 0 }
-        return min(1.0, max(0.0, Double(totalDuration - secondsRemaining) / Double(totalDuration)))
-    }
-
-    private func formatTime(_ seconds: Int) -> String {
-        if seconds <= 0 { return "Arrived!" }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
+        // The progress math lives on `Travel.flightProgress`; this view only holds the
+        // live remaining-seconds value, so recompute from the same model formula rather
+        // than a second copy (audit D-8).
+        Travel.flightProgress(arrival: timestamp, departure: departed, remainingSeconds: secondsRemaining)
     }
 
     var body: some View {
@@ -53,7 +42,7 @@ struct FlyingStatusView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text(formatTime(secondsRemaining))
+                    Text(TornFormatter.clock(secondsRemaining, zeroText: "Arrived!"))
                         .font(.title2.monospacedDigit())
                         .fontWeight(.semibold)
                         .foregroundColor(.blue)
@@ -121,6 +110,8 @@ struct TravelView: View {
                     Divider()
                 }
 
+                ShopPricesPanel()
+
                 // Pre-Arrival Alerts Section
                 preArrivalAlertsSection
 
@@ -150,9 +141,24 @@ struct TravelView: View {
                 inTornStatusView
             }
         } else {
-            // No travel data
-            inTornStatusView
+            // No travel data: don't claim "In Torn City" — the player may well be abroad.
+            travelUnavailableView
         }
+    }
+
+    private var travelUnavailableView: some View {
+        HStack {
+            Image(systemName: "questionmark.circle")
+                .font(.title2)
+                .foregroundColor(.secondary)
+            Text("Travel status unavailable")
+                .font(.headline)
+                .foregroundColor(.secondary)
+            Spacer()
+        }
+        .padding()
+        .background(Color.secondary.opacity(reduceTransparency ? 0.2 : 0.1))
+        .cornerRadius(12)
     }
 
     private func abroadStatusView(_ travel: Travel) -> some View {
@@ -171,9 +177,7 @@ struct TravelView: View {
             }
 
             Button {
-                if let url = URL(string: "https://www.torn.com/travelagency.php") {
-                    BrowserManager.shared.open(url)
-                }
+                openTorn("https://www.torn.com/travelagency.php")
             } label: {
                 HStack {
                     Image(systemName: "airplane.departure")
@@ -238,9 +242,7 @@ struct TravelView: View {
             if isAbroad {
                 // Show only return button when abroad
                 Button {
-                    if let url = URL(string: "https://www.torn.com/travelagency.php") {
-                        BrowserManager.shared.open(url)
-                    }
+                    openTorn("https://www.torn.com/travelagency.php")
                 } label: {
                     HStack {
                         Text("Torn")
@@ -359,9 +361,7 @@ struct TravelView: View {
 
             HStack(spacing: 8) {
                 Button {
-                    if let url = URL(string: "https://www.torn.com/travelagency.php") {
-                        BrowserManager.shared.open(url)
-                    }
+                    openTorn("https://www.torn.com/travelagency.php")
                 } label: {
                     HStack {
                         Image(systemName: "airplane.departure")
@@ -376,9 +376,7 @@ struct TravelView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    if let url = URL(string: "https://www.torn.com/page.php?sid=ItemMarket") {
-                        BrowserManager.shared.open(url)
-                    }
+                    openTorn("https://www.torn.com/page.php?sid=ItemMarket")
                 } label: {
                     HStack {
                         Image(systemName: "storefront")
@@ -393,17 +391,5 @@ struct TravelView: View {
                 .buttonStyle(.plain)
             }
         }
-    }
-
-    // MARK: - Helpers
-    private func formatTime(_ seconds: Int) -> String {
-        if seconds <= 0 { return "Arrived!" }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
     }
 }

@@ -18,6 +18,14 @@ extension AppState {
     /// in hospital with three cooldowns running and coming back from a holiday is a
     /// first sight, not six banners.
     func checkNotifications(newData: TornResponse) {
+        // ~9 latch predicates are evaluated below; the batch collapses their persistence
+        // into one UserDefaults write instead of one per predicate (audit W-6).
+        notificationCoordinator.batched {
+            evaluateNotifications(newData: newData)
+        }
+    }
+
+    private func evaluateNotifications(newData: TornResponse) {
         if let current = newData.bars {
             checkBarNotifications(bar: current.energy, barType: .energy)
             checkBarNotifications(bar: current.nerve, barType: .nerve)

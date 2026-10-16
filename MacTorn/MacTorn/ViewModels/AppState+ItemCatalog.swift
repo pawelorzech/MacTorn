@@ -22,6 +22,26 @@ struct TornItemSummary: Codable, Equatable, Sendable, Identifiable {
     let name: String
 }
 
+private struct CachedCatalogItem: Codable, Sendable {
+    let name: String
+    let marketPrice: Int
+    let shops: [CachedCatalogShop]
+}
+
+private struct CachedCatalogShop: Codable, Sendable {
+    let country: String
+    let shop: String
+    let buyPrice: Int?
+    let sellPrice: Int?
+}
+
+enum ShopCatalogRefreshResult {
+    case success([ShopItem])
+    case pending([ShopItem])
+    case denied(String, [ShopItem])
+    case failed([ShopItem])
+}
+
 extension AppState {
     private static var itemCatalogCacheKey: String { "itemCatalogCache" }
     private static var itemCatalogFetchedAtKey: String { "itemCatalogFetchedAt" }
@@ -32,19 +52,28 @@ extension AppState {
     // MARK: Cache
 
     func loadItemCatalogFromCache() {
-        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey),
-              let cached = try? JSONDecoder().decode([Int: String].self, from: data) else {
-            return
+        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else { return }
+        if let cached = try? JSONDecoder().decode([Int: CachedCatalogItem].self, from: data) {
+            itemCatalog = cached.mapValues(\.name)
+            itemCatalogCacheExpanded = true
+        } else if let legacy = try? JSONDecoder().decode([Int: String].self, from: data) {
+            // Pre-shop cache migration: keep names immediately and refresh once to add
+            // the public shop fields from the same `/torn/items` response.
+            itemCatalog = legacy
+            itemCatalogCacheExpanded = false
         }
-        itemCatalog = cached
+        let fetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
+        itemCatalogFetchedAt = fetchedAt > 0 ? Date(timeIntervalSince1970: fetchedAt) : nil
     }
 
     /// True when the catalogue is missing or old enough to be worth re-reading.
+    ///
+    /// Reads only in-memory state. The previous version decoded the whole persisted blob
+    /// from `UserDefaults` here, and this runs ~2× per poll (audit W-1).
     private var itemCatalogIsStale: Bool {
-        if itemCatalog.isEmpty { return true }
-        let fetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
-        guard fetchedAt > 0 else { return true }
-        return time.now.timeIntervalSince1970 - fetchedAt > Self.itemCatalogMaxAge
+        guard !itemCatalog.isEmpty, itemCatalogCacheExpanded,
+              let fetchedAt = itemCatalogFetchedAt else { return true }
+        return time.now.timeIntervalSince(fetchedAt) > Self.itemCatalogMaxAge
     }
 
     /// Refreshes the catalogue if it is stale and nothing is holding it back. Safe to call
@@ -53,21 +82,67 @@ extension AppState {
         guard itemCatalogIsStale, !apiKey.isEmpty else { return }
         if let retryAfter = itemCatalogNextRetryAfter, time.now < retryAfter { return }
         guard referenceFetchIDs["torn.items"] == nil else { return }
-        accountSession.startTask(.itemCatalog) { await self.fetchItemCatalog() }
+        accountSession.startTask(.itemCatalog) { _ = await self.fetchItemCatalog() }
     }
 
     // MARK: Fetch
 
-    func fetchItemCatalog() async {
+    @discardableResult
+    func fetchItemCatalog() async -> Bool {
+        let previousFetchedAt = itemCatalogFetchedAt
         await fetchReferenceData("torn.items", cacheKey: Self.itemCatalogCacheKey,
-                                 parse: { Self.parseItemCatalog(json: $0, logger: $1) },
+                                 parse: { Self.parseExpandedItemCatalog(json: $0, logger: $1) },
                                  onFailure: recordItemCatalogFailure) { parsed in
-            itemCatalog = parsed
-            defaults.set(time.now.timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
+            itemCatalog = parsed.mapValues(\.name)
+            let now = time.now
+            itemCatalogFetchedAt = now
+            itemCatalogCacheExpanded = true
+            defaults.set(now.timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
             itemCatalogFailureCount = 0
             itemCatalogNextRetryAfter = nil
             backfillWatchlistNames()
         }
+        return itemCatalogFetchedAt != previousFetchedAt
+    }
+
+    /// Supplies the optional shop module from the same public catalogue/cache used by
+    /// item-name search. A fresh catalogue never causes a second full download.
+    func shopCatalogRefreshingIfNeeded() async -> ShopCatalogRefreshResult {
+        loadItemCatalogFromCache()
+        let cached = cachedShopItems()
+        guard itemCatalogIsStale else { return .success(cached) }
+        guard referenceFetchIDs["torn.items"] == nil else { return .pending(cached) }
+        if let denial = endpointGate.denial(for: "torn.items", keyInfo: keyInfo,
+                                             coordinator: pollingCoordinator) {
+            return .denied(denial.userExplanation, cached)
+        }
+        if let retryAfter = itemCatalogNextRetryAfter, time.now < retryAfter {
+            return .pending(cached)
+        }
+        return await fetchItemCatalog() ? .success(cachedShopItems()) : .failed(cachedShopItems())
+    }
+
+    func cachedShopItems() -> [ShopItem] {
+        guard let cached = cachedCatalogItems() else { return [] }
+        return cached.compactMap { id, item in
+            guard !item.shops.isEmpty else { return nil }
+            return ShopItem(
+                id: id,
+                name: item.name,
+                value: ShopItem.Value(
+                    marketPrice: item.marketPrice,
+                    shops: item.shops.map {
+                        ShopItem.Shop(country: $0.country, shop: $0.shop,
+                                      buyPrice: $0.buyPrice, sellPrice: $0.sellPrice)
+                    }
+                )
+            )
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    private func cachedCatalogItems() -> [Int: CachedCatalogItem]? {
+        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else { return nil }
+        return try? JSONDecoder().decode([Int: CachedCatalogItem].self, from: data)
     }
 
     func recordItemCatalogFailure() {
@@ -98,10 +173,10 @@ extension AppState {
             logger.error("Item catalog: failed to parse JSON")
             return [:]
         }
-        return parseItemCatalog(json: json, logger: logger)
+        return parseExpandedItemCatalog(json: json, logger: logger).mapValues(\.name)
     }
 
-    nonisolated private static func parseItemCatalog(json: [String: Any], logger: Logger) -> [Int: String] {
+    nonisolated private static func parseExpandedItemCatalog(json: [String: Any], logger: Logger) -> [Int: CachedCatalogItem] {
         if tornAPIErrorMessage(in: json) != nil {
             logger.error("Item catalog API returned an error envelope")
             return [:]
@@ -110,7 +185,7 @@ extension AppState {
             logger.warning("Item catalog: no 'items' array in response")
             return [:]
         }
-        var result: [Int: String] = [:]
+        var result: [Int: CachedCatalogItem] = [:]
         result.reserveCapacity(min(items.count, itemCatalogMaxEntries))
         for item in items {
             guard result.count < itemCatalogMaxEntries else {
@@ -124,7 +199,21 @@ extension AppState {
                     .prefix(WatchlistItem.maximumNameLength)
             )
             guard !name.isEmpty else { continue }
-            result[id] = name
+            var shops: [CachedCatalogShop] = []
+            var marketPrice = 0
+            if let value = item["value"] as? [String: Any] {
+                marketPrice = value["market_price"] as? Int ?? 0
+                if let rows = value["shops"] as? [[String: Any]] {
+                    shops = rows.compactMap { row in
+                        guard let country = row["country"] as? String,
+                              let shop = row["shop"] as? String else { return nil }
+                        return CachedCatalogShop(country: country, shop: shop,
+                                                 buyPrice: row["buy_price"] as? Int,
+                                                 sellPrice: row["sell_price"] as? Int)
+                    }
+                }
+            }
+            result[id] = CachedCatalogItem(name: name, marketPrice: marketPrice, shops: shops)
         }
         return result
     }
@@ -134,7 +223,14 @@ extension AppState {
     /// The catalogue name for an item, falling back to the numbered placeholder the app
     /// used before the catalogue existed.
     func itemName(for itemID: Int) -> String {
-        itemCatalog[itemID] ?? "Item #\(itemID)"
+        itemCatalog[itemID] ?? Self.placeholderItemName(for: itemID)
+    }
+
+    /// The fallback label for an item MacTorn has no catalogue entry for. One definition,
+    /// used by both the lookup and the backfill's "is this still a placeholder?" guard
+    /// (audit D-8).
+    static func placeholderItemName(for itemID: Int) -> String {
+        "Item #\(itemID)"
     }
 
     /// Catalogue entries whose name contains `query`, best matches first: names that start
@@ -149,18 +245,22 @@ extension AppState {
 
         var prefixMatches: [TornItemSummary] = []
         var containsMatches: [TornItemSummary] = []
-        for (id, name) in itemCatalog {
-            let lowered = name.lowercased()
-            if lowered.hasPrefix(needle) {
-                prefixMatches.append(TornItemSummary(id: id, name: name))
-            } else if lowered.contains(needle) {
-                containsMatches.append(TornItemSummary(id: id, name: name))
+        for entry in itemSearchIndex {
+            if entry.lowered.hasPrefix(needle) {
+                prefixMatches.append(TornItemSummary(id: entry.id, name: entry.name))
+            } else if entry.lowered.contains(needle) {
+                containsMatches.append(TornItemSummary(id: entry.id, name: entry.name))
             }
         }
         let byName: (TornItemSummary, TornItemSummary) -> Bool = {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
         return Array((prefixMatches.sorted(by: byName) + containsMatches.sorted(by: byName)).prefix(limit))
+    }
+
+    /// Rebuilds the lowercased search mirror. Called only when `itemCatalog` changes.
+    func rebuildItemSearchIndex() {
+        itemSearchIndex = itemCatalog.map { (id: $0.key, name: $0.value, lowered: $0.value.lowercased()) }
     }
 
     /// Replaces the `Item #id` placeholders on the watchlist once real names are known.
@@ -172,7 +272,7 @@ extension AppState {
         var changed = false
         for index in watchlistItems.indices {
             let item = watchlistItems[index]
-            guard item.name == "Item #\(item.id)", let real = itemCatalog[item.id] else { continue }
+            guard item.name == Self.placeholderItemName(for: item.id), let real = itemCatalog[item.id] else { continue }
             watchlistItems[index] = item.renamed(to: real)
             changed = true
         }

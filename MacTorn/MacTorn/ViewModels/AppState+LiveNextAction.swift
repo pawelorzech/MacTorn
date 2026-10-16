@@ -30,7 +30,7 @@ extension AppState {
     private func startLiveTimer() {
         liveTimerCancellable?.cancel()
 
-        liveTimerCancellable = Timer.publish(every: 1.0, on: .main, in: .common)
+        liveTimerCancellable = Timer.publish(every: 1.0, tolerance: 0.1, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.tick()
@@ -146,6 +146,10 @@ extension AppState {
         }
         if let chain = liveChain, chain.isActive, let timeout = chain.timeout, timeout > 0 {
             snapshot.chainTimeoutAt = timeout
+        }
+        if companion.enabled.contains(.stocks), companion.errors["user.stocksv2"] == nil,
+           let checked = companion.fetchedAt["user.stocksv2"], time.now.timeIntervalSince(checked) < 600 {
+            snapshot.stockBonusReady = companion.stocks.contains { $0.bonus.available }
         }
         if let refills, !refills.unclaimed.isEmpty {
             snapshot.refillsAvailable = true

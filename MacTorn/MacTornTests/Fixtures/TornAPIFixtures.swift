@@ -264,6 +264,8 @@ enum TornAPIFixtures {
     /// payload that does not exist. The bazaar branch and the selection are both gone.
     static let marketItemSuccess: [String: Any] = [
         "itemmarket": [
+            "cache_timestamp": 1_783_107_206,
+            "cache_delay": 30,
             "listings": [
                 ["price": 950, "amount": 2],
                 ["price": 1000, "amount": 5],
@@ -275,6 +277,8 @@ enum TornAPIFixtures {
 
     static let marketItemNoListings: [String: Any] = [
         "itemmarket": [
+            "cache_timestamp": 1_783_107_206,
+            "cache_delay": 30,
             "listings": []
         ]
     ]

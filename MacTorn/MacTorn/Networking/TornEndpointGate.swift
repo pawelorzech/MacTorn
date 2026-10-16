@@ -73,16 +73,6 @@ enum TornEndpointDenial: Equatable, Sendable {
             return "Unknown endpoint"
         }
     }
-
-    /// Whether this denial is expected to lift without the user doing anything. Used to
-    /// decide if the reason is worth showing in the UI at all.
-    var isSelfHealing: Bool {
-        switch self {
-        case .paused, .rowBudgetExhausted, .perMinuteCapReached: return true
-        case .keyLacksSelections, .keyAccessLevelTooLow, .factionAPIAccessDisabled,
-             .notInFaction, .unknownEndpoint: return false
-        }
-    }
 }
 
 /// Decides, per endpoint, whether MacTorn is allowed to spend a request right now.
@@ -143,6 +133,12 @@ final class TornEndpointGate {
             if endpoint.selections.isEmpty,
                keyInfo.access.level < endpoint.minimumAccessLevel.rawValue {
                 return .keyAccessLevelTooLow(required: endpoint.minimumAccessLevel)
+            }
+            if keyInfo.access.type.caseInsensitiveCompare("Custom") == .orderedSame,
+               !endpoint.requiredCapabilities.isEmpty {
+                let granted = Set(keyInfo.selections.names(for: KeyValidator.category(for: endpoint)))
+                let missing = endpoint.requiredCapabilities.filter { !granted.contains($0) }
+                if !missing.isEmpty { return .keyLacksSelections(missing) }
             }
             // Only a *total* miss is a denial. A key that can read some of an endpoint's
             // selections still gets the call — `TornEndpoint.url(granted:)` trims the

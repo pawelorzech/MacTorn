@@ -109,6 +109,42 @@ final class MarketWatchServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.lowestPrice, 950)
         XCTAssertEqual(snapshot.lowestPriceQuantity, 2)
         XCTAssertEqual(snapshot.secondLowestPrice, 1_000)
+        XCTAssertEqual(snapshot.dataTimestamp, Date(timeIntervalSince1970: 1_783_107_206))
+        XCTAssertEqual(snapshot.cacheDelay, 30)
+    }
+
+    func testRepeatedOrOlderSnapshotPreservesDataAgeAndDoesNotAlertAgain() {
+        let service = MarketWatchService(defaults: .createMockDefaults(), session: MockNetworkSession())
+        service.items = [WatchlistItem(id: 7, name: "Target", lowestPrice: 0,
+                                       lowestPriceQuantity: 0, secondLowestPrice: 0,
+                                       lastUpdated: nil, error: nil, priceThreshold: 1_000)]
+        let timestamp = Date(timeIntervalSince1970: 1_700_000_000)
+        let first = service.apply(MarketPriceSnapshot(lowestPrice: 900, lowestPriceQuantity: 1,
+                                                      secondLowestPrice: 950,
+                                                      dataTimestamp: timestamp, cacheDelay: 30), to: 7)
+        let repeated = service.apply(MarketPriceSnapshot(lowestPrice: 800, lowestPriceQuantity: 1,
+                                                         secondLowestPrice: 850,
+                                                         dataTimestamp: timestamp, cacheDelay: 30), to: 7)
+
+        XCTAssertNotNil(first)
+        XCTAssertNil(repeated)
+        XCTAssertEqual(service.items[0].lowestPrice, 900,
+                       "the same global snapshot must not masquerade as newer data")
+        XCTAssertEqual(service.items[0].dataTimestamp, timestamp)
+        XCTAssertNotNil(service.items[0].lastFetchedAt)
+    }
+
+    func testNewerSnapshotUpdatesPriceAndMissingDelayIsSafe() {
+        let service = MarketWatchService(defaults: .createMockDefaults(), session: MockNetworkSession())
+        service.items = [item(id: 7, name: "Target")]
+        service.apply(MarketPriceSnapshot(lowestPrice: 900, lowestPriceQuantity: 1,
+                                          secondLowestPrice: 950,
+                                          dataTimestamp: Date(timeIntervalSince1970: 100)), to: 7)
+        service.apply(MarketPriceSnapshot(lowestPrice: 800, lowestPriceQuantity: 1,
+                                          secondLowestPrice: 850,
+                                          dataTimestamp: Date(timeIntervalSince1970: 200)), to: 7)
+        XCTAssertEqual(service.items[0].lowestPrice, 800)
+        XCTAssertNil(service.items[0].cacheDelay)
     }
 
     func testFetchPriceDistinguishesMalformedResponseFromEmptyListings() async throws {
@@ -235,5 +271,41 @@ final class MarketWatchCorruptStoreTests: XCTestCase {
         reloaded.load()
         XCTAssertEqual(reloaded.items.map(\.id), [206],
                        "once the user edits the list, writes must resume")
+    }
+
+    // MARK: - Audit 2026-09-26: server-clock skew (regression from 141a3cd)
+
+    /// Torn's `cache_timestamp` is on the server clock. With the Mac two hours behind,
+    /// an un-converted timestamp sits two hours in the local future, so the refresh
+    /// filter skipped the item for two hours and the label read "in 2 hours ago".
+    func testLocalizedSnapshotMovesServerTimestampOntoLocalClock() {
+        let serverTimestamp = Date(timeIntervalSince1970: 1_800_000_000)
+        let clock = ServerClock(offset: 7_200) // Mac is 2 h behind Torn
+        let snapshot = MarketPriceSnapshot(lowestPrice: 1, lowestPriceQuantity: 1, secondLowestPrice: 0,
+                                           dataTimestamp: serverTimestamp, cacheDelay: 30)
+        let local = snapshot.localized(using: clock)
+        XCTAssertEqual(local.dataTimestamp, Date(timeIntervalSince1970: 1_800_000_000 - 7_200))
+        XCTAssertEqual(local.cacheDelay, 30)
+    }
+
+    func testLocalizedSnapshotIsIdentityWhenClocksAgree() {
+        let ts = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = MarketPriceSnapshot(lowestPrice: 5, lowestPriceQuantity: 2, secondLowestPrice: 6,
+                                           dataTimestamp: ts, cacheDelay: 30)
+        XCTAssertEqual(snapshot.localized(using: .synchronized), snapshot)
+    }
+
+    /// A hostile or corrupt `cache_delay` is persisted with the item; unclamped it would
+    /// freeze that item's refresh until it is removed and re-added.
+    func testLocalizedSnapshotClampsCacheDelay() {
+        func delay(_ raw: TimeInterval) -> TimeInterval? {
+            MarketPriceSnapshot(lowestPrice: 1, lowestPriceQuantity: 1, secondLowestPrice: 0,
+                                cacheDelay: raw).localized(using: .synchronized).cacheDelay
+        }
+        XCTAssertEqual(delay(1_000_000_000), MarketPriceSnapshot.maxCacheDelay)
+        XCTAssertEqual(delay(-50), 0)
+        XCTAssertEqual(delay(30), 30)
+        XCTAssertNil(MarketPriceSnapshot(lowestPrice: 1, lowestPriceQuantity: 1, secondLowestPrice: 0)
+            .localized(using: .synchronized).dataTimestamp)
     }
 }

@@ -32,16 +32,18 @@ def next_ids(text, count):
 
 def sources_phase_span(text, target):
     """Return (start, end) offsets of the PBXSourcesBuildPhase files list for `target`."""
-    # Sources phases appear in order: app target first, then test targets. Locate each
-    # phase's files list and pick by the order the targets are declared.
-    phases = [m.start() for m in re.finditer(r"isa = PBXSourcesBuildPhase;", text)]
-    targets = re.findall(r"/\* (\w+) \*/ = \{\s*isa = PBXNativeTarget;", text)
-    if target not in targets:
-        raise SystemExit(f"target {target} not found; have {targets}")
-    idx = targets.index(target)
-    if idx >= len(phases):
+    # Resolve the target's explicit Sources reference; target and phase order differ
+    # once an extension is added to the project.
+    target_match = re.search(r"/\* " + re.escape(target) + r" \*/ = \{\s*isa = PBXNativeTarget;(?P<body>.*?)\n\t\t};", text, re.S)
+    if not target_match:
+        raise SystemExit(f"target {target} not found")
+    phase = re.search(r"(\w+) /\* Sources \*/", target_match.group("body"))
+    if not phase:
         raise SystemExit(f"no Sources phase for {target}")
-    start = text.index("files = (", phases[idx])
+    phase_match = re.search(re.escape(phase.group(1)) + r" /\* Sources \*/ = \{\s*isa = PBXSourcesBuildPhase;", text)
+    if not phase_match:
+        raise SystemExit(f"Sources phase definition missing for {target}")
+    start = text.index("files = (", phase_match.start())
     end = text.index(");", start)
     return start + len("files = ("), end
 

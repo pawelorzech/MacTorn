@@ -259,23 +259,30 @@ struct Travel: Codable, Equatable {
     func remainingSeconds(from fetchTime: Date, now: Date = Date()) -> Int {
         // Primary: Use timestamp directly if available (more accurate)
         if let timestamp = timestamp, timestamp > 0 {
-            return max(0, timestamp - Int(now.timeIntervalSince1970))
+            guard let nowUnix = NumericSafety.integerAmount(now.timeIntervalSince1970) else { return 0 }
+            return NumericSafety.remaining(until: timestamp, now: nowUnix) ?? 0
         }
 
         // Fallback: Use timeLeft with fetchTime offset (backward compatibility)
         guard let timeLeft = timeLeft, timeLeft > 0 else { return 0 }
-        let elapsed = Int(now.timeIntervalSince(fetchTime))
+        guard let elapsed = NumericSafety.integerAmount(max(0, now.timeIntervalSince(fetchTime))) else { return 0 }
         return max(0, timeLeft - elapsed)
     }
 
     /// Calculate flight progress (0.0 to 1.0) based on fetch time
     func flightProgress(from fetchTime: Date, now: Date = Date()) -> Double {
         guard let departed = departed, let timestamp = timestamp else { return 0 }
-        let totalDuration = timestamp - departed
-        guard totalDuration > 0 else { return 0 }
         let remaining = remainingSeconds(from: fetchTime, now: now)
-        let elapsed = totalDuration - remaining
-        return min(1.0, max(0.0, Double(elapsed) / Double(totalDuration)))
+        return Self.flightProgress(arrival: timestamp, departure: departed, remainingSeconds: remaining)
+    }
+
+    /// Shared by the model and the live UI. Remote timestamps must not overflow Int
+    /// subtraction or crash rendering when a malformed response supplies Int.min.
+    static func flightProgress(arrival: Int, departure: Int, remainingSeconds: Int) -> Double {
+        guard departure > 0, arrival > departure else { return 0 }
+        let duration = Double(arrival) - Double(departure)
+        guard duration > 0 else { return 0 }
+        return min(1, max(0, (duration - Double(max(0, remainingSeconds))) / duration))
     }
 }
 
@@ -482,6 +489,34 @@ struct Chain: Codable, Equatable {
     }
 
     var timeoutRemaining: Int { timeoutRemaining(at: Date()) }
+}
+
+/// How alarming the remaining chain time is. The thresholds (60 s / 180 s) and the
+/// red/orange/green mapping used to be reimplemented in `ChainView` and again in
+/// `FactionView` (audit D-4); this is the one definition, shared by colour and the
+/// VoiceOver description.
+enum ChainUrgency {
+    case critical
+    case warning
+    case healthy
+
+    init(remaining: Int) {
+        if remaining < 60 {
+            self = .critical
+        } else if remaining < 180 {
+            self = .warning
+        } else {
+            self = .healthy
+        }
+    }
+
+    var spokenDescription: String {
+        switch self {
+        case .critical: return "critical"
+        case .warning: return "warning"
+        case .healthy: return "healthy"
+        }
+    }
 }
 
 // MARK: - Events
@@ -844,11 +879,6 @@ struct OrganizedCrime2: Codable, Equatable, Identifiable {
         self.id = id; self.name = name; self.difficulty = difficulty; self.status = status
         self.createdAt = createdAt; self.readyAt = readyAt; self.expiredAt = expiredAt
         self.executedAt = executedAt; self.slots = slots
-    }
-
-    var readyDate: Date? {
-        guard let readyAt, readyAt > 0 else { return nil }
-        return Date(timeIntervalSince1970: TimeInterval(readyAt))
     }
 
     /// True once the OC has reached its ready time and hasn't been executed yet.
@@ -1278,18 +1308,24 @@ struct WatchlistItem: Codable, Identifiable {
     var lowestPriceQuantity: Int
     var secondLowestPrice: Int
     var lastUpdated: Date?
+    var lastFetchedAt: Date?
+    var dataTimestamp: Date?
+    var cacheDelay: TimeInterval?
     var error: String?
     var priceThreshold: Int?
     var lastAlertedPrice: Int?
 
     // Explicit memberwise initializer
-    init(id: Int, name: String, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int, lastUpdated: Date?, error: String?, priceThreshold: Int? = nil, lastAlertedPrice: Int? = nil) {
+    init(id: Int, name: String, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int, lastUpdated: Date?, error: String?, priceThreshold: Int? = nil, lastAlertedPrice: Int? = nil, lastFetchedAt: Date? = nil, dataTimestamp: Date? = nil, cacheDelay: TimeInterval? = nil) {
         self.id = id
         self.name = name
         self.lowestPrice = lowestPrice
         self.lowestPriceQuantity = lowestPriceQuantity
         self.secondLowestPrice = secondLowestPrice
         self.lastUpdated = lastUpdated
+        self.lastFetchedAt = lastFetchedAt
+        self.dataTimestamp = dataTimestamp
+        self.cacheDelay = cacheDelay
         self.error = error
         self.priceThreshold = priceThreshold
         self.lastAlertedPrice = lastAlertedPrice
@@ -1304,6 +1340,9 @@ struct WatchlistItem: Codable, Identifiable {
         lowestPriceQuantity = try container.decodeIfPresent(Int.self, forKey: .lowestPriceQuantity) ?? 0
         secondLowestPrice = try container.decodeIfPresent(Int.self, forKey: .secondLowestPrice) ?? 0
         lastUpdated = try container.decodeIfPresent(Date.self, forKey: .lastUpdated)
+        lastFetchedAt = try container.decodeIfPresent(Date.self, forKey: .lastFetchedAt)
+        dataTimestamp = try container.decodeIfPresent(Date.self, forKey: .dataTimestamp) ?? lastUpdated
+        cacheDelay = try container.decodeIfPresent(TimeInterval.self, forKey: .cacheDelay)
         error = try container.decodeIfPresent(String.self, forKey: .error)
         priceThreshold = try container.decodeIfPresent(Int.self, forKey: .priceThreshold)
         lastAlertedPrice = try container.decodeIfPresent(Int.self, forKey: .lastAlertedPrice)
@@ -1333,7 +1372,10 @@ struct WatchlistItem: Codable, Identifiable {
                       lastUpdated: lastUpdated,
                       error: error,
                       priceThreshold: priceThreshold,
-                      lastAlertedPrice: lastAlertedPrice)
+                      lastAlertedPrice: lastAlertedPrice,
+                      lastFetchedAt: lastFetchedAt,
+                      dataTimestamp: dataTimestamp,
+                      cacheDelay: cacheDelay)
     }
 
     var priceDifference: Int {

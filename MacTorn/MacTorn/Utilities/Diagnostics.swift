@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 // MARK: - Diagnostics (Etap F)
 //
@@ -38,12 +39,18 @@ struct EndpointHealth: Equatable, Sendable {
     /// A coarse `TornAPIError` classification string on failure (e.g. "rateLimit").
     /// Never the raw server message.
     var errorClass: String?
+    var lastSuccessfulAt: Date? = nil
+
+    var dataUpdatedAt: Date? {
+        lastSuccessfulAt ?? (outcome == .ok ? at : nil)
+    }
 }
 
 /// Records the most recent health of each endpoint. Time is injected so "age" is testable.
 @MainActor
+@Observable
 final class EndpointHealthTracker {
-    private let time: TimeSource
+    @ObservationIgnored private let time: TimeSource
     private(set) var health: [String: EndpointHealth] = [:]
 
     init(time: TimeSource = SystemTimeSource()) { self.time = time }
@@ -53,17 +60,21 @@ final class EndpointHealthTracker {
                 latencyMs: Int,
                 responseBytes: Int,
                 errorClass: String? = nil) {
+        let successfulAt = outcome == .ok ? time.now : health[endpointID]?.dataUpdatedAt
         health[endpointID] = EndpointHealth(
             endpointID: endpointID,
             outcome: outcome,
             latencyMs: latencyMs,
             responseBytes: responseBytes,
             at: time.now,
-            errorClass: errorClass
+            errorClass: errorClass,
+            lastSuccessfulAt: successfulAt
         )
     }
 
     func latest(for endpointID: String) -> EndpointHealth? { health[endpointID] }
+
+    func reset() { health.removeAll(keepingCapacity: true) }
 
     /// All tracked endpoints, ordered by the registry's display order.
     var all: [EndpointHealth] {
@@ -105,6 +116,10 @@ struct ModulePresentationState: Equatable, Sendable {
                         fallbackError: String?,
                         now: Date = Date(),
                         staleAfter: TimeInterval) -> ModulePresentationState {
+        if fallbackError == "No internet connection" {
+            return ModulePresentationState(kind: .offline, hasContent: hasContent,
+                                           updatedAt: newestDate(in: health), recovery: .retry)
+        }
         if isLoading, !hasContent {
             return ModulePresentationState(kind: .loading, hasContent: false,
                                            updatedAt: newestDate(in: health), recovery: .none)
@@ -145,11 +160,11 @@ struct ModulePresentationState: Equatable, Sendable {
                                            updatedAt: updatedAt, recovery: .retry)
         }
         return ModulePresentationState(kind: .empty, hasContent: false,
-                                       updatedAt: updatedAt, recovery: .retry)
+                                       updatedAt: updatedAt, recovery: outcomes.contains(.ok) ? .none : .retry)
     }
 
     private static func newestDate(in health: [EndpointHealth]) -> Date? {
-        health.map(\.at).max()
+        health.compactMap(\.dataUpdatedAt).max()
     }
 }
 
@@ -159,8 +174,10 @@ extension AppState {
     /// endpoints intentionally poll more slowly than live bars.
     func presentationState(endpointIDs: [String],
                            hasContent: Bool,
-                           staleAfter: TimeInterval) -> ModulePresentationState {
-        let health = endpointIDs.compactMap { endpointHealth.latest(for: $0) }
+                           staleAfter: TimeInterval,
+                           requiredUserSelections: [String] = [],
+                           rowHealth: [EndpointHealth]? = nil) -> ModulePresentationState {
+        let health = rowHealth ?? endpointIDs.compactMap { endpointHealth.latest(for: $0) }
 
         // A permanent key failure is account-wide. The failing request may be
         // `key.info`, while a feature screen observes only its own endpoint (for
@@ -170,18 +187,59 @@ extension AppState {
             return ModulePresentationState(
                 kind: .permission,
                 hasContent: hasContent,
-                updatedAt: health.map(\.at).max(),
+                updatedAt: health.compactMap(\.dataUpdatedAt).max(),
                 recovery: .settings
             )
+        }
+
+        if let keyInfo, !Set(requiredUserSelections).isSubset(of: Set(keyInfo.selections.user)) {
+            return ModulePresentationState(kind: .permission, hasContent: hasContent,
+                                           updatedAt: health.compactMap(\.dataUpdatedAt).max(), recovery: .settings)
+        }
+
+        // A suppressed endpoint has no failed response to put in health. Show known
+        // permission denials on the module itself rather than an endless "No data yet".
+        if !hasContent {
+            for id in endpointIDs {
+                let denial = endpointGate.denial(for: id, keyInfo: keyInfo, coordinator: pollingCoordinator)
+                switch denial {
+                case .keyLacksSelections, .keyAccessLevelTooLow, .factionAPIAccessDisabled:
+                    return ModulePresentationState(kind: .permission, hasContent: false,
+                                                   updatedAt: nil, recovery: .settings)
+                default: break
+                }
+            }
         }
 
         return ModulePresentationState.resolve(
             health: health,
             hasContent: hasContent,
-            isLoading: isLoading,
-            fallbackError: errorMsg,
+            isLoading: isLoading || awaitingFirstKeyInfo,
+            fallbackError: connectivity.isConnected ? errorMsg : "No internet connection",
+            now: time.now,
             staleAfter: staleAfter
         )
+    }
+
+    var watchlistPresentationState: ModulePresentationState {
+        presentationState(endpointIDs: ["market.item"],
+                          hasContent: watchlistItems.contains { $0.lastUpdated != nil }, staleAfter: 360,
+                          rowHealth: watchlistItems.map {
+            EndpointHealth(endpointID: "market.item", outcome: $0.error != nil ? .error : $0.lastUpdated == nil ? .pending : .ok,
+                           latencyMs: 0, responseBytes: 0, at: $0.lastUpdated ?? time.now,
+                           errorClass: nil, lastSuccessfulAt: $0.lastUpdated)
+        })
+    }
+
+    var forumPresentationState: ModulePresentationState {
+        presentationState(endpointIDs: ["forum.thread"],
+                          hasContent: watchedThreads.contains { $0.lastChecked != nil },
+                          staleAfter: TimeInterval(max(forumWatchConfig.pollingIntervalSeconds, 180)) + 30,
+                          rowHealth: watchedThreads.map {
+            EndpointHealth(endpointID: "forum.thread", outcome: $0.error != nil ? .error : $0.lastChecked == nil ? .pending : .ok,
+                           latencyMs: 0, responseBytes: 0, at: $0.lastChecked ?? time.now,
+                           errorClass: nil, lastSuccessfulAt: $0.lastChecked)
+        })
     }
 }
 

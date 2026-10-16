@@ -24,6 +24,13 @@ enum AppGroup: String, CaseIterable {
     var defaultTab: AppTab {
         tabs[0]
     }
+
+    /// The group a tab belongs to. `AppGroup.tabs` is the single source of truth; the
+    /// reverse mapping used to be a second hand-maintained switch that could drift from it
+    /// (audit D-8).
+    static func group(of tab: AppTab) -> AppGroup {
+        allCases.first { $0.tabs.contains(tab) } ?? .now
+    }
 }
 
 enum AppTab: String, CaseIterable {
@@ -52,11 +59,7 @@ enum AppTab: String, CaseIterable {
     }
 
     var group: AppGroup {
-        switch self {
-        case .status, .travel, .attacks: return .now
-        case .money, .properties, .stocks, .faction: return .account
-        case .watchlist, .forums: return .watch
-        }
+        AppGroup.group(of: self)
     }
 }
 
@@ -81,6 +84,10 @@ struct ContentView: View {
     /// the previous snapshot is still on screen.
     private var isBlockingInitialLoad: Bool {
         appState.isLoading && appState.lastUpdated == nil
+    }
+
+    private var isShowingModalPrompt: Bool {
+        appState.showFeedbackPrompt || showSentryOptIn
     }
 
     var body: some View {
@@ -113,6 +120,7 @@ struct ContentView: View {
                         // divider as well, and the VStack shared the window out between all
                         // five. Only the scrolling content should absorb the slack.
                         tabContent
+                            .disabled(isBlockingInitialLoad)
                             // `.top`, not the default centre: `TravelView` is a plain
                             // VStack rather than a ScrollView, so centring would float its
                             // content in the middle of the panel. Scroll views fill the
@@ -120,21 +128,19 @@ struct ContentView: View {
                             .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
-                // Only the *content* is inert while the first load runs. The footer sits
-                // outside this modifier on purpose: it holds Settings and Quit, and
-                // disabling those left the user with no way out of a slow or hung first
-                // fetch (URLSession's default timeout is 60 s) short of force-quitting.
-                .disabled(isBlockingInitialLoad)
-
                 Divider()
                     .padding(.vertical, 4)
 
                 // Footer buttons — always interactive, see above.
                 footerView
             }
+            // A prompt overlay is modal: hide what's underneath from VoiceOver and keep
+            // the keyboard/pointer from reaching it until the prompt is answered.
+            .accessibilityHidden(isShowingModalPrompt)
+            .disabled(isShowingModalPrompt)
             
             // Loading Overlay
-            if isBlockingInitialLoad {
+            if isBlockingInitialLoad && !navigation.isShowingSettings {
                 (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.4))
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
                     .allowsHitTesting(false)
@@ -156,6 +162,7 @@ struct ContentView: View {
 
                 FeedbackPromptView()
                     .environment(appState)
+                    .accessibilityAddTraits(.isModal)
             }
 
             // Sentry Opt-In Prompt Overlay
@@ -164,6 +171,7 @@ struct ContentView: View {
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
 
                 SentryOptInPromptView(isPresented: $showSentryOptIn)
+                    .accessibilityAddTraits(.isModal)
             }
         }
         .frame(width: 320)
@@ -180,7 +188,7 @@ struct ContentView: View {
         .task {
             // Skip system-permission prompts and the update-check network call under the
             // UI-test harness so runs stay hermetic and no modal steals focus.
-            guard !UITestConfiguration.isActive else { return }
+            guard !UITestConfiguration.isIsolated else { return }
             await NotificationManager.shared.requestPermission()
             appState.checkForAppUpdates()
         }
@@ -439,7 +447,7 @@ struct ContentView: View {
     }
     
     private func checkSentryOptInPrompt() {
-        guard !UITestConfiguration.isActive else { return }
+        guard !UITestConfiguration.isIsolated else { return }
         guard !appState.apiKey.isEmpty else { return }
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         let shownFor = UserDefaults.standard.string(forKey: SentryManager.promptShownKey) ?? ""

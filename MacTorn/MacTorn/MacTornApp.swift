@@ -24,6 +24,10 @@ struct MacTornApp: App {
             _appState = State(initialValue: UITestConfiguration.makeAppState())
             return
         }
+        if UITestConfiguration.isUnitTesting {
+            _appState = State(initialValue: UITestConfiguration.makeUnitTestHostState())
+            return
+        }
         #endif
         SentryManager.startIfEnabled()
         let state = AppState()
@@ -169,15 +173,15 @@ struct MenuBarLabel: View {
         Group {
             switch appState.menuBarDisplay {
             case .traveling(let destination, let seconds):
-                Text("✈️\(Self.flag(for: destination))\(formatShortTime(seconds))")
+                Text("✈️\(Self.flag(for: destination))\(Self.formatShortTime(seconds))")
             case .hospitalAbroad(let destination, let seconds):
-                Text("🏥\(Self.flag(for: destination))\(formatShortTime(seconds))")
+                Text("🏥\(Self.flag(for: destination))\(Self.formatShortTime(seconds))")
             case .hospitalAtHome(let seconds):
-                Text("🏥\(formatShortTime(seconds))")
+                Text("🏥\(Self.formatShortTime(seconds))")
             case .jail(let seconds):
-                Text("🚓\(formatShortTime(seconds))")
+                Text("🚓\(Self.formatShortTime(seconds))")
             case .cooldown(let kind, let seconds):
-                Text("\(kind.emoji)\(formatShortTime(seconds))")
+                Text("\(kind.emoji)\(Self.formatShortTime(seconds))")
             case .fallbackIcon:
                 Image(systemName: menuBarIcon)
             }
@@ -186,7 +190,7 @@ struct MenuBarLabel: View {
         // The menu-bar label is the only surface of this app that is always on screen.
         // Without this, VoiceOver reads the raw glyphs ("airplane, flag of United
         // Kingdom, 2 colon 35") instead of the state they stand for.
-        .accessibilityLabel(appState.menuBarDisplay.accessibilityDescription)
+        .accessibilityLabel(accessibilityText)
         #if DEBUG
         // The menu-bar label renders at launch even for an accessory app, so it's the one
         // reliable place to explicitly open the UI-test window (a MenuBarExtra's own content
@@ -197,6 +201,25 @@ struct MenuBarLabel: View {
             }
         }
         #endif
+    }
+
+    /// The fallback icon itself encodes state (error / abroad / energy full), so speak
+    /// that state rather than the generic "no active timer". Derived from `menuBarIcon`
+    /// so the spoken label can never disagree with the glyph on screen.
+    private var accessibilityText: String {
+        guard case .fallbackIcon = appState.menuBarDisplay else {
+            return appState.menuBarDisplay.accessibilityDescription
+        }
+        switch menuBarIcon {
+        case "exclamationmark.triangle.fill":
+            return "MacTorn — error, open for details"
+        case "globe":
+            return "MacTorn — abroad"
+        case "bolt.fill":
+            return "MacTorn — energy full"
+        default:
+            return appState.menuBarDisplay.accessibilityDescription
+        }
     }
 
     private var menuBarIcon: String {
@@ -221,24 +244,15 @@ struct MenuBarLabel: View {
         return "bolt"
     }
 
-    private func flagForDestination(_ destination: String) -> String {
-        TornDestination.flag(for: destination)
-    }
-
     /// Presentation-only mapping. `MenuBarDisplay` carries the destination *name*; the
     /// flag glyph is derived here so the model stays speakable (see `MenuBarDisplay`).
     private static func flag(for destination: String?) -> String {
         TornDestination.flag(for: destination ?? "?")
     }
 
-    private func formatShortTime(_ seconds: Int) -> String {
-        if seconds <= 0 { return "0:00" }
-        let hours = seconds / 3600
-        let minutes = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
+    /// Menu-bar label is the one surface where a zero countdown means "0:00" rather than
+    /// "Ready" — it must keep showing a time, not a word.
+    private static func formatShortTime(_ seconds: Int) -> String {
+        seconds <= 0 ? "0:00" : TornFormatter.clock(seconds)
     }
 }

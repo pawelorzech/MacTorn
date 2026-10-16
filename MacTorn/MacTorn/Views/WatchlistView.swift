@@ -13,9 +13,15 @@ struct WatchlistView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                ModuleStateView(state: moduleState) {
-                    appState.refreshWatchlistPrices()
+                // With nothing watched there is nothing to fetch; the list's own empty
+                // state explains that, so a "No data yet · Retry" strip would contradict it.
+                if !appState.watchlistItems.isEmpty {
+                    ModuleStateView(state: moduleState) {
+                        appState.refreshWatchlistPrices()
+                    }
                 }
+
+                ShopPricesPanel()
 
                 // Watchlist Header
                 HStack {
@@ -32,6 +38,8 @@ struct WatchlistView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .foregroundColor(.blue)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Refresh watched prices")
@@ -43,6 +51,8 @@ struct WatchlistView: View {
                     } label: {
                         Image(systemName: showAddItem ? "minus.circle.fill" : "plus.circle.fill")
                             .foregroundColor(showAddItem ? .red : .green)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(showAddItem ? "Close add item panel" : "Add watched item")
@@ -65,6 +75,7 @@ struct WatchlistView: View {
 
                         HStack {
                             TextField(searchFieldPrompt, text: $itemIdInput)
+                                .accessibilityLabel("Item name or ID")
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
                                 .onChange(of: itemIdInput) { _, _ in
@@ -132,23 +143,13 @@ struct WatchlistView: View {
 
                 // Watchlist Items with Prices
                 if appState.watchlistItems.isEmpty && !showAddItem {
-                    VStack(spacing: 8) {
-                        Image(systemName: "tag")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                        Text("No items watched")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Track Item Market prices")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
+                    EmptyStateView(icon: "tag",
+                                   title: "No items watched",
+                                   subtitle: "Track Item Market prices")
                 } else if !appState.watchlistItems.isEmpty {
                     ForEach(appState.watchlistItems) { item in
                         WatchlistPriceRow(item: item) {
-                            openURL("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
+                            openTorn("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
                         } onRemove: {
                             removeWithUndo(item)
                         } onSetThreshold: { threshold in
@@ -171,11 +172,11 @@ struct WatchlistView: View {
                 // Quick Market Links
                 HStack(spacing: 8) {
                     ActionButton(title: "Item Market", icon: "bag.fill", color: .blue) {
-                        openURL("https://www.torn.com/page.php?sid=ItemMarket")
+                        openTorn("https://www.torn.com/page.php?sid=ItemMarket")
                     }
                     
                     ActionButton(title: "Points", icon: "star.fill", color: .orange) {
-                        openURL("https://www.torn.com/pmarket.php")
+                        openTorn("https://www.torn.com/pmarket.php")
                     }
                 }
             }
@@ -282,18 +283,9 @@ struct WatchlistView: View {
     ]
 
     private var moduleState: ModulePresentationState {
-        appState.presentationState(
-            endpointIDs: ["market.item"],
-            hasContent: !appState.watchlistItems.isEmpty,
-            staleAfter: 180
-        )
+        appState.watchlistPresentationState
     }
     
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
 
     private func addItemByID() {
         switch appState.addToWatchlist(input: itemIdInput) {
@@ -492,6 +484,7 @@ struct WatchlistPriceRow: View {
                             .font(.caption.bold())
 
                         TextField("Price", text: $thresholdText)
+                            .accessibilityLabel("Price alert threshold")
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 120)
                             .onChange(of: thresholdText) { _, newValue in
@@ -544,12 +537,13 @@ struct WatchlistPriceRow: View {
                     .font(.caption2)
                     .foregroundStyle(.red)
                     .accessibilityLabel("Price update error: \(error)")
+            }
 
-                if let lastUpdated = item.lastUpdated {
-                    (Text("Last known price · Updated ") + Text(lastUpdated, style: .relative) + Text(" ago"))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+            if let dataTimestamp = item.dataTimestamp ?? item.lastUpdated {
+                let prefix = item.error == nil ? "Price data from " : "Last known price · Data from "
+                (Text(prefix) + Text(dataTimestamp, style: .relative) + Text(" ago"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
 
             // Threshold indicator

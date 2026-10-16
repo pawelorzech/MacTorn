@@ -3,6 +3,77 @@ import XCTest
 
 @MainActor
 final class AppStateTests: XCTestCase {
+    func testDelayedKeyInfoFailureCannotOverwriteNewAccountHealth() async {
+        let session = SuspendedAccountFailureSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        app.apiKey = "account-a"
+        let old = Task { await app.loadKeyInfoIfNeeded() }
+        await session.waitForRequest()
+        app.apiKey = "account-b"
+        app.endpointHealth.record(endpointID: "key.info", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        let newHealth = app.endpointHealth.latest(for: "key.info")
+        await session.finish()
+        await old.value
+        XCTAssertEqual(app.endpointHealth.latest(for: "key.info"), newHealth)
+        XCTAssertNil(app.keyInfo)
+    }
+
+    func testCancelledNonCooperativeValidationLeavesValidatingState() async {
+        let session = SuspendedKeyValidationSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        let pending = Task { await app.validateKey("typed-key") }
+        await session.waitForRequests(1)
+        pending.cancel()
+        await session.finish(0)
+        await pending.value
+        XCTAssertEqual(app.keyValidation, .idle)
+        XCTAssertNil(app.keyInfo)
+    }
+
+    func testDelayedFactionFailureCannotOverwriteNewAccountHealth() async {
+        let session = SuspendedAccountFailureSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        app.apiKey = "account-a"
+        let identity = app.accountSession.identity
+        let old = Task { await app.fetchFactionData(apiKey: identity.apiKey, generation: identity.generation) }
+        await session.waitForRequest()
+        app.apiKey = "account-b"
+        app.endpointHealth.record(endpointID: "faction.basic", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        let newHealth = app.endpointHealth.latest(for: "faction.basic")
+        await session.finish()
+        await old.value
+        XCTAssertEqual(app.endpointHealth.latest(for: "faction.basic"), newHealth)
+    }
+
+    func testEditingKeyWhileValidationIsPendingDiscardsItsResult() async {
+        let session = SuspendedKeyValidationSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        let pending = Task { await app.validateKey("typed-key-a") }
+        await session.waitForRequests(1)
+        app.keyValidation = .idle // Settings invalidates the result as the field is edited.
+        await session.finish(0)
+        await pending.value
+        XCTAssertEqual(app.keyValidation, .idle)
+        XCTAssertNil(app.keyInfo)
+    }
+
+    func testOlderValidationCannotReplaceANewerValidationResult() async {
+        let session = SuspendedKeyValidationSession()
+        let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        let first = Task { await app.validateKey("typed-key-a") }
+        await session.waitForRequests(1)
+        let second = Task { await app.validateKey("typed-key-b") }
+        await session.waitForRequests(2)
+        await session.finish(1)
+        await second.value
+        let newest = app.keyValidation
+        await session.finish(0)
+        await first.value
+        XCTAssertEqual(app.keyValidation, newest)
+        guard case .success(let result) = newest else { return XCTFail("second validation must succeed") }
+        XCTAssertEqual(result.playerID, 43)
+    }
+
 
     var mockSession: MockNetworkSession!
     var appState: AppState!
@@ -487,6 +558,8 @@ final class AppStateTests: XCTestCase {
             refills: .unchanged,
             education: .unchanged,
             bounties: .unchanged,
+            bountiesTimestamp: nil,
+            bountiesDelay: nil,
             notifications: .replace(TornNotifications(messages: 2)),
             malformedSelections: ["bounties"]
         ))
@@ -536,12 +609,9 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertNil(AppState.bountyBanner(for: []), "nothing new means no banner at all")
 
-        // Amounts are compared through the same formatter rather than against a literal
-        // like "1,000,000". `AppState.decimalFormatter` has no explicit locale, so it
-        // follows `Locale.current` — on a machine with German regional settings it emits
-        // "1.000.000" and a hardcoded assertion fails for a reason that has nothing to do
-        // with the behaviour under test.
-        let expected = { (v: Int) in AppState.decimalFormatter.string(from: NSNumber(value: v)) ?? "\(v)" }
+        // Amounts are compared through the formatter the banner uses rather than against
+        // a hand-written literal, so the test follows any change to the display format.
+        let expected = { (v: Int) in TornFormatter.formatNumber(v) }
 
         let single = try XCTUnwrap(AppState.bountyBanner(for: [one]))
         XCTAssertEqual(single.title, "⚠️ Bounty on you")
@@ -573,7 +643,7 @@ final class AppStateTests: XCTestCase {
 
         let summary = try XCTUnwrap(AppState.bountyBanner(for: fresh))
         let total = Decimal(Int.max) + 1
-        let totalText = AppState.decimalFormatter.string(from: NSDecimalNumber(decimal: total)) ?? "\(total)"
+        let totalText = TornFormatter.formatNumber(total)
         XCTAssertEqual(summary.body, "$\(totalText) total")
 
         for bounty in fresh {
@@ -581,6 +651,35 @@ final class AppStateTests: XCTestCase {
                 appState.notificationCoordinator.shouldFireOnce("bounty.\(bounty.id)", epoch: bounty.id)
             )
         }
+    }
+
+    func testRepeatedBountySnapshotDoesNotOverwriteNewerState() throws {
+        let existing = try JSONDecoder().decode(
+            Bounty.self,
+            from: TornAPIFixtures.toData(TornAPIFixtures.bountyOnMe(reward: 9_000_000))
+        )
+        let stale = try JSONDecoder().decode(
+            Bounty.self,
+            from: TornAPIFixtures.toData(TornAPIFixtures.bountyOnMe(reward: 1_000_000))
+        )
+        appState.bountiesOnMe = [existing]
+        appState.bountiesDataTimestamp = Date(timeIntervalSince1970: 200)
+
+        appState.applyUserV2Payload(UserV2Payload(
+            organizedCrime: .unchanged,
+            refills: .unchanged,
+            education: .unchanged,
+            bounties: .replace([stale]),
+            bountiesTimestamp: 200,
+            bountiesDelay: 30,
+            notifications: .unchanged,
+            malformedSelections: []
+        ))
+
+        XCTAssertEqual(appState.bountiesOnMe, [existing])
+        XCTAssertEqual(appState.bountiesDataTimestamp, Date(timeIntervalSince1970: 200))
+        XCTAssertNotNil(appState.bountiesFetchedAt)
+        XCTAssertEqual(appState.bountiesCacheDelay, 30)
     }
 
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
@@ -1428,6 +1527,40 @@ final class AppStateTests: XCTestCase {
     }
 }
 
+private actor SuspendedKeyValidationSession: NetworkSession {
+    private var continuations: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var requests = 0
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let index = requests
+        requests += 1
+        await withCheckedContinuation { continuations[index] = $0 }
+        let data = Data("""
+        {"info":{"access":{"level":4,"type":"Full Access","faction":true,"company":false},
+        "user":{"id":\(42 + index),"faction_id":100,"company_id":null},
+        "selections":{"user":[],"faction":[],"market":[],"property":[],"torn":[],
+        "racing":[],"forum":[],"key":["info"],"company":[]}}}
+        """.utf8)
+        return (data, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    }
+
+    func waitForRequests(_ count: Int) async {
+        while requests < count { await Task.yield() }
+    }
+
+    func finish(_ index: Int) { continuations.removeValue(forKey: index)?.resume() }
+}
+
+private actor SuspendedAccountFailureSession: NetworkSession {
+    private var continuation: CheckedContinuation<Void, Never>?
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        await withCheckedContinuation { continuation = $0 }
+        throw URLError(.timedOut)
+    }
+    func waitForRequest() async { while continuation == nil { await Task.yield() } }
+    func finish() { continuation?.resume(); continuation = nil }
+}
+
 /// Holds each request until the test completes it. A cancelled request can therefore
 /// finish after its replacement started, reproducing issue #71 deterministically.
 private final class ControlledHTTPErrorUserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
@@ -1822,5 +1955,101 @@ final class ChainSourceTests: XCTestCase {
         let snapshot = app.makeNextActionSnapshot()
         XCTAssertEqual(snapshot.chainTimeoutAt, timeout,
                        "the Next Action timeline must see the faction-sourced chain")
+    }
+}
+
+// MARK: - Scheduled travel alerts are account-scoped (audit F-01)
+
+@MainActor
+final class TravelNotificationAccountScopeTests: XCTestCase {
+    private func makeApp() -> (AppState, () -> Int) {
+        let app = AppState(session: MockNetworkSession(),
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults())
+        var cancels = 0
+        app.cancelScheduledTravelNotifications = { cancels += 1 }
+        return (app, { cancels })
+    }
+
+    /// A "Landing Soon!" alert scheduled for account A must not fire after the user
+    /// switched to account B — B is not travelling.
+    func testChangingTheKeyCancelsScheduledTravelNotifications() {
+        let (app, cancels) = makeApp()
+        app.apiKey = "account_a"
+        let before = cancels()
+
+        app.apiKey = "account_b"
+
+        XCTAssertGreaterThan(cancels(), before)
+    }
+
+    func testClearingTheKeyCancelsScheduledTravelNotifications() {
+        let (app, cancels) = makeApp()
+        app.apiKey = "account_a"
+        let before = cancels()
+
+        app.apiKey = ""
+
+        XCTAssertGreaterThan(cancels(), before)
+    }
+
+    func testPermanentKeyErrorCancelsScheduledTravelNotifications() {
+        let (app, cancels) = makeApp()
+        app.apiKey = "account_a"
+        let before = cancels()
+
+        app.handlePermanentKeyError(.permanentKey(code: 2, message: "Incorrect key"))
+
+        XCTAssertGreaterThan(cancels(), before)
+    }
+}
+
+// MARK: - Cadence changes take effect without a relaunch (audit F-03)
+
+@MainActor
+final class PollingCadenceChangeTests: XCTestCase {
+    private func makeApp() -> AppState {
+        let app = AppState(session: MockNetworkSession(),
+                           connectivity: ControllableConnectivity(),
+                           defaults: .createMockDefaults())
+        app.apiKey = "cadence-\(UUID().uuidString)"
+        return app
+    }
+
+    /// Settings sets `refreshInterval` and then calls `startPolling()`, which returns early
+    /// while a timer is running and the last poll is recent — so the old cadence stuck.
+    func testChangingRefreshIntervalReinstallsTheRunningPollTimer() {
+        let app = makeApp()
+        app.refreshInterval = 30
+        app.startPolling()
+        XCTAssertEqual(app.pollingTimerInterval, 30)
+
+        app.refreshInterval = 60
+        app.startPolling()
+
+        XCTAssertEqual(app.pollingTimerInterval, 60)
+        app.stopPolling()
+    }
+
+    func testChangingRefreshIntervalWhileStoppedDoesNotStartPolling() {
+        let app = makeApp()
+        app.refreshInterval = 60
+        XCTAssertNil(app.timerCancellable)
+        XCTAssertNil(app.pollingTimerInterval)
+    }
+
+    func testChangingForumIntervalReinstallsTheRunningForumTimer() {
+        let app = makeApp()
+        app.forumWatchConfig.pollingIntervalSeconds = 180
+        app.startForumPolling()
+        XCTAssertEqual(app.forumTimerInterval, 180)
+        // A forum poll just landed — the state in which `startForumPolling` returns early.
+        app.lastForumFetchAt = Date()
+
+        app.forumWatchConfig.pollingIntervalSeconds = 300
+        app.startForumPolling()
+
+        XCTAssertEqual(app.forumTimerInterval, 300)
+        app.stopForumPolling()
     }
 }

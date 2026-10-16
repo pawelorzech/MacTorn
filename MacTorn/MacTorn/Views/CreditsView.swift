@@ -72,7 +72,8 @@ struct CreditsView: View {
             .foregroundColor(.accentColor)
         }
         .padding()
-        .frame(width: 320, height: 480)
+        .frame(width: 320)
+        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     // MARK: - Developer Section

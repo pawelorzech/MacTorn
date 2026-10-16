@@ -3,6 +3,66 @@ import XCTest
 
 @MainActor
 final class AccountSessionStoreTests: XCTestCase {
+    func testFailedCredentialWriteDoesNotResetVisibleData() {
+        let defaults = makeDefaults()
+        let store = AccountSessionStore(defaults: defaults, credentialStore: RefusingAPIKeyStore())
+        let app = AppState(session: MockNetworkSession(), defaults: defaults, accountSession: store)
+        app.moneyData = MoneyData(cash: 123)
+        app.apiKey = "new-key"
+        XCTAssertEqual(app.apiKey, "saved-key")
+        XCTAssertEqual(app.moneyData?.cash, 123)
+        XCTAssertNotNil(store.persistenceError)
+    }
+
+    func testFailedDeletionKeepsStoredAccount() {
+        let store = AccountSessionStore(defaults: makeDefaults(), credentialStore: RefusingAPIKeyStore())
+        let identity = store.identity
+        XCTAssertFalse(store.updateAPIKey(""))
+        XCTAssertEqual(store.identity, identity)
+        XCTAssertNotNil(store.persistenceError)
+    }
+
+    func testSavingCurrentKeyFinishesPendingMigration() {
+        let defaults = makeDefaults()
+        let credentials = MemoryAPIKeyStore("saved-key")
+        let store = AccountSessionStore(defaults: defaults, credentialStore: credentials)
+        defaults.set("legacy-key", forKey: "apiKey")
+        XCTAssertTrue(store.updateAPIKey("saved-key"))
+        XCTAssertNil(defaults.string(forKey: "apiKey"))
+        XCTAssertEqual(credentials.get(), "saved-key")
+    }
+
+    func testFailedCredentialWriteKeepsCurrentAccountAndGeneration() {
+        let credentials = RefusingAPIKeyStore()
+        let store = AccountSessionStore(defaults: makeDefaults(), credentialStore: credentials)
+        let identity = store.identity
+        store.isHalted = true
+
+        XCTAssertFalse(store.updateAPIKey("new-key"))
+        XCTAssertEqual(store.identity, identity)
+        XCTAssertTrue(store.isHalted)
+        XCTAssertEqual(credentials.get(), "saved-key")
+    }
+
+    func testFailedMigrationPreservesLegacyCopyAndExistingCredential() {
+        let defaults = makeDefaults()
+        defaults.set("legacy-key", forKey: "apiKey")
+        let store = AccountSessionStore(defaults: defaults, credentialStore: RefusingAPIKeyStore())
+
+        XCTAssertEqual(defaults.string(forKey: "apiKey"), "legacy-key")
+        XCTAssertEqual(store.apiKey, "saved-key")
+    }
+
+    func testExplicitlySavingHaltedKeyStartsANewSession() {
+        let store = AccountSessionStore(defaults: makeDefaults(), credentialStore: MemoryAPIKeyStore("saved-key"))
+        let oldIdentity = store.identity
+        store.isHalted = true
+
+        XCTAssertTrue(store.updateAPIKey("saved-key"))
+        XCTAssertFalse(store.isHalted)
+        XCTAssertFalse(store.isCurrent(oldIdentity))
+    }
+
     func testMigratesLegacyKeyAndRemovesUserDefaultsCopy() {
         let defaults = makeDefaults()
         defaults.set("legacy-key", forKey: "apiKey")
@@ -122,9 +182,15 @@ private final class MemoryAPIKeyStore: APIKeyStoring, @unchecked Sendable {
         lock.withLock { value }
     }
 
-    func set(_ value: String) {
+    @discardableResult func set(_ value: String) -> Bool {
         lock.withLock {
             self.value = value.isEmpty ? nil : value
         }
+        return true
     }
+}
+
+private struct RefusingAPIKeyStore: APIKeyStoring {
+    func get() -> String? { "saved-key" }
+    func set(_ value: String) -> Bool { false }
 }

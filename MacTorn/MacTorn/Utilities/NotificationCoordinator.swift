@@ -88,6 +88,35 @@ final class NotificationCoordinator {
     /// Last epoch value alerted for each key.
     private var epochs: BoundedRecencyStore
 
+    /// Persistence batching. `checkNotifications` evaluates ~9 predicates per poll, each of
+    /// which would otherwise encode and write the whole store; the batch defers the writes
+    /// and flushes once at the end. Direct predicate calls (including every test) persist
+    /// eagerly, so the observable per-call contract is unchanged (audit W-6).
+    private var batchDepth = 0
+    private var latchesDirty = false
+    private var epochsDirty = false
+
+    /// Coalesce the persistence of the predicates evaluated inside `body` into one write.
+    func batched<T>(_ body: () -> T) -> T {
+        batchDepth += 1
+        defer {
+            batchDepth -= 1
+            if batchDepth == 0 { flush() }
+        }
+        return body()
+    }
+
+    private func flush() {
+        if latchesDirty {
+            latchesDirty = false
+            persistLatches()
+        }
+        if epochsDirty {
+            epochsDirty = false
+            persistEpochs()
+        }
+    }
+
     init(defaults: UserDefaults = .standard, time: TimeSource = SystemTimeSource()) {
         self.defaults = defaults
         self.time = time
@@ -120,7 +149,8 @@ final class NotificationCoordinator {
         let wasActive = !firstSight && observed?.value == Self.latchedValue
         let fire = active && !wasActive && !(firstSight && seedOnFirstSight)
         latches.record(key, as: active ? Self.latchedValue : Self.clearedValue, at: now)
-        persistLatches()
+        latchesDirty = true
+        if batchDepth == 0 { flush() }
         return fire
     }
 
@@ -135,7 +165,8 @@ final class NotificationCoordinator {
     func shouldFireOnce(_ key: String, epoch: String) -> Bool {
         let alreadyAlerted = (epochs.entry(for: key)?.value == epoch)
         epochs.record(key, as: epoch, at: time.now)
-        persistEpochs()
+        epochsDirty = true
+        if batchDepth == 0 { flush() }
         return !alreadyAlerted
     }
 
@@ -170,8 +201,6 @@ final class NotificationCoordinator {
         defaults.set(epochs.encoded, forKey: Self.epochsStoreID)
     }
 }
-
-// MARK: - Bounded, recency-ordered string map
 
 /// A capped name→(value, observation instant) map that evicts the least-recently-touched
 /// entry.

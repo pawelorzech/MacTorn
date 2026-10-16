@@ -48,14 +48,6 @@ enum AppearanceMode: String, CaseIterable {
     case system = "System"
     case light = "Light"
     case dark = "Dark"
-
-    var colorScheme: ColorScheme? {
-        switch self {
-        case .system: return nil
-        case .light: return .light
-        case .dark: return .dark
-        }
-    }
 }
 
 @MainActor
@@ -63,6 +55,7 @@ enum AppearanceMode: String, CaseIterable {
 class AppState {
     private static let appLogger = Logger(subsystem: TornConstants.logSubsystem, category: "AppState")
     var logger: Logger { Self.appLogger }
+    let companion: CompanionStore
 
     // MARK: - Persisted
     var apiKey: String {
@@ -96,7 +89,13 @@ class AppState {
 
     // MARK: - Key validation (Etap C, ISC-16)
     /// Onboarding "Test Connection" state. Drives the SettingsView result panel.
-    var keyValidation: KeyValidationState = .idle
+    var keyValidation: KeyValidationState = .idle {
+        didSet {
+            // Editing Settings invalidates an in-flight test as well as its displayed result.
+            if keyValidation == .idle { keyValidationGeneration &+= 1 }
+        }
+    }
+    @ObservationIgnored var keyValidationGeneration: UInt = 0
     /// The last successfully-decoded key info. `nil` until validated / after a key change.
     /// PII (player id) lives here for display only — never logged or put in a report.
     var keyInfo: TornKeyInfo?
@@ -115,12 +114,10 @@ class AppState {
             // The notification dedup measures "how stale is the previous observation" in
             // multiples of the poll cadence, so it has to hear about a cadence change.
             notificationCoordinator.refreshInterval = TimeInterval(refreshInterval)
-        }
-    }
-    var appearanceMode: String = AppearanceMode.system.rawValue {
-        didSet {
-            guard appearanceMode != oldValue else { return }
-            defaults.set(appearanceMode, forKey: "appearanceMode")
+            // A running timer keeps the cadence it was installed with, and `startPolling`
+            // returns early while one runs — so without this the change waited for a
+            // relaunch.
+            if timerCancellable != nil { installPollingTimer() }
         }
     }
 
@@ -128,6 +125,11 @@ class AppState {
     var widgetStore: WidgetSnapshotStore?
     @ObservationIgnored var widgetPublicationTask: Task<Void, Never>?
     @ObservationIgnored var reloadWidgetTimelines: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
+    /// Removes the pending "Landing Soon!" alerts. A seam for the same reason as
+    /// `reloadWidgetTimelines`: `NotificationManager.shared` is not injectable.
+    @ObservationIgnored var cancelScheduledTravelNotifications: () -> Void = {
+        NotificationManager.shared.cancelTravelNotifications()
+    }
     var data: TornResponse?
     var lastUpdated: Date?
     var errorMsg: String?
@@ -172,16 +174,34 @@ class AppState {
     var stocksMetadata: [Int: StockMetadata] = [:]
     /// Torn's global item catalogue, id → name. Empty until the first successful fetch;
     /// everything that reads it degrades to `Item #id` rather than waiting on it.
-    var itemCatalog: [Int: String] = [:]
+    var itemCatalog: [Int: String] = [:] {
+        didSet {
+            guard itemCatalog != oldValue else { return }
+            rebuildItemSearchIndex()
+        }
+    }
+    /// Lowercased mirror of `itemCatalog`, used by `searchItems`. Rebuilt only when the
+    /// catalogue changes rather than on every keystroke, which previously lowercased the
+    /// whole ~1,500-item catalog in the search field's body (audit F15).
+    @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
     var watchlistItems: [WatchlistItem] {
         get { marketWatchService.items }
-        set { marketWatchService.items = newValue }
+        set {
+            marketWatchService.items = newValue
+            // The Watchlist tab sets and clears thresholds through this setter; the
+            // background price-alert timer exists only while one is set.
+            syncPriceAlertPolling()
+        }
     }
     // MARK: - API v2 user state (organized crime, refills, education, bounties)
     var organizedCrime: OrganizedCrime2?
+    var organizedCrimeUnavailableReason: String?
     var refills: Refills?
     var education: EducationStatus?
     var bountiesOnMe: [Bounty] = []
+    var bountiesDataTimestamp: Date?
+    var bountiesFetchedAt: Date?
+    var bountiesCacheDelay: TimeInterval?
     /// Unread messages / events / awards / competition, from the point-in-time
     /// `notifications` selection. Cheap enough to refresh on every poll.
     var notificationCounts: TornNotifications?
@@ -200,7 +220,15 @@ class AppState {
     }
     var forumWatchConfig: ForumWatchConfig {
         get { forumWatchService.config }
-        set { forumWatchService.config = newValue }
+        set {
+            forumWatchService.config = newValue
+            // Same as `refreshInterval`: `startForumPolling` returns early while a timer
+            // runs, so a new cadence has to reinstall the running timer itself.
+            if forumTimerCancellable != nil,
+               forumTimerInterval != Double(forumWatchService.config.pollingIntervalSeconds) {
+                installForumTimer()
+            }
+        }
     }
 
     // MARK: - Update State
@@ -285,8 +313,19 @@ class AppState {
     // MARK: - Timer
     @ObservationIgnored var timerCancellable: AnyCancellable?
     @ObservationIgnored var forumTimerCancellable: AnyCancellable?
+    /// Background price-alert refresh (see `syncPriceAlertPolling`). Nil unless polling is
+    /// running and at least one watchlist item has a threshold.
+    @ObservationIgnored var priceAlertTimerCancellable: AnyCancellable?
+    /// The cadence each running timer was installed with. Combine hides the interval, so
+    /// these are what tells a stale timer from a current one (and what tests read).
+    @ObservationIgnored var pollingTimerInterval: TimeInterval?
+    @ObservationIgnored var forumTimerInterval: TimeInterval?
     @ObservationIgnored var lastForumFetchAt: Date?
-    @ObservationIgnored var pendingPriceAlerts: [(name: String, price: Int)] = []
+    /// Posts price-alert banners. A seam (like `cancelScheduledTravelNotifications`) so a
+    /// test can see which alerts were actually delivered, not just which were latched.
+    @ObservationIgnored var deliverPriceAlerts: @MainActor ([MarketPriceAlert]) -> Void = { alerts in
+        AppState.postPriceAlertNotifications(alerts)
+    }
 
     /// Monotonic identity for accepted user snapshot polls. Deferred cleanup from an
     /// older, cancelled poll must never mutate the loading state owned by a newer one.
@@ -308,6 +347,15 @@ class AppState {
     // Item catalog backoff + in-flight guard, mirroring the stocks metadata ladder above.
     var itemCatalogFailureCount = 0
     var itemCatalogNextRetryAfter: Date?
+    /// In-memory staleness anchor, seeded from `UserDefaults` once at launch and refreshed
+    /// on every successful fetch. `itemCatalogIsStale` used to re-decode the entire cached
+    /// blob from `UserDefaults` on every poll — twice per tick, on the main actor. The
+    /// predicate now reads only these fields (audit W-1).
+    @ObservationIgnored var itemCatalogFetchedAt: Date?
+    /// True once an *expanded* (`[Int: CachedCatalogItem]`) cache was decoded. A legacy
+    /// name-only cache leaves this false so the catalogue is refreshed into the expanded
+    /// shape, preserving the old migration behaviour.
+    @ObservationIgnored var itemCatalogCacheExpanded = false
     @ObservationIgnored var referenceFetchIDs: [String: UUID] = [:]
 
     /// Non-secret persistence store. Injected so tests get an isolated
@@ -386,6 +434,7 @@ class AppState {
          factionService: FactionServicing? = nil,
          marketWatchService: MarketWatchServicing? = nil,
          forumWatchService: ForumWatchServicing? = nil) {
+        self.companion = CompanionStore(defaults: defaults)
         self.session = session
         self.connectivity = connectivity ?? NetworkMonitor.shared
         self.defaults = defaults
@@ -412,9 +461,6 @@ class AppState {
         // didSet does not fire on init, so the dedup staleness window is seeded by hand
         // here and kept in step by the didSet from then on.
         self.notificationCoordinator.refreshInterval = TimeInterval(self.refreshInterval)
-        if let stored = defaults.string(forKey: "appearanceMode") {
-            self.appearanceMode = stored
-        }
 
         loadNotificationRules()
         loadTravelNotificationSettings()
@@ -440,6 +486,7 @@ class AppState {
     /// Removes data that belongs to the previously authenticated Torn account. Local
     /// preferences (watchlist, watched threads, appearance) intentionally remain.
     func resetAccountScopedState() {
+        keyValidationGeneration &+= 1
         clearWidgets()
         data = nil
         lastUpdated = nil
@@ -453,10 +500,15 @@ class AppState {
         factionService.reset()
         propertiesData = nil
         stocksData = []
+        companion.reset()
         organizedCrime = nil
+        organizedCrimeUnavailableReason = nil
         refills = nil
         education = nil
         bountiesOnMe = []
+        bountiesDataTimestamp = nil
+        bountiesFetchedAt = nil
+        bountiesCacheDelay = nil
         notificationCounts = nil
         virus = nil
         lastVirusFetch = nil
@@ -465,6 +517,9 @@ class AppState {
         travelSecondsRemaining = 0
         menuBarDisplay = .fallbackIcon
         previousTravel = nil
+        // Landing alerts were scheduled for the old account's flight. Left pending, they
+        // fire later for an account that is not travelling (or a key that no longer works).
+        cancelScheduledTravelNotifications()
         // Bounty dedup is deliberately NOT cleared here, for the reason the apiKey setter
         // documents: it is a dedup latch, and a transient permanent-key error routes through
         // this method. Wiping it there re-announced every bounty the user had already been
@@ -474,6 +529,7 @@ class AppState {
         lastFactionV2Fetch = nil
         lastActivityFetch = nil
         endpointGate.reset()
+        endpointHealth.reset()
         keyInfoTask?.cancel()
         keyInfoTask = nil
         keyInfoLoadedAt = nil
@@ -486,6 +542,8 @@ class AppState {
         // half a refresh interval returned early and never established the ordering.
         timerCancellable?.cancel()
         timerCancellable = nil
+        pollingTimerInterval = nil
+        stopPriceAlertPolling()
         accountSession.cancelTask(.stockMetadata)
         accountSession.cancelTask(.itemCatalog)
         referenceFetchIDs.removeAll()
@@ -498,12 +556,6 @@ class AppState {
     func isCurrentAccount(_ key: String, generation: UInt) -> Bool {
         accountSession.isCurrent(AccountIdentity(apiKey: key, generation: generation))
     }
-
-    static let decimalFormatter: NumberFormatter = {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        return f
-    }()
 
 }
 

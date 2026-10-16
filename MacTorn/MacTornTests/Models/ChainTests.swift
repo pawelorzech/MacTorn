@@ -180,4 +180,29 @@ final class ChainTests: XCTestCase {
         let chain2 = try decode(Chain.self, from: json2)
         XCTAssertNotEqual(chain1, chain2)
     }
+
+    // MARK: - ChainView card choice (audit F-08)
+
+    /// A chain with hits but no resolvable timeout used to show a red "Unavailable" in
+    /// FactionView. When FactionView switched to `ChainView` (c71ee24) the card vanished
+    /// instead, because `ChainView` only knew active and cooldown.
+    func testChainViewShowsUnavailableForHitsWithoutATimeout() {
+        XCTAssertEqual(ChainView.mode(for: Chain(current: 1, maximum: 10, timeout: 0, cooldown: 0)),
+                       .unavailable)
+        XCTAssertEqual(ChainView.mode(for: Chain(current: 1, maximum: 10, timeout: nil, cooldown: 0)),
+                       .unavailable)
+    }
+
+    func testChainViewCooldownWinsOverUnavailable() {
+        XCTAssertEqual(ChainView.mode(for: Chain(current: 5, maximum: 10, timeout: 0, cooldown: 100)),
+                       .cooldown, "a finished chain on cooldown must keep its cooldown card")
+    }
+
+    func testChainViewActiveAndHiddenModes() {
+        let future = Int(Date().timeIntervalSince1970) + 300
+        XCTAssertEqual(ChainView.mode(for: Chain(current: 1, maximum: 10, timeout: future, cooldown: 0)),
+                       .active)
+        XCTAssertEqual(ChainView.mode(for: Chain(current: 0, maximum: 10, timeout: 0, cooldown: 0)),
+                       .hidden)
+    }
 }

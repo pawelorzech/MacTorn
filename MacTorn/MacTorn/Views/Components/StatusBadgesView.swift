@@ -19,7 +19,7 @@ struct StatusBadgesView: View {
                             .accessibilityHidden(true)
                         Text("Hospital")
                             .font(.caption.bold())
-                        Text(formatTime(remaining))
+                        Text(TornFormatter.clock(remaining, zeroText: "0:00"))
                             .font(.caption.monospacedDigit())
                             .foregroundColor(.secondary)
                     }
@@ -28,7 +28,7 @@ struct StatusBadgesView: View {
                     .background(Color.red.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("In hospital, \(formatTime(remaining)) remaining")
+                    .accessibilityLabel("In hospital, \(TornFormatter.clock(remaining, zeroText: "0:00")) remaining")
                     .uiTestID("uitest.status.hospital")
                 }
 
@@ -39,7 +39,7 @@ struct StatusBadgesView: View {
                             .accessibilityHidden(true)
                         Text("Jail")
                             .font(.caption.bold())
-                        Text(formatTime(remaining))
+                        Text(TornFormatter.clock(remaining, zeroText: "0:00"))
                             .font(.caption.monospacedDigit())
                             .foregroundColor(.secondary)
                     }
@@ -48,21 +48,10 @@ struct StatusBadgesView: View {
                     .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
                     .cornerRadius(6)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("In jail, \(formatTime(remaining)) remaining")
+                    .accessibilityLabel("In jail, \(TornFormatter.clock(remaining, zeroText: "0:00")) remaining")
                     .uiTestID("uitest.status.jail")
                 }
             }
         }
-    }
-    
-    private func formatTime(_ seconds: Int) -> String {
-        if seconds <= 0 { return "0:00" }
-        let hours = seconds / 3600
-        let mins = (seconds % 3600) / 60
-        let secs = seconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, mins, secs)
-        }
-        return String(format: "%d:%02d", mins, secs)
     }
 }

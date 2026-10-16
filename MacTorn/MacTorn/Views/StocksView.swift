@@ -11,11 +11,13 @@ struct StocksView: View {
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
                         hasContent: !appState.stocksData.isEmpty,
-                        staleAfter: 120
+                        staleAfter: 120,
+                        requiredUserSelections: ["stocks"]
                     ),
                     onRetry: appState.refreshNow
                 )
 
+                if !appState.companion.enabled.contains(.stocks) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "chart.line.uptrend.xyaxis")
@@ -24,23 +26,14 @@ struct StocksView: View {
                             .font(.caption.bold())
                         Spacer()
                         if !appState.stocksData.isEmpty {
-                            Text("Market: \(formatMoney(totalMarketValue))")
+                            Text("Market: \(TornFormatter.formatMoney(totalMarketValue))")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }
 
                     if appState.stocksData.isEmpty {
-                        VStack(spacing: 8) {
-                            Image(systemName: "chart.line.downtrend.xyaxis")
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                            Text("No stocks found")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
+                        EmptyStateView(icon: "chart.line.downtrend.xyaxis", title: "No stocks found")
                     } else {
                         ForEach(appState.stocksData) { stock in
                             let metadata = appState.stocksMetadata[stock.stockId]
@@ -63,7 +56,7 @@ struct StocksView: View {
                                 Text(stock.totalShares.formatted())
                                     .font(.caption2.monospacedDigit())
                                     .foregroundColor(.secondary)
-                                Text(formatMoney(stock.marketValue(using: appState.stocksMetadata)))
+                                Text(TornFormatter.formatMoney(stock.marketValue(using: appState.stocksMetadata)))
                                     .font(.caption2.monospacedDigit())
                             }
                         }
@@ -74,7 +67,7 @@ struct StocksView: View {
                                 Text("Cost basis")
                                     .foregroundColor(.secondary)
                                 Spacer()
-                                Text(formatMoney(totalCostBasis))
+                                Text(TornFormatter.formatMoney(totalCostBasis))
                                     .monospacedDigit()
                                     .foregroundColor(.secondary)
                             }
@@ -86,12 +79,15 @@ struct StocksView: View {
                 .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.08))
                 .cornerRadius(8)
 
+                }
+                StockBonusPanel()
+
                 ActionButton(
                     title: "Stock Market",
                     icon: "chart.line.uptrend.xyaxis",
                     color: .blue
                 ) {
-                    openURL("https://www.torn.com/page.php?sid=stocks")
+                    openTorn("https://www.torn.com/page.php?sid=stocks")
                 }
             }
             .padding()
@@ -107,14 +103,4 @@ struct StocksView: View {
         NumericSafety.optionalTotal(appState.stocksData.map(\.totalCostBasis))
     }
 
-    private func formatMoney(_ amount: Int?) -> String {
-        guard let amount else { return "Unavailable" }
-        return TornFormatter.formatMoney(amount)
-    }
-
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
 }

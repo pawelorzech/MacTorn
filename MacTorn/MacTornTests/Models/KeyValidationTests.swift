@@ -20,6 +20,7 @@ final class KeyValidationTests: XCTestCase {
                              factionSelections: [String] = ["basic", "chain"],
                              marketSelections: [String] = ["itemmarket", "bazaar"],
                              tornSelections: [String] = ["stocks"],
+                             forumSelections: [String] = [],
                              playerID: Int = 42,
                              factionID: Int? = 100) -> [String: Any] {
         [
@@ -36,7 +37,7 @@ final class KeyValidationTests: XCTestCase {
                     "property": [],
                     "torn": tornSelections,
                     "racing": [],
-                    "forum": [],
+                    "forum": forumSelections,
                     "key": ["info"],
                     "company": [],
                 ],
@@ -128,6 +129,23 @@ final class KeyValidationTests: XCTestCase {
         XCTAssertFalse(news.available)
     }
 
+    func testCustomDedicatedEndpointUsesCapabilityList() throws {
+        let missing = try decode(keyInfoJSON(level: 4, type: "Custom",
+                                             userSelections: fullUserSelections,
+                                             marketSelections: [], forumSelections: []))
+        let result = KeyValidator.validate(missing)
+        XCTAssertFalse(try XCTUnwrap(result.availability.first { $0.endpointID == "market.item" }).available)
+        XCTAssertFalse(try XCTUnwrap(result.availability.first { $0.endpointID == "forum.thread" }).available)
+
+        let granted = try decode(keyInfoJSON(level: 4, type: "Custom",
+                                             userSelections: fullUserSelections,
+                                             marketSelections: ["itemmarket"],
+                                             forumSelections: ["thread", "threads"]))
+        let grantedResult = KeyValidator.validate(granted)
+        XCTAssertTrue(try XCTUnwrap(grantedResult.availability.first { $0.endpointID == "market.item" }).available)
+        XCTAssertTrue(try XCTUnwrap(grantedResult.availability.first { $0.endpointID == "forum.thread" }).available)
+    }
+
     func testCategoryMapping() throws {
         func category(_ id: String) throws -> TornKeyInfo.Category {
             KeyValidator.category(for: try XCTUnwrap(TornEndpointRegistry.endpoint(id: id)))
@@ -195,6 +213,32 @@ final class KeyValidationTests: XCTestCase {
             return XCTFail("empty key should fail fast")
         }
         XCTAssertTrue(mock.requestedURLs.isEmpty, "no request should be made for an empty key")
+    }
+
+    /// "Test Connection" on a typed-but-unsaved key reports on that key only. It used to
+    /// write the candidate's capabilities into `keyInfo`, which the endpoint gate reads
+    /// for the *saved* key — so testing a limited key narrowed the active account's polls.
+    /// (Audit F-02.)
+    @MainActor
+    func testValidatingAnUnsavedKeyDoesNotReplaceTheActiveKeyInfo() async throws {
+        let mock = MockNetworkSession()
+        try mock.setSuccessResponse(json: keyInfoJSON(level: 4, type: "Full Access",
+                                                      userSelections: fullUserSelections))
+        let state = makeState(mock)
+        state.apiKey = "sample-saved-value"
+        await state.validateKey()
+        XCTAssertEqual(state.keyInfo?.access.level, 4, "precondition: the saved key's info")
+
+        try mock.setSuccessResponse(json: keyInfoJSON(level: 1, type: "Public Only",
+                                                      userSelections: ["basic"]))
+        await state.validateKey("sample-typed-value")
+
+        guard case .success(let result) = state.keyValidation else {
+            return XCTFail("the typed key's result must still be reported, got \(state.keyValidation)")
+        }
+        XCTAssertEqual(result.accessType, "Public Only")
+        XCTAssertEqual(state.keyInfo?.access.level, 4,
+                       "the active account's capabilities must not be replaced by an unsaved key's")
     }
 
     @MainActor

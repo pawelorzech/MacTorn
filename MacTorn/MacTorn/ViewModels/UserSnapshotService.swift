@@ -36,11 +36,19 @@ enum UserV2Section<Value> {
     case replace(Value)
 }
 
+enum OrganizedCrimeSection {
+    case unchanged
+    case replace(OrganizedCrime2?)
+    case unavailable(message: String)
+}
+
 struct UserV2Payload {
-    let organizedCrime: UserV2Section<OrganizedCrime2?>
+    let organizedCrime: OrganizedCrimeSection
     let refills: UserV2Section<Refills>
     let education: UserV2Section<EducationStatus>
     let bounties: UserV2Section<[Bounty]>
+    let bountiesTimestamp: Int?
+    let bountiesDelay: Int?
     let notifications: UserV2Section<TornNotifications>
     /// Requested sections whose key was absent, null where null is not valid, or failed
     /// strict decoding. Valid sibling updates remain publishable.
@@ -312,7 +320,8 @@ private let requestedUserSelectionsKey = CodingUserInfoKey(rawValue: "requestedU
 
 extension UserV2Payload: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case organizedCrime, refills, education, bounties, notifications
+        case organizedCrime, refills, education, bounties, bountiesTimestamp = "bounties_timestamp",
+             bountiesDelay = "bounties_delay", notifications
     }
 
     init(from decoder: Decoder) throws {
@@ -336,15 +345,27 @@ extension UserV2Payload: Decodable {
                   (try? container.decodeNil(forKey: .organizedCrime)) == true {
             organizedCrime = .replace(nil)
         } else {
-            switch section(OrganizedCrime2.self, key: .organizedCrime) {
-            case .unchanged: organizedCrime = .unchanged
-            case .replace(let value): organizedCrime = .replace(value)
+            if let error = try? container.decode(OrganizedCrimeAPIError.self, forKey: .organizedCrime),
+               error.code == 27 {
+                organizedCrime = .unavailable(message: error.error)
+            } else {
+                switch section(OrganizedCrime2.self, key: .organizedCrime) {
+                case .unchanged: organizedCrime = .unchanged
+                case .replace(let value): organizedCrime = .replace(value)
+                }
             }
         }
         refills = section(Refills.self, key: .refills)
         education = section(EducationStatus.self, key: .education)
         bounties = section([Bounty].self, key: .bounties)
+        bountiesTimestamp = try? container.decodeIfPresent(Int.self, forKey: .bountiesTimestamp)
+        bountiesDelay = try? container.decodeIfPresent(Int.self, forKey: .bountiesDelay)
         notifications = section(TornNotifications.self, key: .notifications)
         malformedSelections = malformed
     }
+}
+
+private struct OrganizedCrimeAPIError: Decodable {
+    let code: Int
+    let error: String
 }

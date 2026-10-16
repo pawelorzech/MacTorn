@@ -5,6 +5,84 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.15.2] - 2026-09-30 - Quality audit fixes
+
+### Fixed
+- A failed Keychain write no longer switches the account in memory (the old account came back after a restart), and a failed migration keeps the old key instead of deleting it.
+- Saving the same key again after stopping the connection resumes polling.
+- Editing the key during "Test Connection" invalidates the running test; an older result can no longer overwrite a newer one.
+- "Updated" shows the time of the last successful fetch, not of the last failed attempt. Endpoint health resets on account switch, and a late error from the previous account no longer taints the new one.
+- An empty but successful list no longer offers Retry; data unavailable to a Custom key is labelled as such instead of looking like zero records. Watchlist and Forum Watch show "Data available" only after a real success.
+- Forum Watch surfaces HTTP and malformed-JSON errors on the row, keeps the known title and count, and a new thread no longer stays titled "Loading..." forever.
+- History and optional-module fetches explain why they can't run (offline, missing permission) instead of doing nothing. Recruiting no longer lists closed crimes as open slots.
+- Settings stays usable during the first load; the loading overlay no longer covers it.
+- An out-of-range travel timestamp from the API can no longer crash the app while showing a flight.
+- Credits uses the available window height.
+
+### Accessibility
+- Add-item, add-thread and price-threshold fields have explicit accessible names.
+- Actions without a known target (anonymous opponent, armory without faction data) are disabled.
+
+### Notes
+- The unit-test host runs isolated from the real app: own preferences, empty key store, offline transport; Sentry and system notifications are off under tests.
+- 25 new unit tests; full report in `QUALITY_AUDIT_2026-09-30.md`.
+
+## [1.15.1] - 2026-09-26 - Audit fixes
+
+### Added
+- Watchlist price alerts now arrive in the background: items with a price threshold are
+  re-checked every 5 minutes (respecting Torn's cache delay and the request budget), not
+  only while the Watchlist tab is open. No extra requests when no threshold is set.
+
+### Fixed
+- Money "Total Tracked" includes stocks again when Stock bonuses is enabled (regression in 1.15.0).
+- Watchlist refresh and "Price data from … ago" no longer stall or read "in … ago" when the Mac clock differs from Torn's; absurd cache delays from the API are clamped.
+- Status "Arriving in" reads "Ready" at zero instead of "0:00".
+- The faction chain card shows "Unavailable" again when a chain has hits but no timeout (also visible on Status).
+- Switching or clearing the API key cancels the previous account's scheduled landing alerts.
+- "Test Connection" on a typed but unsaved key no longer changes the active account's permissions.
+- Changing the refresh interval (main or forum) takes effect immediately, not after a relaunch.
+- A watchlist refresh interrupted by another one no longer loses a price alert.
+- Forum Watch stops polling after a permanent key error.
+- The request-rate window no longer forgets a request up to a second early.
+- Travel shows "Travel status unavailable" instead of a false "In Torn City" when travel data is missing.
+
+### Accessibility
+- Return in the API key field saves and connects; the field is focused on first run.
+- Feedback and crash-report prompts are modal for VoiceOver and the keyboard.
+- The menu-bar icon speaks its state (error, abroad, energy full).
+- Settings links open in the Preferred Browser; larger hit areas and labels on header icon buttons.
+- Watchlist and Forum Watch no longer show "No data yet · Retry" over an empty list.
+
+### Notes
+- Timers use a small tolerance so macOS can coalesce wake-ups.
+- CI actions that see secrets are pinned to commit SHAs.
+- Local UI automation and manual tests were excluded at the user's request; CI ran the fixture UI suite.
+
+## [1.15.0] - 2026-09-18 - Torn API tools and compatibility
+
+### Added
+- Optional recruiting OC finder with a minimum CPR filter and new-slot alerts.
+- Stock v2 holdings, fractional cost basis, bonus progress, collectible-bonus alerts and Next Action integration.
+- Competition tracker with Elimination standings, remaining participants and previous-minute attack summaries.
+- Active trade monitoring, change alerts and on-demand offered-item details.
+- Country shop catalog and market-price comparison in Travel and Watchlist.
+- On-demand global ranked-war, raid, territory, completed-chain and dirty-bomb history.
+
+### Fixed
+- Respect dedicated selection permissions on Custom API keys in both request gating and Test Connection.
+- Recognize nested OC migration errors without keeping stale OC state or disrupting other user data.
+- Preserve market and bounty cache timestamps; repeated snapshots no longer masquerade as new price data.
+- Honor market cache delays and show true price-data age on successful and failed refreshes.
+- Resolve source-file membership by target reference when registering Swift files in a project with extensions.
+
+### Notes
+- New tools and their notifications can be enabled independently in their tabs.
+- Reviewed against Torn OpenAPI 6.13.6. No migration to the deprecated warfare endpoint.
+- This public build follows the existing ad-hoc distribution format; it is not notarized.
+  Live desktop widgets still require Apple signing and App Groups.
+- Manual and local UI automation tests were intentionally excluded at the user's request.
+
 ## [1.14.0] - 2026-09-13 - leaner polling and safer account changes
 
 ### Changed

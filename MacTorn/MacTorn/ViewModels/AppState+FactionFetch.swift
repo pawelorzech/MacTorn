@@ -23,7 +23,8 @@ extension AppState {
     // MARK: - Fetch Faction Data
 
     func fetchFactionData(apiKey: String, generation: UInt) async {
-        guard let url = endpointURL("faction.basic", key: apiKey),
+        guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation),
+              let url = endpointURL("faction.basic", key: apiKey),
               reserveRequest("faction.basic") else { return }
         let startTime = Date()
 
@@ -49,6 +50,7 @@ extension AppState {
                 recordServiceFailure(result, for: "faction.basic", since: startTime)
             }
         } catch {
+            guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return }
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
             recordHealth(
                 "faction.basic",
@@ -64,7 +66,7 @@ extension AppState {
     // MARK: - Fetch API v2 Faction Data
 
     func fetchFactionV2Data(apiKey: String, generation: UInt) async {
-        guard !apiKey.isEmpty else { return }
+        guard !Task.isCancelled, !apiKey.isEmpty, isCurrentAccount(apiKey, generation: generation) else { return }
 
         if let last = lastFactionV2Fetch,
            Date().timeIntervalSince(last) < Self.factionV2MinInterval {
@@ -93,6 +95,7 @@ extension AppState {
                     recordServiceFailure(result, for: "faction.rankedwars", since: startTime)
                 }
             } catch {
+                guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return }
                 let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
                 recordHealth(
                     "faction.rankedwars",
@@ -126,6 +129,7 @@ extension AppState {
                     recordServiceFailure(result, for: "faction.news", since: startTime)
                 }
             } catch {
+                guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return }
                 let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
                 recordHealth(
                     "faction.news",

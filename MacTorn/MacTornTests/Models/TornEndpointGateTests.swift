@@ -29,10 +29,13 @@ final class TornEndpointGateTests: XCTestCase {
                          ],
                          factionID: Int? = 100,
                          accessLevel: Int = 3,
-                         factionAccess: Bool = true) throws -> TornKeyInfo {
+                         factionAccess: Bool = true,
+                         accessType: String = "Limited Access",
+                         marketSelections: [String] = ["itemmarket", "bazaar"],
+                         forumSelections: [String] = []) throws -> TornKeyInfo {
         let json: [String: Any] = [
             "info": [
-                "access": ["level": accessLevel, "type": "Limited Access",
+                "access": ["level": accessLevel, "type": accessType,
                            "faction": factionAccess, "company": false,
                            "log": ["custom_permissions": false, "available": []]],
                 "user": ["id": 42,
@@ -41,11 +44,11 @@ final class TornEndpointGateTests: XCTestCase {
                 "selections": [
                     "user": userSelections,
                     "faction": ["basic", "chain", "rankedwars", "news"],
-                    "market": ["itemmarket", "bazaar"],
+                    "market": marketSelections,
                     "property": [],
                     "torn": ["stocks"],
                     "racing": [],
-                    "forum": [],
+                    "forum": forumSelections,
                     "key": ["info"],
                     "company": [],
                 ],
@@ -112,6 +115,18 @@ final class TornEndpointGateTests: XCTestCase {
     func testFactionNewsIsRefusedWithoutFactionAPIPermission() throws {
         XCTAssertEqual(denial("faction.news", keyInfo: try keyInfo(factionAccess: false)),
                        .factionAPIAccessDisabled)
+    }
+
+    func testCustomKeyMustGrantDedicatedEndpointCapabilities() throws {
+        XCTAssertEqual(denial("market.item", keyInfo: try keyInfo(
+            accessType: "Custom", marketSelections: []
+        )), .keyLacksSelections(["itemmarket"]))
+        XCTAssertEqual(denial("forum.thread", keyInfo: try keyInfo(
+            accessType: "Custom", forumSelections: []
+        )), .keyLacksSelections(["thread"]))
+        XCTAssertNil(denial("forum.thread", keyInfo: try keyInfo(
+            accessType: "Custom", forumSelections: ["thread"]
+        )))
     }
 
     // MARK: - Cool-offs

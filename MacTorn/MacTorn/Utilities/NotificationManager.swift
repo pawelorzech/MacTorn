@@ -1,6 +1,5 @@
 import Foundation
 import UserNotifications
-import AppKit
 import os.log
 
 private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "NotificationManager")
@@ -22,6 +21,7 @@ enum NotificationType: String {
     case bountyOnMe
     case forumNewPosts
     case factionNewThread
+    case ocOpportunity, stockBonus, tradeChanged
     case virusReady
 
     var url: URL {
@@ -42,7 +42,11 @@ enum NotificationType: String {
             return URL(string: "https://www.torn.com/hospitalview.php")!
         case .priceAlert:
             return URL(string: "https://www.torn.com/page.php?sid=ItemMarket")!
-        case .ocReady:
+        case .stockBonus:
+            return URL(string: "https://www.torn.com/page.php?sid=stocks")!
+        case .tradeChanged:
+            return URL(string: "https://www.torn.com/trade.php")!
+        case .ocReady, .ocOpportunity:
             return URL(string: "https://www.torn.com/factions.php?step=your#/tab=crimes")!
         case .bountyOnMe:
             return URL(string: "https://www.torn.com/bounties.php")!
@@ -85,10 +89,12 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     private override init() {
         super.init()
+        guard !UITestConfiguration.isIsolated else { return }
         UNUserNotificationCenter.current().delegate = self
     }
 
     func requestPermission() async {
+        guard !UITestConfiguration.isIsolated else { return }
         do {
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .sound, .badge])
@@ -115,6 +121,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func send(title: String, body: String, type: NotificationType, customURL: URL? = nil) {
+        guard !UITestConfiguration.isIsolated else { return }
         let content = UNMutableNotificationContent()
         content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
         content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
@@ -139,6 +146,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Schedule a notification for a specific date
     func scheduleNotification(title: String, body: String, type: NotificationType, at date: Date, identifier: String) {
+        guard !UITestConfiguration.isIsolated else { return }
         let content = UNMutableNotificationContent()
         content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
         content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
@@ -165,13 +173,9 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     /// Cancel all travel-related notifications
     func cancelTravelNotifications() {
+        guard !UITestConfiguration.isIsolated else { return }
         let identifiers = TravelNotificationSetting.defaults.map { "\($0.id)_alert" }
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
-    }
-
-    /// Cancel a specific notification by identifier
-    func cancelNotification(identifier: String) {
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
     }
 
     // MARK: - UNUserNotificationCenterDelegate

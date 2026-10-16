@@ -11,10 +11,13 @@ struct MoneyView: View {
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
                         hasContent: appState.moneyData != nil,
-                        staleAfter: 120
+                        staleAfter: 120,
+                        requiredUserSelections: ["money"]
                     ),
                     onRetry: appState.refreshNow
                 )
+
+                TradesPanel()
 
                 // MARK: - Cash Section
                 VStack(alignment: .leading, spacing: 8) {
@@ -32,12 +35,12 @@ struct MoneyView: View {
                                 Text("On Hand")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                                Text(formatMoney(money.cash))
+                                Text(TornFormatter.formatMoney(money.cash))
                                     .font(.headline.monospacedDigit())
                                     .foregroundColor(.green)
                             }
                             .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("On Hand: \(formatMoney(money.cash))")
+                            .accessibilityLabel("On Hand: \(TornFormatter.formatMoney(money.cash))")
                             .uiTestID("uitest.money.cash")
 
                             Spacer()
@@ -46,11 +49,11 @@ struct MoneyView: View {
                                 Text("Vault")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
-                                Text(formatMoney(money.vault))
+                                Text(TornFormatter.formatMoney(money.vault))
                                     .font(.headline.monospacedDigit())
                             }
                             .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("Vault: \(formatMoney(money.vault))")
+                            .accessibilityLabel("Vault: \(TornFormatter.formatMoney(money.vault))")
                             .uiTestID("uitest.money.vault")
                         }
 
@@ -60,11 +63,11 @@ struct MoneyView: View {
                                     Text("Cayman")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
-                                    Text(formatMoney(money.cayman))
+                                    Text(TornFormatter.formatMoney(money.cayman))
                                         .font(.headline.monospacedDigit())
                                 }
                                 .accessibilityElement(children: .ignore)
-                                .accessibilityLabel("Cayman: \(formatMoney(money.cayman))")
+                                .accessibilityLabel("Cayman: \(TornFormatter.formatMoney(money.cayman))")
                                 .uiTestID("uitest.money.cayman")
                                 Spacer()
                             }
@@ -96,7 +99,7 @@ struct MoneyView: View {
                             .uiTestID("uitest.money.tokens")
                         }
                         .frame(maxWidth: .infinity)
-                    } else if appState.lastUpdated == nil {
+                    } else if appState.isLoading {
                         Text("Loading...")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -128,7 +131,7 @@ struct MoneyView: View {
                         Text("Total Tracked")
                             .font(.caption.bold())
                         Spacer()
-                        Text(formatMoney(totalTracked))
+                        Text(TornFormatter.formatMoney(totalTracked))
                             .font(.headline.monospacedDigit())
                             .foregroundColor(.green)
                     }
@@ -136,22 +139,22 @@ struct MoneyView: View {
                     .background(Color.green.opacity(reduceTransparency ? 0.35 : 0.12))
                     .cornerRadius(8)
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Total Tracked: \(formatMoney(totalTracked))")
+                    .accessibilityLabel("Total Tracked: \(TornFormatter.formatMoney(totalTracked))")
                     .uiTestID("uitest.money.totalTracked")
                 }
 
                 // MARK: - Action Buttons
                 HStack(spacing: 8) {
                     ActionButton(title: "Send Money", icon: "paperplane.fill", color: .blue) {
-                        openURL("https://www.torn.com/sendcash.php")
+                        openTorn("https://www.torn.com/sendcash.php")
                     }
 
                     ActionButton(title: "Bazaar", icon: "cart.fill", color: .orange) {
-                        openURL("https://www.torn.com/bazaar.php")
+                        openTorn("https://www.torn.com/bazaar.php")
                     }
 
                     ActionButton(title: "Bank", icon: "building.columns.fill", color: .purple) {
-                        openURL("https://www.torn.com/bank.php")
+                        openTorn("https://www.torn.com/bank.php")
                     }
                 }
             }
@@ -159,42 +162,19 @@ struct MoneyView: View {
         }
         .accessibilityIdentifier("account.money")
     }
-
-    private func formatMoney(_ amount: Int?) -> String {
-        guard let amount else { return "Unavailable" }
-        return TornFormatter.formatMoney(amount)
-    }
-
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
 }
 
 // MARK: - Action Button Component
 struct ActionButton: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let title: String
     let icon: String
     let color: Color
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon)
-                    .font(.body)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(.caption2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
-            .foregroundColor(color)
-            .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
+        TileButton(title: title, icon: icon, color: color,
+                   iconFont: .body, titleFont: .caption2,
+                   spacing: 4, verticalPadding: 8, cornerRadius: 8, opacity: 0.1,
+                   action: action)
     }
 }

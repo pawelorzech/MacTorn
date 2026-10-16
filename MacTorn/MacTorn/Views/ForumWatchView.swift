@@ -13,8 +13,12 @@ struct ForumWatchView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                ModuleStateView(state: moduleState) {
-                    appState.refreshForumWatch()
+                // With nothing watched there is nothing to fetch; the list's own empty
+                // state explains that, so a "No data yet · Retry" strip would contradict it.
+                if !appState.watchedThreads.isEmpty {
+                    ModuleStateView(state: moduleState) {
+                        appState.refreshForumWatch()
+                    }
                 }
 
                 // Header
@@ -31,6 +35,8 @@ struct ForumWatchView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .foregroundColor(.blue)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Refresh watched threads")
@@ -42,6 +48,8 @@ struct ForumWatchView: View {
                     } label: {
                         Image(systemName: showAddThread ? "minus.circle.fill" : "plus.circle.fill")
                             .foregroundColor(showAddThread ? .red : .green)
+                            .frame(minWidth: 28, minHeight: 28)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(showAddThread ? "Close add thread form" : "Add watched thread")
@@ -56,6 +64,7 @@ struct ForumWatchView: View {
 
                         HStack {
                             TextField("forums.php...t=12345 or 12345", text: $threadInput)
+                                .accessibilityLabel("Thread URL or ID")
                                 .textFieldStyle(.roundedBorder)
                                 .font(.caption)
                                 .onChange(of: threadInput) { _, _ in
@@ -99,19 +108,9 @@ struct ForumWatchView: View {
 
                 // Thread List
                 if appState.watchedThreads.isEmpty && !showAddThread {
-                    VStack(spacing: 8) {
-                        Image(systemName: "bubble.left.and.exclamationmark.bubble.right")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
-                        Text("No threads watched")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text("Add forum threads to track new posts")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 20)
+                    EmptyStateView(icon: "bubble.left.and.exclamationmark.bubble.right",
+                                   title: "No threads watched",
+                                   subtitle: "Add forum threads to track new posts")
                 } else if !appState.watchedThreads.isEmpty {
                     ForEach(appState.watchedThreads) { thread in
                         ForumThreadRow(
@@ -144,12 +143,12 @@ struct ForumWatchView: View {
                 // Quick Links
                 HStack(spacing: 8) {
                     ActionButton(title: "Forums", icon: "bubble.left.fill", color: .blue) {
-                        openURL("https://www.torn.com/forums.php")
+                        openTorn("https://www.torn.com/forums.php")
                     }
 
                     if appState.factionData != nil {
                         ActionButton(title: "Faction Forum", icon: "person.3.fill", color: .orange) {
-                            openURL("https://www.torn.com/forums.php#/p=forums&f=999&b=1&a=\(appState.factionData?.factionId ?? 0)")
+                            openTorn("https://www.torn.com/forums.php#/p=forums&f=999&b=1&a=\(appState.factionData?.factionId ?? 0)")
                         }
                     }
                 }
@@ -163,11 +162,7 @@ struct ForumWatchView: View {
     }
 
     private var moduleState: ModulePresentationState {
-        appState.presentationState(
-            endpointIDs: ["forum.thread"],
-            hasContent: !appState.watchedThreads.isEmpty,
-            staleAfter: TimeInterval(max(appState.forumWatchConfig.pollingIntervalSeconds, 180))
-        )
+        appState.forumPresentationState
     }
 
     private func addThread() {
@@ -187,14 +182,9 @@ struct ForumWatchView: View {
     }
 
     private func openThread(_ threadId: Int) {
-        openURL("https://www.torn.com/forums.php#/p=threads&t=\(threadId)")
+        openTorn("https://www.torn.com/forums.php#/p=threads&t=\(threadId)")
     }
 
-    private func openURL(_ urlString: String) {
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
-    }
 
     private func removeWithUndo(_ thread: WatchedThread) {
         guard let index = appState.watchedThreads.firstIndex(where: { $0.id == thread.id }) else {
@@ -247,6 +237,7 @@ struct ForumThreadRow: View {
                 Image(systemName: "person.3.fill")
                     .font(.caption2)
                     .foregroundColor(.orange)
+                    .accessibilityLabel("Faction thread")
             }
 
             // Thread title (clickable)

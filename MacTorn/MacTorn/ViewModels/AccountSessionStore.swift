@@ -19,16 +19,19 @@ enum AccountTaskKind: Hashable, Sendable {
     case forum
     case stockMetadata
     case itemCatalog
+    /// The background price-alert refresh. Separate from `.watchlist` so a timer tick
+    /// never cancels a refresh the user started from the Watchlist tab, or vice versa.
+    case priceAlerts
 }
 
 protocol APIKeyStoring: Sendable {
     func get() -> String?
-    func set(_ value: String)
+    @discardableResult func set(_ value: String) -> Bool
 }
 
 struct KeychainAPIKeyStore: APIKeyStoring {
     func get() -> String? { KeychainStore.get() }
-    func set(_ value: String) { KeychainStore.set(value) }
+    @discardableResult func set(_ value: String) -> Bool { KeychainStore.set(value) }
 }
 
 /// Owns authenticated-account identity and task invalidation. Feature state still lives
@@ -39,18 +42,24 @@ final class AccountSessionStore {
     private(set) var apiKey: String
     private(set) var generation: UInt = 0
     var isHalted = false
+    private(set) var persistenceError: String?
 
     @ObservationIgnored private let credentialStore: APIKeyStoring
+    @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var tasks: [AccountTaskKind: Task<Void, Never>] = [:]
 
     init(defaults: UserDefaults,
          credentialStore: APIKeyStoring = KeychainAPIKeyStore()) {
         self.credentialStore = credentialStore
+        self.defaults = defaults
 
         if let legacy = defaults.string(forKey: "apiKey"), !legacy.isEmpty {
-            credentialStore.set(legacy)
-            defaults.removeObject(forKey: "apiKey")
-            accountLogger.info("Migrated API key from UserDefaults to Keychain")
+            if credentialStore.set(legacy) {
+                defaults.removeObject(forKey: "apiKey")
+                accountLogger.info("Migrated API key from UserDefaults to Keychain")
+            } else {
+                persistenceError = "Could not move your saved key to Keychain. Unlock Keychain and save the key again."
+            }
         }
         self.apiKey = credentialStore.get() ?? ""
     }
@@ -61,8 +70,13 @@ final class AccountSessionStore {
 
     @discardableResult
     func updateAPIKey(_ newValue: String) -> Bool {
-        guard newValue != apiKey else { return false }
-        credentialStore.set(newValue)
+        persistenceError = nil
+        guard newValue != apiKey || isHalted || defaults.string(forKey: "apiKey") != nil else { return false }
+        guard credentialStore.set(newValue) else {
+            persistenceError = "Could not save your API key in Keychain. Your previous account is unchanged. Unlock Keychain and try again."
+            return false
+        }
+        defaults.removeObject(forKey: "apiKey")
         generation &+= 1
         cancelAllTasks()
         apiKey = newValue
@@ -134,18 +148,18 @@ enum KeychainStore {
         return string
     }
 
-    static func set(_ value: String) {
+    @discardableResult
+    static func set(_ value: String) -> Bool {
         guard !value.isEmpty else {
-            delete()
-            return
+            return delete()
         }
         #if DEBUG
         if UITestConfiguration.isActive {
             UITestConfiguration.keychainOverride[account] = value
-            return
+            return true
         }
         #endif
-        guard let data = value.data(using: .utf8) else { return }
+        guard let data = value.data(using: .utf8) else { return false }
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -175,16 +189,19 @@ enum KeychainStore {
             if addStatus != errSecSuccess {
                 accountLogger.error("Keychain add failed: OSStatus \(addStatus)")
             }
+            return addStatus == errSecSuccess
         } else if updateStatus != errSecSuccess {
             accountLogger.error("Keychain update failed: OSStatus \(updateStatus)")
         }
+        return updateStatus == errSecSuccess
     }
 
-    static func delete() {
+    @discardableResult
+    static func delete() -> Bool {
         #if DEBUG
         if UITestConfiguration.isActive {
             UITestConfiguration.keychainOverride[account] = nil
-            return
+            return true
         }
         #endif
         let query: [String: Any] = [
@@ -192,6 +209,10 @@ enum KeychainStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
+        let status = SecItemDelete(query as CFDictionary)
+        if status != errSecSuccess && status != errSecItemNotFound {
+            accountLogger.error("Keychain delete failed: OSStatus \(status)")
+        }
+        return status == errSecSuccess || status == errSecItemNotFound
     }
 }

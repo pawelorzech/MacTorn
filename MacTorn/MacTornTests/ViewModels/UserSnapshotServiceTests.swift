@@ -216,6 +216,38 @@ final class UserSnapshotServiceTests: XCTestCase {
         XCTAssertEqual(payload.malformedSelections, ["bounties"])
     }
 
+    @MainActor
+    func testNestedOrganizedCrimeCode27IsExplicitUnavailableWhileSiblingsUpdate() async throws {
+        let mock = MockNetworkSession()
+        mock.mockData = try TornAPIFixtures.toData([
+            "organizedCrime": ["code": 27, "error": "Must be migrated to organized crimes 2.0."],
+            "refills": ["energy": true, "nerve": false, "token": false, "special_count": 0],
+            "notifications": ["messages": 4, "events": 1, "awards": 0, "competition": 0]
+        ])
+        let service = UserSnapshotService(session: mock)
+        let result = try await service.loadUserV2(
+            URL(string: "https://api.torn.com/v2/user?selections=organizedcrime,refills,notifications")!
+        )
+
+        guard case .success(let payload, _) = result,
+              case .unavailable(let message) = payload.organizedCrime,
+              case .replace(let refills) = payload.refills,
+              case .replace(let notifications) = payload.notifications else {
+            return XCTFail("Code 27 must be a feature state, not malformed JSON")
+        }
+        XCTAssertEqual(message, "Must be migrated to organized crimes 2.0.")
+        XCTAssertTrue(refills.energy)
+        XCTAssertEqual(notifications.messages, 4)
+        XCTAssertTrue(payload.malformedSelections.isEmpty)
+
+        let state = AppState(session: mock, defaults: .createMockDefaults())
+        state.organizedCrime = OrganizedCrime2(id: 99, name: "Stale", readyAt: 1)
+        state.applyUserV2Payload(payload)
+        XCTAssertNil(state.organizedCrime)
+        XCTAssertEqual(state.organizedCrimeUnavailableReason, message)
+        XCTAssertEqual(state.notificationCounts?.messages, 4)
+    }
+
     func testUserV2ExplicitEmptyArrayClearsLastGoodArray() async throws {
         let mock = MockNetworkSession()
         mock.mockData = try TornAPIFixtures.toData(["bounties": []])

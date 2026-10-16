@@ -88,8 +88,10 @@ extension AppState {
         return true
     }
 
-    private func installPollingTimer() {
-        timerCancellable = Timer.publish(every: Double(refreshInterval), on: .main, in: .common)
+    func installPollingTimer() {
+        let interval = Double(refreshInterval)
+        pollingTimerInterval = interval
+        timerCancellable = Timer.publish(every: interval, tolerance: interval / 10, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 guard let self else { return }
@@ -106,6 +108,9 @@ extension AppState {
                 self.fetchData()
                 self.triggerReferenceDataFetchIfNeeded()
             }
+        // Every path that starts polling comes through here (startPolling, refreshNow, a
+        // cadence change), so the price-alert timer is started alongside in one place.
+        syncPriceAlertPolling()
     }
 
     private func triggerStocksMetadataFetchIfNeeded() {
@@ -125,6 +130,8 @@ extension AppState {
     func stopPolling() {
         timerCancellable?.cancel()
         timerCancellable = nil
+        pollingTimerInterval = nil
+        stopPriceAlertPolling()
         // Issue #56: an in-flight GitHub update-check must not outlive polling teardown.
         updateCheckTask?.cancel()
     }
@@ -196,10 +203,6 @@ extension AppState {
         }
     }
 
-    func pauseRowSource(_ endpointID: String, error: TornAPIError) {
-        noteEndpointFailure(error, for: endpointID)
-    }
-
     /// Builds the URL for a registered endpoint, narrowed to the selections this key is
     /// actually allowed to read.
     ///
@@ -244,6 +247,9 @@ extension AppState {
         keyValidation = .failure(error.userMessage)
         errorMsg = error.userMessage
         stopPolling()
+        // Forum Watch runs on its own timer and would otherwise keep spending the rejected
+        // key on thread requests until the user changed it.
+        stopForumPolling()
         logger.error("Polling halted on permanent key error (code \(error.tornCode ?? -1))")
     }
 
@@ -316,6 +322,13 @@ extension AppState {
     /// player's key for faction data every thirty seconds.
     func refreshKeyInfoIfNeeded() {
         guard keyInfoTask == nil else { return }
+        // Skip the Task allocation entirely when the cached answer is still fresh — this
+        // runs on every timer tick, and the age check used to happen inside the spawned
+        // task, so a Task was allocated ~2/min just to return immediately (audit F2).
+        if keyInfo != nil, let loadedAt = keyInfoLoadedAt,
+           time.now.timeIntervalSince(loadedAt) < Self.keyInfoMaxAge {
+            return
+        }
         Task { [weak self] in await self?.loadKeyInfoIfNeeded() }
     }
 
@@ -366,7 +379,7 @@ extension AppState {
             let startTime = Date()
             do {
                 let (data, response) = try await self.session.data(for: TornAPIClient.request(for: url))
-                guard self.accountSession.isCurrent(identity) else { return }
+                guard !Task.isCancelled, self.accountSession.isCurrent(identity) else { return }
                 if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let apiError = tornAPIError(in: json) {
                     self.handleAPIError(apiError, for: "key.info")
@@ -390,6 +403,7 @@ extension AppState {
                 self.recordHealth("key.info", outcome: .ok, since: startTime, bytes: data.count)
                 self.logger.info("Key capabilities loaded: access level \(decoded.info.access.level)")
             } catch {
+                guard !Task.isCancelled, self.accountSession.isCurrent(identity) else { return }
                 self.recordHealth("key.info", outcome: .error, since: startTime, bytes: 0,
                                   errorClass: "transport")
             }
@@ -404,6 +418,8 @@ extension AppState {
     }
 
     func validateKey(_ keyOverride: String? = nil) async {
+        keyValidationGeneration &+= 1
+        let validationGeneration = keyValidationGeneration
         let trimmed = (keyOverride ?? apiKey).trimmingCharacters(in: .whitespacesAndNewlines)
         let validationIdentity = accountSession.identity
         guard !trimmed.isEmpty else {
@@ -430,7 +446,9 @@ extension AppState {
         do {
             let request = TornAPIClient.request(for: url)
             let (data, response) = try await session.data(for: request)
-            guard accountSession.isCurrent(validationIdentity) else { return }
+            guard keyValidationGeneration == validationGeneration,
+                  accountSession.isCurrent(validationIdentity) else { return }
+            try Task.checkCancellation()
 
             guard let http = response as? HTTPURLResponse else { throw APIError.invalidResponse }
 
@@ -460,16 +478,22 @@ extension AppState {
             }
 
             let decoded = try JSONDecoder().decode(TornKeyInfo.Response.self, from: data)
-            self.keyInfo = decoded.info
+            // `keyInfo` describes the *saved* key — the gate narrows its polls with it. A
+            // key typed into Settings but not yet saved only gets the validation panel.
+            if trimmed == apiKey.trimmingCharacters(in: .whitespacesAndNewlines) {
+                self.keyInfo = decoded.info
+            }
             self.keyValidation = .success(KeyValidator.validate(decoded.info))
             recordHealth("key.info", outcome: .ok, since: startTime, bytes: data.count)
             logger.info("Key validated: access level \(decoded.info.access.level)")
         } catch {
+            guard keyValidationGeneration == validationGeneration,
+                  accountSession.isCurrent(validationIdentity) else { return }
             if Task.isCancelled {
+                keyValidation = .idle
                 recordHealth("key.info", outcome: .cancelled, since: startTime, bytes: 0)
                 return
             }
-            guard accountSession.isCurrent(validationIdentity) else { return }
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
             let message = mapped?.userMessage
                 ?? "Couldn't read Torn's response. Please try again."
@@ -513,6 +537,7 @@ extension AppState {
             return false
         }
 
+        companion.start(app: self)
         let requestedKey = apiKey
         guard !requestedKey.isEmpty else {
             errorMsg = "API Key required"
@@ -616,6 +641,7 @@ extension AppState {
                     )
                 }
             } catch {
+                guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
                 if Task.isCancelled {
                     self.recordHealth("user.fast", outcome: .cancelled, since: startTime, bytes: 0)
                     return
@@ -746,7 +772,8 @@ extension AppState {
     // MARK: - Fetch Row-Based Activity Data
 
     private func fetchActivityData(apiKey: String, generation: UInt) async {
-        guard !apiKey.isEmpty, let url = endpointURL("user.activity", key: apiKey) else { return }
+        guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation),
+              !apiKey.isEmpty, let url = endpointURL("user.activity", key: apiKey) else { return }
         guard !isRowSourcePaused("user.activity") else { return }
 
         if let last = lastActivityFetch,
@@ -771,6 +798,7 @@ extension AppState {
                 recordServiceFailure(result, for: "user.activity", since: startTime)
             }
         } catch {
+            guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return }
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
             recordHealth(
                 "user.activity",
@@ -793,6 +821,7 @@ extension AppState {
     /// a feature with its own endpoint costs a handful of requests a day rather than one
     /// per poll.
     func fetchVirusIfNeeded(apiKey: String, generation: UInt) async {
+        guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return }
         if let virus, !virus.isReady(at: serverNow) { return }
         if let last = lastVirusFetch,
            time.now.timeIntervalSince(last) < Self.virusMinInterval { return }
@@ -823,6 +852,7 @@ extension AppState {
                 recordServiceFailure(result, for: "user.virus", since: startTime)
             }
         } catch {
+            guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return }
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
             recordHealth("user.virus",
                          outcome: mapped?.classification == .offline ? .offline : .error,
@@ -834,7 +864,8 @@ extension AppState {
     // MARK: - Fetch API v2 User Data
 
     private func fetchUserV2Data(apiKey: String, generation: UInt) async {
-        guard !apiKey.isEmpty, let url = endpointURL("user.v2", key: apiKey),
+        guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation),
+              !apiKey.isEmpty, let url = endpointURL("user.v2", key: apiKey),
               reserveRequest("user.v2") else { return }
         let startTime = Date()
 
@@ -857,6 +888,7 @@ extension AppState {
                 recordServiceFailure(result, for: "user.v2", since: startTime)
             }
         } catch {
+            guard !Task.isCancelled, isCurrentAccount(apiKey, generation: generation) else { return }
             let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
             recordHealth(
                 "user.v2",
@@ -878,6 +910,7 @@ extension AppState {
             break
         case .replace(let value):
             organizedCrime = value
+            organizedCrimeUnavailableReason = nil
             if shouldNotifyOCReady(value), let value {
                 NotificationManager.shared.send(
                     title: "OC Ready! 💼",
@@ -885,12 +918,21 @@ extension AppState {
                     type: .ocReady
                 )
             }
+        case .unavailable(let message):
+            organizedCrime = nil
+            organizedCrimeUnavailableReason = message
         }
         if case .replace(let value) = payload.refills { refills = value }
         if case .replace(let value) = payload.education { education = value }
         if case .replace(let value) = payload.bounties {
-            bountiesOnMe = value
-            notifyBountiesOnMe()
+            let incoming = payload.bountiesTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+            bountiesFetchedAt = Date()
+            bountiesCacheDelay = payload.bountiesDelay.map(TimeInterval.init)
+            if incoming == nil || bountiesDataTimestamp == nil || incoming! > bountiesDataTimestamp! {
+                bountiesDataTimestamp = incoming
+                bountiesOnMe = value
+                notifyBountiesOnMe()
+            }
         }
         if case .replace(let counts) = payload.notifications {
             notificationCounts = counts
@@ -937,12 +979,13 @@ extension AppState {
     }
 
     static func bountyTotalAmount(_ bounties: [Bounty]) -> String {
-        let total = bounties.reduce(Decimal.zero) { $0 + Decimal($1.reward) }
-        return decimalFormatter.string(from: NSDecimalNumber(decimal: total)) ?? "\(total)"
+        // Summed as Decimal: rewards are untrusted API integers and their total can
+        // exceed Int.
+        TornFormatter.formatNumber(bounties.reduce(Decimal.zero) { $0 + Decimal($1.reward) })
     }
 
     private static func bountyAmount(_ bounty: Bounty) -> String {
-        decimalFormatter.string(from: NSNumber(value: bounty.reward)) ?? "\(bounty.reward)"
+        TornFormatter.formatNumber(bounty.reward)
     }
 
     private static func bountyLister(_ bounty: Bounty) -> String {
