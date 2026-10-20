@@ -252,7 +252,7 @@ extension AppState {
         showFeedbackPrompt = false
         saveFeedbackState()
         guard !Self.isRunningUnderXCTest else { return }
-        if let url = URL(string: "mailto:pawel@orzech.lol?subject=MacTorn%20Feedback") {
+        if let url = URL(string: "mailto:pawel@orzech.me?subject=MacTorn%20Feedback") {
             BrowserManager.shared.open(url)
         }
     }

@@ -74,6 +74,15 @@ final class TornAPIErrorTests: XCTestCase {
         }
     }
 
+    func testClosedAndNoCompetitionCodesAreNotAvailableNotBackendFaults() {
+        for code in [32, 33] {
+            let error = TornAPIError.classify(code: code, message: "")
+            XCTAssertEqual(error.classification, .notAvailable, "code \(code)")
+            XCTAssertFalse(error.haltsAllRequests)
+            XCTAssertNil(error.pauseDuration)
+        }
+    }
+
     /// A code Torn has not shipped yet must degrade into "retry later", never into a stop.
     func testUnknownFutureCodeDegradesToRetry() {
         let future = TornAPIError.classify(code: 999, message: "")

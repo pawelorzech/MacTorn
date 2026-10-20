@@ -175,8 +175,9 @@ Enable each module in its existing tab; notifications are separately opt-in:
   raid, territory, completed-chain and dirty-bomb history with older-page loading.
 - **Stocks:** v2 holdings, fractional cost basis, bonus progress and ready alerts.
   Enabling this replaces stock holdings in the fast v1 poll; ready bonuses also appear in Next Action.
-- **Status:** current competition and Elimination team standings, remaining players,
-  and attacks during the last completed minute. Team data is requested only during Elimination.
+- **Status:** current competition (Elimination, Rock Paper Scissors, Halloween, Easter Egg Hunt),
+  Elimination team standings, remaining players and attacks during the last completed minute,
+  plus the Torn calendar: running and upcoming events. Team data is requested only during Elimination.
 - **Money:** active trades, change alerts and on-demand offered-item details.
 - **Travel / Watchlist:** searchable country shop prices compared with catalog or
   last-known watchlist prices. Prices do not guarantee live shop inventory or profit.
@@ -227,6 +228,8 @@ in an `Authorization` header instead of the URL.
 | Stock prices and benefits | v2 | — | point-in-time | Opt-in; at least 300s between background reads | — | metadata | no | Stock names, prices and benefit requirements. |
 | Current competition | v2 | — | point-in-time | Opt-in; at least 60s between background reads | — | core | no | Current event and your team, score and attacks. |
 | Elimination teams | v2 | — | point-in-time | Opt-in; at least 60s between background reads | — | core | no | Team standings and attacks in the last completed minute; only during Elimination. |
+| Torn calendar | v2 | — | point-in-time | Opt-in; at least 21600s between background reads | — | metadata | no | Upcoming and running competitions and events. |
+| Your calendar start time | v2 | — | point-in-time | Opt-in; at least 21600s between background reads | — | core | no | Your personal start time for non-fixed events; optional. |
 | Active trades | v2 | — | point-in-time | Opt-in; at least 120s between background reads | — | core | no | Ongoing exchanges and change alerts. |
 | Trade details | v2 | — | point-in-time | Opt-in; at least 30s between background reads | — | core | no | Items offered by each participant in a trade; loaded on demand. |
 | Travel shop catalog | v2 | — | point-in-time | Opt-in; at least 604800s between background reads | — | metadata | no | Country shop prices and catalog market values; no live stock guarantee. |

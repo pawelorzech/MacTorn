@@ -176,7 +176,154 @@ final class CompanionStoreTests: XCTestCase {
         app.companion.setEnabled(.competition, true)
         app.companion.start(app: app)
         await app.companion.task?.value
-        XCTAssertEqual(session.requestedURLs.map(\.path), ["/v2/user/competition"])
+        XCTAssertEqual(session.requestedURLs.map(\.path), ["/v2/user/competition", "/v2/torn/calendar", "/v2/user/calendar"])
+        app.companion.reset()
+    }
+    // MARK: - Competition variants, error codes 32/33, calendar
+
+    private func decodeCompetition(_ json: String) throws -> CompetitionV2? {
+        try JSONDecoder().decode(CompetitionResponse.self, from: Data(json.utf8)).competition
+    }
+    func testAllFourCompetitionVariantsAndNullDecode() throws {
+        let rps = try XCTUnwrap(decodeCompetition(#"{"competition":{"name":"Rock, Paper, Scissors","status":"scissors","hp":{"current":669,"maximum":671}}}"#))
+        XCTAssertEqual(rps.status, "scissors")
+        XCTAssertEqual(rps.hp?.current, 669)
+        XCTAssertEqual(rps.hp?.maximum, 671)
+        XCTAssertFalse(rps.isElimination)
+        let halloween = try XCTUnwrap(decodeCompetition(#"{"competition":{"name":"Halloween","treats_collected":12,"basket":{"id":3,"name":"Pumpkin"}}}"#))
+        XCTAssertEqual(halloween.treatsCollected, 12)
+        XCTAssertEqual(halloween.basket?.name, "Pumpkin")
+        let easter = try XCTUnwrap(decodeCompetition(#"{"competition":{"name":"Easter Egg Hunt","score":3,"total":10}}"#))
+        XCTAssertEqual(easter.score, 3)
+        XCTAssertEqual(easter.total, 10)
+        let elimination = try XCTUnwrap(decodeCompetition(#"{"competition":{"name":"Elimination","score":5,"attacks":2,"team":"Red","team_id":4}}"#))
+        XCTAssertTrue(elimination.isElimination)
+        XCTAssertEqual(elimination.teamId, 4)
+        XCTAssertNil(try decodeCompetition(#"{"competition":null}"#))
+    }
+    func testNoCompetitionCodeIsNotAvailableAndNotAFault() {
+        for code in [32, 33] {
+            let error = TornAPIError.classify(code: code, message: "x")
+            XCTAssertEqual(error.classification, .notAvailable)
+            XCTAssertEqual(error.tornCode, code)
+            XCTAssertFalse(error.haltsAllRequests)
+            XCTAssertFalse(error.disablesEndpoint)
+            XCTAssertNil(error.pauseDuration)
+        }
+    }
+    private let eliminationJSON = #"{"competition":{"name":"Elimination","score":5,"attacks":2,"team":"Red","team_id":4}}"#
+    private func seedElimination(_ app: AppState) throws {
+        app.companion.competition = try decodeCompetition(eliminationJSON)
+        app.companion.teams = try JSONDecoder().decode(EliminationResponse.self, from: Data(#"{"elimination":[{"id":4,"name":"Red","participants_left":23,"position":1,"score":8,"lives":10,"eliminated":false,"attacking_summary":[]}]}"#.utf8)).elimination
+    }
+    func testNoCompetitionCodeClearsStateWithoutErrorOrHealthFailure() async throws {
+        let session = MockNetworkSession(mockData: Data(#"{"error":{"code":33,"error":"No competition available"}}"#.utf8))
+        let app = makeApp(session)
+        try seedElimination(app)
+        app.companion.setEnabled(.competition, true)
+        app.companion.start(app: app)
+        await app.companion.task?.value
+        XCTAssertNil(app.companion.competition)
+        XCTAssertTrue(app.companion.teams.isEmpty)
+        XCTAssertNil(app.companion.errors["user.competition"])
+        XCTAssertEqual(app.companion.notAvailable["user.competition"], 33)
+        XCTAssertEqual(app.endpointHealth.latest(for: "user.competition")?.outcome, .ok)
+        XCTAssertNil(app.errorMsg)
+        app.companion.reset()
+    }
+    func testClosedEliminationCodeKeepsTeamsAndRecordsNoFailure() async throws {
+        let session = MockNetworkSession(mockData: Data(#"{"error":{"code":32,"error":"Closed"}}"#.utf8))
+        let app = makeApp(session)
+        try seedElimination(app)
+        app.companion.setEnabled(.competition, true)
+        app.companion.start(app: app)
+        await app.companion.task?.value
+        XCTAssertNotNil(app.companion.competition)
+        XCTAssertEqual(app.companion.teams.count, 1)
+        XCTAssertEqual(app.companion.notAvailable["torn.elimination"], 32)
+        XCTAssertNil(app.companion.errors["torn.elimination"])
+        XCTAssertEqual(app.endpointHealth.latest(for: "torn.elimination")?.outcome, .ok)
+        app.companion.reset()
+    }
+    func testNullCompetitionClearsStateThroughRefresh() async throws {
+        let session = MockNetworkSession(mockData: Data(#"{"competition":null}"#.utf8))
+        let app = makeApp(session)
+        try seedElimination(app)
+        app.companion.setEnabled(.competition, true)
+        app.companion.start(app: app)
+        await app.companion.task?.value
+        XCTAssertNil(app.companion.competition)
+        XCTAssertTrue(app.companion.teams.isEmpty)
+        XCTAssertNil(app.companion.errors["user.competition"])
+        app.companion.reset()
+    }
+
+    private func liveCalendar() throws -> TornCalendarResponse {
+        let json = #"""
+        {"calendar":{"competitions":[{"title":"Elimination","description":"d","start":1820145600,"end":1789732800,"fixed_start_time":true}],
+        "events":[{"title":"Weekend Road Trip","description":"d","start":1801396800,"end":1770033599,"fixed_start_time":true},
+        {"title":"Valentine's Day","description":"d","start":1771027200,"end":1771113599,"fixed_start_time":false}]}}
+        """#
+        return try JSONDecoder().decode(TornCalendarResponse.self, from: Data(json.utf8))
+    }
+    func testCalendarEndBeforeStartQuirkUsesNextOccurrence() throws {
+        let cal = try liveCalendar().calendar
+        let elimination = CalendarEntry(cal.competitions[0], isCompetition: true, personalOffset: nil)
+        // Start 2027-09-05 12:00 UTC; 2026-09-05 -> 2026-09-18 12:00 is 13 days, so it ends 2027-09-18.
+        XCTAssertEqual(elimination.start, Date(timeIntervalSince1970: 1820145600))
+        XCTAssertEqual(elimination.end, Date(timeIntervalSince1970: 1820145600 + 13 * 86_400))
+        let trip = CalendarEntry(cal.events[0], isCompetition: false, personalOffset: nil)
+        XCTAssertEqual(trip.start, Date(timeIntervalSince1970: 1801396800))
+        XCTAssertEqual(trip.end.timeIntervalSince(trip.start), 1770033599 - (1801396800 - 365 * 86_400), accuracy: 0)
+        XCTAssertTrue(trip.end > trip.start)
+    }
+    func testNonFixedActivitiesShiftByPersonalStartTimeAndFixedDoNot() throws {
+        let cal = try liveCalendar().calendar
+        let offset = CalendarEntry.offset(from: "10:30 TCT")
+        XCTAssertEqual(offset, 37_800)
+        let valentine = CalendarEntry(cal.events[1], isCompetition: false, personalOffset: offset)
+        XCTAssertEqual(valentine.start, Date(timeIntervalSince1970: 1771027200 + 37_800))
+        XCTAssertEqual(valentine.end, Date(timeIntervalSince1970: 1771113599 + 37_800))
+        let fixed = CalendarEntry(cal.events[0], isCompetition: false, personalOffset: offset)
+        XCTAssertEqual(fixed.start, Date(timeIntervalSince1970: 1801396800))
+    }
+    func testMalformedStartTimeMeansNoShift() throws {
+        for bad in [nil, "", "10:30", "25:00 TCT", "10:61 TCT", "ab:cd TCT", "10:30 UTC", "10:30:00 TCT"] as [String?] {
+            XCTAssertNil(CalendarEntry.offset(from: bad), "\(bad ?? "nil")")
+        }
+        let entry = CalendarEntry(try liveCalendar().calendar.events[1], isCompetition: false,
+                                  personalOffset: CalendarEntry.offset(from: "garbage"))
+        XCTAssertEqual(entry.start, Date(timeIntervalSince1970: 1771027200))
+    }
+    func testUserCalendarStartTimeDecodes() throws {
+        let value = try JSONDecoder().decode(UserCalendarResponse.self, from: Data(#"{"calendar":{"start_time":"10:30 TCT"}}"#.utf8))
+        XCTAssertEqual(value.calendar.startTime, "10:30 TCT")
+    }
+    func testCalendarSelectsActiveAndNextThreeUpcomingAtFixedNow() {
+        func entry(_ title: String, _ start: Int, _ end: Int) -> CalendarEntry {
+            CalendarEntry(CalendarActivity(title: title, description: "", start: start, end: end, fixedStartTime: true),
+                          isCompetition: false, personalOffset: nil)
+        }
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let entries = [
+            entry("Past", 100, 200), entry("Later", 1_400_000, 1_500_000), entry("Active B", 900_000, 1_200_000),
+            entry("Soon", 1_100_000, 1_150_000), entry("Active A", 950_000, 1_050_000),
+            entry("Mid", 1_300_000, 1_350_000), entry("Far", 1_900_000, 2_000_000),
+        ]
+        let (active, upcoming) = CalendarEntry.select(entries, now: now)
+        XCTAssertEqual(active.map(\.title), ["Active A", "Active B"])
+        XCTAssertEqual(upcoming.map(\.title), ["Soon", "Mid", "Later"])
+    }
+    func testCalendarEndpointsLoadIntoStoreAndUserCalendarIsOptional() async throws {
+        let session = MockNetworkSession(mockData: try JSONEncoder().encode(
+            ["calendar": ["competitions": [String](), "events": [String]()]]))
+        let app = makeApp(session)
+        app.companion.setEnabled(.competition, true)
+        app.companion.start(app: app)
+        await app.companion.task?.value
+        XCTAssertNotNil(app.companion.fetchedAt["torn.calendar"])
+        XCTAssertNil(app.companion.calendarStartTime)
+        XCTAssertTrue(app.companion.calendarEntries.isEmpty)
         app.companion.reset()
     }
     func testMalformedResponsePreservesLastGoodDataAndShowsError() async throws {

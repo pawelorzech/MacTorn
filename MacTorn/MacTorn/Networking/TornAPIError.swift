@@ -27,11 +27,14 @@ import Foundation
 //     across every key and endpoint.
 //   • temporaryBackend / offline / transport → surfaced to the UI; the normal poll
 //     cadence is the retry, avoiding a second traffic-amplifying retry layer.
+//   • notAvailable → the endpoint is healthy but has nothing to serve right now (32 closed
+//     until the next attacking period, 33 no competition running). Not a fault: no pause,
+//     no error bar, no health error; the caller shows a neutral "nothing here" state.
 //   • malformed / cancelled → non-retryable, not the server's fault.
 //
-// Codes are the 0-31 set published in Torn's OpenAPI document
+// Codes are the 0-33 set published in Torn's OpenAPI document
 // (https://www.torn.com/swagger/openapi.json — `components.schemas.Error*`), verified
-// against spec version 6.13.1 on 2026-08-26.
+// against spec version 6.13.8 on 2026-10-20.
 
 /// Coarse classification used for UI copy and retry decisions.
 enum TornErrorClass: String, Equatable, Sendable {
@@ -42,6 +45,7 @@ enum TornErrorClass: String, Equatable, Sendable {
     case ipBlocked
     case rateLimit
     case dailyRowLimit
+    case notAvailable
     case temporaryBackend
     case offline
     case transport
@@ -71,6 +75,9 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// The per-category 50,000-rows/day cloud-data cap. Torn code 14. Pause only the
     /// offending category, not the whole app.
     case dailyRowLimit(code: Int, message: String)
+    /// Healthy endpoint with nothing to serve right now: 32 (closed until the next
+    /// attacking period), 33 (no competition available). Not a fault.
+    case notAvailable(code: Int, message: String)
     /// Transient server-side failure — retry with backoff. Torn codes 0, 9, 15, 17, 24, 31.
     case temporaryBackend(code: Int, message: String)
     /// Device is offline (no path to the network).
@@ -91,6 +98,7 @@ enum TornAPIError: Error, Equatable, Sendable {
         case .ipBlocked: return .ipBlocked
         case .rateLimit: return .rateLimit
         case .dailyRowLimit: return .dailyRowLimit
+        case .notAvailable: return .notAvailable
         case .temporaryBackend: return .temporaryBackend
         case .offline: return .offline
         case .transport: return .transport
@@ -109,6 +117,7 @@ enum TornAPIError: Error, Equatable, Sendable {
              let .ipBlocked(code, _),
              let .rateLimit(code, _),
              let .dailyRowLimit(code, _),
+             let .notAvailable(code, _),
              let .temporaryBackend(code, _):
             return code
         case .offline, .transport, .malformedResponse, .cancelled:
@@ -160,7 +169,7 @@ enum TornAPIError: Error, Equatable, Sendable {
             return 3600     // 1 h — the cap is daily; re-probe hourly, cheaply.
         case .rateLimit:
             return 60       // 1 min — the per-minute window has to roll over.
-        case .permanentKey, .insufficientPermissions, .temporaryBackend, .offline, .transport,
+        case .permanentKey, .insufficientPermissions, .notAvailable, .temporaryBackend, .offline, .transport,
              .malformedResponse, .cancelled:
             return nil
         }
@@ -199,6 +208,8 @@ enum TornAPIError: Error, Equatable, Sendable {
             return "Too many requests — backing off."
         case .dailyRowLimit:
             return "Daily read limit reached for this category — it will resume tomorrow."
+        case let .notAvailable(code, _):
+            return code == 32 ? "Closed until the next attacking period." : "No competition is running right now."
         case let .temporaryBackend(_, message):
             return sanitized(message.isEmpty ? "Torn API is temporarily unavailable — retrying." : message)
         case .offline:
@@ -254,6 +265,9 @@ enum TornAPIError: Error, Equatable, Sendable {
             return .rateLimit(code: code, message: message)
         case 14:
             return .dailyRowLimit(code: code, message: message)
+        case 32, 33:
+            // 32 endpoint closed until the next attacking period, 33 no competition available.
+            return .notAvailable(code: code, message: message)
         default:
             // 0 (unknown), 9 (API disabled), 15 (log unavailable), 17 (backend),
             // 24 (closed temporarily), 31 (city-stats cron) and any future code

@@ -179,6 +179,8 @@ final class TornEndpointTests: XCTestCase {
             ("torn.stocksv2", "torn/stocks", [:]),
             ("user.competition", "user/competition", [:]),
             ("torn.elimination", "torn/elimination", [:]),
+            ("torn.calendar", "torn/calendar", [:]),
+            ("user.calendar", "user/calendar", [:]),
             ("user.trades", "user/trades", ["cat": "ongoing"]),
             ("user.trade", "user/4242/trade", [:]),
             ("torn.shops", "torn/items", [:]),
@@ -199,7 +201,7 @@ final class TornEndpointTests: XCTestCase {
 
     /// The contract test above is only meaningful if it covers every endpoint.
     func testEveryEndpointIsCoveredByContract() {
-        XCTAssertEqual(TornEndpointRegistry.all.count, 26,
+        XCTAssertEqual(TornEndpointRegistry.all.count, 28,
                        "add the new endpoint to testRegistryURLsMatchLegacyBuilders too")
     }
 

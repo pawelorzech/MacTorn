@@ -306,6 +306,8 @@ extension AppState {
             // `/key/info` itself cannot be narrowed. Avoid an infinite self-refresh loop
             // if Torn unexpectedly answers code 16 on the capability endpoint.
             if endpointID != "key.info" { startFirstFetch() }
+        case .notAvailable:
+            break // Nothing to serve right now; not a fault, so no error bar and no backoff.
         default:
             noteEndpointFailure(error, for: endpointID)
             errorMsg = error.userMessage

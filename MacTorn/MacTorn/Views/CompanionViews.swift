@@ -117,13 +117,20 @@ struct CompetitionPanel: View {
     @Environment(AppState.self) private var app
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .competition, endpoints: ["user.competition", "torn.elimination"])
+            CompanionControls(feature: .competition, endpoints: ["user.competition", "torn.elimination", "torn.calendar", "user.calendar"])
             if app.companion.enabled.contains(.competition) {
                 if let competition = app.companion.competition {
                     Text(competition.name).font(.caption.bold())
                     if let team = competition.team { Text("Your team: \(team)").font(.caption) }
-                    if let score = competition.score { Text("Your score: \(score)").font(.caption) }
+                    if competition.name != "Easter Egg Hunt", let score = competition.score { Text("Your score: \(score)").font(.caption) }
                     if let attacks = competition.attacks { Text("Your attacks: \(attacks)").font(.caption) }
+                    if let status = competition.status { Text("Your side: \(status.capitalized)").font(.caption) }
+                    if let hp = competition.hp { Text("HP: \(hp.current) / \(hp.maximum)").font(.caption) }
+                    if let treats = competition.treatsCollected { Text("Treats collected: \(treats)").font(.caption) }
+                    if let basket = competition.basket { Text("Basket: \(basket.name)").font(.caption) }
+                    if competition.name == "Easter Egg Hunt", let eggs = competition.score, let total = competition.total {
+                        Text("Eggs found: \(eggs) / \(total)").font(.caption)
+                    }
                     if competition.isElimination {
                         Text("Team attacks cover the last completed minute.").font(.caption2).foregroundStyle(.secondary)
                         ForEach(app.companion.teams) { team in
@@ -137,9 +144,29 @@ struct CompetitionPanel: View {
                             }
                         }
                     }
-                } else { Text("No active competition loaded.").font(.caption).foregroundStyle(.secondary) }
+                } else { Text(app.companion.notAvailable["user.competition"] == 33 ? "No active competition." : "No active competition loaded.").font(.caption).foregroundStyle(.secondary) }
+                if app.companion.notAvailable["torn.elimination"] == 32 {
+                    Text("Elimination attacks are closed until the next attacking period.").font(.caption2).foregroundStyle(.secondary)
+                }
+                calendarSection
             }
         }.companionCard()
+    }
+}
+
+extension CompetitionPanel {
+    @ViewBuilder fileprivate var calendarSection: some View {
+        let now = app.time.now
+        let (active, upcoming) = CalendarEntry.select(app.companion.calendarEntries, now: now)
+        if !active.isEmpty || !upcoming.isEmpty {
+            Text("Torn calendar").font(.caption.bold())
+            ForEach(Array(active.enumerated()), id: \.offset) { _, entry in
+                Text("\(entry.title) · ends in \(TornFormatter.coarseDuration(Int(entry.end.timeIntervalSince(now))))").font(.caption2)
+            }
+            ForEach(Array(upcoming.enumerated()), id: \.offset) { _, entry in
+                Text("\(entry.title) · \(TornFormatter.relativeDate(entry.start, relativeTo: now))").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
     }
 }
 

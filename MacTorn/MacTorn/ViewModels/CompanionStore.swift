@@ -26,6 +26,10 @@ final class CompanionStore {
     var stockReferences: [StockReferenceV2] = []
     var competition: CompetitionV2?
     var teams: [EliminationTeam] = []
+    var calendarActivities: [(activity: CalendarActivity, isCompetition: Bool)] = []
+    var calendarStartTime: String?
+    /// Torn code 32/33 per endpoint: healthy but nothing to serve right now. Not an error.
+    var notAvailable: [String: Int] = [:]
     var trades: [TradeV2] = []
     var shops: [ShopItem] = []
     var tradeDetails: [Int: [TradeDetailItem]] = [:]
@@ -71,6 +75,7 @@ final class CompanionStore {
     func reset() {
         invalidate()
         recruiting = []; stocks = []; stockReferences = []; competition = nil
+        calendarActivities = []; calendarStartTime = nil; notAvailable = [:]
         teams = []; trades = []; tradeDetails = [:]; shops = []; warfare = [:]; nextWarPage = [:]
         errors = [:]; fetchedAt = [:]; fingerprints = [:]; previousTrades = nil
     }
@@ -107,7 +112,7 @@ final class CompanionStore {
         switch feature {
         case .recruiting: ids = ["user.recruiting"]
         case .stocks: ids = ["user.stocksv2", "torn.stocksv2"]
-        case .competition: ids = ["user.competition", "torn.elimination"]
+        case .competition: ids = ["user.competition", "torn.elimination", "torn.calendar", "user.calendar"]
         case .trades: ids = ["user.trades"]
         case .shops: ids = ["torn.items"]
         }
@@ -144,16 +149,33 @@ final class CompanionStore {
                 }
             }
         }
-        if active(.competition), due("user.competition", seconds: competition?.isElimination == true ? 60 : 3600, now: app.time.now) {
-            if let value: CompetitionResponse = await request("user.competition", app: app) {
-                competition = value.competition
-                if competition?.isElimination != true { teams = [] }
+        if active(.competition) {
+            let cadence: TimeInterval = competition.map { $0.isElimination ? 60 : 300 } ?? 3600
+            if due("user.competition", seconds: cadence, now: app.time.now) {
+                if let value: CompetitionResponse = await request("user.competition", app: app) {
+                    competition = value.competition
+                    if competition?.isElimination != true { teams = [] }
+                } else if notAvailable["user.competition"] == 33 {
+                    competition = nil; teams = []
+                }
             }
         }
         if active(.competition), competition?.isElimination == true,
-           due("torn.elimination", seconds: 60, now: app.time.now),
-           let value: EliminationResponse = await request("torn.elimination", app: app) {
-            teams = value.elimination.sorted { $0.position < $1.position }
+           due("torn.elimination", seconds: 60, now: app.time.now) {
+            if let value: EliminationResponse = await request("torn.elimination", app: app) {
+                teams = value.elimination.sorted { $0.position < $1.position }
+            } else if notAvailable["torn.elimination"] == 33 {
+                competition = nil; teams = []
+            }
+        }
+        if active(.competition), due("torn.calendar", seconds: 21600, now: app.time.now),
+           let value: TornCalendarResponse = await request("torn.calendar", app: app) {
+            calendarActivities = value.calendar.competitions.map { ($0, true) } + value.calendar.events.map { ($0, false) }
+        }
+        // Optional: without it non-fixed events just keep the 00:00 TCT start.
+        if active(.competition), due("user.calendar", seconds: 21600, now: app.time.now),
+           let value: UserCalendarResponse = await request("user.calendar", app: app) {
+            calendarStartTime = value.calendar.startTime
         }
         if active(.trades), due("user.trades", seconds: 120, now: app.time.now),
            let value: TradesResponse = await request("user.trades", app: app) {
@@ -194,6 +216,12 @@ final class CompanionStore {
                 lastAttempt["torn.items"] = nil
             }
         }
+    }
+
+    /// Calendar activities with trustworthy dates and the user's personal start applied.
+    var calendarEntries: [CalendarEntry] {
+        let offset = CalendarEntry.offset(from: calendarStartTime)
+        return calendarActivities.map { CalendarEntry($0.activity, isCompetition: $0.isCompetition, personalOffset: offset) }
     }
 
     private func notify(_ title: String, _ body: String, type: NotificationType) {
@@ -241,9 +269,18 @@ final class CompanionStore {
             case .success(let value, let bytes):
                 fetchedAt[id] = app.time.now
                 errors[id] = nil
+                notAvailable[id] = nil
                 app.endpointGate.noteSuccess(for: id)
                 app.recordHealth(id, outcome: .ok, since: started, bytes: bytes)
                 return value
+            case .apiError(let error, let bytes) where error.classification == .notAvailable:
+                // Healthy endpoint, nothing to serve: no error string, no failure record.
+                errors[id] = nil
+                notAvailable[id] = error.tornCode
+                fetchedAt[id] = app.time.now
+                app.endpointGate.noteSuccess(for: id)
+                app.recordHealth(id, outcome: .ok, since: started, bytes: bytes)
+                return nil
             case .apiError(let error, _): errors[id] = error.userMessage
             case .httpError(let code, _): errors[id] = "Server error (HTTP \(code)). Try again later."
             case .malformed: errors[id] = "Torn returned an unexpected response. Previous data may be out of date."

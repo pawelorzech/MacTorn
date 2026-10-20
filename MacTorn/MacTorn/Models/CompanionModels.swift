@@ -1,6 +1,6 @@
 import Foundation
 
-// Wire models for the optional API v2 modules (OpenAPI 6.13.6).
+// Wire models for the optional API v2 modules (OpenAPI 6.13.8).
 struct RecruitingCrime: Decodable, Identifiable {
     let id: Int
     let name: String
@@ -37,13 +37,25 @@ struct StockReferenceV2: Decodable, Identifiable {
     struct Market: Decodable { let price: Double }
     struct Bonus: Decodable { let passive: Bool; let frequency: Int; let requirement: Int; let description: String }
 }
+/// One struct for all four `UserCompetitionResponse` variants (discriminated by `name`);
+/// each variant fills only its own optionals.
 struct CompetitionV2: Decodable {
     let name: String
-    let score: Int?
+    let score: Int?          // Elimination, Easter Egg Hunt
     let attacks: Int?
     let team: String?
     let teamId: Int?
-    enum CodingKeys: String, CodingKey { case name, score, attacks, team; case teamId = "team_id" }
+    let status: String?      // Rock, Paper, Scissors: rock | paper | scissors
+    let hp: HP?
+    let treatsCollected: Int? // Halloween
+    let basket: Basket?
+    let total: Int?          // Easter Egg Hunt
+    struct HP: Decodable { let current: Int; let maximum: Int }
+    struct Basket: Decodable { let id: Int; let name: String }
+    enum CodingKeys: String, CodingKey {
+        case name, score, attacks, team, status, hp, basket, total
+        case teamId = "team_id", treatsCollected = "treats_collected"
+    }
     var isElimination: Bool { name == "Elimination" }
 }
 struct EliminationTeam: Decodable, Identifiable {
@@ -153,6 +165,66 @@ struct RecruitingResponse: Decodable { let organizedcrimes: [RecruitingCrime] }
 struct StocksV2Response: Decodable { let stocks: [StockV2] }
 struct StockReferencesResponse: Decodable { let stocks: [StockReferenceV2] }
 struct CompetitionResponse: Decodable { let competition: CompetitionV2? }
+struct TornCalendarResponse: Decodable {
+    let calendar: Calendar
+    struct Calendar: Decodable { let competitions: [CalendarActivity]; let events: [CalendarActivity] }
+}
+struct UserCalendarResponse: Decodable {
+    let calendar: Calendar
+    struct Calendar: Decodable { let startTime: String?; enum CodingKeys: String, CodingKey { case startTime = "start_time" } }
+}
+struct CalendarActivity: Decodable {
+    let title: String
+    let description: String
+    let start: Int
+    let end: Int
+    let fixedStartTime: Bool?
+    enum CodingKeys: String, CodingKey { case title, description, start, end; case fixedStartTime = "fixed_start_time" }
+}
+/// An activity with trustworthy dates. Torn reports activities already past this year with
+/// `start` moved to NEXT year's occurrence while `end` stays in this year (`end < start`);
+/// the duration then is `end - (start shifted back a year)` and the occurrence ends at
+/// `start + duration`.
+struct CalendarEntry: Equatable {
+    let title: String
+    let isCompetition: Bool
+    let start: Date
+    let end: Date
+
+    /// `personalOffset` (seconds after 00:00 TCT) applies to activities that are not fixed-time.
+    init(_ raw: CalendarActivity, isCompetition: Bool, personalOffset: TimeInterval?) {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        var start = Date(timeIntervalSince1970: TimeInterval(raw.start))
+        var end = Date(timeIntervalSince1970: TimeInterval(raw.end))
+        if end < start {
+            let previous = utc.date(byAdding: .year, value: -1, to: start) ?? start
+            end = start.addingTimeInterval(max(0, end.timeIntervalSince(previous)))
+        }
+        if raw.fixedStartTime == false, let personalOffset {
+            start.addTimeInterval(personalOffset); end.addTimeInterval(personalOffset)
+        }
+        self.title = raw.title; self.isCompetition = isCompetition; self.start = start; self.end = end
+    }
+
+    /// "HH:MM TCT" -> seconds after midnight; anything else -> nil (no shift).
+    static func offset(from startTime: String?) -> TimeInterval? {
+        guard let startTime else { return nil }
+        let parts = startTime.split(separator: " ")
+        guard parts.count == 2, parts[1] == "TCT" else { return nil }
+        let clock = parts[0].split(separator: ":")
+        guard clock.count == 2, let hours = Int(clock[0]), let minutes = Int(clock[1]),
+              (0..<24).contains(hours), (0..<60).contains(minutes) else { return nil }
+        return TimeInterval(hours * 3600 + minutes * 60)
+    }
+
+    /// Activities running at `now` (soonest end first) and the next `limit` to start.
+    static func select(_ entries: [CalendarEntry], now: Date, limit: Int = 3) -> (active: [CalendarEntry], upcoming: [CalendarEntry]) {
+        let active = entries.filter { $0.start <= now && now < $0.end }.sorted { $0.end < $1.end }
+        let upcoming = entries.filter { $0.start > now }.sorted { $0.start < $1.start }.prefix(limit)
+        return (active, Array(upcoming))
+    }
+}
 struct EliminationResponse: Decodable { let elimination: [EliminationTeam] }
 struct TradesResponse: Decodable { let trades: [TradeV2] }
 struct ShopsResponse: Decodable { let items: [ShopItem] }
