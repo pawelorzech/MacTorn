@@ -5,6 +5,21 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.1] - 2026-10-30 - Notification and widget fixes
+
+### Fixed
+- Bounty notifications no longer re-announce every open bounty after a relaunch or a transient
+  API-key error; several new bounties now arrive as one summary banner (#53, thanks @vsolano9).
+- Event text from other players is cleaned of control characters, bidi overrides and zero-width
+  characters before display and VoiceOver; emoji sequences survive (#79, thanks @vsolano9).
+- Player Status widget: Energy, Nerve, Happy and Life tracks share one width.
+
+### Changed
+- Sentry SDK 9.31.0. CI actions moved to Node 24 runtimes (checkout, upload-artifact, gitleaks, claude-code-action).
+
+### Notes
+- Manual and local UI automation tests were not run.
+
 ## [1.16.0] - 2026-10-20 - Competitions and Torn calendar
 
 ### Added
