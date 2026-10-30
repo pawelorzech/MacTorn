@@ -5,6 +5,22 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.2] - 2026-10-30 - Clearer errors and settings
+
+### Changed
+- Each module shows one status bar; the specific reason for a problem sits inside it
+  instead of in a second, separate error row (#51).
+- Error text reads like a sentence: "Torn API is temporarily unavailable (HTTP 502)"
+  instead of "HTTP Error: 502", "Unexpected response from Torn." instead of a decode error (#40, #39).
+- The "Startup" settings section is now "General" and also holds the Booster cooldown link,
+  which used to sit under Notifications (#67).
+
+### Fixed
+- The feedback prompt and the crash-report opt-in can no longer appear on top of each other (#65).
+
+### Notes
+- Unit tests and coverage gate passed locally (858 tests). UI automation tests were not run.
+
 ## [1.16.1] - 2026-10-30 - Notification and widget fixes
 
 ### Fixed
