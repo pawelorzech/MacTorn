@@ -56,6 +56,12 @@ final class NotificationCoordinator {
     /// relaunch, a reboot, a lunch break — while being far short of "I was away".
     static let minimumStalenessWindow: TimeInterval = 60 * 60
 
+    /// Window for `cooldown.ready.*` edges. Running→ready is one-way and stays true, so
+    /// it is still worth announcing after a workday-sized quit: drug and booster
+    /// cooldowns routinely run 3-5 h, and the one-hour floor swallowed exactly the
+    /// ordinary "quit at noon, back at two" case (#90). A day still keeps a holiday quiet.
+    static let cooldownStalenessWindow: TimeInterval = 24 * 60 * 60
+
     private let defaults: UserDefaults
     private let time: TimeSource
     private static let latchesStoreID = "notifications.latched.v2"
@@ -79,6 +85,14 @@ final class NotificationCoordinator {
     /// merely-slow poller never mistakes its own last poll for ancient history.
     var stalenessWindow: TimeInterval {
         max(Self.minimumStalenessWindow, 4 * refreshInterval)
+    }
+
+    /// Per-category window. Cooldown readiness gets the long one; status releases and
+    /// bar thresholds really are stale news after a long gap, so they keep the default.
+    func stalenessWindow(for key: String) -> TimeInterval {
+        key.hasPrefix("cooldown.ready.")
+            ? max(Self.cooldownStalenessWindow, stalenessWindow)
+            : stalenessWindow
     }
 
     /// Last observed `active` state per edge key, with the instant it was observed.
@@ -145,7 +159,7 @@ final class NotificationCoordinator {
         let observed = latches.entry(for: key)
         // A row with no usable timestamp is a pre-timestamp row written by an older
         // build: its age is unknown, so it is treated as stale rather than trusted.
-        let firstSight = observed.map { isStale($0.observedAt, now: now) } ?? true
+        let firstSight = observed.map { isStale($0.observedAt, now: now, window: stalenessWindow(for: key)) } ?? true
         let wasActive = !firstSight && observed?.value == Self.latchedValue
         let fire = active && !wasActive && !(firstSight && seedOnFirstSight)
         latches.record(key, as: active ? Self.latchedValue : Self.clearedValue, at: now)
@@ -173,9 +187,9 @@ final class NotificationCoordinator {
     /// Whether an observation recorded at `observedAt` is too old to count as the
     /// previous state. A `nil` instant (row from before timestamps existed) is unknown
     /// and therefore stale; an instant in the future (clock moved backwards) is not.
-    private func isStale(_ observedAt: Date?, now: Date) -> Bool {
+    private func isStale(_ observedAt: Date?, now: Date, window: TimeInterval) -> Bool {
         guard let observedAt else { return true }
-        return now.timeIntervalSince(observedAt) > stalenessWindow
+        return now.timeIntervalSince(observedAt) > window
     }
 
     /// Whether `key` is currently latched — exposed for diagnostics/tests.
@@ -232,9 +246,14 @@ private struct BoundedRecencyStore {
     private var order: [String] = []
     private var entries: [String: Entry] = [:]
 
+    /// Year 3000. An instant past this is a corrupt row, not a real observation.
+    private static let latestPlausibleInstant: TimeInterval = 32_503_680_000
+
     init(encoded: [String], capacity: Int) {
         self.capacity = max(1, capacity)
-        for row in encoded {
+        // Only the hottest `capacity` rows can survive `trim()`, so parse just those:
+        // a store full of repeated names would otherwise cost O(n²) in `firstIndex`.
+        for row in encoded.suffix(self.capacity) {
             let fields = row.split(separator: Self.separator, omittingEmptySubsequences: false)
             guard fields.count >= 2 else { continue }
             let name = String(fields[0])
@@ -246,7 +265,12 @@ private struct BoundedRecencyStore {
                 // Value keeps any interior separators it somehow acquired; the trailing
                 // field is the instant.
                 let value = fields[1..<(fields.count - 1)].joined(separator: String(Self.separator))
-                let observedAt = Double(fields[fields.count - 1]).map(Date.init(timeIntervalSince1970:))
+                // NaN, ±inf, `1e400` and absurd magnitudes parse as Doubles but would
+                // read as "fresh" forever (every comparison against NaN is false). Nil
+                // means "age unknown", which is treated as stale: the safe direction.
+                let observedAt = Double(fields[fields.count - 1])
+                    .flatMap { $0 > 0 && $0 < Self.latestPlausibleInstant ? $0 : nil }
+                    .map(Date.init(timeIntervalSince1970:))
                 entry = Entry(value: value, observedAt: observedAt)
             }
             if entries.updateValue(entry, forKey: name) != nil,

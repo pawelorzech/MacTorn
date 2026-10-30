@@ -88,13 +88,18 @@ struct SettingsView: View {
     private var settingsContent: some View {
         VStack(alignment: .leading, spacing: 10) {
             settingsHeader
-            sectionPicker
+            // First run: explain what the key is for instead of six tabs and a bare field.
+            if appState.apiKey.isEmpty {
+                welcomeIntro
+            } else {
+                sectionPicker
+            }
 
             ScrollView {
-                settingsSection(selectedSection) {
+                settingsSection(visibleSection) {
                     selectedSectionContent
                 }
-                .id(selectedSection)
+                .id(visibleSection)
             }
             .scrollIndicators(.automatic)
         }
@@ -207,9 +212,33 @@ struct SettingsView: View {
         .accessibilityLabel("Settings sections")
     }
 
+    /// Without a key only the Account section is reachable; the picker is hidden.
+    private var visibleSection: SettingsSection {
+        appState.apiKey.isEmpty ? .account : selectedSection
+    }
+
+    private var welcomeIntro: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Your Torn bars, cooldowns, travel and faction in the menu bar, refreshed in the background.")
+                .font(.caption)
+                .fixedSize(horizontal: false, vertical: true)
+            disclosureLine(
+                "key.fill",
+                "Paste a Torn API key with **\(TornEndpointRegistry.requiredAccessLevel.label)** or higher for every feature."
+            )
+            disclosureLine(
+                "lock.fill",
+                "The key is stored in the macOS **Keychain** and Torn data stays **on this Mac**. MacTorn never acts on your account."
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .uiTestID("uitest.welcomeIntro")
+    }
+
     @ViewBuilder
     private var selectedSectionContent: some View {
-        switch selectedSection {
+        switch visibleSection {
         case .account:
             accountSection
         case .refresh:

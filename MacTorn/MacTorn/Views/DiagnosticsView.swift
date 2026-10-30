@@ -109,7 +109,7 @@ struct DiagnosticsView: View {
             }
         }
         .padding()
-        .frame(width: 380, height: 500)
+        .frame(width: 320, height: 500)
     }
 
     // MARK: - Data

@@ -110,6 +110,53 @@ final class NotificationCoordinatorTests: XCTestCase {
         XCTAssertNotNil(coord.lastObserved("cooldown"), "and it is re-stamped on the way through")
     }
 
+    /// #90: quit at 12:00 with a drug cooldown 90 minutes out, relaunch at 14:00. The
+    /// cooldown became ready while the app was closed and must still be announced.
+    func testCooldownReadyAfterAWorkdayQuitStillFires() {
+        let clock = MutableTimeSource()
+        let coord = NotificationCoordinator(defaults: defaults, time: clock)
+        coord.shouldFireOnEdge("cooldown.ready.Drug", active: false, seedOnFirstSight: true)
+        clock.advance(2 * 60 * 60)
+        XCTAssertTrue(coord.shouldFireOnEdge("cooldown.ready.Drug", active: true, seedOnFirstSight: true))
+    }
+
+    func testCooldownReadyAfterMoreThanADayAwaySeedsSilently() {
+        let clock = MutableTimeSource()
+        let coord = NotificationCoordinator(defaults: defaults, time: clock)
+        coord.shouldFireOnEdge("cooldown.ready.Drug", active: false, seedOnFirstSight: true)
+        clock.advance(NotificationCoordinator.cooldownStalenessWindow + 1)
+        XCTAssertFalse(coord.shouldFireOnEdge("cooldown.ready.Drug", active: true, seedOnFirstSight: true))
+    }
+
+    func testNonCooldownEdgesKeepTheShortWindow() {
+        let clock = MutableTimeSource()
+        let coord = NotificationCoordinator(defaults: defaults, time: clock)
+        coord.shouldFireOnEdge("status.released", active: false, seedOnFirstSight: true)
+        clock.advance(2 * 60 * 60)
+        XCTAssertFalse(coord.shouldFireOnEdge("status.released", active: true, seedOnFirstSight: true),
+                       "a release two hours ago is stale news")
+    }
+
+    func testCorruptObservationInstantsAreTreatedAsUnknownAge() {
+        let latchStore = ["notifications", "latched", "v2"].joined(separator: ".")
+        let corrupt = ["nan", "inf", "-inf", "1e400", "1000000000000000000000000000", "-5", "0"]
+        defaults.set(corrupt.enumerated().map { "k\($0.offset)\u{1F}0\u{1F}\($0.element)" },
+                     forKey: latchStore)
+        let coord = NotificationCoordinator(defaults: defaults)
+        for index in corrupt.indices {
+            XCTAssertNil(coord.lastObserved("k\(index)"), "\(corrupt[index]) must not parse as an instant")
+        }
+    }
+
+    func testStoreLoadOnlyKeepsTheHottestRows() {
+        let latchStore = ["notifications", "latched", "v2"].joined(separator: ".")
+        let rows = (0..<(NotificationCoordinator.maxTrackedKeys + 10)).map { "k\($0)\u{1F}1\u{1F}1700000000" }
+        defaults.set(rows, forKey: latchStore)
+        let coord = NotificationCoordinator(defaults: defaults)
+        XCTAssertFalse(coord.isLatched("k0"), "coldest rows beyond capacity are dropped")
+        XCTAssertTrue(coord.isLatched("k\(NotificationCoordinator.maxTrackedKeys + 9)"), "hottest row survives")
+    }
+
     // MARK: - Epoch dedup
 
     /// Deliberate asymmetry with the latches: an epoch names one specific occurrence, so
