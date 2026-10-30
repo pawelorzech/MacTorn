@@ -239,8 +239,9 @@ endif
 		-scheme MacTorn -configuration Debug \
 		-destination 'platform=macOS' \
 		-derivedDataPath DerivedData/Widgets \
+		-allowProvisioningUpdates \
 		DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)" \
 		MACTORN_ENTITLEMENTS_SUFFIX=.widgets \
-		CODE_SIGN_STYLE=Manual \
+		CODE_SIGN_STYLE=Automatic \
 		CODE_SIGN_IDENTITY="$(or $(WIDGET_SIGN_IDENTITY),Apple Development)" \
 		CODE_SIGNING_REQUIRED=YES
