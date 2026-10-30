@@ -40,6 +40,12 @@ enum TornFormatter {
         decimalFormatter.string(from: NSNumber(value: number)) ?? "\(number)"
     }
 
+    /// Formats a decimal amount with grouping separators, for totals that can exceed
+    /// `Int` (e.g. summed API rewards).
+    static func formatNumber(_ number: Decimal) -> String {
+        decimalFormatter.string(from: NSDecimalNumber(decimal: number)) ?? "\(number)"
+    }
+
     // MARK: - Durations
 
     /// `H:MM:SS` above an hour, else `M:SS`. Negative input clamps to zero. This is the
