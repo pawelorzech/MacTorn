@@ -215,7 +215,7 @@ struct StatusView: View {
                 .foregroundColor(.orange)
             Text(error)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(.primary)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
@@ -312,13 +312,13 @@ struct StatusView: View {
 
             HStack(spacing: 16) {
                 if let ends = appState.cooldownEnds {
-                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →", serverClock: appState.serverClock)
-                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →", serverClock: appState.serverClock)
-                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel, serverClock: appState.serverClock)
+                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, actionURL: drugURL, actionLabel: "Use Drug →", serverClock: appState.serverClock)
+                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, actionURL: medicalURL, actionLabel: "Use Medical →", serverClock: appState.serverClock)
+                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, actionURL: boosterURL, actionLabel: boosterLabel, serverClock: appState.serverClock)
                 } else {
-                    CooldownItem(label: "Drug", seconds: cooldowns.drug, icon: "pills.fill", actionURL: drugURL, actionLabel: "Use Drug →")
-                    CooldownItem(label: "Medical", seconds: cooldowns.medical, icon: "cross.case.fill", actionURL: medicalURL, actionLabel: "Use Medical →")
-                    CooldownItem(label: "Booster", seconds: cooldowns.booster, icon: "arrow.up.circle.fill", actionURL: boosterURL, actionLabel: boosterLabel)
+                    CooldownItem(label: "Drug", seconds: cooldowns.drug, actionURL: drugURL, actionLabel: "Use Drug →")
+                    CooldownItem(label: "Medical", seconds: cooldowns.medical, actionURL: medicalURL, actionLabel: "Use Medical →")
+                    CooldownItem(label: "Booster", seconds: cooldowns.booster, actionURL: boosterURL, actionLabel: boosterLabel)
                 }
             }
         }
@@ -467,7 +467,6 @@ struct StatusView: View {
 struct CooldownItem: View {
     let label: String
     let seconds: Int
-    let icon: String
     var actionURL: URL? = nil
     var actionLabel: String? = nil
 
@@ -511,7 +510,6 @@ struct CooldownItem: View {
 struct LiveCooldownItem: View {
     let label: String
     let endsAt: Int
-    let icon: String
     var actionURL: URL? = nil
     var actionLabel: String? = nil
     /// Mac↔Torn skew (issue #46) — `endsAt` is server-absolute, so the tick is compared

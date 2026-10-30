@@ -295,11 +295,11 @@ final class UITestHarnessTests: XCTestCase {
     func testSettingsSectionsHaveStableCompactNavigation() {
         XCTAssertEqual(
             SettingsSection.allCases.map(\.title),
-            ["Account", "Refresh", "Notifications", "Privacy", "Startup", "Diagnostics & About"]
+            ["Account", "Refresh", "Notifications", "Privacy", "General", "Diagnostics & About"]
         )
         XCTAssertEqual(
             SettingsSection.allCases.map(\.compactTitle),
-            ["Account", "Refresh", "Alerts", "Privacy", "Startup", "About"]
+            ["Account", "Refresh", "Alerts", "Privacy", "General", "About"]
         )
         XCTAssertEqual(
             Set(SettingsSection.allCases.map(\.anchorID)).count,

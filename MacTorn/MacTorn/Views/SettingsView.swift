@@ -5,7 +5,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case refresh
     case notifications
     case privacy
-    case startup
+    case general
     case diagnostics
 
     var id: String { rawValue }
@@ -16,7 +16,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .refresh: return "Refresh"
         case .notifications: return "Notifications"
         case .privacy: return "Privacy"
-        case .startup: return "Startup"
+        case .general: return "General"
         case .diagnostics: return "Diagnostics & About"
         }
     }
@@ -27,7 +27,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .refresh: return "arrow.clockwise"
         case .notifications: return "bell"
         case .privacy: return "lock.shield"
-        case .startup: return "power"
+        case .general: return "gearshape"
         case .diagnostics: return "stethoscope"
         }
     }
@@ -42,7 +42,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .refresh: return "Refresh"
         case .notifications: return "Alerts"
         case .privacy: return "Privacy"
-        case .startup: return "Startup"
+        case .general: return "General"
         case .diagnostics: return "About"
         }
     }
@@ -218,8 +218,8 @@ struct SettingsView: View {
             notificationsSection
         case .privacy:
             privacySection
-        case .startup:
-            startupSection
+        case .general:
+            generalSection
         case .diagnostics:
             diagnosticsSection
         }
@@ -375,12 +375,6 @@ struct SettingsView: View {
     private var notificationsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             nextActionConfigSection
-
-            Picker("Booster cooldown link", selection: $boosterCooldownTarget) {
-                Text("Boosters").tag("boosters")
-                Text("Alcohol").tag("alcohol")
-            }
-            .pickerStyle(.segmented)
         }
     }
 
@@ -403,7 +397,7 @@ struct SettingsView: View {
         }
     }
 
-    private var startupSection: some View {
+    private var generalSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("Launch at Login", isOn: Binding(
                 get: { appState.launchAtLogin.isEnabled },
@@ -424,6 +418,12 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.menu)
+
+            Picker("Booster cooldown link", selection: $boosterCooldownTarget) {
+                Text("Boosters").tag("boosters")
+                Text("Alcohol").tag("alcohol")
+            }
+            .pickerStyle(.segmented)
 
             VStack(alignment: .leading, spacing: 3) {
                 Toggle("Private Island return icon", isOn: $privateIsland)

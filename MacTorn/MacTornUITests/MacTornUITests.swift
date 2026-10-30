@@ -308,7 +308,7 @@ final class MacTornUITests: XCTestCase {
             ("refresh", "Refresh"),
             ("notifications", "Notifications"),
             ("privacy", "Privacy"),
-            ("startup", "Startup"),
+            ("general", "General"),
             ("diagnostics", "Diagnostics & About"),
         ]
         for section in settingsSections {

@@ -223,6 +223,13 @@ enum TornAPIError: Error, Equatable, Sendable {
         }
     }
 
+    /// User-facing copy for a transport-level HTTP status. Torn reports key problems as
+    /// HTTP 200 with an error envelope, so any non-200 here is the edge or the backend
+    /// being unhappy, never a bad key; the status stays in the text for bug reports.
+    static func httpStatusMessage(_ status: Int) -> String {
+        "Torn API is temporarily unavailable (HTTP \(status)) — retrying."
+    }
+
     /// Same rule as `NotificationManager.sanitize`, and for the same reason: these
     /// messages can be Torn's own string verbatim, they render in the error bar of three
     /// views, and `CharacterSet.controlCharacters` alone lets U+2028/U+2029 through as

@@ -282,7 +282,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "HTTP Error: 403",
+        XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(403),
                        "an edge/CDN rejection must not be reported as a bad key")
         XCTAssertNotNil(appState.data,
                         "a transient HTTP error must not wipe the last good snapshot")
@@ -300,7 +300,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "HTTP Error: 404")
+        XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(404))
         XCTAssertNotNil(appState.data)
         XCTAssertFalse(appState.keyHalted)
     }
@@ -344,7 +344,7 @@ final class AppStateTests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
         XCTAssertNil(appState.lastUpdated)
-        XCTAssertEqual(appState.errorMsg, "Failed to decode user data")
+        XCTAssertEqual(appState.errorMsg, "Unexpected response from Torn.")
         XCTAssertEqual(appState.endpointHealth.latest(for: "user.fast")?.outcome, .error)
     }
 
@@ -364,7 +364,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.data?.playerId, goodSnapshot.playerId)
         XCTAssertEqual(appState.data?.name, goodSnapshot.name)
         XCTAssertEqual(appState.lastUpdated, goodTimestamp)
-        XCTAssertEqual(appState.errorMsg, "Failed to decode user data")
+        XCTAssertEqual(appState.errorMsg, "Unexpected response from Torn.")
         XCTAssertEqual(appState.endpointHealth.latest(for: "user.fast")?.outcome, .error)
     }
 
@@ -973,7 +973,7 @@ final class AppStateTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "HTTP Error: 500")
+        XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(500))
     }
 
     func testFetchData_HTTP502() async throws {
@@ -984,7 +984,7 @@ final class AppStateTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.errorMsg, "HTTP Error: 502")
+        XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(502))
     }
 
     // MARK: - Polling Tests

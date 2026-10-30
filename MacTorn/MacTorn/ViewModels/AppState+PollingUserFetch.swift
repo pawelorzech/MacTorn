@@ -548,7 +548,7 @@ extension AppState {
         }
 
         guard let url = endpointURL("user.fast", key: requestedKey) else {
-            errorMsg = "Invalid URL"
+            errorMsg = "MacTorn couldn't build the Torn request. Please report this."
             logger.error("Fetch aborted: Invalid URL")
             return false
         }
@@ -631,7 +631,7 @@ extension AppState {
                 default:
                     await MainActor.run {
                         guard self.isCurrentAccount(requestedKey, generation: generation) else { return }
-                        self.errorMsg = "HTTP Error: \(response.statusCode)"
+                        self.errorMsg = TornAPIError.httpStatusMessage(response.statusCode)
                     }
                     self.logger.error("HTTP Error: \(response.statusCode)")
                     self.recordHealth(
@@ -705,12 +705,12 @@ extension AppState {
             handleAPIError(apiError, for: "user.fast")
             return .rejected
         case .httpError(let status, _):
-            errorMsg = "HTTP Error: \(status)"
+            errorMsg = TornAPIError.httpStatusMessage(status)
             return .rejected
         case .malformed(let bytes):
             recordHealth("user.fast", outcome: .error, since: startTime, bytes: bytes,
                          errorClass: "malformedResponse")
-            errorMsg = "Failed to decode user data"
+            errorMsg = TornAPIError.malformedResponse(detail: "").userMessage
             logger.error("Data error: Failed to decode user data")
             return .malformed
         }

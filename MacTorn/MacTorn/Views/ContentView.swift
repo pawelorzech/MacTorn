@@ -155,8 +155,9 @@ struct ContentView: View {
                 .allowsHitTesting(false)
             }
 
-            // Feedback Prompt Overlay
-            if appState.showFeedbackPrompt {
+            // Feedback Prompt Overlay — the Sentry opt-in wins when both are due, so at
+            // most one modal is on screen; feedback shows once the opt-in is dismissed.
+            if appState.showFeedbackPrompt && !showSentryOptIn {
                 (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.3))
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
 
