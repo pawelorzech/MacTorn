@@ -17,7 +17,8 @@ struct StatusView: View {
                         hasContent: appState.data != nil,
                         staleAfter: 120
                     ),
-                    onRetry: appState.refreshNow
+                    onRetry: appState.refreshNow,
+                    detail: appState.errorMsg
                 )
 
                 // Next Action timeline (Etap J) — the single most useful glance.
@@ -27,11 +28,6 @@ struct StatusView: View {
 
                 CompetitionPanel()
 
-                // Error state
-                if let error = appState.errorMsg {
-                    errorSection(error)
-                }
-                
                 // Status badges (Hospital/Jail)
                 if let status = appState.data?.status {
                     StatusBadgesView(status: status, serverClock: appState.serverClock)
@@ -206,20 +202,6 @@ struct StatusView: View {
         .buttonStyle(.plain)
         .help(spoken)
         .accessibilityLabel("\(spoken) waiting. Opens Torn.")
-    }
-    
-    // MARK: - Error
-    private func errorSection(_ error: String) -> some View {
-        HStack {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundColor(.orange)
-            Text(error)
-                .font(.caption)
-                .foregroundColor(.primary)
-        }
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .uiTestID("uitest.error")
     }
     
     // MARK: - Travel
