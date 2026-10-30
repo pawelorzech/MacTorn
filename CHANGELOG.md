@@ -5,6 +5,22 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.3] - 2026-10-30 - Friendlier first run
+
+### Added
+- First run without an API key shows a short intro: what MacTorn does, which key access level
+  it needs, and that the key lives in the Keychain while Torn data stays on this Mac (#50).
+
+### Fixed
+- A cooldown that became ready while MacTorn was closed is still announced after a gap of up
+  to a day; before, anything past an hour was dropped silently (#90).
+- Corrupt timestamps in the notification dedup store are treated as unknown age instead of
+  "fresh forever" (#90).
+- The Diagnostics sheet fits the 320 pt window (#68).
+
+### Notes
+- Unit tests and coverage gate passed locally (863 tests). UI automation tests were not run.
+
 ## [1.16.2] - 2026-10-30 - Clearer errors and settings
 
 ### Changed
