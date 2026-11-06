@@ -175,71 +175,95 @@ extension AppState {
             }
         }
     }
+}
 
-    // MARK: - Updates
+extension AppState {
+    // MARK: - Notification Rules
 
-    func checkForAppUpdates() {
-        updateCheckTask = Task {
-            if let release = await updateManager.checkForUpdates(currentVersion: BuildInfo.appVersion) {
-                await MainActor.run {
-                    self.updateAvailable = release
-                }
+    func loadNotificationRules() {
+        if let data = defaults.data(forKey: "notificationRules"),
+           let rules = try? JSONDecoder().decode([NotificationRule].self, from: data) {
+            notificationRules = rules
+        } else {
+            notificationRules = NotificationRule.defaults
+            saveNotificationRules()
+        }
+    }
+
+    func saveNotificationRules() {
+        if let data = try? JSONEncoder().encode(notificationRules) {
+            defaults.set(data, forKey: "notificationRules")
+        }
+    }
+
+    func updateRule(_ rule: NotificationRule) {
+        if let index = notificationRules.firstIndex(where: { $0.id == rule.id }) {
+            notificationRules[index] = rule
+            saveNotificationRules()
+        }
+    }
+
+    // MARK: - Travel Notification Settings
+
+    func loadTravelNotificationSettings() {
+        if let data = defaults.data(forKey: "travelNotificationSettings"),
+           let settings = try? JSONDecoder().decode([TravelNotificationSetting].self, from: data) {
+            travelNotificationSettings = settings
+        } else {
+            travelNotificationSettings = TravelNotificationSetting.defaults
+            saveTravelNotificationSettings()
+        }
+    }
+
+    func saveTravelNotificationSettings() {
+        if let data = try? JSONEncoder().encode(travelNotificationSettings) {
+            defaults.set(data, forKey: "travelNotificationSettings")
+        }
+    }
+
+    func updateTravelNotificationSetting(_ setting: TravelNotificationSetting) {
+        if let index = travelNotificationSettings.firstIndex(where: { $0.id == setting.id }) {
+            travelNotificationSettings[index] = setting
+            saveTravelNotificationSettings()
+            if let travel = player.data?.travel, travel.isTraveling {
+                scheduleTravelNotifications(for: travel)
             }
         }
     }
 
-    // MARK: - Feedback Prompt
+    func cancelLandingAlerts() {
+        notifier.cancelPending(identifiers: TravelNotificationSetting.defaults.map(\.notificationIdentifier))
+    }
 
-    func loadFeedbackState() {
-        if let data = defaults.data(forKey: "appFeedbackState"),
-           let state = try? JSONDecoder().decode(AppFeedbackState.self, from: data) {
-            feedbackState = state
-        } else {
-            feedbackState = AppFeedbackState(
-                firstLaunchDate: Date(),
-                hasResponded: false,
-                dismissCount: 0,
-                lastDismissedDate: nil
-            )
-            saveFeedbackState()
+    func scheduleTravelNotifications(for travel: Travel) {
+        cancelLandingAlerts()
+
+        // `travel.timestamp` is an absolute *server* timestamp, but a scheduled local
+        // notification fires on the *Mac's* clock — so convert back through the skew
+        // (issue #46), or a 90 s-slow Mac fires every landing alert 90 s early.
+        guard travel.isTraveling, let arrival = travel.timestamp, arrival > 0 else { return }
+        let arrivalDate = player.serverClock.localDate(forServerTimestamp: arrival)
+
+        for setting in travelNotificationSettings where setting.enabled {
+            let notificationDate = arrivalDate.addingTimeInterval(-Double(setting.secondsBefore))
+
+            if notificationDate > time.now {
+                let identifier = setting.notificationIdentifier
+                let timeText: String
+                if setting.secondsBefore >= 60 {
+                    timeText = "\(setting.secondsBefore / 60) minute\(setting.secondsBefore >= 120 ? "s" : "")"
+                } else {
+                    timeText = "\(setting.secondsBefore) seconds"
+                }
+
+                notifier.schedule(
+                    title: "Landing Soon!",
+                    body: "You will arrive in \(travel.destination ?? "your destination") in \(timeText)",
+                    type: .travelApproaching,
+                    at: notificationDate,
+                    identifier: identifier
+                )
+            }
         }
-    }
-
-    func saveFeedbackState() {
-        guard let state = feedbackState,
-              let data = try? JSONEncoder().encode(state) else { return }
-        defaults.set(data, forKey: "appFeedbackState")
-    }
-
-    func checkFeedbackPrompt() {
-        guard let state = feedbackState else { return }
-        guard !state.hasResponded else { return }
-        guard state.dismissCount < Self.feedbackThresholds.count else { return }
-
-        // 5-minute cooldown after last dismissal
-        if let lastDismissed = state.lastDismissedDate,
-           Date().timeIntervalSince(lastDismissed) < 300 {
-            return
-        }
-
-        let elapsed = Date().timeIntervalSince(state.firstLaunchDate)
-        let requiredTime = Self.feedbackThresholds[state.dismissCount]
-
-        if elapsed >= requiredTime {
-            showFeedbackPrompt = true
-        }
-    }
-
-    func feedbackResponded() {
-        feedbackState?.hasResponded = true
-        showFeedbackPrompt = false
-        saveFeedbackState()
-    }
-
-    func feedbackDismissed() {
-        feedbackState?.dismissCount += 1
-        feedbackState?.lastDismissedDate = Date()
-        showFeedbackPrompt = false
-        saveFeedbackState()
     }
 }

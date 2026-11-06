@@ -43,6 +43,102 @@ enum ShopCatalogRefreshResult {
 }
 
 extension AppState {
+    private static var stocksMetadataCacheKey: String { "stocksMetadataCache" }
+
+    // MARK: - Stocks Metadata
+
+    func loadStocksMetadataFromCache() {
+        guard let data = defaults.data(forKey: Self.stocksMetadataCacheKey) else { return }
+        guard let cached = try? JSONDecoder().decode([Int: StockMetadata].self, from: data) else {
+            defaults.removeObject(forKey: Self.stocksMetadataCacheKey)
+            stocksMetadata = [:]
+            return
+        }
+        stocksMetadata = cached
+    }
+
+    func triggerStocksMetadataFetchIfNeeded() {
+        guard stocksMetadata.isEmpty, !apiKey.isEmpty, stocksBackoff.allows(at: time.now),
+              !requester.isInFlight("torn.stocks") else { return }
+        accountSession.startTask(.stockMetadata) { await self.fetchStocksMetadata() }
+    }
+
+    func fetchStocksMetadata() async {
+        await fetchReferenceData("torn.stocks", cacheKey: Self.stocksMetadataCacheKey,
+                                 parse: { Self.parseStocksMetadata(json: $0, logger: $1) },
+                                 onFailure: { stocksBackoff.fail(at: time.now) }) { parsed in
+            stocksMetadata = parsed
+            stocksBackoff.succeed()
+        }
+    }
+
+    /// One request per reference source at a time. The parsed map is cached in defaults
+    /// before it is published, so the next launch starts from it.
+    func fetchReferenceData<Value: Codable & Sendable>(
+        _ endpointID: String,
+        cacheKey: String,
+        parse: @escaping @Sendable ([String: Any], Logger) -> [Int: Value],
+        onFailure: () -> Void,
+        publish: ([Int: Value]) -> Void
+    ) async {
+        guard !requester.isInFlight(endpointID) else { return }
+        let result = await requester.fetch(endpointID) { _, json -> ([Int: Value], Data)? in
+            let parsed = parse(json, Self.appReferenceLogger)
+            guard !parsed.isEmpty, let encoded = try? JSONEncoder().encode(parsed) else { return nil }
+            return (parsed, encoded)
+        }
+        switch result {
+        case .loaded(let (parsed, encoded)):
+            defaults.set(encoded, forKey: cacheKey)
+            publish(parsed)
+        case .failed:
+            onFailure()
+        case .nothingToServe, .skipped, .superseded:
+            break
+        }
+    }
+
+    nonisolated private static let appReferenceLogger =
+        Logger(subsystem: TornConstants.logSubsystem, category: "ReferenceData")
+
+    nonisolated static func parseStocksMetadata(from data: Data, logger: Logger) -> [Int: StockMetadata] {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            logger.error("Stocks metadata: failed to parse JSON")
+            return [:]
+        }
+        return parseStocksMetadata(json: json, logger: logger)
+    }
+
+    nonisolated private static func parseStocksMetadata(json: [String: Any], logger: Logger) -> [Int: StockMetadata] {
+        if tornAPIErrorMessage(in: json) != nil {
+            logger.error("Stocks metadata API returned an error envelope")
+            return [:]
+        }
+        guard let stocksDict = json["stocks"] as? [String: [String: Any]] else {
+            logger.warning("Stocks metadata: no 'stocks' key in response")
+            return [:]
+        }
+        var result: [Int: StockMetadata] = [:]
+        for (key, stockData) in stocksDict {
+            guard let id = Int(key) else { continue }
+            let name = stockData["name"] as? String ?? ""
+            let acronym = stockData["acronym"] as? String ?? ""
+            let price: Double
+            if let n = stockData["current_price"] as? NSNumber {
+                price = n.doubleValue
+            } else if let s = stockData["current_price"] as? String, let d = Double(s) {
+                price = d
+            } else {
+                price = 0
+            }
+            guard StockMetadata.isValidPrice(price) else { return [:] }
+            result[id] = StockMetadata(id: id, name: name, acronym: acronym, currentPrice: price)
+        }
+        return result
+    }
+}
+
+extension AppState {
     private static var itemCatalogCacheKey: String { "itemCatalogCache" }
     private static var itemCatalogFetchedAtKey: String { "itemCatalogFetchedAt" }
     /// A week. Torn adds items occasionally, never hourly.
