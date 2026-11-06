@@ -12,9 +12,11 @@
 		204146F97184B5CA1A32E486 /* Travel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B617259087CA076C0EB4A2F /* Travel.swift */; };
 		283327E20486060110E15CEF /* SentryOptInPromptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */; };
 		2ABEE44D92F50F39605C526F /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */; };
+		2F82CF4F52A68C9114D72F17 /* DisplayText.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCD0F18721EDFD4FD024279E /* DisplayText.swift */; };
 		30288D22A744FB8CBE2281EB /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC53E698E239C8BD388704C1 /* Preferences.swift */; };
 		35A0ADCA5AB81D79ABAFE01A /* UserSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02F5883AA34A63A9EB333B0 /* UserSnapshot.swift */; };
 		3748548E3926E0BC4D14D054 /* MenuBarDisplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60FF0E1DBB72B88C9FE868C3 /* MenuBarDisplay.swift */; };
+		38D56C06B9C374DC92F872CD /* Notifying.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67660DBB0FF884CB822A0B15 /* Notifying.swift */; };
 		4105620C57CC1C7F080D013F /* SentryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */; };
 		43D86313A086EEAD6F2F898E /* TornAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676563671F15BABF889F2167 /* TornAPIClient.swift */; };
 		49296CAAA41B4123B178EC9C /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3DB98B7075D60768CC8CFC /* BuildInfo.swift */; };
@@ -37,7 +39,6 @@
 		AAA00012 /* ChainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10013 /* ChainView.swift */; };
 		AAA00013 /* StatusBadgesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10014 /* StatusBadgesView.swift */; };
 		AAA00014 /* EventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10015 /* EventsView.swift */; };
-		AAA00015 /* SoundManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10016 /* SoundManager.swift */; };
 		AAA00016 /* MoneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10017 /* MoneyView.swift */; };
 		AAA00017 /* AttacksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10018 /* AttacksView.swift */; };
 		AAA00018 /* FactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10019 /* FactionView.swift */; };
@@ -193,6 +194,7 @@
 		5DFC2E20B21708BAB66AEA40 /* TornLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TornLink.swift; sourceTree = "<group>"; };
 		60FF0E1DBB72B88C9FE868C3 /* MenuBarDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MenuBarDisplay.swift; sourceTree = "<group>"; };
 		676563671F15BABF889F2167 /* TornAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TornAPIClient.swift; sourceTree = "<group>"; };
+		67660DBB0FF884CB822A0B15 /* Notifying.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Notifying.swift; sourceTree = "<group>"; };
 		6B617259087CA076C0EB4A2F /* Travel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Travel.swift; sourceTree = "<group>"; };
 		92DF634C5EBE4EB3A6927D0B /* AppRoot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppRoot.swift; sourceTree = "<group>"; };
 		93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetSnapshot.swift; sourceTree = "<group>"; };
@@ -211,7 +213,6 @@
 		AAA10013 /* ChainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainView.swift; sourceTree = "<group>"; };
 		AAA10014 /* StatusBadgesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgesView.swift; sourceTree = "<group>"; };
 		AAA10015 /* EventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsView.swift; sourceTree = "<group>"; };
-		AAA10016 /* SoundManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundManager.swift; sourceTree = "<group>"; };
 		AAA10017 /* MoneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyView.swift; sourceTree = "<group>"; };
 		AAA10018 /* AttacksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttacksView.swift; sourceTree = "<group>"; };
 		AAA10019 /* FactionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionView.swift; sourceTree = "<group>"; };
@@ -319,6 +320,7 @@
 		F02F5883AA34A63A9EB333B0 /* UserSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserSnapshot.swift; sourceTree = "<group>"; };
 		F37EBED0CA05A318E80070E3 /* UserV2.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserV2.swift; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
+		FCD0F18721EDFD4FD024279E /* DisplayText.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisplayText.swift; sourceTree = "<group>"; };
 		FD208526C28ECAFA90FEE05E /* WatchlistItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchlistItem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -491,7 +493,6 @@
 				AAA10027 /* BrowserManager.swift */,
 				AAA10011 /* LaunchAtLoginManager.swift */,
 				AAA10012 /* ShortcutsManager.swift */,
-				AAA10016 /* SoundManager.swift */,
 				AAA10028 /* NetworkMonitor.swift */,
 				AAA10032 /* NotificationCoordinator.swift */,
 				AAA10034 /* PollingCoordinator.swift */,
@@ -500,6 +501,7 @@
 				3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */,
 				C33BF3CCD4185AE63EF64320 /* UpdateManager.swift */,
 				1C3DB98B7075D60768CC8CFC /* BuildInfo.swift */,
+				67660DBB0FF884CB822A0B15 /* Notifying.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -527,6 +529,7 @@
 				AAA10033 /* TimeSource.swift */,
 				AAA10039 /* UITestSupport.swift */,
 				5DFC2E20B21708BAB66AEA40 /* TornLink.swift */,
+				FCD0F18721EDFD4FD024279E /* DisplayText.swift */,
 			);
 			path = Helpers;
 			sourceTree = "<group>";
@@ -846,7 +849,6 @@
 				AAA00012 /* ChainView.swift in Sources */,
 				AAA00013 /* StatusBadgesView.swift in Sources */,
 				AAA00014 /* EventsView.swift in Sources */,
-				AAA00015 /* SoundManager.swift in Sources */,
 				AAA00016 /* MoneyView.swift in Sources */,
 				AAA00017 /* AttacksView.swift in Sources */,
 				AAA00018 /* FactionView.swift in Sources */,
@@ -893,6 +895,8 @@
 				49296CAAA41B4123B178EC9C /* BuildInfo.swift in Sources */,
 				D34E8D196906E62F592C8EA9 /* AppRoot.swift in Sources */,
 				EEA1EAF0C121ADB661433C19 /* Navigation.swift in Sources */,
+				2F82CF4F52A68C9114D72F17 /* DisplayText.swift in Sources */,
+				38D56C06B9C374DC92F872CD /* Notifying.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

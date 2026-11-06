@@ -25,7 +25,7 @@ enum SentryManager {
 
     /// The opt-in prompt is offered once per app version, and never once crash reporting is on.
     static var isPromptDue: Bool {
-        !isEnabled && UserDefaults.standard.string(forKey: promptShownKey) != BuildInfo.appVersion
+        !UITestConfiguration.isIsolated && !isEnabled && UserDefaults.standard.string(forKey: promptShownKey) != BuildInfo.appVersion
     }
 
     static func markPromptShown() {

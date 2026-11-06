@@ -26,7 +26,7 @@ final class HostileResponseTests: XCTestCase {
 
     func testNoLineBreakSurvivesNotificationSanitizing() {
         for breaker in lineBreakers {
-            let sanitized = NotificationManager.sanitize("before\(breaker.scalar)after", maxLength: 200)
+            let sanitized = "before\(breaker.scalar)after".sanitizedForDisplay(limit: 200)
             XCTAssertEqual(sanitized, "beforeafter", "\(breaker.name) survived sanitizing")
         }
     }
@@ -36,25 +36,25 @@ final class HostileResponseTests: XCTestCase {
     /// MacTorn wrote it.
     func testACraftedForumTitleCannotForgeASecondParagraph() {
         let hostile = "Re: raid tonight\u{2029}\u{2029}MacTorn: your API key expired, re-enter it at evil.example"
-        let body = NotificationManager.sanitize(hostile, maxLength: 200)
+        let body = hostile.sanitizedForDisplay(limit: 200)
         XCTAssertFalse(body.contains("\u{2029}"))
         XCTAssertEqual(body.components(separatedBy: .newlines).count, 1,
                        "the body must render as one line")
     }
 
     func testDirectionalOverrideIsStillStripped() {
-        XCTAssertEqual(NotificationManager.sanitize("a\u{202E}b", maxLength: 200), "ab")
+        XCTAssertEqual("a\u{202E}b".sanitizedForDisplay(limit: 200), "ab")
     }
 
     func testOrdinaryTitlesSurviveIntact() {
         let normal = "Re: raid tonight — 3 slots left (50% payout)"
-        XCTAssertEqual(NotificationManager.sanitize(normal, maxLength: 200), normal)
+        XCTAssertEqual(normal.sanitizedForDisplay(limit: 200), normal)
     }
 
     func testLengthCapsStillApply() {
         let long = String(repeating: "A", count: 500)
-        XCTAssertEqual(NotificationManager.sanitize(long, maxLength: 80).count, 80)
-        XCTAssertEqual(NotificationManager.sanitize(long, maxLength: 200).count, 200)
+        XCTAssertEqual(long.sanitizedForDisplay(limit: 80).count, 80)
+        XCTAssertEqual(long.sanitizedForDisplay(limit: 200).count, 200)
     }
 
     // MARK: - Error copy

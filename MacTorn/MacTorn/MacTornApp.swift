@@ -25,7 +25,10 @@ struct MacTornApp: App {
         }
         #endif
         SentryManager.startIfEnabled()
-        let state = AppState()
+        let state = AppState(
+            accountSession: AccountSessionStore(defaults: .standard, credentialStore: KeychainAPIKeyStore()),
+            notifier: NotificationManager.shared
+        )
         if WidgetSnapshotStore.groupID != nil { state.widgetStore = .shared }
         state.clearWidgets()
         _appState = State(initialValue: state)

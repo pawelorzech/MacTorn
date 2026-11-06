@@ -174,8 +174,12 @@ extension AppState {
         }
     }
 
+    func cancelLandingAlerts() {
+        notifier.cancelPending(identifiers: TravelNotificationSetting.defaults.map(\.notificationIdentifier))
+    }
+
     func scheduleTravelNotifications(for travel: Travel) {
-        NotificationManager.shared.cancelTravelNotifications()
+        cancelLandingAlerts()
 
         // `travel.timestamp` is an absolute *server* timestamp, but a scheduled local
         // notification fires on the *Mac's* clock — so convert back through the skew
@@ -187,7 +191,7 @@ extension AppState {
             let notificationDate = arrivalDate.addingTimeInterval(-Double(setting.secondsBefore))
 
             if notificationDate > time.now {
-                let identifier = "\(setting.id)_alert"
+                let identifier = setting.notificationIdentifier
                 let timeText: String
                 if setting.secondsBefore >= 60 {
                     timeText = "\(setting.secondsBefore / 60) minute\(setting.secondsBefore >= 120 ? "s" : "")"
@@ -195,7 +199,7 @@ extension AppState {
                     timeText = "\(setting.secondsBefore) seconds"
                 }
 
-                NotificationManager.shared.scheduleNotification(
+                notifier.schedule(
                     title: "Landing Soon!",
                     body: "You will arrive in \(travel.destination ?? "your destination") in \(timeText)",
                     type: .travelApproaching,

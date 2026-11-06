@@ -30,8 +30,26 @@ protocol APIKeyStoring: Sendable {
 }
 
 struct KeychainAPIKeyStore: APIKeyStoring {
-    func get() -> String? { KeychainStore.get() }
-    @discardableResult func set(_ value: String) -> Bool { KeychainStore.set(value) }
+    var service = "com.mactorn.app"
+
+    func get() -> String? { KeychainStore.get(service: service) }
+    @discardableResult func set(_ value: String) -> Bool { KeychainStore.set(value, service: service) }
+}
+
+/// Keeps the key in memory only. The default wherever a store is not chosen explicitly,
+/// so nothing but the app itself ever touches the login Keychain.
+final class InMemoryAPIKeyStore: APIKeyStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: String?
+
+    init(_ value: String? = nil) { self.value = value }
+
+    func get() -> String? { lock.withLock { value } }
+
+    @discardableResult func set(_ value: String) -> Bool {
+        lock.withLock { self.value = value.isEmpty ? nil : value }
+        return true
+    }
 }
 
 /// Owns authenticated-account identity and task invalidation. Feature state still lives
@@ -48,8 +66,7 @@ final class AccountSessionStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var tasks: [AccountTaskKind: Task<Void, Never>] = [:]
 
-    init(defaults: UserDefaults,
-         credentialStore: APIKeyStoring = KeychainAPIKeyStore()) {
+    init(defaults: UserDefaults, credentialStore: APIKeyStoring) {
         self.credentialStore = credentialStore
         self.defaults = defaults
 
@@ -111,26 +128,11 @@ final class AccountSessionStore {
 
 // MARK: - Keychain
 
-/// Minimal generic-password Keychain wrapper for the single Torn API key.
-///
-/// Test isolation: XCTest workers use a PID-suffixed service, while the UI-test harness
-/// routes through an in-memory override and never reads a developer's real key.
+/// Generic-password Keychain access for the single Torn API key.
 enum KeychainStore {
     static let account = "apiKey"
 
-    static var service: String {
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil {
-            return "com.mactorn.app.tests.\(ProcessInfo.processInfo.processIdentifier)"
-        }
-        return "com.mactorn.app"
-    }
-
-    static func get() -> String? {
-        #if DEBUG
-        if UITestConfiguration.isActive {
-            return UITestConfiguration.keychainOverride[account]
-        }
-        #endif
+    static func get(service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -149,16 +151,10 @@ enum KeychainStore {
     }
 
     @discardableResult
-    static func set(_ value: String) -> Bool {
+    static func set(_ value: String, service: String) -> Bool {
         guard !value.isEmpty else {
-            return delete()
+            return delete(service: service)
         }
-        #if DEBUG
-        if UITestConfiguration.isActive {
-            UITestConfiguration.keychainOverride[account] = value
-            return true
-        }
-        #endif
         guard let data = value.data(using: .utf8) else { return false }
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -197,13 +193,7 @@ enum KeychainStore {
     }
 
     @discardableResult
-    static func delete() -> Bool {
-        #if DEBUG
-        if UITestConfiguration.isActive {
-            UITestConfiguration.keychainOverride[account] = nil
-            return true
-        }
-        #endif
+    static func delete(service: String) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

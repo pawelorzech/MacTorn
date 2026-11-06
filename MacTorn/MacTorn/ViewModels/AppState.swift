@@ -118,11 +118,6 @@ class AppState {
     var widgetStore: WidgetSnapshotStore?
     @ObservationIgnored var widgetPublicationTask: Task<Void, Never>?
     @ObservationIgnored var reloadWidgetTimelines: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
-    /// Removes the pending "Landing Soon!" alerts. A seam for the same reason as
-    /// `reloadWidgetTimelines`: `NotificationManager.shared` is not injectable.
-    @ObservationIgnored var cancelScheduledTravelNotifications: () -> Void = {
-        NotificationManager.shared.cancelTravelNotifications()
-    }
     var data: TornResponse?
     var lastUpdated: Date?
     var errorMsg: String?
@@ -272,7 +267,7 @@ class AppState {
     // MARK: - Managers
     @ObservationIgnored let launchAtLogin = LaunchAtLoginManager()
     @ObservationIgnored let shortcutsManager = ShortcutsManager()
-    @ObservationIgnored let updateManager = UpdateManager.shared
+    @ObservationIgnored let updateManager: UpdateManager
     /// Handle for the in-flight (if any) update-check `Task` started by
     /// `checkForAppUpdates()`. Cancelled alongside polling teardown (issue #56) so an
     /// in-flight GitHub request doesn't outlive the `AppState` that started it.
@@ -280,6 +275,7 @@ class AppState {
 
     // MARK: - Networking (Dependency Injection for Testing)
     @ObservationIgnored let session: NetworkSession
+    @ObservationIgnored let notifier: Notifying
     @ObservationIgnored let connectivity: NetworkConnectivity
     @ObservationIgnored let accountSession: AccountSessionStore
     @ObservationIgnored let userSnapshotService: UserSnapshotServicing
@@ -314,11 +310,6 @@ class AppState {
     @ObservationIgnored var pollingTimerInterval: TimeInterval?
     @ObservationIgnored var forumTimerInterval: TimeInterval?
     @ObservationIgnored var lastForumFetchAt: Date?
-    /// Posts price-alert banners. A seam (like `cancelScheduledTravelNotifications`) so a
-    /// test can see which alerts were actually delivered, not just which were latched.
-    @ObservationIgnored var deliverPriceAlerts: @MainActor ([MarketPriceAlert]) -> Void = { alerts in
-        AppState.postPriceAlertNotifications(alerts)
-    }
 
     /// Monotonic identity for accepted user snapshot polls. Deferred cleanup from an
     /// older, cancelled poll must never mutate the loading state owned by a newer one.
@@ -426,13 +417,17 @@ class AppState {
          userSnapshotService: UserSnapshotServicing? = nil,
          factionService: FactionServicing? = nil,
          marketWatchService: MarketWatchServicing? = nil,
-         forumWatchService: ForumWatchServicing? = nil) {
-        self.companion = CompanionStore(defaults: defaults)
+         forumWatchService: ForumWatchServicing? = nil,
+         notifier: Notifying = SilentNotifier()) {
+        self.companion = CompanionStore(defaults: defaults, notifier: notifier)
         self.session = session
+        self.notifier = notifier
+        self.updateManager = UpdateManager(session: session)
         self.connectivity = connectivity ?? NetworkMonitor.shared
         self.defaults = defaults
         self.time = time
-        self.accountSession = accountSession ?? AccountSessionStore(defaults: defaults)
+        self.accountSession = accountSession
+            ?? AccountSessionStore(defaults: defaults, credentialStore: InMemoryAPIKeyStore())
         self.userSnapshotService = userSnapshotService ?? UserSnapshotService(session: session)
         self.factionService = factionService ?? FactionService(session: session)
         self.marketWatchService =
@@ -512,7 +507,7 @@ class AppState {
         previousTravel = nil
         // Landing alerts were scheduled for the old account's flight. Left pending, they
         // fire later for an account that is not travelling (or a key that no longer works).
-        cancelScheduledTravelNotifications()
+        cancelLandingAlerts()
         // Bounty dedup is deliberately NOT cleared here, for the reason the apiKey setter
         // documents: it is a dedup latch, and a transient permanent-key error routes through
         // this method. Wiping it there re-announced every bounty the user had already been

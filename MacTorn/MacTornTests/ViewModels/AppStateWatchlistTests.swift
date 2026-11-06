@@ -280,13 +280,13 @@ final class AppStateWatchlistTests: XCTestCase {
             json: TornAPIFixtures.marketItemSuccess,
             delayNanoseconds: 300_000_000
         )
+        let notifier = RecordingNotifier()
         let state = AppState(
             session: probe,
             connectivity: ControllableConnectivity(),
-            defaults: .createMockDefaults()
+            defaults: .createMockDefaults(),
+            notifier: notifier
         )
-        var delivered: [String] = []
-        state.deliverPriceAlerts = { alerts in delivered += alerts.map(\.name) }
         state.apiKey = "valid_key"
         // Five items at a 1,000 threshold; the fixture's lowest price is 950. With the
         // queue limit at four, the first wave lands at ~300 ms and item 5 at ~600 ms.
@@ -303,9 +303,13 @@ final class AppStateWatchlistTests: XCTestCase {
         state.refreshWatchlistPrices()
         try await Task.sleep(nanoseconds: 1_200_000_000)
 
-        XCTAssertEqual(Set(delivered), Set((1...5).map { "Item \($0)" }),
-                       "every latched alert must reach the user")
-        XCTAssertEqual(delivered.count, 5, "and each exactly once")
+        XCTAssertEqual(notifier.sent.map(\.title).map(Self.alertsAnnounced).reduce(0, +), 5,
+                       "every latched alert reaches the user, each exactly once")
+    }
+
+    /// How many price alerts one banner announces: "Price Alert: X" is one, "N price alerts" is N.
+    private static func alertsAnnounced(_ title: String) -> Int {
+        title.hasPrefix("Price Alert:") ? 1 : Int(title.split(separator: " ").first ?? "") ?? 0
     }
 
     // MARK: - Price Update Tests
@@ -747,16 +751,16 @@ private final class ConcurrencyProbeNetworkSession: NetworkSession, @unchecked S
 final class WatchlistPriceAlertTimerTests: XCTestCase {
     private var mockSession: MockNetworkSession!
     private var state: AppState!
-    private var delivered: [String] = []
+    private var notifier: RecordingNotifier!
 
     override func setUp() async throws {
         try await super.setUp()
         mockSession = MockNetworkSession()
+        notifier = RecordingNotifier()
         state = AppState(session: mockSession,
                          connectivity: ControllableConnectivity(),
-                         defaults: .createMockDefaults())
-        delivered = []
-        state.deliverPriceAlerts = { [unowned self] alerts in delivered += alerts.map(\.name) }
+                         defaults: .createMockDefaults(),
+                         notifier: notifier)
         state.apiKey = "price-alert-\(UUID().uuidString)"
     }
 
@@ -785,7 +789,7 @@ final class WatchlistPriceAlertTimerTests: XCTestCase {
         try await Task.sleep(nanoseconds: 500_000_000)
 
         XCTAssertEqual(state.watchlistItems.first?.lastAlertedPrice, 950)
-        XCTAssertEqual(delivered, ["Item 123"])
+        XCTAssertEqual(notifier.sent.map(\.title), ["Price Alert: Item 123"])
     }
 
     func testBackgroundRefreshOnlyRequestsItemsWithAThreshold() async throws {

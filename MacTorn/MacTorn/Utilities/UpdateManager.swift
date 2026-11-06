@@ -17,8 +17,6 @@ struct GitHubRelease: Codable {
 }
 
 class UpdateManager {
-    static let shared = UpdateManager()
-
     // Configure your repository here
     private let githubOwner = "pawelorzech"
     private let githubRepo = "MacTorn"

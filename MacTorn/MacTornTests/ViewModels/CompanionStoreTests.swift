@@ -37,7 +37,7 @@ final class CompanionStoreTests: XCTestCase {
     }
     func testRecruitingFiltersOccupiedSlotsAndCPRWithoutDeprecatedNumber() throws {
         let response = try JSONDecoder().decode(RecruitingResponse.self, from: Data(#"{"organizedcrimes":[{"id":1,"name":"Test crime","status":"Recruiting","slots":[{"position":"Muscle","position_info":{"id":"P1","label":"Muscle #1"},"checkpoint_pass_rate":90,"user":null},{"position":"Driver","position_info":{"id":"P2","label":"Driver"},"checkpoint_pass_rate":40,"user":null},{"position":"Thief","position_info":{"id":"P3","label":"Thief"},"checkpoint_pass_rate":99,"user":{"id":2}}]}]}"#.utf8))
-        let store = CompanionStore(defaults: .createMockDefaults())
+        let store = CompanionStore(defaults: .createMockDefaults(), notifier: SilentNotifier())
         store.minimumCPR = 70
         store.recruiting = response.organizedcrimes
         XCTAssertEqual(store.eligibleSlots.count, 1)
@@ -148,7 +148,7 @@ final class CompanionStoreTests: XCTestCase {
         XCTAssertNil(app.companion.fetchedAt["torn.shops"])
     }
     func testAlertBaselinesAndResetAreAccountScoped() {
-        let store = CompanionStore(defaults: .createMockDefaults())
+        let store = CompanionStore(defaults: .createMockDefaults(), notifier: SilentNotifier())
         XCTAssertTrue(store.newlyAvailable(["1"], feature: .stocks).isEmpty)
         XCTAssertTrue(store.newlyAvailable(["1"], feature: .stocks).isEmpty)
         XCTAssertEqual(store.newlyAvailable(["1", "2"], feature: .stocks), ["2"])

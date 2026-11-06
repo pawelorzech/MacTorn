@@ -122,10 +122,7 @@ struct ContentView: View {
             checkSentryOptInPrompt()
         }
         .task {
-            // Skip system-permission prompts and the update-check network call under the
-            // UI-test harness so runs stay hermetic and no modal steals focus.
-            guard !UITestConfiguration.isIsolated else { return }
-            await NotificationManager.shared.requestPermission()
+            await appState.notifier.requestPermission()
             appState.checkForAppUpdates()
         }
     }
@@ -368,7 +365,6 @@ struct ContentView: View {
     }
     
     private func checkSentryOptInPrompt() {
-        guard !UITestConfiguration.isIsolated else { return }
         guard !appState.apiKey.isEmpty else { return }
         if SentryManager.isPromptDue {
             showSentryOptIn = true

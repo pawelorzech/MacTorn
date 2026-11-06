@@ -843,7 +843,7 @@ extension AppState {
                 publishWidgets()
                 if let wasProgramming, value == nil || value?.itemID != wasProgramming.itemID,
                    notificationCoordinator.shouldFireOnce("virus.ready", epoch: "\(wasProgramming.until)") {
-                    NotificationManager.shared.send(
+                    notifier.send(
                         title: "Virus ready 💾",
                         body: "\(wasProgramming.name) has finished programming",
                         type: .virusReady
@@ -914,7 +914,7 @@ extension AppState {
             organizedCrime = value
             organizedCrimeUnavailableReason = nil
             if shouldNotifyOCReady(value), let value {
-                NotificationManager.shared.send(
+                notifier.send(
                     title: "OC Ready! 💼",
                     body: "\(value.name) is ready to execute",
                     type: .ocReady
@@ -959,7 +959,7 @@ extension AppState {
             notificationCoordinator.shouldFireOnce("bounty.\($0.id)", epoch: $0.id)
         }
         guard let banner = Self.bountyBanner(for: fresh) else { return }
-        NotificationManager.shared.send(title: banner.title, body: banner.body, type: .bountyOnMe)
+        notifier.send(title: banner.title, body: banner.body, type: .bountyOnMe)
     }
 
     /// The banner for a set of freshly-seen bounties, or `nil` when there is nothing to

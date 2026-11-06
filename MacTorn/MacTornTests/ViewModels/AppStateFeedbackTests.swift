@@ -103,17 +103,9 @@ final class AppStateFeedbackTests: XCTestCase {
 
     // MARK: - Responses
 
-    func testPositiveResponse_setsHasRespondedAndHidesPrompt() {
+    func testResponse_setsHasRespondedAndHidesPrompt() {
         appState.showFeedbackPrompt = true
-        appState.feedbackRespondedPositive()
-
-        XCTAssertTrue(appState.feedbackState!.hasResponded)
-        XCTAssertFalse(appState.showFeedbackPrompt)
-    }
-
-    func testNegativeResponse_setsHasRespondedAndHidesPrompt() {
-        appState.showFeedbackPrompt = true
-        appState.feedbackRespondedNegative()
+        appState.feedbackResponded()
 
         XCTAssertTrue(appState.feedbackState!.hasResponded)
         XCTAssertFalse(appState.showFeedbackPrompt)

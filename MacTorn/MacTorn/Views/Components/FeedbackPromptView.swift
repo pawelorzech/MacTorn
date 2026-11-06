@@ -26,7 +26,8 @@ struct FeedbackPromptView: View {
 
             VStack(spacing: 8) {
                 Button {
-                    appState.feedbackRespondedPositive()
+                    appState.feedbackResponded()
+                    BrowserManager.shared.open(TornLink.page("forums.php#/p=threads&f=67&t=16532308"))
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "hand.thumbsup.fill")
@@ -40,7 +41,8 @@ struct FeedbackPromptView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    appState.feedbackRespondedNegative()
+                    appState.feedbackResponded()
+                    NSWorkspace.shared.open(URL(string: "mailto:pawel@orzech.me?subject=MacTorn%20Feedback")!)
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "envelope.fill")

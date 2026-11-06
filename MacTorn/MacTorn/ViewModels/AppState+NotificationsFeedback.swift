@@ -35,21 +35,21 @@ extension AppState {
 
         if let currentCD = newData.cooldowns {
             if shouldFireCooldownReady(.drug, seconds: currentCD.drug) {
-                NotificationManager.shared.send(title: "Drug Ready! 💊", body: "Drug cooldown has ended", type: .drugReady)
+                notifier.send(title: "Drug Ready! 💊", body: "Drug cooldown has ended", type: .drugReady)
             }
             if shouldFireCooldownReady(.medical, seconds: currentCD.medical) {
-                NotificationManager.shared.send(title: "Medical Ready! 🏥", body: "Medical cooldown has ended", type: .medicalReady)
+                notifier.send(title: "Medical Ready! 🏥", body: "Medical cooldown has ended", type: .medicalReady)
             }
             if shouldFireCooldownReady(.booster, seconds: currentCD.booster) {
-                NotificationManager.shared.send(title: "Booster Ready! 🚀", body: "Booster cooldown has ended", type: .boosterReady)
+                notifier.send(title: "Booster Ready! 🚀", body: "Booster cooldown has ended", type: .boosterReady)
             }
         }
 
         if let prevTravel = previousTravel, let currentTravel = newData.travel {
             // Just landed
             if prevTravel.isTraveling && !currentTravel.isTraveling {
-                NotificationManager.shared.send(title: "Landed!", body: "You have arrived in \(currentTravel.destination ?? "destination")", type: .landed)
-                NotificationManager.shared.cancelTravelNotifications()
+                notifier.send(title: "Landed!", body: "You have arrived in \(currentTravel.destination ?? "destination")", type: .landed)
+                cancelLandingAlerts()
             }
             // Just started traveling
             if !prevTravel.isTraveling && currentTravel.isTraveling {
@@ -65,7 +65,7 @@ extension AppState {
         // at the point the faction payload lands. See audit finding C-01.
 
         if shouldFireReleased(newData.status) {
-            NotificationManager.shared.send(title: "Released! 🎉", body: "You are now free", type: .released)
+            notifier.send(title: "Released! 🎉", body: "You are now free", type: .released)
         }
     }
 
@@ -130,7 +130,7 @@ extension AppState {
     /// persistent edge latch inside `chainExpiringShouldFire` collapses repeats.
     func checkChainNotification() {
         guard let chain = liveChain, chainExpiringShouldFire(chain) else { return }
-        NotificationManager.shared.send(
+        notifier.send(
             title: "Chain Expiring! ⚠️",
             body: "Chain timeout in \(chain.timeoutRemaining(at: serverNow)) seconds!",
             type: .chainExpiring
@@ -168,10 +168,10 @@ extension AppState {
                 title = "Life \(rule.threshold)%! ❤️"
                 notificationType = .life
             }
-            NotificationManager.shared.send(title: title, body: "\(barType.rawValue) is now at \(bar.current)/\(bar.maximum)", type: notificationType)
+            notifier.send(title: title, body: "\(barType.rawValue) is now at \(bar.current)/\(bar.maximum)", type: notificationType)
 
             if let sound = NotificationSound(rawValue: rule.soundName) {
-                SoundManager.shared.play(sound)
+                notifier.play(sound)
             }
         }
     }
@@ -230,27 +230,10 @@ extension AppState {
         }
     }
 
-    private static var isRunningUnderXCTest: Bool {
-        NSClassFromString("XCTestCase") != nil
-    }
-
-    func feedbackRespondedPositive() {
+    func feedbackResponded() {
         feedbackState?.hasResponded = true
         showFeedbackPrompt = false
         saveFeedbackState()
-        // Guard prevents tests from spamming the user's browser/mail client.
-        guard !Self.isRunningUnderXCTest else { return }
-        BrowserManager.shared.open(TornLink.page("forums.php#/p=threads&f=67&t=16532308"))
-    }
-
-    func feedbackRespondedNegative() {
-        feedbackState?.hasResponded = true
-        showFeedbackPrompt = false
-        saveFeedbackState()
-        guard !Self.isRunningUnderXCTest else { return }
-        if let url = URL(string: "mailto:pawel@orzech.me?subject=MacTorn%20Feedback") {
-            BrowserManager.shared.open(url)
-        }
     }
 
     func feedbackDismissed() {

@@ -1963,12 +1963,12 @@ final class ChainSourceTests: XCTestCase {
 @MainActor
 final class TravelNotificationAccountScopeTests: XCTestCase {
     private func makeApp() -> (AppState, () -> Int) {
+        let notifier = RecordingNotifier()
         let app = AppState(session: MockNetworkSession(),
                            connectivity: ControllableConnectivity(),
-                           defaults: .createMockDefaults())
-        var cancels = 0
-        app.cancelScheduledTravelNotifications = { cancels += 1 }
-        return (app, { cancels })
+                           defaults: .createMockDefaults(),
+                           notifier: notifier)
+        return (app, { notifier.cancelled.count })
     }
 
     /// A "Landing Soon!" alert scheduled for account A must not fire after the user

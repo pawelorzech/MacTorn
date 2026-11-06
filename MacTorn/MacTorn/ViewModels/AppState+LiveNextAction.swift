@@ -174,7 +174,7 @@ extension AppState {
     }
 
     func makeDiagnosticsReport() async -> DiagnosticsReport {
-        let notif = await NotificationManager.shared.authorizationStatusDescription()
+        let notif = await notifier.authorizationStatusDescription()
         var recordsByCategory: [String: Int] = [:]
         for (category, count) in pollingCoordinator.recordsPerDayByCategory() {
             recordsByCategory[category.rawValue] = count

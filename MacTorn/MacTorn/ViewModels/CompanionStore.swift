@@ -18,6 +18,7 @@ final class CompanionStore {
         }
     }
     @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let notifier: Notifying
     var enabled: Set<Feature>
     var alerts: Set<Feature>
     var minimumCPR: Int { didSet { defaults.set(minimumCPR, forKey: "companion.minimumCPR") } }
@@ -44,8 +45,9 @@ final class CompanionStore {
     @ObservationIgnored private var fingerprints: [Feature: Set<String>] = [:]
     @ObservationIgnored private var previousTrades: [Int: String]?
 
-    init(defaults: UserDefaults) {
+    init(defaults: UserDefaults, notifier: Notifying) {
         self.defaults = defaults
+        self.notifier = notifier
         enabled = Set((defaults.stringArray(forKey: "companion.enabled") ?? []).compactMap(Feature.init))
         alerts = Set((defaults.stringArray(forKey: "companion.alerts") ?? []).compactMap(Feature.init))
         minimumCPR = min(100, max(0, defaults.integer(forKey: "companion.minimumCPR")))
@@ -225,7 +227,7 @@ final class CompanionStore {
     }
 
     private func notify(_ title: String, _ body: String, type: NotificationType) {
-        NotificationManager.shared.send(title: title, body: body, type: type)
+        notifier.send(title: title, body: body, type: type)
     }
 
     func request<Value: Decodable>(_ id: String, app: AppState) async -> Value? {

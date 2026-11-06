@@ -128,3 +128,32 @@ final class MutableTimeSource: TimeSource {
     func advance(_ seconds: TimeInterval) { current = current.addingTimeInterval(seconds) }
     func set(_ date: Date) { current = date }
 }
+
+/// Records what would have been shown to the user.
+@MainActor
+final class RecordingNotifier: Notifying {
+    struct Sent: Equatable {
+        let title: String
+        let body: String
+        let type: NotificationType
+        let url: URL?
+    }
+
+    private(set) var sent: [Sent] = []
+    private(set) var scheduled: [String] = []
+    private(set) var cancelled: [[String]] = []
+    private(set) var sounds: [NotificationSound] = []
+
+    nonisolated init() {}
+
+    func requestPermission() async {}
+    func authorizationStatusDescription() async -> String { "not requested" }
+    func send(title: String, body: String, type: NotificationType, url: URL?) {
+        sent.append(Sent(title: title, body: body, type: type, url: url))
+    }
+    func schedule(title: String, body: String, type: NotificationType, at date: Date, identifier: String) {
+        scheduled.append(identifier)
+    }
+    func cancelPending(identifiers: [String]) { cancelled.append(identifiers) }
+    func play(_ sound: NotificationSound) { sounds.append(sound) }
+}

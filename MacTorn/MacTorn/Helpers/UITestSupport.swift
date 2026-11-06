@@ -104,7 +104,7 @@ enum UITestConfiguration {
     @MainActor
     static func makeUnitTestHostState() -> AppState {
         let defaults = UserDefaults(suiteName: "com.mactorn.unit-host.\(ProcessInfo.processInfo.processIdentifier)")!
-        let account = AccountSessionStore(defaults: defaults, credentialStore: UnitTestHostKeyStore())
+        let account = AccountSessionStore(defaults: defaults, credentialStore: InMemoryAPIKeyStore())
         return AppState(session: FixtureNetworkSession(scenario: .empty),
                         connectivity: UITestConnectivity(connected: false), defaults: defaults,
                         accountSession: account)
@@ -114,20 +114,10 @@ enum UITestConfiguration {
         return CGFloat(min(max(requested, 360), 1_000))
     }
 
-    /// In-memory Keychain backing store, consulted by `KeychainStore` while a UI test
-    /// runs so the app process never reads or writes the real login Keychain.
-    static var keychainOverride: [String: String] = [:]
-
     /// Builds the fully-injected `AppState` for a UI-test run. Must run on the main actor
     /// because `AppState` is `@MainActor`.
     @MainActor
     static func makeAppState() -> AppState {
-        // Seed the in-memory Keychain *before* AppState.init reads it.
-        keychainOverride.removeAll()
-        if !seededAPIKey.isEmpty {
-            keychainOverride[KeychainStore.account] = seededAPIKey
-        }
-
         // Isolated, ephemeral defaults so each run starts from a known blank slate.
         let suiteName = "com.mactorn.uitests"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -136,10 +126,15 @@ enum UITestConfiguration {
         let session = FixtureNetworkSession(scenario: scenario)
         let connectivity = UITestConnectivity(connected: startsOnline)
 
+        let account = AccountSessionStore(
+            defaults: defaults,
+            credentialStore: InMemoryAPIKeyStore(seededAPIKey.isEmpty ? nil : seededAPIKey)
+        )
         let appState = AppState(session: session,
                                 connectivity: connectivity,
                                 defaults: defaults,
-                                time: SystemTimeSource())
+                                time: SystemTimeSource(),
+                                accountSession: account)
 
         if scenario == .accessibility {
             let now = Int(Date().timeIntervalSince1970)
@@ -240,11 +235,6 @@ enum UITestConfiguration {
 
         return appState
     }
-}
-
-private struct UnitTestHostKeyStore: APIKeyStoring {
-    func get() -> String? { nil }
-    func set(_ value: String) -> Bool { true }
 }
 
 // MARK: - Fixture network session

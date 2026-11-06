@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import UserNotifications
 import os.log
 
@@ -58,40 +59,23 @@ enum NotificationType: String {
     }
 }
 
-class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
+/// The real `Notifying`: posts through `UNUserNotificationCenter` and opens the right
+/// torn.com page when a banner is clicked.
+@MainActor
+final class NotificationManager: NSObject, Notifying, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
 
-    /// Sanitize text that originated from the Torn API before it lands in
-    /// `UNNotificationContent.title`/`.body`. Strips anything that can break a line and
-    /// caps length, so a compromised or MITM'd response cannot spoof a multi-line or
-    /// oversized notification. `notificationBodyMaxLength` is small on purpose — banners
-    /// only surface ~120 chars anyway.
+    /// Torn text reaches banners verbatim, so titles and bodies are sanitised and capped;
+    /// banners only surface ~120 characters anyway.
     static let notificationTitleMaxLength = 80
     static let notificationBodyMaxLength = 200
 
-    /// Everything that ends a line, not just what Unicode files under "control".
-    ///
-    /// `CharacterSet.controlCharacters` is categories Cc and Cf only, which leaves
-    /// U+2028 LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR (categories Zl and Zp)
-    /// untouched — and CoreText renders both as hard line breaks. Filtering on control
-    /// characters alone therefore did not deliver the guarantee this comment claims: a
-    /// forum thread title of `Re: raid\u{2028}\u{2028}MacTorn: your key expired, re-enter
-    /// it at …` produced a two-paragraph notification whose second half read as if
-    /// MacTorn had written it. `.newlines` covers LF, CR, NEL, LS and PS.
-    static let lineBreakingCharacters = CharacterSet.controlCharacters.union(.newlines)
-
-    static func sanitize(_ text: String, maxLength: Int) -> String {
-        text.sanitizedForDisplay(limit: maxLength)
-    }
-
     private override init() {
         super.init()
-        guard !UITestConfiguration.isIsolated else { return }
         UNUserNotificationCenter.current().delegate = self
     }
 
     func requestPermission() async {
-        guard !UITestConfiguration.isIsolated else { return }
         do {
             let granted = try await UNUserNotificationCenter.current()
                 .requestAuthorization(options: [.alert, .sound, .badge])
@@ -103,8 +87,6 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Current system authorization state, for the Diagnostics screen (Etap F). Maps
-    /// the `UNAuthorizationStatus` enum to a short human-readable string.
     func authorizationStatusDescription() async -> String {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         switch settings.authorizationStatus {
@@ -117,50 +99,28 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    func send(title: String, body: String, type: NotificationType, customURL: URL? = nil) {
-        guard !UITestConfiguration.isIsolated else { return }
-        let content = UNMutableNotificationContent()
-        content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
-        content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
-        content.sound = .default
-        content.categoryIdentifier = type.rawValue
-        if let customURL = customURL {
-            content.userInfo["customURL"] = customURL.absoluteString
+    func send(title: String, body: String, type: NotificationType, url: URL?) {
+        let content = Self.content(title: title, body: body, type: type)
+        if let url {
+            content.userInfo["customURL"] = url.absoluteString
         }
-
-        let request = UNNotificationRequest(
-            identifier: UUID().uuidString,
-            content: content,
-            trigger: nil // Immediate
-        )
-
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
+            if let error {
                 logger.error("Notification error: \(error.localizedDescription)")
             }
         }
     }
 
-    /// Schedule a notification for a specific date
-    func scheduleNotification(title: String, body: String, type: NotificationType, at date: Date, identifier: String) {
-        guard !UITestConfiguration.isIsolated else { return }
-        let content = UNMutableNotificationContent()
-        content.title = Self.sanitize(title, maxLength: Self.notificationTitleMaxLength)
-        content.body = Self.sanitize(body, maxLength: Self.notificationBodyMaxLength)
-        content.sound = .default
-        content.categoryIdentifier = type.rawValue
-
-        let triggerDate = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-        let trigger = UNCalendarNotificationTrigger(dateMatching: triggerDate, repeats: false)
-
+    func schedule(title: String, body: String, type: NotificationType, at date: Date, identifier: String) {
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
         let request = UNNotificationRequest(
             identifier: identifier,
-            content: content,
-            trigger: trigger
+            content: Self.content(title: title, body: body, type: type),
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         )
-
         UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
+            if let error {
                 logger.error("Scheduled notification error: \(error.localizedDescription)")
             } else {
                 logger.info("Scheduled notification '\(identifier)' for \(date)")
@@ -168,16 +128,35 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Cancel all travel-related notifications
-    func cancelTravelNotifications() {
-        guard !UITestConfiguration.isIsolated else { return }
-        let identifiers = TravelNotificationSetting.defaults.map { "\($0.id)_alert" }
+    func cancelPending(identifiers: [String]) {
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+
+    func play(_ sound: NotificationSound) {
+        switch sound {
+        case .none: return
+        case .default: NSSound.beep()
+        default:
+            if let systemSound = NSSound(named: sound.rawValue) {
+                systemSound.play()
+            } else {
+                NSSound.beep()
+            }
+        }
+    }
+
+    private static func content(title: String, body: String, type: NotificationType) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.title = title.sanitizedForDisplay(limit: notificationTitleMaxLength)
+        content.body = body.sanitizedForDisplay(limit: notificationBodyMaxLength)
+        content.sound = .default
+        content.categoryIdentifier = type.rawValue
+        return content
     }
 
     // MARK: - UNUserNotificationCenterDelegate
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,
         withCompletionHandler completionHandler: @escaping () -> Void
@@ -192,7 +171,7 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         completionHandler()
     }
 
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void

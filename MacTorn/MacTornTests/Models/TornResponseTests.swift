@@ -381,19 +381,19 @@ final class NotificationSanitizerTests: XCTestCase {
     /// caller passes a negative today, but the sanitiser is a shared `String` helper now, so
     /// a future caller computing a limit must get an empty string rather than a crash.
     func testSanitize_negativeMaxLengthDoesNotTrap() {
-        XCTAssertEqual(NotificationManager.sanitize("Travel: Mexico", maxLength: -1), "")
-        XCTAssertEqual(NotificationManager.sanitize("Travel: Mexico", maxLength: 0), "")
+        XCTAssertEqual("Travel: Mexico".sanitizedForDisplay(limit: -1), "")
+        XCTAssertEqual("Travel: Mexico".sanitizedForDisplay(limit: 0), "")
     }
 
     func testSanitize_capsLength() {
         let input = String(repeating: "x", count: 500)
-        let out = NotificationManager.sanitize(input, maxLength: 200)
+        let out = input.sanitizedForDisplay(limit: 200)
         XCTAssertEqual(out.count, 200)
     }
 
     func testSanitize_stripsControlCharacters() {
         let input = "hello\u{0}\nworld\u{1}\u{7}!"
-        let out = NotificationManager.sanitize(input, maxLength: 100)
+        let out = input.sanitizedForDisplay(limit: 100)
         XCTAssertFalse(out.contains("\n"))
         XCTAssertFalse(out.contains("\u{0}"))
         XCTAssertFalse(out.contains("\u{1}"))
@@ -402,53 +402,47 @@ final class NotificationSanitizerTests: XCTestCase {
 
     func testSanitize_passesThroughNormalText() {
         let input = "Travel: Mexico"
-        XCTAssertEqual(NotificationManager.sanitize(input, maxLength: 200), input)
+        XCTAssertEqual(input.sanitizedForDisplay(limit: 200), input)
     }
 }
 
 // MARK: - KeychainStore (F-01)
 
 final class KeychainStoreTests: XCTestCase {
+    /// A per-process service, so the real "com.mactorn.app" entry is never touched.
+    private let store = KeychainAPIKeyStore(service: "com.mactorn.app.tests.\(ProcessInfo.processInfo.processIdentifier)")
+
     override func setUp() {
         super.setUp()
-        // Tests run against the `.tests` service so the prod entry is untouched.
-        KeychainStore.delete()
+        KeychainStore.delete(service: store.service)
     }
 
     override func tearDown() {
-        KeychainStore.delete()
+        KeychainStore.delete(service: store.service)
         super.tearDown()
     }
 
     func testKeychain_setAndGetRoundtrip() {
-        KeychainStore.set("AbCdEfGh12345678")
-        XCTAssertEqual(KeychainStore.get(), "AbCdEfGh12345678")
+        store.set("AbCdEfGh12345678")
+        XCTAssertEqual(store.get(), "AbCdEfGh12345678")
     }
 
     func testKeychain_setOverwrites() {
-        KeychainStore.set("first")
-        KeychainStore.set("second")
-        XCTAssertEqual(KeychainStore.get(), "second")
+        store.set("first")
+        store.set("second")
+        XCTAssertEqual(store.get(), "second")
     }
 
     func testKeychain_deleteClears() {
-        KeychainStore.set("xyz")
-        KeychainStore.delete()
-        XCTAssertNil(KeychainStore.get())
+        store.set("xyz")
+        KeychainStore.delete(service: store.service)
+        XCTAssertNil(store.get())
     }
 
     func testKeychain_setEmptyDeletes() {
-        KeychainStore.set("xyz")
-        KeychainStore.set("")
-        XCTAssertNil(KeychainStore.get())
-    }
-
-    /// Defense-in-depth: ensure tests don't accidentally use the production keychain
-    /// service. If this asserts, an environment change broke isolation.
-    func testKeychain_serviceIsTestIsolated() {
-        XCTAssertTrue(KeychainStore.service.hasPrefix("com.mactorn.app.tests"),
-                      "service should be test-isolated, got: \(KeychainStore.service)")
-        XCTAssertNotEqual(KeychainStore.service, "com.mactorn.app")
+        store.set("xyz")
+        store.set("")
+        XCTAssertNil(store.get())
     }
 }
 

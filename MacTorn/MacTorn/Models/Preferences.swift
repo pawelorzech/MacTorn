@@ -32,6 +32,9 @@ struct TravelNotificationSetting: Codable, Identifiable, Equatable {
     let secondsBefore: Int
     var enabled: Bool
 
+    /// The pending-notification id the landing alert is scheduled under.
+    var notificationIdentifier: String { "\(id)_alert" }
+
     var displayName: String {
         if secondsBefore >= 60 {
             return "\(secondsBefore / 60) min before"

@@ -118,16 +118,16 @@ extension AppState {
         // announced and persisted even when a newer refresh superseded it. Only an
         // account change voids it.
         guard isCurrentAccount(requestedKey, generation: generation) else { return }
-        if !batch.alerts.isEmpty { deliverPriceAlerts(batch.alerts) }
+        postPriceAlerts(batch.alerts)
         saveWatchlist()
     }
 
     /// One banner for a single alert, a summary banner for several.
-    static func postPriceAlertNotifications(_ alerts: [MarketPriceAlert]) {
+    func postPriceAlerts(_ alerts: [MarketPriceAlert]) {
         guard !alerts.isEmpty else { return }
         if alerts.count == 1 {
             let a = alerts[0]
-            NotificationManager.shared.send(
+            notifier.send(
                 title: "Price Alert: \(a.name)",
                 body: "Lowest price dropped to \(TornFormatter.formatMoney(a.price))",
                 type: .priceAlert
@@ -137,7 +137,7 @@ extension AppState {
         // Summary notification: list up to 3 names then "+N more".
         let preview = alerts.prefix(3).map { $0.name }.joined(separator: ", ")
         let extra = alerts.count > 3 ? " +\(alerts.count - 3) more" : ""
-        NotificationManager.shared.send(
+        notifier.send(
             title: "\(alerts.count) price alerts",
             body: "\(preview)\(extra)",
             type: .priceAlert
@@ -212,7 +212,7 @@ extension AppState {
             if let batch {
                 batch.alerts.append(alert)
             } else {
-                deliverPriceAlerts([alert])
+                postPriceAlerts([alert])
             }
         }
         if batch == nil { marketWatchService.save() }
@@ -359,11 +359,11 @@ extension AppState {
             switch result {
             case .success(let threads, let responseBytes):
                 for thread in forumWatchService.applyCategory(threads, for: categoryID) {
-                    NotificationManager.shared.send(
+                    notifier.send(
                         title: "New forum thread",
                         body: thread.title,
                         type: .factionNewThread,
-                        customURL: TornLink.forumThread(thread.id)
+                        url: TornLink.forumThread(thread.id)
                     )
                 }
                 recordHealth("forum.threads", outcome: .ok, since: startTime, bytes: responseBytes)
@@ -412,11 +412,11 @@ extension AppState {
             case .success(let snapshot, _):
                 if let update = forumWatchService.apply(snapshot, to: threadId) {
                     let threadURL = TornLink.forumThread(threadId)
-                    NotificationManager.shared.send(
+                    notifier.send(
                         title: "Forum: \(update.title)",
                         body: "\(update.count) new post\(update.count == 1 ? "" : "s")",
                         type: .forumNewPosts,
-                        customURL: threadURL
+                        url: threadURL
                     )
                 }
             case .apiError(let apiError, _):

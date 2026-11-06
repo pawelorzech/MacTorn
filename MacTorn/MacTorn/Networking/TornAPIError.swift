@@ -179,7 +179,7 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// server string, but it is still sanitized (control chars stripped, length
     /// capped) so a MITM'd/compromised response cannot inject multi-line UI.
     ///
-    /// NOTE on "sanitized": `sanitized(_:)` below only means *string-hygiene* — no
+    /// NOTE on "sanitized": `sanitizedForDisplay()` only means *string-hygiene* — no
     /// control characters, capped at 120 chars — as a defence against UI spoofing.
     /// It says nothing about the *content* of the string: for `.permanentKey`,
     /// `.insufficientPermissions` and `.temporaryBackend` this can still be the raw
@@ -191,7 +191,7 @@ enum TornAPIError: Error, Equatable, Sendable {
     var userMessage: String {
         switch self {
         case let .permanentKey(_, message):
-            return sanitized(message.isEmpty ? "Your API key is invalid or paused. Update it in Settings." : message)
+            return (message.isEmpty ? "Your API key is invalid or paused. Update it in Settings." : message).sanitizedForDisplay()
         case let .temporaryKey(code, _):
             switch code {
             case 10: return "API access is paused while you're in federal jail — retrying later."
@@ -199,7 +199,7 @@ enum TornAPIError: Error, Equatable, Sendable {
             default: return "Torn has temporarily disabled this key — retrying later."
             }
         case let .insufficientPermissions(_, message):
-            return sanitized(message.isEmpty ? "Your API key's access level is too low for this data." : message)
+            return (message.isEmpty ? "Your API key's access level is too low for this data." : message).sanitizedForDisplay()
         case .endpointUnavailable:
             return "Torn no longer serves this data the way MacTorn asked for it."
         case .ipBlocked:
@@ -211,7 +211,7 @@ enum TornAPIError: Error, Equatable, Sendable {
         case let .notAvailable(code, _):
             return code == 32 ? "Closed until the next attacking period." : "No competition is running right now."
         case let .temporaryBackend(_, message):
-            return sanitized(message.isEmpty ? "Torn API is temporarily unavailable — retrying." : message)
+            return (message.isEmpty ? "Torn API is temporarily unavailable — retrying." : message).sanitizedForDisplay()
         case .offline:
             return "You're offline — waiting for a connection."
         case .transport:
@@ -228,14 +228,6 @@ enum TornAPIError: Error, Equatable, Sendable {
     /// being unhappy, never a bad key; the status stays in the text for bug reports.
     static func httpStatusMessage(_ status: Int) -> String {
         "Torn API is temporarily unavailable (HTTP \(status)) — retrying."
-    }
-
-    /// Same rule as `NotificationManager.sanitize`, and for the same reason: these
-    /// messages can be Torn's own string verbatim, they render in the error bar of three
-    /// views, and `CharacterSet.controlCharacters` alone lets U+2028/U+2029 through as
-    /// hard line breaks. See the note on `NotificationManager.lineBreakingCharacters`.
-    private func sanitized(_ text: String) -> String {
-        text.sanitizedForDisplay()
     }
 
     // MARK: - Classification
@@ -291,48 +283,4 @@ enum TornAPIError: Error, Equatable, Sendable {
             return .transport(detail: urlError.code.rawValue.description)
         }
     }
-}
-
-// MARK: - Display sanitising
-
-extension String {
-    /// Strips Unicode control *and* format characters plus line breaks, and caps the length.
-    ///
-    /// `CharacterSet.controlCharacters` covers categories Cc and Cf, so this removes bidi
-    /// overrides (U+202A–202E, U+2066–2069) and zero-width characters along with the usual
-    /// C0/C1 controls — the pieces used to build text that reads as something other than
-    /// what it is, on screen or through VoiceOver. It is *not* enough on its own: U+2028
-    /// LINE SEPARATOR and U+2029 PARAGRAPH SEPARATOR are categories Zl/Zp and still render
-    /// as hard line breaks, which is how a forum title can fake a second MacTorn-authored
-    /// paragraph. `NotificationManager.lineBreakingCharacters` unions in `.newlines` to
-    /// close that hole, and stays the single source of truth for both callers.
-    ///
-    /// Apply to every string reaching the UI from a source we do not control: Torn's own
-    /// error messages, and event text that another player can influence.
-    func sanitizedForDisplay(limit: Int = 120) -> String {
-        let stripped = unicodeScalars
-            .filter { !NotificationManager.lineBreakingCharacters.contains($0) || $0 == .emojiJoiner }
-            .map(Character.init)
-        // `prefix(_:)` has a precondition of maxLength >= 0 and traps below it. No caller
-        // passes a negative today — the three are 80, 200 and the 120 default — but this is
-        // a shared helper on String now, so a future caller computing a limit gets an empty
-        // string rather than a crash.
-        return String(String(stripped).prefix(max(0, limit)))
-    }
-}
-
-extension Unicode.Scalar {
-    /// U+200D ZERO WIDTH JOINER.
-    ///
-    /// It is category Cf, so `CharacterSet.controlCharacters` matches it — but it is also
-    /// the glue in every emoji ZWJ sequence, and dropping it decomposes one grapheme into
-    /// several: 👨‍👩‍👧 becomes three separate people, 🏳️‍🌈 becomes a white flag beside a
-    /// rainbow. That is visible corruption of legitimate content.
-    ///
-    /// Keeping it is a deliberately narrow exception. ZWJ only asks that adjacent glyphs be
-    /// joined: unlike the bidi overrides it cannot reorder text, and unlike U+200B ZERO
-    /// WIDTH SPACE — which stays stripped — it is not the character used to split a word
-    /// invisibly. Variation selectors (U+FE0F) and the keycap mark (U+20E3) need no
-    /// exception; they are in neither Cc nor Cf and were never removed.
-    static let emojiJoiner = Unicode.Scalar(0x200D)!
 }
