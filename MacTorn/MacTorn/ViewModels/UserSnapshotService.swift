@@ -24,7 +24,6 @@ struct UserSnapshotPayload {
 
 struct UserActivityPayload {
     let events: [TornEvent]?
-    let unreadMessages: Int?
     let recentAttacks: [AttackResult]?
 }
 
@@ -62,9 +61,6 @@ protocol UserSnapshotServicing: Sendable {
         requestedSelections: [String],
         grantedSelections: [String]?
     ) async -> TornServiceResult<UserSnapshotPayload>
-    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload>
-    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload>
-    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?>
 }
 
 /// Transport and decoding boundary for user-owned Torn endpoints. It does not know
@@ -145,21 +141,15 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         }.value
     }
 
-    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload> {
-        try await TornAPIClient.loadJSON(from: url, session: session) { data, json in
-            let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
-            // `TornResponse.recentEvents` / `.unreadMessagesCount` are non-optional and
-            // collapse a *missing* key to `[]` / `0`. `UserActivityPayload` must instead
-            // preserve the absent-vs-zero distinction the way `parseAttacks(_:)` does:
-            // `AppState.fetchActivityData` only overwrites its state when the payload field
-            // is non-nil, so a 200 body that simply omits `events` must report `nil` rather
-            // than silently emptying the user's event list (issue #84).
-            return UserActivityPayload(
-                events: Self.isPresent(json["events"]) ? decoded?.recentEvents : nil,
-                unreadMessages: Self.isPresent(json["messages"]) ? decoded?.unreadMessagesCount : nil,
-                recentAttacks: Self.parseAttacks(json)
-            )
-        }
+    static func decodeActivity(_ data: Data, _ json: [String: Any]) -> UserActivityPayload? {
+        // `TornResponse.recentEvents` collapses a *missing* key to `[]`. The payload keeps
+        // absent apart from empty, the way `parseAttacks(_:)` does, so a 200 body that omits
+        // `events` leaves the user's event list alone instead of emptying it (issue #84).
+        let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
+        return UserActivityPayload(
+            events: isPresent(json["events"]) ? decoded?.recentEvents : nil,
+            recentAttacks: parseAttacks(json)
+        )
     }
 
     /// True when a top-level JSON key is present and not `null`.
@@ -168,12 +158,10 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         return !(value is NSNull)
     }
 
-    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload> {
-        try await TornAPIClient.loadJSON(from: url, session: session) { data, _ in
-            let selections = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "selections" })?.value
-            let requested = selections.map { Set($0.split(separator: ",").map(String.init)) }
-                ?? Set(TornEndpointRegistry.endpoint(id: "user.v2")?.selections ?? [])
+    /// `requested` is the selection set the request actually carried; a selection that was
+    /// narrowed away is "unchanged", not "missing".
+    static func decodeUserV2(requested: Set<String>) -> @Sendable (Data, [String: Any]) -> UserV2Payload? {
+        { data, _ in
             let decoder = JSONDecoder()
             decoder.userInfo[requestedUserSelectionsKey] = requested
             return try? decoder.decode(UserV2Payload.self, from: data)
@@ -183,22 +171,14 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     /// Decodes `/v2/user/virus`. An explicit `null` is the normal "not programming"
     /// answer. Missing or malformed data is a contract failure and must preserve the
     /// previous value rather than falsely announcing that a virus finished.
-    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?> {
-        try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
-            guard json.keys.contains("virus") else {
-                return nil
-            }
-            if json["virus"] is NSNull {
-                return .some(nil)
-            }
-            guard let dictionary = json["virus"] as? [String: Any],
-                  let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
-                  let virus = try? JSONDecoder().decode(VirusProgramming.self, from: encoded)
-            else {
-                return nil
-            }
-            return .some(virus)
-        }
+    static func decodeVirus(_ data: Data, _ json: [String: Any]) -> VirusProgramming?? {
+        guard json.keys.contains("virus") else { return nil }
+        if json["virus"] is NSNull { return .some(nil) }
+        guard let dictionary = json["virus"] as? [String: Any],
+              let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
+              let virus = try? JSONDecoder().decode(VirusProgramming.self, from: encoded)
+        else { return nil }
+        return .some(virus)
     }
 
     private static func parseMoney(_ json: [String: Any]) -> MoneyData {

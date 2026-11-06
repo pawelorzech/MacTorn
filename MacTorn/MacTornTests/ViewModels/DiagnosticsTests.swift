@@ -35,13 +35,13 @@ final class DiagnosticsTests: XCTestCase {
     func testPresentationUsesInjectedClockAndKnownSelectionPermissions() {
         let clock = MutableTimeSource()
         let app = AppState(session: MockNetworkSession(), defaults: .createMockDefaults(), time: clock)
-        app.endpointHealth.record(endpointID: "user.fast", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        app.requester.health.record(endpointID: "user.fast", outcome: .ok, latencyMs: 1, responseBytes: 100)
         XCTAssertEqual(app.presentationState(endpointIDs: ["user.fast"], hasContent: true,
                                              staleAfter: 120).kind, .fresh)
         clock.advance(121)
         XCTAssertEqual(app.presentationState(endpointIDs: ["user.fast"], hasContent: true,
                                              staleAfter: 120).kind, .stale)
-        app.keyInfo = TornKeyInfo(
+        app.requester.keyInfo = TornKeyInfo(
             access: .init(level: 1, type: "Custom", faction: false),
             user: .init(id: 42, factionId: nil),
             selections: .init(user: ["bars"], faction: [], market: [], property: [], torn: [],
@@ -71,10 +71,10 @@ final class DiagnosticsTests: XCTestCase {
     func testAccountSwitchClearsPreviousEndpointHealth() {
         let app = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
         app.apiKey = "account-a"
-        app.endpointHealth.record(endpointID: "faction.basic", outcome: .error,
-                                  latencyMs: 1, responseBytes: 0, errorClass: "insufficientPermissions")
+        app.requester.health.record(endpointID: "faction.basic", outcome: .error,
+                                  latencyMs: 1, responseBytes: 0, errorClass: .insufficientPermissions)
         app.apiKey = "account-b"
-        XCTAssertTrue(app.endpointHealth.all.isEmpty)
+        XCTAssertTrue(app.requester.health.all.isEmpty)
         XCTAssertEqual(app.presentationState(endpointIDs: ["faction.basic"], hasContent: false,
                                              staleAfter: 360).kind, .empty)
     }
@@ -106,9 +106,9 @@ final class DiagnosticsTests: XCTestCase {
     func testTrackerOverwritesWithMostRecent() {
         let tracker = EndpointHealthTracker(time: MutableTimeSource())
         tracker.record(endpointID: "user.fast", outcome: .ok, latencyMs: 100, responseBytes: 1000)
-        tracker.record(endpointID: "user.fast", outcome: .error, latencyMs: 50, responseBytes: 0, errorClass: "rateLimit")
+        tracker.record(endpointID: "user.fast", outcome: .error, latencyMs: 50, responseBytes: 0, errorClass: .rateLimit)
         XCTAssertEqual(tracker.latest(for: "user.fast")?.outcome, .error)
-        XCTAssertEqual(tracker.latest(for: "user.fast")?.errorClass, "rateLimit")
+        XCTAssertEqual(tracker.latest(for: "user.fast")?.errorClass, .rateLimit)
     }
 
     func testTrackerAllIsRegistryOrdered() {
@@ -209,7 +209,7 @@ final class DiagnosticsTests: XCTestCase {
         let state = ModulePresentationState.resolve(
             health: [
                 EndpointHealth(endpointID: "user.fast", outcome: .error, latencyMs: 10,
-                               responseBytes: 0, at: now, errorClass: "temporaryBackend")
+                               responseBytes: 0, at: now, errorClass: .temporaryBackend)
             ],
             hasContent: true, isLoading: false, fallbackError: nil,
             now: now, staleAfter: 120
@@ -225,7 +225,7 @@ final class DiagnosticsTests: XCTestCase {
         let state = ModulePresentationState.resolve(
             health: [
                 EndpointHealth(endpointID: "faction.basic", outcome: .error, latencyMs: 10,
-                               responseBytes: 0, at: now, errorClass: "insufficientPermissions")
+                               responseBytes: 0, at: now, errorClass: .insufficientPermissions)
             ],
             hasContent: false, isLoading: false, fallbackError: nil,
             now: now, staleAfter: 120

@@ -3,12 +3,11 @@ import SwiftUI
 struct CompanionControls: View {
     @Environment(AppState.self) private var app
     let feature: CompanionStore.Feature
-    let endpoints: [String]
     @Environment(\.openMacTornSettings) private var openSettings
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle(feature.title, isOn: Binding(get: { app.companion.enabled.contains(feature) }, set: {
-                app.companion.setEnabled(feature, $0)
+                app.companion.setEnabled(feature, $0, app: app)
                 app.companion.start(app: app)
             }))
             .font(.caption.bold())
@@ -19,23 +18,23 @@ struct CompanionControls: View {
                 } else if app.keyHalted {
                     Button("Connect a valid key in Settings") { openSettings() }.font(.caption)
                 }
-                if [.recruiting, .stocks, .trades].contains(feature) {
+                if feature.canAlert {
                     Toggle("Notify on changes", isOn: Binding(get: { app.companion.alerts.contains(feature) }, set: {
                         app.companion.setAlerts(feature, $0)
                     })).font(.caption)
                 }
-                ForEach(endpoints, id: \.self) { id in
+                ForEach(feature.endpointIDs, id: \.self) { id in
                     if let error = app.companion.errors[id] {
                         Text(error).foregroundStyle(.orange).font(.caption).fixedSize(horizontal: false, vertical: true)
                     }
-                    if app.companion.loading.contains(id) { ProgressView().controlSize(.small) }
+                    if app.requester.isInFlight(id) { ProgressView().controlSize(.small) }
                     if let fetched = app.companion.fetchedAt[id] {
                         (Text("Last checked ") + Text(fetched, style: .relative) + Text(" ago"))
                             .font(.caption2).foregroundStyle(.secondary)
                     }
                 }
                 Button("Refresh") { app.companion.retry(feature, app: app) }.font(.caption)
-                    .disabled(app.companion.task != nil || app.keyHalted || !app.connectivity.isConnected)
+                    .disabled(app.companion.isRefreshing || app.keyHalted || !app.connectivity.isConnected)
             }
         }
     }
@@ -45,7 +44,7 @@ struct RecruitingPanel: View {
     @Environment(AppState.self) private var app
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .recruiting, endpoints: ["user.recruiting"])
+            CompanionControls(feature: .recruiting)
             if app.companion.enabled.contains(.recruiting) {
                 Stepper("Minimum CPR: \(app.companion.minimumCPR)%", value: Binding(
                     get: { app.companion.minimumCPR }, set: { app.companion.minimumCPR = $0 }), in: 0...100, step: 5)
@@ -53,7 +52,7 @@ struct RecruitingPanel: View {
                 if app.organizedCrime != nil {
                     Text("You already have an OC. Recruiting checks resume when you leave it.").font(.caption)
                 } else if app.companion.eligibleSlots.isEmpty {
-                    Text(app.companion.loading.contains("user.recruiting")
+                    Text(app.requester.isInFlight("user.recruiting")
                              ? "Checking available slots…"
                              : app.companion.fetchedAt["user.recruiting"] == nil
                              ? "No recruiting data available yet." : "No open slots match your filter.")
@@ -84,7 +83,7 @@ struct StockBonusPanel: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .stocks, endpoints: ["user.stocksv2", "torn.stocksv2"])
+            CompanionControls(feature: .stocks)
             if app.companion.enabled.contains(.stocks) {
                 if app.companion.stocks.isEmpty { Text("No stock holdings loaded.").font(.caption).foregroundStyle(.secondary) }
                 ForEach(app.companion.stocks) { stock in
@@ -117,7 +116,7 @@ struct CompetitionPanel: View {
     @Environment(AppState.self) private var app
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .competition, endpoints: ["user.competition", "torn.elimination", "torn.calendar", "user.calendar"])
+            CompanionControls(feature: .competition)
             if app.companion.enabled.contains(.competition) {
                 if let competition = app.companion.competition {
                     Text(competition.name).font(.caption.bold())
@@ -174,7 +173,7 @@ struct TradesPanel: View {
     @Environment(AppState.self) private var app
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .trades, endpoints: ["user.trades", "user.trade"])
+            CompanionControls(feature: .trades)
             if app.companion.enabled.contains(.trades) {
                 if app.companion.trades.isEmpty { Text("No active trades loaded.").font(.caption).foregroundStyle(.secondary) }
                 ForEach(app.companion.trades) { trade in
@@ -185,7 +184,7 @@ struct TradesPanel: View {
                             (Text("Expires ") + Text(Date(timeIntervalSince1970: Double(expires)), style: .relative)).font(.caption2)
                         }
                         Button("Load offered items") { Task { await app.companion.loadTrade(trade.id, app: app) } }
-                            .font(.caption).disabled(app.companion.loading.contains("user.trade"))
+                            .font(.caption).disabled(app.requester.isInFlight("user.trade"))
                         if let details = app.companion.tradeDetails[trade.id] {
                             if details.isEmpty { Text("No items offered.").font(.caption2) }
                             ForEach(Array(details.enumerated()), id: \.offset) { _, item in
@@ -218,7 +217,7 @@ struct ShopPricesPanel: View {
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .shops, endpoints: ["torn.shops"])
+            CompanionControls(feature: .shops)
             if app.companion.enabled.contains(.shops) {
                 if itemID == nil {
                     Picker("Country", selection: $country) { ForEach(countries, id: \.self) { Text($0).tag($0) } }.font(.caption)
@@ -254,8 +253,8 @@ struct WarfarePanel: View {
             Picker("Category", selection: $category) { ForEach(WarfareCategory.allCases) { Text($0.title).tag($0) } }
                 .font(.caption)
             Button("Load history") { Task { await app.companion.loadWarfare(category, app: app) } }
-                .disabled(app.companion.loading.contains(endpoint))
-            if app.companion.loading.contains(endpoint) { ProgressView().controlSize(.small) }
+                .disabled(app.requester.isInFlight(endpoint))
+            if app.requester.isInFlight(endpoint) { ProgressView().controlSize(.small) }
             if let error = app.companion.errors[endpoint] { Text(error).foregroundStyle(.orange).font(.caption) }
             if let rows = app.companion.warfare[category] {
                 if rows.isEmpty { Text("No records.").font(.caption) }
@@ -268,7 +267,7 @@ struct WarfarePanel: View {
                 }
                 if app.companion.nextWarPage[category] != nil {
                     Button("Load older") { Task { await app.companion.loadWarfare(category, app: app, more: true) } }
-                        .disabled(app.companion.loading.contains(endpoint))
+                        .disabled(app.requester.isInFlight(endpoint))
                 }
             }
         }.companionCard()

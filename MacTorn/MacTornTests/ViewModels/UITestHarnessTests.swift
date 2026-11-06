@@ -90,10 +90,9 @@ final class UITestHarnessTests: XCTestCase {
     /// former leaves a seeded list alone.
     func testEmptyActivityBodyReportsAbsentEventsRatherThanZeroEvents() async throws {
         let session = FixtureNetworkSession(scenario: .accessibility)
-        let service = UserSnapshotService(session: session)
         let url = try XCTUnwrap(TornAPI.activityURL(for: fakeKey))
 
-        let result = try await service.loadActivity(url)
+        let result = try await TornAPIClient.loadJSON(from: url, session: session, decode: UserSnapshotService.decodeActivity)
         guard case .success(let payload, _) = result else {
             return XCTFail("Activity call should succeed on an empty body, got \(result)")
         }
@@ -138,10 +137,10 @@ final class UITestHarnessTests: XCTestCase {
 
         let deadline = Date().addingTimeInterval(10)
         while Date() < deadline,
-              appState.endpointHealth.latest(for: "user.activity") == nil {
+              appState.requester.health.latest(for: "user.activity") == nil {
             try await Task.sleep(nanoseconds: 20_000_000)
         }
-        XCTAssertNotNil(appState.endpointHealth.latest(for: "user.activity"),
+        XCTAssertNotNil(appState.requester.health.latest(for: "user.activity"),
                         "The activity call must have run for this probe to mean anything")
 
         XCTAssertEqual(appState.activityEvents.map(\.id), ["9002"],

@@ -19,7 +19,6 @@ final class TornResponseTests: XCTestCase {
         XCTAssertNotNil(response.travel)
         XCTAssertNotNil(response.status)
         XCTAssertNotNil(response.events)
-        XCTAssertNotNil(response.messages)
     }
 
     // MARK: - Bars Computed Property Tests
@@ -48,48 +47,6 @@ final class TornResponseTests: XCTestCase {
         let response = try JSONDecoder().decode(TornResponse.self, from: data)
 
         XCTAssertNil(response.bars) // Should be nil because not all bars present
-    }
-
-    // MARK: - Unread Messages Count Tests
-
-    func testUnreadMessagesCount_noMessages() throws {
-        let json: [String: Any] = [
-            "name": "TestPlayer"
-            // No messages
-        ]
-        let data = try TornAPIFixtures.toData(json)
-        let response = try JSONDecoder().decode(TornResponse.self, from: data)
-
-        XCTAssertEqual(response.unreadMessagesCount, 0)
-    }
-
-    func testUnreadMessagesCount_allRead() throws {
-        let json: [String: Any] = [
-            "name": "TestPlayer",
-            "messages": [
-                "1": ["name": "Sender1", "read": 1],
-                "2": ["name": "Sender2", "read": 1]
-            ]
-        ]
-        let data = try TornAPIFixtures.toData(json)
-        let response = try JSONDecoder().decode(TornResponse.self, from: data)
-
-        XCTAssertEqual(response.unreadMessagesCount, 0)
-    }
-
-    func testUnreadMessagesCount_someUnread() throws {
-        let json: [String: Any] = [
-            "name": "TestPlayer",
-            "messages": [
-                "1": ["name": "Sender1", "read": 0],
-                "2": ["name": "Sender2", "read": 1],
-                "3": ["name": "Sender3", "read": 0]
-            ]
-        ]
-        let data = try TornAPIFixtures.toData(json)
-        let response = try JSONDecoder().decode(TornResponse.self, from: data)
-
-        XCTAssertEqual(response.unreadMessagesCount, 2)
     }
 
     // MARK: - Recent Events Tests
@@ -260,25 +217,6 @@ final class TornResponseTests: XCTestCase {
         XCTAssertEqual(event.date, Date(timeIntervalSince1970: 1700000000))
     }
 
-    // MARK: - TornMessage Tests
-
-    func testTornMessage_decoding() throws {
-        let json: [String: Any] = [
-            "name": "TestSender",
-            "type": "Private",
-            "title": "Hello World",
-            "timestamp": 1700000000,
-            "read": 0
-        ]
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let message = try JSONDecoder().decode(TornMessage.self, from: data)
-
-        XCTAssertEqual(message.name, "TestSender")
-        XCTAssertEqual(message.type, "Private")
-        XCTAssertEqual(message.title, "Hello World")
-        XCTAssertEqual(message.timestamp, 1700000000)
-        XCTAssertEqual(message.read, 0)
-    }
 }
 
 // MARK: - URL Redactor (F-02)

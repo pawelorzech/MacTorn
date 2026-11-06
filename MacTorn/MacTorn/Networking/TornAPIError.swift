@@ -132,6 +132,15 @@ enum TornAPIError: Error, Equatable, Sendable {
         classification == .permanentKey
     }
 
+    /// Errors that refuse the whole account rather than one endpoint: the key, the rate
+    /// limit, the network, or capabilities that have changed since `/key/info` was read.
+    var isAccountWide: Bool {
+        switch classification {
+        case .permanentKey, .temporaryKey, .ipBlocked, .rateLimit, .insufficientPermissions: return true
+        default: return false
+        }
+    }
+
     /// A daily-row-limit hit (error 14) halts only the row-based category that tripped
     /// it, leaving point-in-time polling (bars, countdowns) alive.
     var haltsCategoryOnly: Bool {

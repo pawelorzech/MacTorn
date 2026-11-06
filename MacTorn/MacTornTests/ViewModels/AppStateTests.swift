@@ -10,12 +10,12 @@ final class AppStateTests: XCTestCase {
         let old = Task { await app.loadKeyInfoIfNeeded() }
         await session.waitForRequest()
         app.apiKey = "account-b"
-        app.endpointHealth.record(endpointID: "key.info", outcome: .ok, latencyMs: 1, responseBytes: 100)
-        let newHealth = app.endpointHealth.latest(for: "key.info")
+        app.requester.health.record(endpointID: "key.info", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        let newHealth = app.requester.health.latest(for: "key.info")
         await session.finish()
         await old.value
-        XCTAssertEqual(app.endpointHealth.latest(for: "key.info"), newHealth)
-        XCTAssertNil(app.keyInfo)
+        XCTAssertEqual(app.requester.health.latest(for: "key.info"), newHealth)
+        XCTAssertNil(app.requester.keyInfo)
     }
 
     func testCancelledNonCooperativeValidationLeavesValidatingState() async {
@@ -27,7 +27,7 @@ final class AppStateTests: XCTestCase {
         await session.finish(0)
         await pending.value
         XCTAssertEqual(app.keyValidation, .idle)
-        XCTAssertNil(app.keyInfo)
+        XCTAssertNil(app.requester.keyInfo)
     }
 
     func testDelayedFactionFailureCannotOverwriteNewAccountHealth() async {
@@ -35,14 +35,14 @@ final class AppStateTests: XCTestCase {
         let app = AppState(session: session, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
         app.apiKey = "account-a"
         let identity = app.accountSession.identity
-        let old = Task { await app.fetchFactionData(apiKey: identity.apiKey, generation: identity.generation) }
+        let old = Task { await app.fetchFactionData() }
         await session.waitForRequest()
         app.apiKey = "account-b"
-        app.endpointHealth.record(endpointID: "faction.basic", outcome: .ok, latencyMs: 1, responseBytes: 100)
-        let newHealth = app.endpointHealth.latest(for: "faction.basic")
+        app.requester.health.record(endpointID: "faction.basic", outcome: .ok, latencyMs: 1, responseBytes: 100)
+        let newHealth = app.requester.health.latest(for: "faction.basic")
         await session.finish()
         await old.value
-        XCTAssertEqual(app.endpointHealth.latest(for: "faction.basic"), newHealth)
+        XCTAssertEqual(app.requester.health.latest(for: "faction.basic"), newHealth)
     }
 
     func testEditingKeyWhileValidationIsPendingDiscardsItsResult() async {
@@ -54,7 +54,7 @@ final class AppStateTests: XCTestCase {
         await session.finish(0)
         await pending.value
         XCTAssertEqual(app.keyValidation, .idle)
-        XCTAssertNil(app.keyInfo)
+        XCTAssertNil(app.requester.keyInfo)
     }
 
     func testOlderValidationCannotReplaceANewerValidationResult() async {
@@ -103,9 +103,9 @@ final class AppStateTests: XCTestCase {
         let conn = ControllableConnectivity(connected: true)
         let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
         app.apiKey = "valid_key"
-        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
+        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
         app.refreshNow()   // the accepted `/key/info` handshake is recorded synchronously
-        XCTAssertGreaterThanOrEqual(app.pollingCoordinator.requestsInLastMinute, 1,
+        XCTAssertGreaterThanOrEqual(app.requester.budget.requestsInLastMinute, 1,
                                     "a poll must be recorded against the API budget")
         app.stopPolling()
     }
@@ -116,10 +116,10 @@ final class AppStateTests: XCTestCase {
         app.apiKey = "valid_key"
         XCTAssertNotNil(conn.onConnectivityRestored, "AppState wires the reconnect handler")
 
-        let before = app.pollingCoordinator.requestsInLastMinute
+        let before = app.requester.budget.requestsInLastMinute
         conn.goOffline()
         conn.restore()   // down→up edge → refreshNow records the ordered capability request
-        XCTAssertGreaterThan(app.pollingCoordinator.requestsInLastMinute, before,
+        XCTAssertGreaterThan(app.requester.budget.requestsInLastMinute, before,
                              "a restored connection refreshes immediately")
         app.stopPolling()
     }
@@ -129,7 +129,7 @@ final class AppStateTests: XCTestCase {
         let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
         app.apiKey = "valid_key"
         app.refreshNow()   // fetchData bails on the connectivity guard before recording
-        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
+        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
         app.stopPolling()
     }
 
@@ -237,16 +237,16 @@ final class AppStateTests: XCTestCase {
         await validation.value
 
         XCTAssertEqual(app.keyValidation, .idle)
-        XCTAssertNil(app.keyInfo)
+        XCTAssertNil(app.requester.keyInfo)
     }
 
     func testHaltedPollingIssuesNoRequests() {
         let app = AppState(session: MockNetworkSession(), connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
         app.apiKey = "key"
         app.keyHalted = true       // set after apiKey (which would otherwise clear it)
-        let before = app.pollingCoordinator.requestsInLastMinute
+        let before = app.requester.budget.requestsInLastMinute
         app.startPolling()         // must early-return without issuing a request
-        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, before)
+        XCTAssertEqual(app.requester.budget.requestsInLastMinute, before)
         app.stopPolling()
     }
 
@@ -345,7 +345,7 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertNil(appState.lastUpdated)
         XCTAssertEqual(appState.errorMsg, "Unexpected response from Torn.")
-        XCTAssertEqual(appState.endpointHealth.latest(for: "user.fast")?.outcome, .error)
+        XCTAssertEqual(appState.requester.health.latest(for: "user.fast")?.outcome, .error)
     }
 
     func testEmptyResponsePreservesLastGoodSnapshotAndTimestamp() async throws {
@@ -365,7 +365,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.data?.name, goodSnapshot.name)
         XCTAssertEqual(appState.lastUpdated, goodTimestamp)
         XCTAssertEqual(appState.errorMsg, "Unexpected response from Torn.")
-        XCTAssertEqual(appState.endpointHealth.latest(for: "user.fast")?.outcome, .error)
+        XCTAssertEqual(appState.requester.health.latest(for: "user.fast")?.outcome, .error)
     }
 
     func testNetworkErrorMessageNeverEchoesSensitiveLocalizedDescription() async throws {
@@ -402,7 +402,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(countAtCap, 1)
         XCTAssertEqual(mock.requestedURLs.count, 1,
                        "market refresh must not bypass the shared per-minute cap")
-        XCTAssertEqual(app.watchlistItems.first?.error, "Request limit reached")
+        XCTAssertEqual(app.watchlistItems.first?.error, TornEndpointDenial.perMinuteCapReached.userExplanation)
     }
 
     func testInvalidPersistedRefreshIntervalFallsBackToSafeDefault() {
@@ -933,7 +933,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.errorMsg, "Too many requests — backing off.")
         XCTAssertEqual(mockSession.requestedURLs.count, 1,
                        "a rate-limited main response must not fan out optional requests")
-        XCTAssertTrue(appState.isRowSourcePaused("forum.thread"),
+        XCTAssertTrue(appState.requester.gate.isPaused("forum.thread"),
                       "Torn's per-user rate limit must pause independent forum polling too")
     }
 
@@ -1098,7 +1098,7 @@ final class AppStateTests: XCTestCase {
         app.apiKey = "debounce-\(UUID().uuidString)"
         // This test isolates the three-second manual debounce; first-session capability
         // ordering is covered by FirstPollOrderingTests.
-        app.keyInfo = TornKeyInfo.testFixture()
+        app.requester.keyInfo = TornKeyInfo.testFixture()
 
         app.refreshNow()
         XCTAssertEqual(app.pollSequence, 1)
@@ -1438,9 +1438,9 @@ final class AppStateTests: XCTestCase {
         state.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertTrue(state.isRowSourcePaused("user.activity"), "activity should pause on code 14")
-        XCTAssertTrue(state.isRowSourcePaused("faction.news"), "faction news should pause on code 14")
-        XCTAssertFalse(state.isRowSourcePaused("faction.basic"),
+        XCTAssertTrue(state.requester.gate.isPaused("user.activity"), "activity should pause on code 14")
+        XCTAssertTrue(state.requester.gate.isPaused("faction.news"), "faction news should pause on code 14")
+        XCTAssertFalse(state.requester.gate.isPaused("faction.basic"),
                        "point-in-time faction/chain must keep running")
         state.stopPolling()
     }
@@ -1457,10 +1457,10 @@ final class AppStateTests: XCTestCase {
 
         state.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
-        XCTAssertTrue(state.isRowSourcePaused("user.activity"))
+        XCTAssertTrue(state.requester.gate.isPaused("user.activity"))
 
         clock.advance(3601)   // just past the 1 h pause window
-        XCTAssertFalse(state.isRowSourcePaused("user.activity"), "pause should re-arm after the window")
+        XCTAssertFalse(state.requester.gate.isPaused("user.activity"), "pause should re-arm after the window")
         state.stopPolling()
     }
 
@@ -1481,7 +1481,7 @@ final class AppStateTests: XCTestCase {
 
         for id in ["user.fast", "faction.basic", "user.v2", "user.activity",
                    "faction.rankedwars", "faction.news"] {
-            XCTAssertEqual(state.endpointHealth.latest(for: id)?.outcome, .ok,
+            XCTAssertEqual(state.requester.health.latest(for: id)?.outcome, .ok,
                            "health should be recorded (ok) for \(id)")
         }
     }
@@ -1493,7 +1493,7 @@ final class AppStateTests: XCTestCase {
 
         await appState.fetchStocksMetadata()
 
-        XCTAssertEqual(appState.endpointHealth.latest(for: "torn.stocks")?.outcome, .ok)
+        XCTAssertEqual(appState.requester.health.latest(for: "torn.stocks")?.outcome, .ok)
     }
 
     // MARK: - ISC-18: OC-ready dedup routed through the coordinator (persistent)
@@ -1621,18 +1621,6 @@ private final class ControlledHTTPErrorUserSnapshotService: UserSnapshotServicin
         grantedSelections: [String]?
     ) async -> TornServiceResult<UserSnapshotPayload> {
         .malformed(responseBytes: data.count)
-    }
-
-    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload> {
-        .malformed(responseBytes: 0)
-    }
-
-    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload> {
-        .malformed(responseBytes: 0)
-    }
-
-    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?> {
-        .success(nil, responseBytes: 0)
     }
 }
 
@@ -1901,7 +1889,7 @@ final class ChainSourceTests: XCTestCase {
     func testLiveChainMirrorsFactionPayload() throws {
         let app = makeAppState()
         let timeout = Int(Date().timeIntervalSince1970) + 30
-        app.factionService.publishBasic(
+        app.faction.basic = (
             FactionData(name: "Test", factionId: 1, respect: 10,
                         chain: FactionChain(current: 25, max: 100, timeout: timeout, cooldown: 0))
         )
@@ -1917,7 +1905,7 @@ final class ChainSourceTests: XCTestCase {
     func testChainAlertFiresFromFactionDataInsideDangerWindow() {
         let app = makeAppState()
         let soon = Int(Date().timeIntervalSince1970) + 30   // < chainWarningThreshold (60)
-        app.factionService.publishBasic(
+        app.faction.basic = (
             FactionData(chain: FactionChain(current: 25, max: 100, timeout: soon, cooldown: 0))
         )
 
@@ -1930,7 +1918,7 @@ final class ChainSourceTests: XCTestCase {
     func testChainAlertStaysSilentOutsideDangerWindow() {
         let app = makeAppState()
         let far = Int(Date().timeIntervalSince1970) + 600
-        app.factionService.publishBasic(
+        app.faction.basic = (
             FactionData(chain: FactionChain(current: 25, max: 100, timeout: far, cooldown: 0))
         )
         XCTAssertFalse(app.chainExpiringShouldFire(app.liveChain))
@@ -1938,7 +1926,7 @@ final class ChainSourceTests: XCTestCase {
 
     func testInactiveChainNeverFires() {
         let app = makeAppState()
-        app.factionService.publishBasic(
+        app.faction.basic = (
             FactionData(chain: FactionChain(current: 0, max: 100, timeout: 0, cooldown: 0))
         )
         let chain = app.liveChain
@@ -1949,7 +1937,7 @@ final class ChainSourceTests: XCTestCase {
     func testNextActionTimelineTakesChainFromFactionData() {
         let app = makeAppState()
         let timeout = Int(Date().timeIntervalSince1970) + 300
-        app.factionService.publishBasic(
+        app.faction.basic = (
             FactionData(chain: FactionChain(current: 25, max: 100, timeout: timeout, cooldown: 0))
         )
         let snapshot = app.makeNextActionSnapshot()

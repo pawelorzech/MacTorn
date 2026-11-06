@@ -117,10 +117,10 @@ struct ForumWatchView: View {
                             thread: thread,
                             onOpen: {
                                 openThread(thread.id)
-                                appState.markThreadAsRead(thread.id)
+                                appState.forumWatch.markAsRead(threadID: thread.id)
                             },
                             onToggleNotifications: {
-                                appState.toggleThreadNotifications(thread.id)
+                                appState.forumWatch.toggleNotifications(threadID: thread.id)
                             },
                             onRemove: {
                                 removeWithUndo(thread)
@@ -166,7 +166,7 @@ struct ForumWatchView: View {
     }
 
     private func addThread() {
-        guard appState.parseThreadInput(threadInput) != nil else {
+        guard appState.forumWatch.parseThreadInput(threadInput) != nil else {
             threadInputError = "Enter a positive thread ID or Torn forum URL."
             return
         }
@@ -193,7 +193,7 @@ struct ForumWatchView: View {
         let removedThread = appState.watchedThreads[index]
 
         undoDismissTask?.cancel()
-        appState.removeWatchedThread(thread.id)
+        appState.forumWatch.remove(threadID: thread.id)
         withAnimation(reduceMotion ? nil : .default) {
             recentlyRemoved = RemovedWatchedThread(thread: removedThread, index: index)
         }
@@ -210,7 +210,7 @@ struct ForumWatchView: View {
         guard let recentlyRemoved else { return }
 
         undoDismissTask?.cancel()
-        appState.restoreWatchedThread(recentlyRemoved.thread, at: recentlyRemoved.index)
+        appState.forumWatch.restore(recentlyRemoved.thread, at: recentlyRemoved.index)
         withAnimation(reduceMotion ? nil : .default) {
             self.recentlyRemoved = nil
         }
@@ -314,19 +314,5 @@ struct ForumThreadRow: View {
         .padding(.horizontal, 8)
         .background(Color.secondary.opacity(reduceTransparency ? 0.3 : 0.05))
         .cornerRadius(4)
-    }
-}
-
-extension AppState {
-    @discardableResult
-    func restoreWatchedThread(_ thread: WatchedThread, at originalIndex: Int) -> Bool {
-        guard !watchedThreads.contains(where: { $0.id == thread.id }) else {
-            return false
-        }
-
-        let insertionIndex = min(max(originalIndex, 0), watchedThreads.count)
-        watchedThreads.insert(thread, at: insertionIndex)
-        saveForumWatch()
-        return true
     }
 }

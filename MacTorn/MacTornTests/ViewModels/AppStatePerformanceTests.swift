@@ -63,32 +63,17 @@ final class AppStatePerformanceTests: XCTestCase {
         XCTAssertEqual(app.data?.travel?.isTraveling, true)
     }
 
-    @MainActor
-    func testStocksMetadataBackoffLadder() async {
-        let appState = AppState(session: MockNetworkSession(), connectivity: AlwaysOnlineConnectivity(), defaults: .createMockDefaults())
-
-        let t0 = Date()
-        appState.recordStocksMetadataFailure()
-        let r1 = appState.stocksNextRetryAfter
-        XCTAssertNotNil(r1)
-        XCTAssertGreaterThanOrEqual(r1!.timeIntervalSince(t0), 60 - 1)
-        XCTAssertLessThan(r1!.timeIntervalSince(t0), 60 + 5)
-
-        appState.recordStocksMetadataFailure()
-        let r2 = appState.stocksNextRetryAfter
-        XCTAssertGreaterThanOrEqual(r2!.timeIntervalSince(t0), 300 - 1)
-        XCTAssertLessThan(r2!.timeIntervalSince(t0), 300 + 5)
-
-        appState.recordStocksMetadataFailure()
-        let r3 = appState.stocksNextRetryAfter
-        XCTAssertGreaterThanOrEqual(r3!.timeIntervalSince(t0), 1800 - 1)
-        XCTAssertLessThan(r3!.timeIntervalSince(t0), 1800 + 5)
-
-        // Cap: 4th failure should still produce ~1800s, not grow further.
-        appState.recordStocksMetadataFailure()
-        let r4 = appState.stocksNextRetryAfter
-        XCTAssertGreaterThanOrEqual(r4!.timeIntervalSince(t0), 1800 - 1)
-        XCTAssertLessThan(r4!.timeIntervalSince(t0), 1800 + 5)
+    func testRetryBackoffLadderCapsAtThirtyMinutesAndClearsOnSuccess() {
+        var backoff = RetryBackoff()
+        let t0 = Date(timeIntervalSince1970: 1_000_000)
+        for expected: TimeInterval in [60, 300, 1_800, 1_800] {
+            backoff.fail(at: t0)
+            XCTAssertEqual(backoff.retryAfter, t0.addingTimeInterval(expected))
+        }
+        XCTAssertFalse(backoff.allows(at: t0.addingTimeInterval(1_799)))
+        XCTAssertTrue(backoff.allows(at: t0.addingTimeInterval(1_800)))
+        backoff.succeed()
+        XCTAssertTrue(backoff.allows(at: t0))
     }
 }
 

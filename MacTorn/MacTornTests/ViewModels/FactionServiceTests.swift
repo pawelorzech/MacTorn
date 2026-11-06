@@ -19,7 +19,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: basicJSON)
 
-        let result = try await service.loadBasic(from: endpoint("faction"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("faction"), session: mock, decode: FactionStore.decodeBasic)
 
         XCTAssertNil(service.basic, "Transport must not bypass facade publication policy")
         guard case .success(let payload, let bytes) = result else {
@@ -31,7 +31,7 @@ final class FactionServiceTests: XCTestCase {
         XCTAssertEqual(payload.chain.current, 42)
         XCTAssertEqual(bytes, mock.mockData?.count)
 
-        service.publishBasic(payload)
+        service.basic = payload
         XCTAssertEqual(service.basic?.factionId, 11_559)
     }
 
@@ -39,7 +39,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: TornAPIFixtures.rankedWarsResponse())
 
-        let result = try await service.loadWars(from: endpoint("rankedwars"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("rankedwars"), session: mock, decode: FactionStore.decodeWars)
 
         XCTAssertTrue(service.wars.isEmpty)
         guard case .success(let payload, _) = result else {
@@ -48,7 +48,7 @@ final class FactionServiceTests: XCTestCase {
         XCTAssertEqual(payload.count, 2)
         XCTAssertEqual(payload.first?.id, 44_751)
 
-        service.publishWars(payload)
+        service.wars = payload
         XCTAssertEqual(service.wars.count, 2)
     }
 
@@ -56,7 +56,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: TornAPIFixtures.factionNewsResponse)
 
-        let result = try await service.loadNews(from: endpoint("news"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("news"), session: mock, decode: FactionStore.decodeNews)
 
         XCTAssertTrue(service.news.isEmpty)
         guard case .success(let payload, _) = result else {
@@ -65,7 +65,7 @@ final class FactionServiceTests: XCTestCase {
         XCTAssertEqual(payload.count, 2)
         XCTAssertEqual(payload.first?.id, "zL8X")
 
-        service.publishNews(payload)
+        service.news = payload
         XCTAssertEqual(service.news.count, 2)
     }
 
@@ -73,7 +73,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setTornAPIError(code: 2, message: "Incorrect key")
 
-        let result = try await service.loadBasic(from: endpoint("faction"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("faction"), session: mock, decode: FactionStore.decodeBasic)
 
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected faction.basic API error")
@@ -86,7 +86,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setTornAPIErrorV2(code: 16, message: "Access level too low")
 
-        let result = try await service.loadWars(from: endpoint("rankedwars"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("rankedwars"), session: mock, decode: FactionStore.decodeWars)
 
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected faction.wars API error")
@@ -100,7 +100,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setTornAPIErrorV2(code: 14, message: "Daily read limit reached")
 
-        let result = try await service.loadNews(from: endpoint("news"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("news"), session: mock, decode: FactionStore.decodeNews)
 
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected faction.news API error")
@@ -113,7 +113,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: ["name": "Looks plausible"])
 
-        let result = try await service.loadBasic(from: endpoint("faction"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("faction"), session: mock, decode: FactionStore.decodeBasic)
 
         guard case .malformed(let bytes) = result else {
             return XCTFail("Expected malformed faction.basic response")
@@ -125,7 +125,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: ["rankedwars": [["id": "not-an-int"]]])
 
-        let result = try await service.loadWars(from: endpoint("rankedwars"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("rankedwars"), session: mock, decode: FactionStore.decodeWars)
 
         guard case .malformed = result else {
             return XCTFail("Expected malformed faction.wars response")
@@ -136,7 +136,7 @@ final class FactionServiceTests: XCTestCase {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: ["news": "not-an-array"])
 
-        let result = try await service.loadNews(from: endpoint("news"))
+        let result = try await TornAPIClient.loadJSON(from: endpoint("news"), session: mock, decode: FactionStore.decodeNews)
 
         guard case .malformed = result else {
             return XCTFail("Expected malformed faction.news response")
@@ -146,16 +146,16 @@ final class FactionServiceTests: XCTestCase {
     func testResetClearsAllOwnedFactionState() async throws {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: basicJSON)
-        if case .success(let basic, _) = try await service.loadBasic(from: endpoint("faction")) {
-            service.publishBasic(basic)
+        if case .success(let basic, _) = try await TornAPIClient.loadJSON(from: endpoint("faction"), session: mock, decode: FactionStore.decodeBasic) {
+            service.basic = basic
         }
         try mock.setSuccessResponse(json: TornAPIFixtures.rankedWarsResponse())
-        if case .success(let wars, _) = try await service.loadWars(from: endpoint("rankedwars")) {
-            service.publishWars(wars)
+        if case .success(let wars, _) = try await TornAPIClient.loadJSON(from: endpoint("rankedwars"), session: mock, decode: FactionStore.decodeWars) {
+            service.wars = wars
         }
         try mock.setSuccessResponse(json: TornAPIFixtures.factionNewsResponse)
-        if case .success(let news, _) = try await service.loadNews(from: endpoint("news")) {
-            service.publishNews(news)
+        if case .success(let news, _) = try await TornAPIClient.loadJSON(from: endpoint("news"), session: mock, decode: FactionStore.decodeNews) {
+            service.news = news
         }
 
         service.reset()
@@ -166,15 +166,14 @@ final class FactionServiceTests: XCTestCase {
     }
 
     func testAppStateFacadePublishesServiceStateAndResetsItOnAccountChange() {
-        let service = FactionService(session: MockNetworkSession())
         let state = AppState(
             session: MockNetworkSession(),
             connectivity: ControllableConnectivity(),
-            defaults: .createMockDefaults(),
-            factionService: service
+            defaults: .createMockDefaults()
         )
+        let service = state.faction
         state.apiKey = "account-a"
-        service.publishBasic(
+        service.basic = (
             FactionData(
                 name: "Faction A",
                 factionId: 1,
@@ -182,8 +181,8 @@ final class FactionServiceTests: XCTestCase {
                 chain: FactionChain(current: 3, max: 4, timeout: 5, cooldown: 0)
             )
         )
-        service.publishWars([])
-        service.publishNews([])
+        service.wars = []
+        service.news = []
 
         XCTAssertEqual(state.factionData?.name, "Faction A")
         XCTAssertEqual(state.rankedWars.count, service.wars.count)
@@ -196,9 +195,8 @@ final class FactionServiceTests: XCTestCase {
         XCTAssertTrue(state.factionNews.isEmpty)
     }
 
-    private func makeService() -> (FactionService, MockNetworkSession) {
-        let mock = MockNetworkSession()
-        return (FactionService(session: mock), mock)
+    private func makeService() -> (FactionStore, MockNetworkSession) {
+        (FactionStore(), MockNetworkSession())
     }
 
     private func endpoint(_ path: String) -> URL {

@@ -120,6 +120,19 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
     /// does not grant it.
     var requiresFactionAPIAccess: Bool = false
 
+    /// Shortest gap between two sends, for endpoints MacTorn reads on its own schedule
+    /// rather than every poll. `nil` = every time it is asked.
+    var minimumInterval: TimeInterval? = nil
+
+    /// The `/key/info` selections category that grants this endpoint.
+    var keyCategory: TornKeyInfo.Category {
+        if path.contains("/faction") { return .faction }
+        if path.contains("/market") { return .market }
+        if path.contains("/forum") { return .forum }
+        if path.contains("/torn") { return .torn }
+        return .user
+    }
+
     var isParameterized: Bool { path.contains("{param}") }
 
     /// Rows fetched per call — the unit of the 50k/day/category budget. Point-in-time
@@ -220,7 +233,8 @@ enum TornEndpointRegistry {
             recordLimit: nil,
             sendsLimitQuery: false,
             budget: .core,
-            critical: false
+            critical: false,
+            minimumInterval: 1_800
         ),
         TornEndpoint(
             id: "user.activity",
@@ -236,7 +250,8 @@ enum TornEndpointRegistry {
             recordLimit: 25,
             sendsLimitQuery: true,
             budget: .activity,
-            critical: false
+            critical: false,
+            minimumInterval: 300
         ),
         TornEndpoint(
             id: "faction.basic",
@@ -270,7 +285,8 @@ enum TornEndpointRegistry {
             sendsLimitQuery: false,
             budget: .faction,
             critical: false,
-            requiresFaction: true
+            requiresFaction: true,
+            minimumInterval: 300
         ),
         TornEndpoint(
             id: "faction.news",
@@ -289,7 +305,8 @@ enum TornEndpointRegistry {
             critical: false,
             requiredCapabilities: ["news"],
             requiresFaction: true,
-            requiresFactionAPIAccess: true
+            requiresFactionAPIAccess: true,
+            minimumInterval: 300
         ),
         TornEndpoint(
             id: "market.item",

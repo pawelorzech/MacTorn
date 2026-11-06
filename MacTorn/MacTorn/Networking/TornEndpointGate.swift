@@ -134,9 +134,8 @@ final class TornEndpointGate {
                keyInfo.access.level < endpoint.minimumAccessLevel.rawValue {
                 return .keyAccessLevelTooLow(required: endpoint.minimumAccessLevel)
             }
-            if keyInfo.access.type.caseInsensitiveCompare("Custom") == .orderedSame,
-               !endpoint.requiredCapabilities.isEmpty {
-                let granted = Set(keyInfo.selections.names(for: KeyValidator.category(for: endpoint)))
+            if keyInfo.isCustom, !endpoint.requiredCapabilities.isEmpty {
+                let granted = keyInfo.grantedNames(for: endpoint)
                 let missing = endpoint.requiredCapabilities.filter { !granted.contains($0) }
                 if !missing.isEmpty { return .keyLacksSelections(missing) }
             }
@@ -145,8 +144,7 @@ final class TornEndpointGate {
             // request down to the readable ones, so a Minimal-access key keeps its bars
             // and cooldowns instead of losing the whole poll to one forbidden selection.
             if !endpoint.selections.isEmpty {
-                let granted = Set(keyInfo.selections.names(for: KeyValidator.category(for: endpoint)))
-                if endpoint.resolvedSelections(granted: granted).isEmpty {
+                if endpoint.resolvedSelections(granted: keyInfo.grantedNames(for: endpoint)).isEmpty {
                     return .keyLacksSelections(endpoint.selections)
                 }
             }

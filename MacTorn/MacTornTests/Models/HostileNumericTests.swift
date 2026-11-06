@@ -173,9 +173,9 @@ final class HostileNumericTests: XCTestCase {
         let resolved = faction.resolvingChainExpiry(fetchedAt: Date(), clock: .synchronized)
         XCTAssertEqual(resolved.chain.timeout, 0)
         XCTAssertNil(resolved.chain.end)
-        state.factionService.publishBasic(faction)
+        state.faction.basic = (faction)
         render(FactionView().environment(state))
-        state.factionService.publishBasic(resolved)
+        state.faction.basic = (resolved)
         render(FactionView().environment(state))
     }
 

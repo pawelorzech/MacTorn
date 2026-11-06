@@ -147,7 +147,7 @@ final class KeyValidationTests: XCTestCase {
 
     func testCategoryMapping() throws {
         func category(_ id: String) throws -> TornKeyInfo.Category {
-            KeyValidator.category(for: try XCTUnwrap(TornEndpointRegistry.endpoint(id: id)))
+            try XCTUnwrap(TornEndpointRegistry.endpoint(id: id)).keyCategory
         }
         XCTAssertEqual(try category("user.fast"), .user)
         XCTAssertEqual(try category("user.v2"), .user)
@@ -182,7 +182,7 @@ final class KeyValidationTests: XCTestCase {
         XCTAssertEqual(result.accessType, "Full Access")
         XCTAssertEqual(result.playerID, 42)
         XCTAssertTrue(result.allCriticalAvailable)
-        XCTAssertNotNil(state.keyInfo)
+        XCTAssertNotNil(state.requester.keyInfo)
     }
 
     @MainActor
@@ -197,7 +197,7 @@ final class KeyValidationTests: XCTestCase {
         guard case .failure = state.keyValidation else {
             return XCTFail("expected failure for a bad key")
         }
-        XCTAssertNil(state.keyInfo, "a failed validation must not leave stale key info")
+        XCTAssertNil(state.requester.keyInfo, "a failed validation must not leave stale key info")
     }
 
     @MainActor
@@ -226,7 +226,7 @@ final class KeyValidationTests: XCTestCase {
         let state = makeState(mock)
         state.apiKey = "sample-saved-value"
         await state.validateKey()
-        XCTAssertEqual(state.keyInfo?.access.level, 4, "precondition: the saved key's info")
+        XCTAssertEqual(state.requester.keyInfo?.access.level, 4, "precondition: the saved key's info")
 
         try mock.setSuccessResponse(json: keyInfoJSON(level: 1, type: "Public Only",
                                                       userSelections: ["basic"]))
@@ -236,7 +236,7 @@ final class KeyValidationTests: XCTestCase {
             return XCTFail("the typed key's result must still be reported, got \(state.keyValidation)")
         }
         XCTAssertEqual(result.accessType, "Public Only")
-        XCTAssertEqual(state.keyInfo?.access.level, 4,
+        XCTAssertEqual(state.requester.keyInfo?.access.level, 4,
                        "the active account's capabilities must not be replaced by an unsaved key's")
     }
 
@@ -248,10 +248,10 @@ final class KeyValidationTests: XCTestCase {
         let state = makeState(mock)
         state.apiKey = "sample-onboarding-value"
         await state.validateKey()
-        XCTAssertNotNil(state.keyInfo)
+        XCTAssertNotNil(state.requester.keyInfo)
 
         state.apiKey = "sample-different-value"
         XCTAssertEqual(state.keyValidation, .idle)
-        XCTAssertNil(state.keyInfo)
+        XCTAssertNil(state.requester.keyInfo)
     }
 }

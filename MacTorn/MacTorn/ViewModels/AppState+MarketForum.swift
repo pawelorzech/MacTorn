@@ -10,47 +10,7 @@ final class PriceAlertBatch {
 extension AppState {
     // MARK: - Watchlist
 
-    func loadWatchlist() {
-        marketWatchService.load()
-    }
-
-    func saveWatchlist() {
-        marketWatchService.save()
-    }
-
-    /// Adds an item to the price watchlist.
-    ///
-    /// Returns `false` when the item was rejected (already watched, or an invalid id).
-    /// The result is deliberately part of the contract: the add panel used to close on
-    /// every tap regardless of outcome, so tapping an item that was already on the list
-    /// looked exactly like success — the panel vanished and nothing changed.
-    @discardableResult
-    func addToWatchlist(itemId: Int, name: String) -> Bool {
-        guard marketWatchService.add(itemID: itemId, name: name) else {
-            logger.warning("addToWatchlist rejected invalid or duplicate item \(itemId)")
-            return false
-        }
-        Task {
-            await fetchItemPrice(itemId: itemId)
-        }
-        return true
-    }
-
-    func removeFromWatchlist(_ itemId: Int) {
-        marketWatchService.remove(itemID: itemId)
-    }
-
-    /// Parses the raw text from the watchlist's Item ID field. Mirrors
-    /// `parseThreadInput` — numeric, positive only.
-    func parseItemIdInput(_ input: String) -> Int? {
-        PositiveIntegerInput.value(from: input)
-    }
-
     /// Why an Item ID typed into the watchlist panel was rejected.
-    ///
-    /// `addToWatchlist(input:)` used to answer this with a bare `Bool`, which left the
-    /// UI unable to tell "out of range" from "duplicate" — so an id of 200000 was
-    /// reported to the user as "already on your watchlist", which was simply untrue.
     enum WatchlistAddOutcome: Equatable {
         case added(itemId: Int)
         /// Empty, non-numeric, zero or negative.
@@ -60,211 +20,164 @@ extension AppState {
         case alreadyWatched
     }
 
-    /// Adds a watchlist item from raw text input. There is no local item-name
-    /// database (unlike forum threads, whose titles come back from the API on the
-    /// first fetch), so this seeds a placeholder name; `fetchItemPrice` only ever
-    /// updates price fields, never the name.
+    /// Adds an item and prices it straight away. `false` when it was rejected (already
+    /// watched, or an invalid id), so the add panel can stay open and say so.
+    @discardableResult
+    func addToWatchlist(itemId: Int, name: String) -> Bool {
+        guard watchlist.add(itemID: itemId, name: name) else {
+            logger.warning("addToWatchlist rejected invalid or duplicate item \(itemId)")
+            return false
+        }
+        Task { await fetchPrices(for: watchlistItems.filter { $0.id == itemId }) }
+        return true
+    }
+
+    /// Adds an item typed by id. The name is the catalogue's, or a placeholder the
+    /// catalogue backfills later.
     func addToWatchlist(input: String) -> WatchlistAddOutcome {
-        guard let itemId = parseItemIdInput(input) else { return .notANumber }
+        guard let itemId = PositiveIntegerInput.value(from: input) else { return .notANumber }
         guard itemId < MarketWatchService.maximumItemID else {
             return .outOfRange(maximum: MarketWatchService.maximumItemID)
         }
         guard !watchlistItems.contains(where: { $0.id == itemId }) else {
             return .alreadyWatched
         }
-        guard addToWatchlist(itemId: itemId, name: itemName(for: itemId)) else {
-            // The service applies the same bounds we just checked, so reaching here
-            // means those two definitions drifted apart.
-            logger.error("addToWatchlist(input:) passed its own checks but the service still rejected \(itemId)")
-            return .notANumber
-        }
+        guard addToWatchlist(itemId: itemId, name: itemName(for: itemId)) else { return .notANumber }
         return .added(itemId: itemId)
     }
 
     func refreshWatchlistPrices() {
         accountSession.startTask(.watchlist) {
-            await self.fetchWatchlistPrices()
+            await self.fetchPrices(for: self.watchlistItems)
         }
     }
 
-    /// - Parameter thresholdsOnly: refresh only items with a price alert set — the
-    ///   background timer's scope. Items without a threshold have nothing to announce.
-    private func fetchWatchlistPrices(thresholdsOnly: Bool = false) async {
-        guard connectivity.isConnected, !keyHalted else { return }
-        let requestedKey = apiKey
-        let generation = accountSession.identity.generation
-        guard !requestedKey.isEmpty else { return }
+    /// Prices every item Torn has re-cached since its last read, four at a time. Alerts
+    /// are announced and the list saved once, at the end of the run — deliberately even
+    /// when a newer refresh superseded this one, because `apply` has already spent each
+    /// alert's epoch. Only an account change voids them.
+    private func fetchPrices(for items: [WatchlistItem]) async {
+        guard connectivity.isConnected, !keyHalted, !apiKey.isEmpty else { return }
+        let identity = accountSession.identity
         let now = Date()
-        let itemIDs = watchlistItems.filter { item in
-            if thresholdsOnly, item.priceThreshold == nil { return false }
-            guard let timestamp = item.dataTimestamp,
-                  let delay = item.cacheDelay else { return true }
+        let due = items.filter { item in
+            guard let timestamp = item.dataTimestamp, let delay = item.cacheDelay else { return true }
             return timestamp.addingTimeInterval(delay) <= now
         }.map(\.id)
-        // Owned by this run alone. A shared pending list was cleared by the next refresh on
-        // entry, and a superseded run skipped its flush — while `apply` had already spent
-        // the alert epoch (`lastAlertedPrice`), so the alert was never shown. (Audit F-04.)
         let batch = PriceAlertBatch()
-        await BoundedTaskQueue.run(itemIDs, limit: 4) { [weak self] itemID in
-            guard let self else { return }
-            await self.fetchItemPrice(
-                itemId: itemID,
-                apiKey: requestedKey,
-                generation: generation,
-                batch: batch
-            )
+        await BoundedTaskQueue.run(due, limit: 4) { [weak self] itemID in
+            await self?.fetchPrice(itemID: itemID, into: batch)
         }
-        // Deliberately not gated on cancellation: whatever this run latched must be
-        // announced and persisted even when a newer refresh superseded it. Only an
-        // account change voids it.
-        guard isCurrentAccount(requestedKey, generation: generation) else { return }
+        guard accountSession.isCurrent(identity) else { return }
         postPriceAlerts(batch.alerts)
-        saveWatchlist()
+        watchlist.save()
     }
 
-    /// One banner for a single alert, a summary banner for several.
-    func postPriceAlerts(_ alerts: [MarketPriceAlert]) {
-        guard !alerts.isEmpty else { return }
-        if alerts.count == 1 {
-            let a = alerts[0]
-            notifier.send(
-                title: "Price Alert: \(a.name)",
-                body: "Lowest price dropped to \(TornFormatter.formatMoney(a.price))",
-                type: .priceAlert
-            )
-            return
-        }
-        // Summary notification: list up to 3 names then "+N more".
-        let preview = alerts.prefix(3).map { $0.name }.joined(separator: ", ")
-        let extra = alerts.count > 3 ? " +\(alerts.count - 3) more" : ""
-        notifier.send(
-            title: "\(alerts.count) price alerts",
-            body: "\(preview)\(extra)",
-            type: .priceAlert
-        )
-    }
-
-    private func fetchItemPrice(itemId: Int) async {
-        let requestedKey = apiKey
-        let generation = accountSession.identity.generation
-        await fetchItemPrice(
-            itemId: itemId,
-            apiKey: requestedKey,
-            generation: generation,
-            batch: nil
-        )
-    }
-
-    private func fetchItemPrice(
-        itemId: Int,
-        apiKey requestedKey: String,
-        generation: UInt,
-        batch: PriceAlertBatch?
-    ) async {
-        // A single-item fetch persists and announces itself; a batched one leaves both to
-        // the end of its run.
-        let save = batch == nil
-        guard isCurrentAccount(requestedKey, generation: generation),
-              !requestedKey.isEmpty,
-              let url = endpointURL("market.item", parameter: itemId, key: requestedKey) else { return }
-        guard reserveRequest("market.item") else {
-            updateItemError(itemId: itemId, error: "Request limit reached", save: save)
-            return
-        }
-
-        logger.info("Fetching price for item \(itemId)")
-
-        do {
-            let result = try await marketWatchService.fetchPrice(from: url)
-            guard !Task.isCancelled,
-                  isCurrentAccount(requestedKey, generation: generation) else { return }
-
-            switch result {
-            case .success(let snapshot, _):
-                updateItemPrice(itemId: itemId, snapshot: snapshot, batch: batch)
-            case .apiError(let apiError, _):
-                // Code 6 (bad item id) means this request can never succeed. Without
-                // telling the gate, a watchlist entry holding a dead id was re-requested
-                // on every refresh, forever.
-                noteEndpointFailure(apiError, for: "market.item")
-                logger.warning("Item \(itemId) API returned an error envelope")
-                updateItemError(itemId: itemId, error: apiError.userMessage, save: save)
-            case .httpError(let statusCode, _):
-                logger.error("Item \(itemId) HTTP Error: \(statusCode)")
-                updateItemError(itemId: itemId, error: "HTTP \(statusCode)", save: save)
-            case .noListings:
-                updateItemError(itemId: itemId, error: "No listings", save: save)
-            case .malformed:
-                logger.error("Item \(itemId): failed to parse JSON response")
-                updateItemError(itemId: itemId, error: "Parse Error", save: save)
-            }
-        } catch {
-            guard !Task.isCancelled,
-                  isCurrentAccount(requestedKey, generation: generation) else { return }
-            logger.error("Item \(itemId) price fetch error: \(String(describing: type(of: error)))")
-            updateItemError(itemId: itemId, error: "Network Error", save: save)
-        }
-    }
-
-    @MainActor
-    private func updateItemPrice(itemId: Int, snapshot: MarketPriceSnapshot, batch: PriceAlertBatch?) {
-        if let alert = marketWatchService.apply(snapshot.localized(using: serverClock), to: itemId) {
-            if let batch {
+    private func fetchPrice(itemID: Int, into batch: PriceAlertBatch) async {
+        switch await requester.fetch("market.item", parameter: itemID, decode: MarketWatchService.decodePrice) {
+        case .loaded(let snapshot?):
+            if let alert = watchlist.apply(snapshot.localized(using: serverClock), to: itemID) {
                 batch.alerts.append(alert)
-            } else {
-                postPriceAlerts([alert])
             }
+        case .loaded(nil):
+            watchlist.setError("No listings", for: itemID)
+        case .failed(let failure):
+            watchlist.setError(failure.userMessage, for: itemID)
+        case .skipped(let denial?):
+            watchlist.setError(denial.userExplanation, for: itemID)
+        case .skipped(nil), .nothingToServe, .superseded:
+            break
         }
-        if batch == nil { marketWatchService.save() }
     }
 
-    @MainActor
-    private func updateItemError(itemId: Int, error: String, save: Bool = true) {
-        marketWatchService.setError(error, for: itemId)
-        if save { marketWatchService.save() }
+    /// One banner for a single alert, a summary for several.
+    func postPriceAlerts(_ alerts: [MarketPriceAlert]) {
+        guard let first = alerts.first else { return }
+        if alerts.count == 1 {
+            notifier.send(title: "Price Alert: \(first.name)",
+                          body: "Lowest price dropped to \(TornFormatter.formatMoney(first.price))",
+                          type: .priceAlert)
+            return
+        }
+        let preview = alerts.prefix(3).map(\.name).joined(separator: ", ")
+        let extra = alerts.count > 3 ? " +\(alerts.count - 3) more" : ""
+        notifier.send(title: "\(alerts.count) price alerts", body: "\(preview)\(extra)", type: .priceAlert)
+    }
+
+    /// Sets or clears an item's alert threshold. A new threshold re-arms the alert.
+    func setWatchlistThreshold(_ threshold: Int?, for itemId: Int) {
+        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else { return }
+        watchlistItems[index].priceThreshold = threshold
+        watchlistItems[index].lastAlertedPrice = nil
+        watchlist.save()
+    }
+
+    /// Puts back a cleared threshold exactly as it was, for the Undo banner.
+    @discardableResult
+    func restoreWatchlistThreshold(itemId: Int, threshold: Int?, lastAlertedPrice: Int?) -> Bool {
+        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else { return false }
+        watchlistItems[index].priceThreshold = threshold
+        watchlistItems[index].lastAlertedPrice = lastAlertedPrice
+        watchlist.save()
+        return true
+    }
+
+    // MARK: - Background price alerts
+
+    /// Torn caches item-market data for about this long anyway, and `cacheDelay` skips
+    /// anything not yet re-cached.
+    static let priceAlertPollInterval: TimeInterval = 300
+
+    var hasPriceThresholds: Bool {
+        watchlistItems.contains { $0.priceThreshold != nil }
+    }
+
+    /// The price-alert timer runs only while user polling does and at least one item has a
+    /// threshold, so a watchlist with no alerts spends nothing.
+    func syncPriceAlertPolling() {
+        guard timerCancellable != nil, !keyHalted, !apiKey.isEmpty, hasPriceThresholds else {
+            stopPriceAlertPolling()
+            return
+        }
+        guard priceAlertTimerCancellable == nil else { return }
+        priceAlertTimerCancellable = Timer.publish(every: Self.priceAlertPollInterval,
+                                                   tolerance: Self.priceAlertPollInterval / 10,
+                                                   on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.refreshPriceAlerts()
+            }
+    }
+
+    func stopPriceAlertPolling() {
+        priceAlertTimerCancellable?.cancel()
+        priceAlertTimerCancellable = nil
+    }
+
+    func refreshPriceAlerts() {
+        guard !keyHalted, hasPriceThresholds else { return }
+        accountSession.startTask(.priceAlerts) {
+            await self.fetchPrices(for: self.watchlistItems.filter { $0.priceThreshold != nil })
+        }
     }
 
     // MARK: - Forum Watch
 
-    func loadForumWatch() {
-        forumWatchService.load()
-    }
-
-    func saveForumWatch() {
-        forumWatchService.save()
-    }
-
-    func parseThreadInput(_ input: String) -> Int? {
-        forumWatchService.parseThreadInput(input)
-    }
-
     @discardableResult
     func addWatchedThread(input: String) -> Bool {
-        guard let threadId = forumWatchService.add(input: input) else { return false }
+        guard let threadId = forumWatch.add(input: input) else { return false }
+        let identity = accountSession.identity
         Task {
-            await fetchForumThreadMetadata(threadId: threadId)
+            await checkThread(threadId)
+            if accountSession.isCurrent(identity) { forumWatch.save() }
         }
         return true
     }
 
-    func removeWatchedThread(_ threadId: Int) {
-        forumWatchService.remove(threadID: threadId)
-    }
-
-    func toggleThreadNotifications(_ threadId: Int) {
-        forumWatchService.toggleNotifications(threadID: threadId)
-    }
-
-    func markThreadAsRead(_ threadId: Int) {
-        forumWatchService.markAsRead(threadID: threadId)
-    }
-
     func startForumPolling() {
-        // Same rule as `startPolling`: a permanent key error holds until the key changes,
-        // and the menu's onAppear must not quietly restart the forum timer.
+        // A permanent key error holds until the key changes; the menu's onAppear must not
+        // quietly restart the forum timer, nor restart one that polled recently.
         guard !keyHalted else { return }
-        // Same MenuBarExtra-onAppear churn as startPolling: skip restart if already
-        // running and we polled recently.
         if forumTimerCancellable != nil,
            let last = lastForumFetchAt,
            Date().timeIntervalSince(last) < Double(forumWatchConfig.pollingIntervalSeconds) / 2 {
@@ -272,10 +185,7 @@ extension AppState {
         }
         forumTimerCancellable?.cancel()
         guard !apiKey.isEmpty else { return }
-
-        // Initial fetch
         refreshForumWatch()
-
         installForumTimer()
     }
 
@@ -303,249 +213,51 @@ extension AppState {
 
     private func fetchForumUpdates() async {
         guard connectivity.isConnected, !apiKey.isEmpty, !keyHalted else { return }
-
-        // Nothing to watch: skip the request budget and the UserDefaults encode/write.
-        // The timer still fires on its cadence, but with no watched threads and category
-        // auto-monitoring off, `saveForumWatch()` used to re-encode two unchanged blobs
-        // every 180 s (audit F12).
+        // Nothing to watch: no request, and no re-encoding two unchanged blobs every poll.
         guard !watchedThreads.isEmpty || forumWatchConfig.factionForumAutoMonitor else {
             lastForumFetchAt = Date()
             return
         }
-
-        let requestedKey = apiKey
-        let generation = accountSession.identity.generation
-        let threadIDs = watchedThreads.map(\.id)
-
-        await BoundedTaskQueue.run(threadIDs, limit: 4) { [weak self] threadID in
-            guard let self else { return }
-            await self.checkThreadForUpdates(
-                threadId: threadID,
-                apiKey: requestedKey,
-                generation: generation
-            )
+        let identity = accountSession.identity
+        await BoundedTaskQueue.run(watchedThreads.map(\.id), limit: 4) { [weak self] threadID in
+            await self?.checkThread(threadID)
         }
-
-        await checkFactionForumForNewThreads(apiKey: requestedKey, generation: generation)
-
-        guard !Task.isCancelled,
-              isCurrentAccount(requestedKey, generation: generation) else { return }
+        await checkFactionForumForNewThreads()
+        guard !Task.isCancelled, accountSession.isCurrent(identity) else { return }
         lastForumFetchAt = Date()
-        saveForumWatch()
+        forumWatch.save()
     }
 
-    /// Watches a whole forum category and announces threads that were not there last time.
-    ///
-    /// The scaffolding for this shipped a while ago and was never connected: the config
-    /// fields, the `factionNewThread` notification type, the `forum.threads` endpoint and
-    /// its tests all existed, and nothing ever called them — so the README and the
-    /// onboarding disclosure both promised a feature the app did not have. This is the
-    /// missing half.
-    private func checkFactionForumForNewThreads(apiKey requestedKey: String,
-                                                generation: UInt) async {
+    /// Announces threads that appeared in the watched category since the last listing.
+    private func checkFactionForumForNewThreads() async {
         guard forumWatchConfig.factionForumAutoMonitor,
-              let categoryID = forumWatchConfig.factionForumCategoryId,
-              categoryID > 0,
-              isCurrentAccount(requestedKey, generation: generation),
-              let url = endpointURL("forum.threads", parameter: categoryID, key: requestedKey),
-              reserveRequest("forum.threads") else { return }
+              let categoryID = forumWatchConfig.factionForumCategoryId, categoryID > 0,
+              let threads = await requester.fetch("forum.threads", parameter: categoryID,
+                                                  decode: ForumWatchService.decodeCategoryThreads).value
+        else { return }
+        for thread in forumWatch.applyCategory(threads, for: categoryID) {
+            notifier.send(title: "New forum thread", body: thread.title, type: .factionNewThread,
+                          url: TornLink.forumThread(thread.id))
+        }
+    }
 
-        let startTime = Date()
-        do {
-            let result = try await forumWatchService.fetchCategoryThreads(from: url)
-            guard !Task.isCancelled,
-                  isCurrentAccount(requestedKey, generation: generation) else { return }
-
-            switch result {
-            case .success(let threads, let responseBytes):
-                for thread in forumWatchService.applyCategory(threads, for: categoryID) {
-                    notifier.send(
-                        title: "New forum thread",
-                        body: thread.title,
-                        type: .factionNewThread,
-                        url: TornLink.forumThread(thread.id)
-                    )
-                }
-                recordHealth("forum.threads", outcome: .ok, since: startTime, bytes: responseBytes)
-
-            case .apiError(let apiError, let responseBytes):
-                noteEndpointFailure(apiError, for: "forum.threads")
-                recordHealth("forum.threads", outcome: .error, since: startTime,
-                             bytes: responseBytes, errorClass: apiError.classification.rawValue)
-
-            case .httpError(let statusCode, let responseBytes):
-                recordHealth("forum.threads", outcome: .error, since: startTime,
-                             bytes: responseBytes, errorClass: "http\(statusCode)")
-
-            case .malformed(let responseBytes):
-                recordHealth("forum.threads", outcome: .error, since: startTime,
-                             bytes: responseBytes, errorClass: "malformedResponse")
+    /// Reads one thread's post count. A thread just added has no previous count, so its
+    /// first read only records one and never announces.
+    private func checkThread(_ threadID: Int) async {
+        switch await requester.fetch("forum.thread", parameter: threadID, decode: ForumWatchService.decodeThread) {
+        case .loaded(let snapshot):
+            if let update = forumWatch.apply(snapshot, to: threadID) {
+                notifier.send(title: "Forum: \(update.title)",
+                              body: "\(update.count) new post\(update.count == 1 ? "" : "s")",
+                              type: .forumNewPosts,
+                              url: TornLink.forumThread(threadID))
             }
-        } catch {
-            guard !Task.isCancelled, isCurrentAccount(requestedKey, generation: generation) else { return }
-            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
-            recordHealth("forum.threads",
-                         outcome: mapped?.classification == .offline ? .offline : .error,
-                         since: startTime, bytes: 0,
-                         errorClass: mapped?.classification.rawValue ?? "transport")
-        }
-    }
-
-    private func checkThreadForUpdates(
-        threadId: Int,
-        apiKey requestedKey: String,
-        generation: UInt
-    ) async {
-        guard isCurrentAccount(requestedKey, generation: generation),
-              let url = endpointURL("forum.thread", parameter: threadId, key: requestedKey) else { return }
-        guard reserveRequest("forum.thread") else {
-            updateThreadError(threadId: threadId, error: "Request limit reached")
-            return
-        }
-
-        do {
-            let result = try await forumWatchService.fetchThread(from: url)
-            guard !Task.isCancelled,
-                  isCurrentAccount(requestedKey, generation: generation) else { return }
-
-            switch result {
-            case .success(let snapshot, _):
-                if let update = forumWatchService.apply(snapshot, to: threadId) {
-                    let threadURL = TornLink.forumThread(threadId)
-                    notifier.send(
-                        title: "Forum: \(update.title)",
-                        body: "\(update.count) new post\(update.count == 1 ? "" : "s")",
-                        type: .forumNewPosts,
-                        url: threadURL
-                    )
-                }
-            case .apiError(let apiError, _):
-                // Same reason as market.item: a deleted thread answers with code 6 every
-                // poll otherwise, so the endpoint-scoped failure must reach the gate.
-                noteEndpointFailure(apiError, for: "forum.thread")
-                updateThreadError(threadId: threadId, error: apiError.userMessage)
-            case .httpError(let statusCode, _):
-                updateThreadError(threadId: threadId, error: "Torn returned HTTP \(statusCode). Try refreshing again.")
-            case .malformed:
-                updateThreadError(threadId: threadId, error: "Could not read this thread. Try refreshing again.")
-            }
-        } catch {
-            guard !Task.isCancelled,
-                  isCurrentAccount(requestedKey, generation: generation) else { return }
-            updateThreadError(threadId: threadId, error: "Network Error")
-        }
-    }
-
-    @MainActor
-    private func updateThreadError(threadId: Int, error: String) {
-        forumWatchService.setError(error, for: threadId)
-    }
-
-    private func fetchForumThreadMetadata(threadId: Int) async {
-        let requestedKey = apiKey
-        let generation = accountSession.identity.generation
-        guard !requestedKey.isEmpty,
-              let url = endpointURL("forum.thread", parameter: threadId, key: requestedKey) else { return }
-        guard reserveRequest("forum.thread") else {
-            updateThreadError(threadId: threadId, error: "Request limit reached")
-            return
-        }
-
-        do {
-            let result = try await forumWatchService.fetchThread(from: url)
-            guard !Task.isCancelled,
-                  isCurrentAccount(requestedKey, generation: generation) else { return }
-
-            switch result {
-            case .success(let snapshot, _):
-                _ = forumWatchService.apply(snapshot, to: threadId)
-            case .apiError(let apiError, _):
-                noteEndpointFailure(apiError, for: "forum.thread")
-                updateThreadError(threadId: threadId, error: apiError.userMessage)
-            case .httpError:
-                updateThreadError(threadId: threadId, error: "HTTP Error")
-            case .malformed:
-                updateThreadError(threadId: threadId, error: "Could not read this thread. Try refreshing again.")
-            }
-        } catch {
-            guard !Task.isCancelled,
-                  isCurrentAccount(requestedKey, generation: generation) else { return }
-            updateThreadError(threadId: threadId, error: "Network Error")
-        }
-
-        if isCurrentAccount(requestedKey, generation: generation) {
-            saveForumWatch()
-        }
-    }
-}
-
-extension AppState {
-    @discardableResult
-    func restoreWatchlistItem(_ item: WatchlistItem, at originalIndex: Int) -> Bool {
-        marketWatchService.restore(item, at: originalIndex)
-    }
-
-    /// Restores a previously-captured price-alert threshold, mirroring
-    /// `restoreWatchlistItem` so the price-alert Clear button can share the same
-    /// Undo mechanism as item removal (GitHub #54).
-    @discardableResult
-    func restoreWatchlistThreshold(itemId: Int, threshold: Int?, lastAlertedPrice: Int?) -> Bool {
-        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else {
-            return false
-        }
-
-        watchlistItems[index].priceThreshold = threshold
-        watchlistItems[index].lastAlertedPrice = lastAlertedPrice
-        saveWatchlist()
-        return true
-    }
-}
-
-// MARK: - Background price alerts
-
-extension AppState {
-    /// How often threshold items are re-priced in the background. Five minutes keeps a
-    /// full watchlist far below the request budget; item-market data is cached by Torn
-    /// for about that long anyway, and `cacheDelay` skips anything not yet re-cached.
-    static let priceAlertPollInterval: TimeInterval = 300
-
-    var hasPriceThresholds: Bool {
-        watchlistItems.contains { $0.priceThreshold != nil }
-    }
-
-    /// Keeps the background price-alert timer in step with polling and thresholds.
-    ///
-    /// Price alerts used to be checked only while the Watchlist tab was on screen: the
-    /// view was the only caller of `refreshWatchlistPrices`. The timer runs only while
-    /// user polling does and at least one item has a threshold, so a watchlist with no
-    /// alerts spends no requests. Mirrors how Forum Watch polls on its own timer.
-    func syncPriceAlertPolling() {
-        guard timerCancellable != nil, !keyHalted, !apiKey.isEmpty, hasPriceThresholds else {
-            stopPriceAlertPolling()
-            return
-        }
-        guard priceAlertTimerCancellable == nil else { return }
-        priceAlertTimerCancellable = Timer.publish(every: Self.priceAlertPollInterval,
-                                                   tolerance: Self.priceAlertPollInterval / 10,
-                                                   on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.refreshPriceAlerts()
-            }
-    }
-
-    func stopPriceAlertPolling() {
-        priceAlertTimerCancellable?.cancel()
-        priceAlertTimerCancellable = nil
-    }
-
-    /// One background pass: threshold items only, through the same staleness filter,
-    /// bounded queue, request gate and account checks as a Watchlist-tab refresh. Alerts
-    /// are announced at the end of the run.
-    func refreshPriceAlerts() {
-        guard !keyHalted, hasPriceThresholds else { return }
-        accountSession.startTask(.priceAlerts) {
-            await self.fetchWatchlistPrices(thresholdsOnly: true)
+        case .failed(let failure):
+            forumWatch.setError(failure.userMessage, for: threadID)
+        case .skipped(let denial?):
+            forumWatch.setError(denial.userExplanation, for: threadID)
+        case .skipped(nil), .nothingToServe, .superseded:
+            break
         }
     }
 }

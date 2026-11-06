@@ -6,8 +6,7 @@ final class ForumWatchServiceTests: XCTestCase {
     func testOwnsParsingStateConfigAndPersistence() throws {
         let defaults = UserDefaults.createMockDefaults()
         let service = ForumWatchService(
-            defaults: defaults,
-            session: MockNetworkSession()
+            defaults: defaults
         )
 
         XCTAssertEqual(service.parseThreadInput(" 12345 "), 12345)
@@ -22,8 +21,7 @@ final class ForumWatchServiceTests: XCTestCase {
         service.save()
 
         let reloaded = ForumWatchService(
-            defaults: defaults,
-            session: MockNetworkSession()
+            defaults: defaults
         )
         reloaded.load()
         XCTAssertEqual(reloaded.threads.map(\.id), [12345])
@@ -37,8 +35,7 @@ final class ForumWatchServiceTests: XCTestCase {
             forKey: "forumWatchConfig"
         )
         let service = ForumWatchService(
-            defaults: defaults,
-            session: MockNetworkSession()
+            defaults: defaults
         )
 
         service.load()
@@ -48,8 +45,7 @@ final class ForumWatchServiceTests: XCTestCase {
 
     func testRestoreToggleAndMarkReadMutateOwnedState() {
         let service = ForumWatchService(
-            defaults: .createMockDefaults(),
-            session: MockNetworkSession()
+            defaults: .createMockDefaults()
         )
         service.threads = [
             WatchedThread(id: 1, title: "One"),
@@ -75,8 +71,7 @@ final class ForumWatchServiceTests: XCTestCase {
 
     func testApplyUpdatesThreadAndReturnsOnlyEnabledPostIncrease() {
         let service = ForumWatchService(
-            defaults: .createMockDefaults(),
-            session: MockNetworkSession()
+            defaults: .createMockDefaults()
         )
         service.threads = [
             WatchedThread(
@@ -110,13 +105,10 @@ final class ForumWatchServiceTests: XCTestCase {
         let mock = MockNetworkSession()
         try mock.setSuccessResponse(json: TornAPIFixtures.forumThreadSuccess)
         let service = ForumWatchService(
-            defaults: .createMockDefaults(),
-            session: mock
+            defaults: .createMockDefaults()
         )
 
-        let result = try await service.fetchThread(
-            from: URL(string: "https://api.torn.com/v2/forum/12345/thread")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/forum/12345/thread")!, session: mock, decode: ForumWatchService.decodeThread)
 
         guard case .success(let snapshot, _) = result else {
             return XCTFail("Expected thread payload")
@@ -129,13 +121,10 @@ final class ForumWatchServiceTests: XCTestCase {
         let mock = MockNetworkSession()
         try mock.setTornAPIErrorV2(code: 5, message: "Too many requests")
         let service = ForumWatchService(
-            defaults: .createMockDefaults(),
-            session: mock
+            defaults: .createMockDefaults()
         )
 
-        let result = try await service.fetchThread(
-            from: URL(string: "https://api.torn.com/v2/forum/12345/thread")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/forum/12345/thread")!, session: mock, decode: ForumWatchService.decodeThread)
 
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected API error")
@@ -150,7 +139,7 @@ final class ForumWatchServiceTests: XCTestCase {
 final class ForumWatchResilienceTests: XCTestCase {
 
     private func makeService(_ defaults: UserDefaults) -> ForumWatchService {
-        ForumWatchService(defaults: defaults, session: MockNetworkSession())
+        ForumWatchService(defaults: defaults)
     }
 
     func testUnreadableThreadBlobIsNotOverwritten() {
@@ -231,10 +220,8 @@ final class ForumThreadParseTests: XCTestCase {
     private func parse(_ json: [String: Any]) async throws -> TornServiceResult<ForumThreadSnapshot> {
         let mock = MockNetworkSession()
         try mock.setSuccessResponse(json: json)
-        let service = ForumWatchService(defaults: .createMockDefaults(), session: mock)
-        return try await service.fetchThread(
-            from: URL(string: "https://api.torn.com/v2/forum/12345/thread")!
-        )
+        let service = ForumWatchService(defaults: .createMockDefaults())
+        return try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/forum/12345/thread")!, session: mock, decode: ForumWatchService.decodeThread)
     }
 
     func testResponseWithoutPostCountIsMalformedNotSuccess() async throws {

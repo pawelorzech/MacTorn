@@ -559,7 +559,7 @@ struct SettingsView: View {
             get: { appState.forumWatchConfig.pollingIntervalSeconds },
             set: { newValue in
                 appState.forumWatchConfig.pollingIntervalSeconds = newValue
-                appState.saveForumWatch()
+                appState.forumWatch.save()
                 appState.startForumPolling()
             }
         )
@@ -575,7 +575,7 @@ struct SettingsView: View {
                 if !newValue {
                     appState.forumWatchConfig.forgetSeenThreads()
                 }
-                appState.saveForumWatch()
+                appState.forumWatch.save()
             }
         )
     }
@@ -590,7 +590,7 @@ struct SettingsView: View {
                 // A different category is a different set of threads; the seen-ids from the
                 // old one would mark every thread in the new one as already known.
                 appState.forumWatchConfig.forgetSeenThreads()
-                appState.saveForumWatch()
+                appState.forumWatch.save()
             }
         )
     }

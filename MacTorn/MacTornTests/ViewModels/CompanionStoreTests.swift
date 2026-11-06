@@ -8,13 +8,13 @@ final class CompanionStoreTests: XCTestCase {
         (app.connectivity as? ControllableConnectivity)?.goOffline()
         await app.companion.loadWarfare(.ranked, app: app)
         XCTAssertTrue(app.companion.errors["faction.warfareranked"]?.contains("No internet connection") == true)
-        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
-        XCTAssertTrue(app.companion.loading.isEmpty)
+        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
+        XCTAssertTrue(app.requester.inFlight.isEmpty)
     }
 
     func testOptionalModuleExplainsMissingPermissionsBeforeBuildingNarrowedURL() async {
         let app = makeApp(MockNetworkSession())
-        app.keyInfo = TornKeyInfo(
+        app.requester.keyInfo = TornKeyInfo(
             access: .init(level: 1, type: "Custom", faction: false),
             user: .init(id: 42, factionId: nil),
             selections: .init(user: ["bars"], faction: [], market: [], property: [], torn: [],
@@ -23,7 +23,7 @@ final class CompanionStoreTests: XCTestCase {
         let value: CompetitionResponse? = await app.companion.request("user.competition", app: app)
         XCTAssertNil(value)
         XCTAssertNotNil(app.companion.errors["user.competition"])
-        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 0)
+        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
     }
 
     private func makeApp(_ session: NetworkSession, defaults: UserDefaults = .createMockDefaults()) -> AppState {
@@ -67,7 +67,7 @@ final class CompanionStoreTests: XCTestCase {
         XCTAssertEqual(app.itemCatalog[3], "Name only",
                        "an item without optional shop details must remain usable for names")
 
-        app.companion.setEnabled(.shops, true)
+        app.companion.setEnabled(.shops, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertEqual(session.requestedURLs.count, 1,
@@ -75,7 +75,7 @@ final class CompanionStoreTests: XCTestCase {
         XCTAssertEqual(app.companion.shops.first?.value.shops.first?.buyPrice, 50)
 
         app.companion.reset()
-        app.companion.setEnabled(.shops, true)
+        app.companion.setEnabled(.shops, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertEqual(session.requestedURLs.count, 1,
@@ -102,7 +102,7 @@ final class CompanionStoreTests: XCTestCase {
         let catalog = Task { await app.fetchItemCatalog() }
         await session.waitForRequest()
 
-        app.companion.setEnabled(.shops, true)
+        app.companion.setEnabled(.shops, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         let countWhilePending = await session.requestCount
@@ -115,7 +115,7 @@ final class CompanionStoreTests: XCTestCase {
         let finalCount = await session.requestCount
         XCTAssertEqual(finalCount, 1)
         XCTAssertEqual(app.companion.shops.map(\.id), [2])
-        XCTAssertFalse(app.companion.loading.contains("torn.shops"))
+        XCTAssertFalse(app.requester.isInFlight("torn.items"))
     }
     func testShopGateDenialIsNotRecordedAsWeekLongSuccess() async throws {
         let session = MockNetworkSession(mockData: Data(#"{"items":[]}"#.utf8))
@@ -130,22 +130,22 @@ final class CompanionStoreTests: XCTestCase {
                 ]
             ]
         ])
-        app.keyInfo = try JSONDecoder().decode(TornKeyInfo.Response.self, from: infoData).info
-        app.companion.setEnabled(.shops, true)
+        app.requester.keyInfo = try JSONDecoder().decode(TornKeyInfo.Response.self, from: infoData).info
+        app.companion.setEnabled(.shops, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
 
         XCTAssertTrue(session.requestedURLs.isEmpty)
-        XCTAssertNotNil(app.companion.errors["torn.shops"])
-        XCTAssertNil(app.companion.fetchedAt["torn.shops"])
-        XCTAssertFalse(app.companion.loading.contains("torn.shops"))
+        XCTAssertNotNil(app.companion.errors["torn.items"])
+        XCTAssertNil(app.companion.fetchedAt["torn.items"])
+        XCTAssertFalse(app.requester.isInFlight("torn.items"))
 
         // A subsequent tick evaluates the gate again; denial never becomes the normal
         // one-week successful cadence.
         app.companion.start(app: app)
         await app.companion.task?.value
-        XCTAssertNotNil(app.companion.errors["torn.shops"])
-        XCTAssertNil(app.companion.fetchedAt["torn.shops"])
+        XCTAssertNotNil(app.companion.errors["torn.items"])
+        XCTAssertNil(app.companion.fetchedAt["torn.items"])
     }
     func testAlertBaselinesAndResetAreAccountScoped() {
         let store = CompanionStore(defaults: .createMockDefaults(), notifier: SilentNotifier())
@@ -160,20 +160,20 @@ final class CompanionStoreTests: XCTestCase {
         let app = makeApp(session)
         app.companion.start(app: app)
         XCTAssertNil(app.companion.task)
-        app.companion.setEnabled(.trades, true)
+        app.companion.setEnabled(.trades, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertEqual(session.requestedURLs.count, 1)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertEqual(session.requestedURLs.count, 1)
-        XCTAssertEqual(app.pollingCoordinator.requestsInLastMinute, 1)
+        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 1)
         app.companion.reset()
     }
     func testCompetitionOutsideEliminationDoesNotFetchTeams() async {
         let session = MockNetworkSession(mockData: Data(#"{"competition":{"name":"Halloween"}}"#.utf8))
         let app = makeApp(session)
-        app.companion.setEnabled(.competition, true)
+        app.companion.setEnabled(.competition, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertEqual(session.requestedURLs.map(\.path), ["/v2/user/competition", "/v2/torn/calendar", "/v2/user/calendar"])
@@ -220,14 +220,14 @@ final class CompanionStoreTests: XCTestCase {
         let session = MockNetworkSession(mockData: Data(#"{"error":{"code":33,"error":"No competition available"}}"#.utf8))
         let app = makeApp(session)
         try seedElimination(app)
-        app.companion.setEnabled(.competition, true)
+        app.companion.setEnabled(.competition, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertNil(app.companion.competition)
         XCTAssertTrue(app.companion.teams.isEmpty)
         XCTAssertNil(app.companion.errors["user.competition"])
         XCTAssertEqual(app.companion.notAvailable["user.competition"], 33)
-        XCTAssertEqual(app.endpointHealth.latest(for: "user.competition")?.outcome, .ok)
+        XCTAssertEqual(app.requester.health.latest(for: "user.competition")?.outcome, .ok)
         XCTAssertNil(app.errorMsg)
         app.companion.reset()
     }
@@ -235,21 +235,21 @@ final class CompanionStoreTests: XCTestCase {
         let session = MockNetworkSession(mockData: Data(#"{"error":{"code":32,"error":"Closed"}}"#.utf8))
         let app = makeApp(session)
         try seedElimination(app)
-        app.companion.setEnabled(.competition, true)
+        app.companion.setEnabled(.competition, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertNotNil(app.companion.competition)
         XCTAssertEqual(app.companion.teams.count, 1)
         XCTAssertEqual(app.companion.notAvailable["torn.elimination"], 32)
         XCTAssertNil(app.companion.errors["torn.elimination"])
-        XCTAssertEqual(app.endpointHealth.latest(for: "torn.elimination")?.outcome, .ok)
+        XCTAssertEqual(app.requester.health.latest(for: "torn.elimination")?.outcome, .ok)
         app.companion.reset()
     }
     func testNullCompetitionClearsStateThroughRefresh() async throws {
         let session = MockNetworkSession(mockData: Data(#"{"competition":null}"#.utf8))
         let app = makeApp(session)
         try seedElimination(app)
-        app.companion.setEnabled(.competition, true)
+        app.companion.setEnabled(.competition, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertNil(app.companion.competition)
@@ -318,7 +318,7 @@ final class CompanionStoreTests: XCTestCase {
         let session = MockNetworkSession(mockData: try JSONEncoder().encode(
             ["calendar": ["competitions": [String](), "events": [String]()]]))
         let app = makeApp(session)
-        app.companion.setEnabled(.competition, true)
+        app.companion.setEnabled(.competition, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertNotNil(app.companion.fetchedAt["torn.calendar"])
@@ -329,7 +329,7 @@ final class CompanionStoreTests: XCTestCase {
     func testMalformedResponsePreservesLastGoodDataAndShowsError() async throws {
         let session = MockNetworkSession(mockData: Data(#"{"trades":[{"id":1,"user":{"id":1},"trader":{"id":2},"description":"Exchange","completed_at":null,"expires_at":500,"modified_at":100}]}"#.utf8))
         let app = makeApp(session)
-        app.companion.setEnabled(.trades, true)
+        app.companion.setEnabled(.trades, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertEqual(app.companion.trades.count, 1)
@@ -347,17 +347,17 @@ final class CompanionStoreTests: XCTestCase {
     func testEnablingV2StocksKeepsLegacyStocksSelection() {
         let app = makeApp(MockNetworkSession())
         func selections() -> String? {
-            URLComponents(url: app.endpointURL("user.fast")!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "selections" }?.value
+            URLComponents(url: app.requester.url("user.fast")!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "selections" }?.value
         }
         XCTAssertTrue(selections()!.split(separator: ",").contains("stocks"))
-        app.companion.setEnabled(.stocks, true)
+        app.companion.setEnabled(.stocks, true, app: app)
         XCTAssertTrue(selections()!.split(separator: ",").contains("stocks"))
     }
     func testEnablingV2StocksStillPopulatesStocksDataFromFastPoll() async throws {
         let session = MockNetworkSession()
         let app = makeApp(session)
         app.apiKey = "valid_key"
-        app.companion.setEnabled(.stocks, true)
+        app.companion.setEnabled(.stocks, true, app: app)
         var json = TornAPIFixtures.validFullResponse()
         json["stocks"] = TornAPIFixtures.stocksData["stocks"]
         try session.setSuccessResponse(json: json)
@@ -389,30 +389,30 @@ final class CompanionStoreTests: XCTestCase {
         ])
         let info = try JSONDecoder().decode(TornKeyInfo.Response.self, from: data).info
         let app = makeApp(MockNetworkSession())
-        XCTAssertNil(app.endpointGate.denial(for: "faction.warfareranked", keyInfo: info,
-                                              coordinator: app.pollingCoordinator))
+        XCTAssertNil(app.requester.gate.denial(for: "faction.warfareranked", keyInfo: info,
+                                              coordinator: app.requester.budget))
         XCTAssertFalse(try XCTUnwrap(TornEndpointRegistry.endpoint(id: "faction.warfareranked")).requiresFaction)
     }
     func testShopDisableDuringFetchCannotRepublishSuccess() async {
         let session = CompanionSuspendedSession(responseData: Data(#"{"items":[{"id":2,"name":"Flower","value":{"market_price":100,"shops":[{"country":"Mexico","shop":"Shop","buy_price":50,"sell_price":null}]}}]}"#.utf8))
         let app = makeApp(session)
-        app.companion.setEnabled(.shops, true)
+        app.companion.setEnabled(.shops, true, app: app)
         app.companion.start(app: app)
         let pending = app.companion.task
         await session.waitForRequest()
-        app.companion.setEnabled(.shops, false)
+        app.companion.setEnabled(.shops, false, app: app)
         await session.finish()
         await pending?.value
         XCTAssertTrue(app.companion.shops.isEmpty)
-        XCTAssertNil(app.companion.fetchedAt["torn.shops"])
-        XCTAssertNil(app.companion.errors["torn.shops"])
-        XCTAssertTrue(app.companion.loading.isEmpty)
+        XCTAssertNil(app.companion.fetchedAt["torn.items"])
+        XCTAssertNil(app.companion.errors["torn.items"])
+        XCTAssertTrue(app.requester.inFlight.isEmpty)
     }
 
     func testShopAccountChangeDuringFetchCannotRepublishSuccess() async {
         let session = CompanionSuspendedSession(responseData: Data(#"{"items":[{"id":2,"name":"Flower","value":{"market_price":100,"shops":[]}}]}"#.utf8))
         let app = makeApp(session)
-        app.companion.setEnabled(.shops, true)
+        app.companion.setEnabled(.shops, true, app: app)
         app.companion.start(app: app)
         let pending = app.companion.task
         await session.waitForRequest()
@@ -420,8 +420,8 @@ final class CompanionStoreTests: XCTestCase {
         await session.finish()
         await pending?.value
         XCTAssertTrue(app.companion.shops.isEmpty)
-        XCTAssertNil(app.companion.fetchedAt["torn.shops"])
-        XCTAssertNil(app.companion.errors["torn.shops"])
+        XCTAssertNil(app.companion.fetchedAt["torn.items"])
+        XCTAssertNil(app.companion.errors["torn.items"])
     }
 
     func testAccountSwitchDiscardsInFlightResponse() async {
@@ -434,15 +434,15 @@ final class CompanionStoreTests: XCTestCase {
         let result = await pending.value
         XCTAssertNil(result)
         XCTAssertNil(app.companion.fetchedAt["user.trades"])
-        XCTAssertTrue(app.companion.loading.isEmpty)
+        XCTAssertTrue(app.requester.inFlight.isEmpty)
     }
     func testDisableFeatureDiscardsInFlightResponse() async {
         let session = CompanionSuspendedSession()
         let app = makeApp(session)
-        app.companion.setEnabled(.trades, true)
+        app.companion.setEnabled(.trades, true, app: app)
         let pending = Task { () -> TradesResponse? in await app.companion.request("user.trades", app: app) }
         await session.waitForRequest()
-        app.companion.setEnabled(.trades, false)
+        app.companion.setEnabled(.trades, false, app: app)
         await session.finish()
         let result = await pending.value
         XCTAssertNil(result)

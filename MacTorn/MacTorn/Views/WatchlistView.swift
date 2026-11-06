@@ -315,7 +315,7 @@ struct WatchlistView: View {
         let removedItem = appState.watchlistItems[index]
 
         scheduleUndo(.itemRemoved(item: removedItem, index: index)) {
-            appState.removeFromWatchlist(item.id)
+            appState.watchlist.remove(itemID: item.id)
         }
     }
 
@@ -328,9 +328,7 @@ struct WatchlistView: View {
         }
 
         guard threshold == nil else {
-            appState.watchlistItems[index].priceThreshold = threshold
-            appState.watchlistItems[index].lastAlertedPrice = nil
-            appState.saveWatchlist()
+            appState.setWatchlistThreshold(threshold, for: item.id)
             return
         }
 
@@ -342,9 +340,7 @@ struct WatchlistView: View {
             threshold: previousThreshold,
             lastAlertedPrice: previousAlertedPrice
         )) {
-            appState.watchlistItems[index].priceThreshold = nil
-            appState.watchlistItems[index].lastAlertedPrice = nil
-            appState.saveWatchlist()
+            appState.setWatchlistThreshold(nil, for: item.id)
         }
     }
 
@@ -372,7 +368,7 @@ struct WatchlistView: View {
         undoDismissTask?.cancel()
         switch pendingUndo {
         case .itemRemoved(let item, let index):
-            appState.restoreWatchlistItem(item, at: index)
+            appState.watchlist.restore(item, at: index)
         case .thresholdCleared(let itemId, _, let threshold, let lastAlertedPrice):
             appState.restoreWatchlistThreshold(itemId: itemId, threshold: threshold, lastAlertedPrice: lastAlertedPrice)
         }

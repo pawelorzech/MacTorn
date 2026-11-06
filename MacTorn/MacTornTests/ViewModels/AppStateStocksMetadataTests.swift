@@ -75,8 +75,7 @@ final class AppStateStocksMetadataTests: XCTestCase {
         await appState.fetchStocksMetadata()
 
         XCTAssertTrue(appState.keyHalted)
-        XCTAssertEqual(appState.endpointHealth.latest(for: "torn.stocks")?.errorClass,
-                       "permanentKey")
+        XCTAssertEqual(appState.requester.health.latest(for: "torn.stocks")?.errorClass, .permanentKey)
     }
 
     func testOldMetadataErrorCannotHaltNewAccount() async throws {
@@ -96,8 +95,8 @@ final class AppStateStocksMetadataTests: XCTestCase {
             await old.value
             XCTAssertFalse(app.keyHalted, "An old metadata error must not halt account B")
             XCTAssertNil(app.errorMsg)
-            XCTAssertEqual(app.stocksFailureCount, 0)
-            XCTAssertEqual(app.itemCatalogFailureCount, 0)
+            XCTAssertEqual(app.stocksBackoff.failures, 0)
+            XCTAssertEqual(app.itemCatalogBackoff.failures, 0)
         }
     }
 
@@ -148,14 +147,13 @@ final class AppStateStocksMetadataTests: XCTestCase {
             }
             await fulfillment(of: [secondRequest], timeout: 2)
             let endpoint = catalog ? "torn.items" : "torn.stocks"
-            let newID = app.referenceFetchIDs[endpoint]
-            XCTAssertNotNil(newID)
+            XCTAssertTrue(app.requester.isInFlight(endpoint))
             await session.finish(Data("{}".utf8))
             await old.value
-            XCTAssertEqual(app.referenceFetchIDs[endpoint], newID)
+            XCTAssertTrue(app.requester.isInFlight(endpoint), "the old completion must not clear the new request")
             await session.finish(Data("{}".utf8), index: 1)
             await new.value
-            XCTAssertNil(app.referenceFetchIDs[endpoint])
+            XCTAssertFalse(app.requester.isInFlight(endpoint))
         }
     }
 
@@ -175,8 +173,8 @@ final class AppStateStocksMetadataTests: XCTestCase {
             await session.finish(Data(#"{"error":{"code":2,"error":"Incorrect key"}}"#.utf8))
             await task.value
             XCTAssertFalse(app.keyHalted)
-            XCTAssertEqual(app.stocksFailureCount, 0)
-            XCTAssertEqual(app.itemCatalogFailureCount, 0)
+            XCTAssertEqual(app.stocksBackoff.failures, 0)
+            XCTAssertEqual(app.itemCatalogBackoff.failures, 0)
         }
     }
 }

@@ -193,7 +193,7 @@ final class ServerClockOffsetTests: XCTestCase {
         let serverNow = localNow + skew
         try await poll(serverTime: serverNow)
 
-        app.factionService.publishBasic(
+        app.faction.basic = (
             FactionData(name: "Test", factionId: 1, respect: 10,
                         chain: FactionChain(current: 25, max: 100,
                                             timeout: serverNow + 180, cooldown: 0))
@@ -493,7 +493,7 @@ final class ServerClockOffsetTests: XCTestCase {
     // MARK: - Helpers for the jitter suite
 
     private func publishChain(timeout: Int) {
-        app.factionService.publishBasic(
+        app.faction.basic = (
             FactionData(name: "Test", factionId: 1, respect: 10,
                         chain: FactionChain(current: 25, max: 100,
                                             timeout: timeout, cooldown: 0))
@@ -531,18 +531,6 @@ private final class ClockBurningSnapshotService: UserSnapshotServicing, @uncheck
         let clock = self.clock
         await MainActor.run { clock.advance(seconds) }
         return result
-    }
-
-    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload> {
-        try await wrapped.loadActivity(url)
-    }
-
-    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload> {
-        try await wrapped.loadUserV2(url)
-    }
-
-    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?> {
-        .success(nil, responseBytes: 0)
     }
 }
 

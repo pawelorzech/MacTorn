@@ -36,9 +36,8 @@ struct EndpointHealth: Equatable, Sendable {
     var latencyMs: Int
     var responseBytes: Int
     var at: Date
-    /// A coarse `TornAPIError` classification string on failure (e.g. "rateLimit").
-    /// Never the raw server message.
-    var errorClass: String?
+    /// The failure class, never the raw server message.
+    var errorClass: TornErrorClass?
     var lastSuccessfulAt: Date? = nil
 
     var dataUpdatedAt: Date? {
@@ -59,7 +58,7 @@ final class EndpointHealthTracker {
                 outcome: EndpointOutcome,
                 latencyMs: Int,
                 responseBytes: Int,
-                errorClass: String? = nil) {
+                errorClass: TornErrorClass? = nil) {
         let successfulAt = outcome == .ok ? time.now : health[endpointID]?.dataUpdatedAt
         health[endpointID] = EndpointHealth(
             endpointID: endpointID,
@@ -133,11 +132,11 @@ struct ModulePresentationState: Equatable, Sendable {
             return ModulePresentationState(kind: .offline, hasContent: hasContent,
                                            updatedAt: updatedAt, recovery: .retry)
         }
-        if !errorClasses.isDisjoint(with: ["permanentKey", "insufficientPermissions"]) {
+        if !errorClasses.isDisjoint(with: [.permanentKey, .insufficientPermissions]) {
             return ModulePresentationState(kind: .permission, hasContent: hasContent,
                                            updatedAt: updatedAt, recovery: .settings)
         }
-        if !errorClasses.isDisjoint(with: ["rateLimit", "dailyRowLimit"]) {
+        if !errorClasses.isDisjoint(with: [.rateLimit, .dailyRowLimit]) {
             return ModulePresentationState(kind: .rateLimited, hasContent: hasContent,
                                            updatedAt: updatedAt, recovery: .retry)
         }
@@ -177,7 +176,7 @@ extension AppState {
                            staleAfter: TimeInterval,
                            requiredUserSelections: [String] = [],
                            rowHealth: [EndpointHealth]? = nil) -> ModulePresentationState {
-        let health = rowHealth ?? endpointIDs.compactMap { endpointHealth.latest(for: $0) }
+        let health = rowHealth ?? endpointIDs.compactMap { requester.health.latest(for: $0) }
 
         // A permanent key failure is account-wide. The failing request may be
         // `key.info`, while a feature screen observes only its own endpoint (for
@@ -192,7 +191,8 @@ extension AppState {
             )
         }
 
-        if let keyInfo, !Set(requiredUserSelections).isSubset(of: Set(keyInfo.selections.user)) {
+        if let keyInfo = requester.keyInfo,
+           !Set(requiredUserSelections).isSubset(of: Set(keyInfo.selections.user)) {
             return ModulePresentationState(kind: .permission, hasContent: hasContent,
                                            updatedAt: health.compactMap(\.dataUpdatedAt).max(), recovery: .settings)
         }
@@ -201,8 +201,7 @@ extension AppState {
         // permission denials on the module itself rather than an endless "No data yet".
         if !hasContent {
             for id in endpointIDs {
-                let denial = endpointGate.denial(for: id, keyInfo: keyInfo, coordinator: pollingCoordinator)
-                switch denial {
+                switch requester.denial(id) {
                 case .keyLacksSelections, .keyAccessLevelTooLow, .factionAPIAccessDisabled:
                     return ModulePresentationState(kind: .permission, hasContent: false,
                                                    updatedAt: nil, recovery: .settings)
@@ -330,7 +329,7 @@ struct DiagnosticsReport: Equatable {
             lines.append("  (none called yet)")
         } else {
             for e in endpoints {
-                let err = e.errorClass.map { " [\($0)]" } ?? ""
+                let err = e.errorClass.map { " [\($0.rawValue)]" } ?? ""
                 lines.append("  \(e.endpointID): \(e.outcome.rawValue) \(e.latencyMs)ms \(e.responseBytes)B\(err)")
             }
         }

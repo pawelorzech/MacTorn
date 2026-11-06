@@ -3,7 +3,6 @@ import os.log
 
 extension AppState {
     private static var stocksMetadataCacheKey: String { "stocksMetadataCache" }
-    private static var stocksBackoffLadder: [TimeInterval] { [60, 300, 1800] }
 
     // MARK: - Stocks Metadata
 
@@ -17,18 +16,23 @@ extension AppState {
         stocksMetadata = cached
     }
 
+    func triggerStocksMetadataFetchIfNeeded() {
+        guard stocksMetadata.isEmpty, !apiKey.isEmpty, stocksBackoff.allows(at: time.now),
+              !requester.isInFlight("torn.stocks") else { return }
+        accountSession.startTask(.stockMetadata) { await self.fetchStocksMetadata() }
+    }
+
     func fetchStocksMetadata() async {
         await fetchReferenceData("torn.stocks", cacheKey: Self.stocksMetadataCacheKey,
                                  parse: { Self.parseStocksMetadata(json: $0, logger: $1) },
-                                 onFailure: recordStocksMetadataFailure) { parsed in
+                                 onFailure: { stocksBackoff.fail(at: time.now) }) { parsed in
             stocksMetadata = parsed
-            stocksFailureCount = 0
-            stocksNextRetryAfter = nil
+            stocksBackoff.succeed()
         }
     }
 
-    /// One in-flight request per reference source, with publication owned by its account
-    /// and token. An old completion cannot clear or mutate a newer request.
+    /// One request per reference source at a time. The parsed map is cached in defaults
+    /// before it is published, so the next launch starts from it.
     func fetchReferenceData<Value: Codable & Sendable>(
         _ endpointID: String,
         cacheKey: String,
@@ -36,54 +40,25 @@ extension AppState {
         onFailure: () -> Void,
         publish: ([Int: Value]) -> Void
     ) async {
-        guard !Task.isCancelled, referenceFetchIDs[endpointID] == nil,
-              !apiKey.isEmpty, let url = endpointURL(endpointID),
-              reserveRequest(endpointID) else { return }
-        let identity = accountSession.identity
-        let token = UUID()
-        referenceFetchIDs[endpointID] = token
-        defer {
-            if referenceFetchIDs[endpointID] == token { referenceFetchIDs[endpointID] = nil }
+        guard !requester.isInFlight(endpointID) else { return }
+        let result = await requester.fetch(endpointID) { _, json -> ([Int: Value], Data)? in
+            let parsed = parse(json, Self.appReferenceLogger)
+            guard !parsed.isEmpty, let encoded = try? JSONEncoder().encode(parsed) else { return nil }
+            return (parsed, encoded)
         }
-        let started = Date()
-        do {
-            let result: TornServiceResult<([Int: Value], Data)> = try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
-                let parsed = parse(json, Self.appReferenceLogger)
-                guard !parsed.isEmpty, let encoded = try? JSONEncoder().encode(parsed) else { return nil }
-                return (parsed, encoded)
-            }
-            guard !Task.isCancelled, accountSession.isCurrent(identity),
-                  referenceFetchIDs[endpointID] == token else { return }
-            if case .success(let (parsed, encoded), let bytes) = result {
-                defaults.set(encoded, forKey: cacheKey)
-                publish(parsed)
-                endpointGate.noteSuccess(for: endpointID)
-                recordHealth(endpointID, outcome: .ok, since: started, bytes: bytes)
-            } else {
-                onFailure()
-                recordServiceFailure(result, for: endpointID, since: started)
-            }
-        } catch {
-            guard !Task.isCancelled, !(error is CancellationError),
-                  accountSession.isCurrent(identity), referenceFetchIDs[endpointID] == token,
-                  (error as? URLError)?.code != .cancelled else { return }
+        switch result {
+        case .loaded(let (parsed, encoded)):
+            defaults.set(encoded, forKey: cacheKey)
+            publish(parsed)
+        case .failed:
             onFailure()
-            let mapped = (error as? URLError).map(TornAPIError.from(urlError:))
-            recordHealth(endpointID, outcome: mapped?.classification == .offline ? .offline : .error,
-                         since: started, bytes: 0, errorClass: mapped?.classification.rawValue ?? "transport")
+        case .nothingToServe, .skipped, .superseded:
+            break
         }
     }
 
     nonisolated private static let appReferenceLogger =
         Logger(subsystem: TornConstants.logSubsystem, category: "ReferenceData")
-
-    @MainActor
-    func recordStocksMetadataFailure() {
-        stocksFailureCount += 1
-        let idx = min(stocksFailureCount - 1, Self.stocksBackoffLadder.count - 1)
-        let delay = Self.stocksBackoffLadder[idx]
-        stocksNextRetryAfter = time.now.addingTimeInterval(delay)
-    }
 
     nonisolated static func parseStocksMetadata(from data: Data, logger: Logger) -> [Int: StockMetadata] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {

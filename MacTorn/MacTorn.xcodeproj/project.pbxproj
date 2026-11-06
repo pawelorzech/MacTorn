@@ -21,10 +21,12 @@
 		43D86313A086EEAD6F2F898E /* TornAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 676563671F15BABF889F2167 /* TornAPIClient.swift */; };
 		49296CAAA41B4123B178EC9C /* BuildInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C3DB98B7075D60768CC8CFC /* BuildInfo.swift */; };
 		49381EB177633F5BE3B1C614 /* Assets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDB968F781AE00DEB726BC51 /* Assets.swift */; };
+		4DA21E50E4912BFA332C465E /* RetryBackoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87E2E7353486CC40C8120905 /* RetryBackoff.swift */; };
 		4E90EF48FEED9E9D38BDF3CC /* UpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C33BF3CCD4185AE63EF64320 /* UpdateManager.swift */; };
 		5E051CF8718191B285772557 /* UserV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = F37EBED0CA05A318E80070E3 /* UserV2.swift */; };
 		6E62C074BE0B376376CD88E1 /* Attacks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A58218629A3D7E3E0E2FF5C /* Attacks.swift */; };
 		6E73A09EA78C101A0E3513C2 /* WatchlistItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD208526C28ECAFA90FEE05E /* WatchlistItem.swift */; };
+		7017F241191838ADD5A9DF18 /* TornRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE3522844C1DD7E0691B03C /* TornRequester.swift */; };
 		8392A02CF47E5A17E4B562FE /* AppState+Widgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41799E4A7F97D996D739B4E /* AppState+Widgets.swift */; };
 		AAA00001 /* MacTornApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10001 /* MacTornApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10002 /* ContentView.swift */; };
@@ -67,7 +69,6 @@
 		AAA00042 /* UserSnapshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10042 /* UserSnapshotService.swift */; };
 		AAA00043 /* MarketWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10043 /* MarketWatchService.swift */; };
 		AAA00044 /* ForumWatchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10044 /* ForumWatchService.swift */; };
-		AAA00045 /* FactionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10045 /* FactionService.swift */; };
 		AAA00046 /* AppState+MarketForum.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10046 /* AppState+MarketForum.swift */; };
 		AAA00047 /* AppState+NotificationsFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10047 /* AppState+NotificationsFeedback.swift */; };
 		AAA00048 /* AppState+PersistenceStocks.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10048 /* AppState+PersistenceStocks.swift */; };
@@ -96,6 +97,7 @@
 		AAA00065 /* CompanionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10065 /* CompanionStoreTests.swift */; };
 		AAA00066 /* SharedComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10066 /* SharedComponents.swift */; };
 		AE0C03760232E434B8B89C81 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3E283D57DB7C7CFC1906B751 /* Cocoa.framework */; };
+		AE4948464DB3BBFB888E771A /* FactionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 152FF5212E42470A07281174 /* FactionStore.swift */; };
 		BBB00001 /* MockNetworkSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10001 /* MockNetworkSession.swift */; };
 		BBB00002 /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10002 /* TestHelpers.swift */; };
 		BBB00003 /* TornAPIFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10003 /* TornAPIFixtures.swift */; };
@@ -185,6 +187,8 @@
 
 /* Begin PBXFileReference section */
 		0B26B9A530C0C2FBE1A8BECF /* TornConstants.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TornConstants.swift; sourceTree = "<group>"; };
+		152FF5212E42470A07281174 /* FactionStore.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FactionStore.swift; sourceTree = "<group>"; };
+		1AE3522844C1DD7E0691B03C /* TornRequester.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TornRequester.swift; sourceTree = "<group>"; };
 		1C3DB98B7075D60768CC8CFC /* BuildInfo.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BuildInfo.swift; sourceTree = "<group>"; };
 		2A58218629A3D7E3E0E2FF5C /* Attacks.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Attacks.swift; sourceTree = "<group>"; };
 		3AF028A1DCFBF9509F0B9E37 /* SentryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryManager.swift; sourceTree = "<group>"; };
@@ -196,6 +200,7 @@
 		676563671F15BABF889F2167 /* TornAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TornAPIClient.swift; sourceTree = "<group>"; };
 		67660DBB0FF884CB822A0B15 /* Notifying.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Notifying.swift; sourceTree = "<group>"; };
 		6B617259087CA076C0EB4A2F /* Travel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Travel.swift; sourceTree = "<group>"; };
+		87E2E7353486CC40C8120905 /* RetryBackoff.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RetryBackoff.swift; sourceTree = "<group>"; };
 		92DF634C5EBE4EB3A6927D0B /* AppRoot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppRoot.swift; sourceTree = "<group>"; };
 		93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetSnapshot.swift; sourceTree = "<group>"; };
 		AAA10000 /* MacTorn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MacTorn.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -241,7 +246,6 @@
 		AAA10042 /* UserSnapshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserSnapshotService.swift; sourceTree = "<group>"; };
 		AAA10043 /* MarketWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketWatchService.swift; sourceTree = "<group>"; };
 		AAA10044 /* ForumWatchService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForumWatchService.swift; sourceTree = "<group>"; };
-		AAA10045 /* FactionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FactionService.swift; sourceTree = "<group>"; };
 		AAA10046 /* AppState+MarketForum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+MarketForum.swift"; sourceTree = "<group>"; };
 		AAA10047 /* AppState+NotificationsFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+NotificationsFeedback.swift"; sourceTree = "<group>"; };
 		AAA10048 /* AppState+PersistenceStocks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppState+PersistenceStocks.swift"; sourceTree = "<group>"; };
@@ -435,7 +439,6 @@
 				AAA10042 /* UserSnapshotService.swift */,
 				AAA10043 /* MarketWatchService.swift */,
 				AAA10044 /* ForumWatchService.swift */,
-				AAA10045 /* FactionService.swift */,
 				AAA10046 /* AppState+MarketForum.swift */,
 				AAA10047 /* AppState+NotificationsFeedback.swift */,
 				AAA10048 /* AppState+PersistenceStocks.swift */,
@@ -443,6 +446,7 @@
 				AAA10050 /* AppState+PollingUserFetch.swift */,
 				AAA10051 /* AppState+FactionFetch.swift */,
 				C41799E4A7F97D996D739B4E /* AppState+Widgets.swift */,
+				152FF5212E42470A07281174 /* FactionStore.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -516,6 +520,7 @@
 				AAA10031 /* TornAPIError.swift */,
 				AAA10040 /* TornKeyInfo.swift */,
 				676563671F15BABF889F2167 /* TornAPIClient.swift */,
+				1AE3522844C1DD7E0691B03C /* TornRequester.swift */,
 			);
 			path = Networking;
 			sourceTree = "<group>";
@@ -530,6 +535,7 @@
 				AAA10039 /* UITestSupport.swift */,
 				5DFC2E20B21708BAB66AEA40 /* TornLink.swift */,
 				FCD0F18721EDFD4FD024279E /* DisplayText.swift */,
+				87E2E7353486CC40C8120905 /* RetryBackoff.swift */,
 			);
 			path = Helpers;
 			sourceTree = "<group>";
@@ -833,7 +839,6 @@
 				AAA00042 /* UserSnapshotService.swift in Sources */,
 				AAA00043 /* MarketWatchService.swift in Sources */,
 				AAA00044 /* ForumWatchService.swift in Sources */,
-				AAA00045 /* FactionService.swift in Sources */,
 				AAA00046 /* AppState+MarketForum.swift in Sources */,
 				AAA00047 /* AppState+NotificationsFeedback.swift in Sources */,
 				AAA00048 /* AppState+PersistenceStocks.swift in Sources */,
@@ -897,6 +902,9 @@
 				EEA1EAF0C121ADB661433C19 /* Navigation.swift in Sources */,
 				2F82CF4F52A68C9114D72F17 /* DisplayText.swift in Sources */,
 				38D56C06B9C374DC92F872CD /* Notifying.swift in Sources */,
+				4DA21E50E4912BFA332C465E /* RetryBackoff.swift in Sources */,
+				7017F241191838ADD5A9DF18 /* TornRequester.swift in Sources */,
+				AE4948464DB3BBFB888E771A /* FactionStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

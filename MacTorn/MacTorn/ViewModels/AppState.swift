@@ -68,7 +68,6 @@ class AppState {
                 stopForumPolling()
             }
             keyValidation = .idle
-            keyInfo = nil
         }
     }
 
@@ -89,9 +88,6 @@ class AppState {
         }
     }
     @ObservationIgnored var keyValidationGeneration: UInt = 0
-    /// The last successfully-decoded key info. `nil` until validated / after a key change.
-    /// PII (player id) lives here for display only — never logged or put in a report.
-    var keyInfo: TornKeyInfo?
 
     // Was @AppStorage; replaced with stored property + didSet write-through to
     // UserDefaults so @Observable change tracking sees it. Initial value is
@@ -135,7 +131,7 @@ class AppState {
     var activityEvents: [TornEvent] = []
     var unreadMessages: Int = 0
     var factionData: FactionData? {
-        factionService.basic
+        faction.basic
     }
 
     /// The live chain — sourced from the **faction** endpoint, which is the only place
@@ -151,7 +147,7 @@ class AppState {
     /// Both `Chain.timeout` and `FactionChain.timeout` are absolute Unix timestamps,
     /// so the mapping is a straight field copy — no unit conversion.
     var liveChain: Chain? {
-        guard let chain = factionService.basic?.chain else { return nil }
+        guard let chain = faction.basic?.chain else { return nil }
         return Chain(current: chain.current,
                      maximum: chain.max,
                      timeout: chain.timeout,
@@ -173,9 +169,9 @@ class AppState {
     /// whole ~1,500-item catalog in the search field's body (audit F15).
     @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
     var watchlistItems: [WatchlistItem] {
-        get { marketWatchService.items }
+        get { watchlist.items }
         set {
-            marketWatchService.items = newValue
+            watchlist.items = newValue
             // The Watchlist tab sets and clears thresholds through this setter; the
             // background price-alert timer exists only while one is set.
             syncPriceAlertPolling()
@@ -197,23 +193,23 @@ class AppState {
     var virus: VirusProgramming?
     // MARK: - Faction v2 state (ranked wars, news)
     var rankedWars: [RankedWar] {
-        factionService.wars
+        faction.wars
     }
     var factionNews: [FactionNews] {
-        factionService.news
+        faction.news
     }
     var watchedThreads: [WatchedThread] {
-        get { forumWatchService.threads }
-        set { forumWatchService.threads = newValue }
+        get { forumWatch.threads }
+        set { forumWatch.threads = newValue }
     }
     var forumWatchConfig: ForumWatchConfig {
-        get { forumWatchService.config }
+        get { forumWatch.config }
         set {
-            forumWatchService.config = newValue
+            forumWatch.config = newValue
             // Same as `refreshInterval`: `startForumPolling` returns early while a timer
             // runs, so a new cadence has to reinstall the running timer itself.
             if forumTimerCancellable != nil,
-               forumTimerInterval != Double(forumWatchService.config.pollingIntervalSeconds) {
+               forumTimerInterval != Double(forumWatch.config.pollingIntervalSeconds) {
                 installForumTimer()
             }
         }
@@ -274,31 +270,17 @@ class AppState {
     @ObservationIgnored var updateCheckTask: Task<Void, Never>?
 
     // MARK: - Networking (Dependency Injection for Testing)
-    @ObservationIgnored let session: NetworkSession
+    @ObservationIgnored let requester: TornRequester
     @ObservationIgnored let notifier: Notifying
     @ObservationIgnored let connectivity: NetworkConnectivity
     @ObservationIgnored let accountSession: AccountSessionStore
     @ObservationIgnored let userSnapshotService: UserSnapshotServicing
-    @ObservationIgnored let factionService: FactionServicing
-    @ObservationIgnored let marketWatchService: MarketWatchServicing
-    @ObservationIgnored let forumWatchService: ForumWatchServicing
+    @ObservationIgnored let faction: FactionStore
+    @ObservationIgnored let watchlist: MarketWatchService
+    @ObservationIgnored let forumWatch: ForumWatchService
 
     // MARK: - State Comparison
     @ObservationIgnored var previousTravel: Travel?
-    /// Throttle for the heavy, slow-changing faction v2 overlays (ranked wars + news).
-    /// `news` is a row-based cloud category, so this doubles as its rate control:
-    /// 5 min → ≤288 calls/day × 25-row limit ≈ 7,200 rows/day, well under the 50k cap.
-    @ObservationIgnored var lastFactionV2Fetch: Date?
-
-    /// Throttle for the virus read. The response is an absolute finish timestamp, so
-    /// between reads the countdown runs locally and the endpoint only needs re-reading
-    /// once that timestamp has passed.
-    @ObservationIgnored var lastVirusFetch: Date?
-
-    /// Throttle for the row-based user activity call (events + attacks).
-    /// Same 50k-rows/day-per-category budget as faction news — keep the cadence slow.
-    @ObservationIgnored var lastActivityFetch: Date?
-
     // MARK: - Timer
     @ObservationIgnored var timerCancellable: AnyCancellable?
     @ObservationIgnored var forumTimerCancellable: AnyCancellable?
@@ -321,16 +303,8 @@ class AppState {
     @ObservationIgnored var lastManualRefreshGeneration: UInt?
     static let manualRefreshMinInterval: TimeInterval = 3
 
-    // Stocks metadata backoff: ladder of seconds applied between retries after failures.
-    // Last value is the cap and is used for any further failure beyond the ladder length.
-    // Reset to 0 (= no backoff active) on success or when metadata is freshly cached.
-    // `internal` (default) so @testable can read these in performance tests.
-    var stocksFailureCount = 0
-    var stocksNextRetryAfter: Date?
-
-    // Item catalog backoff + in-flight guard, mirroring the stocks metadata ladder above.
-    var itemCatalogFailureCount = 0
-    var itemCatalogNextRetryAfter: Date?
+    @ObservationIgnored var stocksBackoff = RetryBackoff()
+    @ObservationIgnored var itemCatalogBackoff = RetryBackoff()
     /// In-memory staleness anchor, seeded from `UserDefaults` once at launch and refreshed
     /// on every successful fetch. `itemCatalogIsStale` used to re-decode the entire cached
     /// blob from `UserDefaults` on every poll — twice per tick, on the main actor. The
@@ -340,7 +314,6 @@ class AppState {
     /// name-only cache leaves this false so the catalogue is refreshed into the expanded
     /// shape, preserving the old migration behaviour.
     @ObservationIgnored var itemCatalogCacheExpanded = false
-    @ObservationIgnored var referenceFetchIDs: [String: UUID] = [:]
 
     /// Non-secret persistence store. Injected so tests get an isolated
     /// `UserDefaults` suite instead of the process-wide `.standard`, which under
@@ -352,25 +325,8 @@ class AppState {
     /// `defaults`, so tests get isolated dedup state alongside isolated persistence.
     @ObservationIgnored let notificationCoordinator: NotificationCoordinator
 
-    /// Request/record budget accounting (Etap D). Every request-issuing path records
-    /// through it; diagnostics read from it.
-    @ObservationIgnored let pollingCoordinator: PollingCoordinator
-
-    /// Per-endpoint last-result/latency/size health (Etap F, Diagnostics).
-    @ObservationIgnored let endpointHealth: EndpointHealthTracker
-
     /// Shared clock (injected). Used for the daily-row-limit pause windows below.
     @ObservationIgnored let time: TimeSource
-
-    /// Decides per endpoint whether a request may be spent at all: live cool-offs after a
-    /// self-healing failure, selections the validated key cannot read, faction endpoints
-    /// for a factionless player, and the per-category row budget.
-    ///
-    /// Pauses are keyed by endpoint, never by budget category: `faction.news` and
-    /// `faction.basic` share the `faction` budget, but only the row-based `news` can trip
-    /// code 14 — pausing it must never stop the point-in-time `faction.basic` chain data
-    /// that drives the chain alert.
-    @ObservationIgnored let endpointGate: TornEndpointGate
 
     /// In-flight background `/key/info` load (see `loadKeyInfoIfNeeded`). Held so a
     /// burst of poll ticks cannot start several at once.
@@ -389,9 +345,6 @@ class AppState {
     /// Holds back the timer and manual refresh for that window, so neither can issue the
     /// un-narrowed request the wait exists to prevent.
     @ObservationIgnored var awaitingFirstKeyInfo = false
-
-    /// When `keyInfo` was last read. Drives the refresh in `loadKeyInfoIfNeeded`.
-    @ObservationIgnored var keyInfoLoadedAt: Date?
 
     /// How long a `/key/info` answer is trusted before it is read again.
     ///
@@ -415,12 +368,8 @@ class AppState {
          pollingCoordinator: PollingCoordinator? = nil,
          accountSession: AccountSessionStore? = nil,
          userSnapshotService: UserSnapshotServicing? = nil,
-         factionService: FactionServicing? = nil,
-         marketWatchService: MarketWatchServicing? = nil,
-         forumWatchService: ForumWatchServicing? = nil,
          notifier: Notifying = SilentNotifier()) {
         self.companion = CompanionStore(defaults: defaults, notifier: notifier)
-        self.session = session
         self.notifier = notifier
         self.updateManager = UpdateManager(session: session)
         self.connectivity = connectivity ?? NetworkMonitor.shared
@@ -429,15 +378,12 @@ class AppState {
         self.accountSession = accountSession
             ?? AccountSessionStore(defaults: defaults, credentialStore: InMemoryAPIKeyStore())
         self.userSnapshotService = userSnapshotService ?? UserSnapshotService(session: session)
-        self.factionService = factionService ?? FactionService(session: session)
-        self.marketWatchService =
-            marketWatchService ?? MarketWatchService(defaults: defaults, session: session)
-        self.forumWatchService =
-            forumWatchService ?? ForumWatchService(defaults: defaults, session: session)
+        self.faction = FactionStore()
+        self.watchlist = MarketWatchService(defaults: defaults)
+        self.forumWatch = ForumWatchService(defaults: defaults)
         self.notificationCoordinator = NotificationCoordinator(defaults: defaults, time: time)
-        self.pollingCoordinator = pollingCoordinator ?? PollingCoordinator(time: time)
-        self.endpointGate = TornEndpointGate(time: time)
-        self.endpointHealth = EndpointHealthTracker(time: time)
+        self.requester = TornRequester(session: session, time: time, account: self.accountSession,
+                                       budget: pollingCoordinator)
 
         // Was provided by @AppStorage; now manual seed from UserDefaults so the
         // values survive across launches. Note: didSet does NOT fire on init,
@@ -452,8 +398,8 @@ class AppState {
 
         loadNotificationRules()
         loadTravelNotificationSettings()
-        loadWatchlist()
-        loadForumWatch()
+        watchlist.load()
+        forumWatch.load()
         loadFeedbackState()
         loadStocksMetadataFromCache()
         loadItemCatalogFromCache()
@@ -465,6 +411,9 @@ class AppState {
         // callback is only ever invoked on the main actor (NetworkMonitor hops to it).
         self.connectivity.onConnectivityRestored = { [weak self] in
             self?.refreshNow()
+        }
+        requester.onAccountError = { [weak self] error, endpointID in
+            self?.handleAccountError(error, for: endpointID)
         }
         // Polling and permissions moved to onAppear in UI
     }
@@ -485,7 +434,7 @@ class AppState {
         recentAttacks = nil
         activityEvents = []
         unreadMessages = 0
-        factionService.reset()
+        faction.reset()
         propertiesData = nil
         stocksData = []
         companion.reset()
@@ -499,7 +448,6 @@ class AppState {
         bountiesCacheDelay = nil
         notificationCounts = nil
         virus = nil
-        lastVirusFetch = nil
         cooldownEnds = nil
         serverClock = .synchronized
         travelSecondsRemaining = 0
@@ -514,13 +462,9 @@ class AppState {
         // told about the moment polling recovered. It now lives in `notificationCoordinator`
         // (persisted, so it also survives a relaunch — issue #53), and the setter clears it
         // via `notificationCoordinator.reset()` on a real account change.
-        lastFactionV2Fetch = nil
-        lastActivityFetch = nil
-        endpointGate.reset()
-        endpointHealth.reset()
+        requester.reset()
         keyInfoTask?.cancel()
         keyInfoTask = nil
-        keyInfoLoadedAt = nil
         firstFetchTask?.cancel()
         firstFetchTask = nil
         awaitingFirstKeyInfo = false
@@ -534,7 +478,6 @@ class AppState {
         stopPriceAlertPolling()
         accountSession.cancelTask(.stockMetadata)
         accountSession.cancelTask(.itemCatalog)
-        referenceFetchIDs.removeAll()
         keyResumeTask?.cancel()
         keyResumeTask = nil
         liveTimerCancellable?.cancel()

@@ -37,46 +37,22 @@ struct MarketPriceSnapshot: Equatable {
     }
 }
 
-enum MarketPriceResult {
-    case success(MarketPriceSnapshot, responseBytes: Int)
-    case apiError(TornAPIError, responseBytes: Int)
-    case httpError(statusCode: Int, responseBytes: Int)
-    case noListings(responseBytes: Int)
-    case malformed(responseBytes: Int)
-}
-
 struct MarketPriceAlert: Equatable {
     let name: String
     let price: Int
-}
-
-@MainActor
-protocol MarketWatchServicing: AnyObject {
-    var items: [WatchlistItem] { get set }
-
-    func load()
-    func save()
-    func add(itemID: Int, name: String) -> Bool
-    func remove(itemID: Int)
-    func restore(_ item: WatchlistItem, at originalIndex: Int) -> Bool
-    func apply(_ snapshot: MarketPriceSnapshot, to itemID: Int) -> MarketPriceAlert?
-    func setError(_ error: String, for itemID: Int)
-    func fetchPrice(from url: URL) async throws -> MarketPriceResult
 }
 
 /// Owns watchlist state, persistence and market-response decoding. Request budgets,
 /// account identity, bounded fan-out and notification delivery remain AppState policy.
 @MainActor
 @Observable
-final class MarketWatchService: MarketWatchServicing {
+final class MarketWatchService {
     var items: [WatchlistItem] = []
 
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let session: NetworkSession
 
-    init(defaults: UserDefaults, session: NetworkSession) {
+    init(defaults: UserDefaults) {
         self.defaults = defaults
-        self.session = session
     }
 
     /// Set when a stored blob exists but could not be decoded. While true, `save()`
@@ -192,65 +168,32 @@ final class MarketWatchService: MarketWatchServicing {
         items[index].error = error
     }
 
-    func fetchPrice(from url: URL) async throws -> MarketPriceResult {
-        let request = TornAPIClient.request(for: url)
-        let (data, response) = try await session.data(for: request)
-
-        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
-            return .httpError(statusCode: http.statusCode, responseBytes: data.count)
-        }
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return .malformed(responseBytes: data.count)
-        }
-        if let apiError = tornAPIError(in: json) {
-            return .apiError(apiError, responseBytes: data.count)
-        }
-
-        // Item-market listings only. The `bazaar` selection was dropped from the request:
-        // on API v2 it returns a directory of the bazaars stocking an item, never their
-        // prices, so the branch that read `cost`/`quantity` out of it could not match the
-        // shape it was given and contributed nothing. See `TornAPI.marketURL`.
-        var listings: [(price: Int, amount: Int)] = []
-        if let itemMarket = json["itemmarket"] as? [String: Any],
-           let array = itemMarket["listings"] as? [[String: Any]] {
-            listings += array.compactMap {
-                guard let price = $0["price"] as? Int else { return nil }
-                return (price, $0["amount"] as? Int ?? 1)
+    /// The lowest item-market listings, or `.some(nil)` when nobody is selling. `nil` is a
+    /// response MacTorn cannot read: one malformed listing rejects the whole answer.
+    nonisolated static func decodePrice(_ data: Data, _ json: [String: Any]) -> MarketPriceSnapshot?? {
+        let listings: [(price: Int, amount: Int)]
+        let market = json["itemmarket"] as? [String: Any]
+        if let rows = market?["listings"] as? [[String: Any]] {
+            listings = rows.compactMap { row in
+                (row["price"] as? Int).map { ($0, row["amount"] as? Int ?? 1) }
             }
-            guard listings.count == array.count else {
-                return .malformed(responseBytes: data.count)
+            guard listings.count == rows.count else { return nil }
+        } else if let rows = json["itemmarket"] as? [[String: Any]] {
+            listings = rows.compactMap { row in
+                (row["cost"] as? Int).map { ($0, row["quantity"] as? Int ?? 1) }
             }
-        } else if let array = json["itemmarket"] as? [[String: Any]] {
-            listings += array.compactMap {
-                guard let price = $0["cost"] as? Int else { return nil }
-                return (price, $0["quantity"] as? Int ?? 1)
-            }
-            guard listings.count == array.count else {
-                return .malformed(responseBytes: data.count)
-            }
+            guard listings.count == rows.count else { return nil }
         } else {
-            return .malformed(responseBytes: data.count)
+            return nil
         }
         let sorted = listings.sorted { $0.price < $1.price }
-        guard let best = sorted.first else {
-            return .noListings(responseBytes: data.count)
-        }
-        return .success(
-            MarketPriceSnapshot(
-                lowestPrice: best.price,
-                lowestPriceQuantity: best.amount,
-                secondLowestPrice: sorted.count > 1 ? sorted[1].price : 0,
-                dataTimestamp: (itemMarketMetadata(in: json).timestamp).map {
-                    Date(timeIntervalSince1970: TimeInterval($0))
-                },
-                cacheDelay: itemMarketMetadata(in: json).delay.map(TimeInterval.init)
-            ),
-            responseBytes: data.count
+        guard let best = sorted.first else { return .some(nil) }
+        return MarketPriceSnapshot(
+            lowestPrice: best.price,
+            lowestPriceQuantity: best.amount,
+            secondLowestPrice: sorted.count > 1 ? sorted[1].price : 0,
+            dataTimestamp: (market?["cache_timestamp"] as? Int).map { Date(timeIntervalSince1970: TimeInterval($0)) },
+            cacheDelay: (market?["cache_delay"] as? Int).map(TimeInterval.init)
         )
-    }
-
-    private func itemMarketMetadata(in json: [String: Any]) -> (timestamp: Int?, delay: Int?) {
-        guard let market = json["itemmarket"] as? [String: Any] else { return (nil, nil) }
-        return (market["cache_timestamp"] as? Int, market["cache_delay"] as? Int)
     }
 }

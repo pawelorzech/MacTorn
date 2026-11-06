@@ -6,8 +6,7 @@ final class MarketWatchServiceTests: XCTestCase {
     func testOwnsValidatedStateAndPersistence() {
         let defaults = UserDefaults.createMockDefaults()
         let service = MarketWatchService(
-            defaults: defaults,
-            session: MockNetworkSession()
+            defaults: defaults
         )
 
         XCTAssertTrue(service.add(itemID: 123, name: "  Xanax  "))
@@ -16,8 +15,7 @@ final class MarketWatchServiceTests: XCTestCase {
         XCTAssertEqual(service.items.map(\.name), ["Xanax"])
 
         let reloaded = MarketWatchService(
-            defaults: defaults,
-            session: MockNetworkSession()
+            defaults: defaults
         )
         reloaded.load()
         XCTAssertEqual(reloaded.items.map(\.id), [123])
@@ -25,8 +23,7 @@ final class MarketWatchServiceTests: XCTestCase {
 
     func testRestorePreservesFullItemAtOriginalIndex() {
         let service = MarketWatchService(
-            defaults: .createMockDefaults(),
-            session: MockNetworkSession()
+            defaults: .createMockDefaults()
         )
         service.items = [
             item(id: 1, name: "One"),
@@ -52,8 +49,7 @@ final class MarketWatchServiceTests: XCTestCase {
 
     func testApplyingPriceUpdatesStateAndReturnsThresholdAlertOnce() {
         let service = MarketWatchService(
-            defaults: .createMockDefaults(),
-            session: MockNetworkSession()
+            defaults: .createMockDefaults()
         )
         service.items = [
             WatchlistItem(
@@ -95,15 +91,12 @@ final class MarketWatchServiceTests: XCTestCase {
         let mock = MockNetworkSession()
         try mock.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
         let service = MarketWatchService(
-            defaults: .createMockDefaults(),
-            session: mock
+            defaults: .createMockDefaults()
         )
 
-        let result = try await service.fetchPrice(
-            from: URL(string: "https://api.torn.com/v2/market/123/itemmarket")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/market/123/itemmarket")!, session: mock, decode: MarketWatchService.decodePrice)
 
-        guard case .success(let snapshot, _) = result else {
+        guard case .success(let snapshot?, _) = result else {
             return XCTFail("Expected market price")
         }
         XCTAssertEqual(snapshot.lowestPrice, 950)
@@ -114,7 +107,7 @@ final class MarketWatchServiceTests: XCTestCase {
     }
 
     func testRepeatedOrOlderSnapshotPreservesDataAgeAndDoesNotAlertAgain() {
-        let service = MarketWatchService(defaults: .createMockDefaults(), session: MockNetworkSession())
+        let service = MarketWatchService(defaults: .createMockDefaults())
         service.items = [WatchlistItem(id: 7, name: "Target", lowestPrice: 0,
                                        lowestPriceQuantity: 0, secondLowestPrice: 0,
                                        lastUpdated: nil, error: nil, priceThreshold: 1_000)]
@@ -135,7 +128,7 @@ final class MarketWatchServiceTests: XCTestCase {
     }
 
     func testNewerSnapshotUpdatesPriceAndMissingDelayIsSafe() {
-        let service = MarketWatchService(defaults: .createMockDefaults(), session: MockNetworkSession())
+        let service = MarketWatchService(defaults: .createMockDefaults())
         service.items = [item(id: 7, name: "Target")]
         service.apply(MarketPriceSnapshot(lowestPrice: 900, lowestPriceQuantity: 1,
                                           secondLowestPrice: 950,
@@ -149,7 +142,7 @@ final class MarketWatchServiceTests: XCTestCase {
 
     func testFetchPriceDistinguishesMalformedResponseFromEmptyListings() async throws {
         let mock = MockNetworkSession()
-        let service = MarketWatchService(defaults: .createMockDefaults(), session: mock)
+        let service = MarketWatchService(defaults: .createMockDefaults())
         let url = URL(string: "https://api.torn.com/v2/market/123/itemmarket")!
         let malformedResponses: [[String: Any]] = [
             [:],
@@ -160,7 +153,7 @@ final class MarketWatchServiceTests: XCTestCase {
         ]
         for json in malformedResponses {
             try mock.setSuccessResponse(json: json)
-            guard case .malformed = try await service.fetchPrice(from: url) else {
+            guard case .malformed = try await TornAPIClient.loadJSON(from: url, session: mock, decode: MarketWatchService.decodePrice) else {
                 XCTFail("Invalid market structure must be a parse error: \(json)")
                 continue
             }
@@ -171,7 +164,7 @@ final class MarketWatchServiceTests: XCTestCase {
         ]
         for json in emptyResponses {
             try mock.setSuccessResponse(json: json)
-            guard case .noListings = try await service.fetchPrice(from: url) else {
+            guard case .success(nil, _) = try await TornAPIClient.loadJSON(from: url, session: mock, decode: MarketWatchService.decodePrice) else {
                 XCTFail("An empty listings array must remain a valid empty market")
                 continue
             }
@@ -182,13 +175,10 @@ final class MarketWatchServiceTests: XCTestCase {
         let mock = MockNetworkSession()
         try mock.setTornAPIErrorV2(code: 5, message: "Too many requests")
         let service = MarketWatchService(
-            defaults: .createMockDefaults(),
-            session: mock
+            defaults: .createMockDefaults()
         )
 
-        let result = try await service.fetchPrice(
-            from: URL(string: "https://api.torn.com/v2/market/123/itemmarket")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/market/123/itemmarket")!, session: mock, decode: MarketWatchService.decodePrice)
 
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected API error")
@@ -220,7 +210,7 @@ final class MarketWatchServiceTests: XCTestCase {
 final class MarketWatchCorruptStoreTests: XCTestCase {
 
     private func makeService(_ defaults: UserDefaults) -> MarketWatchService {
-        MarketWatchService(defaults: defaults, session: MockNetworkSession())
+        MarketWatchService(defaults: defaults)
     }
 
     func testUnreadableBlobIsNotOverwrittenByABackgroundSave() throws {

@@ -176,7 +176,7 @@ extension AppState {
     func makeDiagnosticsReport() async -> DiagnosticsReport {
         let notif = await notifier.authorizationStatusDescription()
         var recordsByCategory: [String: Int] = [:]
-        for (category, count) in pollingCoordinator.recordsPerDayByCategory() {
+        for (category, count) in requester.budget.recordsPerDayByCategory() {
             recordsByCategory[category.rawValue] = count
         }
         let suppressions = currentEndpointSuppressions()
@@ -191,10 +191,10 @@ extension AppState {
             lastErrorSummary: lastErrorClassificationSummary(),
             keyPresent: !apiKey.isEmpty,
             requiredAccessLevel: TornEndpointRegistry.requiredAccessLevel.label,
-            requestsLastMinute: pollingCoordinator.requestsInLastMinute,
-            requestsLastDay: pollingCoordinator.requestsInLastDay,
+            requestsLastMinute: requester.budget.requestsInLastMinute,
+            requestsLastDay: requester.budget.requestsInLastDay,
             recordsPerDayByCategory: recordsByCategory,
-            endpoints: endpointHealth.all,
+            endpoints: requester.health.all,
             suppressedEndpoints: suppressions.labels,
             suppressionExplanations: suppressions.explanations
         )
@@ -210,9 +210,7 @@ extension AppState {
         var result: [String: String] = [:]
         var explanations: [String: String] = [:]
         for endpoint in TornEndpointRegistry.all {
-            guard let denial = endpointGate.denial(for: endpoint.id,
-                                                   keyInfo: keyInfo,
-                                                   coordinator: pollingCoordinator),
+            guard let denial = requester.denial(endpoint.id),
                   denial != .perMinuteCapReached else { continue }
             result[endpoint.id] = denial.label
             explanations[endpoint.id] = denial.userExplanation
@@ -236,14 +234,9 @@ extension AppState {
         guard errorMsg != nil else { return nil }
         guard connectivity.isConnected else { return TornErrorClass.offline.rawValue }
 
-        guard let mostRecentFailure = endpointHealth.all
-            .filter({ $0.outcome == .error })
-            .max(by: { $0.at < $1.at }),
-            let errorClass = mostRecentFailure.errorClass
-        else {
-            return nil
-        }
-
-        return TornErrorClass(rawValue: errorClass)?.rawValue ?? TornErrorClass.transport.rawValue
+        return requester.health.all
+            .filter { $0.outcome == .error }
+            .max { $0.at < $1.at }?
+            .errorClass?.rawValue
     }
 }

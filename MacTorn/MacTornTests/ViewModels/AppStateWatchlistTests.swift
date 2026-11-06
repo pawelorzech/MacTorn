@@ -81,7 +81,7 @@ final class AppStateWatchlistTests: XCTestCase {
             WatchlistItem(id: 456, name: "Donator Pack", lowestPrice: 9000000, lowestPriceQuantity: 3, secondLowestPrice: 9500000, lastUpdated: Date(), error: nil)
         ]
 
-        appState.removeFromWatchlist(123)
+        appState.watchlist.remove(itemID: 123)
 
         XCTAssertEqual(appState.watchlistItems.count, 1)
         XCTAssertNil(appState.watchlistItems.first(where: { $0.id == 123 }))
@@ -93,7 +93,7 @@ final class AppStateWatchlistTests: XCTestCase {
             WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1000, lowestPriceQuantity: 5, secondLowestPrice: 1100, lastUpdated: Date(), error: nil)
         ]
 
-        appState.removeFromWatchlist(999) // Non-existent
+        appState.watchlist.remove(itemID: 999) // Non-existent
 
         XCTAssertEqual(appState.watchlistItems.count, 1) // Should still have 1 item
     }
@@ -115,7 +115,7 @@ final class AppStateWatchlistTests: XCTestCase {
             WatchlistItem(id: 789, name: "Vicodin", lowestPrice: 800, lowestPriceQuantity: 2, secondLowestPrice: 850, lastUpdated: nil, error: nil)
         ]
 
-        XCTAssertTrue(appState.restoreWatchlistItem(removed, at: 1))
+        XCTAssertTrue(appState.watchlist.restore(removed, at: 1))
 
         XCTAssertEqual(appState.watchlistItems.map(\.id), [123, 456, 789])
         let restored = appState.watchlistItems[1]
@@ -138,7 +138,7 @@ final class AppStateWatchlistTests: XCTestCase {
         let item = WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1_000, lowestPriceQuantity: 5, secondLowestPrice: 1_100, lastUpdated: nil, error: nil)
         appState.watchlistItems = [item]
 
-        XCTAssertFalse(appState.restoreWatchlistItem(item, at: 0))
+        XCTAssertFalse(appState.watchlist.restore(item, at: 0))
         XCTAssertEqual(appState.watchlistItems.map(\.id), [123])
     }
 
@@ -166,11 +166,11 @@ final class AppStateWatchlistTests: XCTestCase {
             WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1000, lowestPriceQuantity: 5, secondLowestPrice: 1100, lastUpdated: Date(), error: nil)
         ]
 
-        appState.saveWatchlist()
+        appState.watchlist.save()
 
         // Create new instance and load
         let newAppState = AppState(session: mockSession, defaults: testDefaults)
-        newAppState.loadWatchlist()
+        newAppState.watchlist.load()
 
         XCTAssertEqual(newAppState.watchlistItems.count, 1)
         XCTAssertEqual(newAppState.watchlistItems.first?.id, 123)
@@ -179,7 +179,7 @@ final class AppStateWatchlistTests: XCTestCase {
     func testLoadWatchlist_emptyWhenNothingSaved() {
         testDefaults.removeObject(forKey: "watchlist")
 
-        appState.loadWatchlist()
+        appState.watchlist.load()
 
         XCTAssertTrue(appState.watchlistItems.isEmpty)
     }
@@ -388,7 +388,7 @@ final class AppStateWatchlistTests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
         let item = appState.watchlistItems.first
-        XCTAssertEqual(item?.error, "Network Error")
+        XCTAssertEqual(item?.error, TornRequestFailure.transport(nil).userMessage)
     }
 
     func testPriceFetch_httpError() async throws {
@@ -401,7 +401,7 @@ final class AppStateWatchlistTests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
         let item = appState.watchlistItems.first
-        XCTAssertEqual(item?.error, "HTTP 500")
+        XCTAssertEqual(item?.error, TornRequestFailure.http(500).userMessage)
     }
 
     // MARK: - Empty API Key Tests
@@ -497,10 +497,10 @@ final class AppStateWatchlistTests: XCTestCase {
             lastAlertedPrice: 520
         )
         appState.watchlistItems = [original]
-        appState.saveWatchlist()
+        appState.watchlist.save()
 
         let newAppState = AppState(session: mockSession, defaults: testDefaults)
-        newAppState.loadWatchlist()
+        newAppState.watchlist.load()
 
         let loaded = newAppState.watchlistItems.first
         XCTAssertNotNil(loaded)
@@ -545,23 +545,23 @@ final class AppStateWatchlistTests: XCTestCase {
     // not compile until the implementer adds those two entry points.
 
     func testParseItemIdInput_acceptsPositiveNumericString() {
-        XCTAssertEqual(appState.parseItemIdInput("206"), 206)
+        XCTAssertEqual(PositiveIntegerInput.value(from: "206"), 206)
     }
 
     func testParseItemIdInput_rejectsNonNumericString() {
-        XCTAssertNil(appState.parseItemIdInput("abc"))
+        XCTAssertNil(PositiveIntegerInput.value(from: "abc"))
     }
 
     func testParseItemIdInput_rejectsEmptyString() {
-        XCTAssertNil(appState.parseItemIdInput(""))
+        XCTAssertNil(PositiveIntegerInput.value(from: ""))
     }
 
     func testParseItemIdInput_rejectsZero() {
-        XCTAssertNil(appState.parseItemIdInput("0"))
+        XCTAssertNil(PositiveIntegerInput.value(from: "0"))
     }
 
     func testParseItemIdInput_rejectsNegative() {
-        XCTAssertNil(appState.parseItemIdInput("-5"))
+        XCTAssertNil(PositiveIntegerInput.value(from: "-5"))
     }
 
     func testAddToWatchlistByInput_validNumericIdIsAcceptedAndAdded() {

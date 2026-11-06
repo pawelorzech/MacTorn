@@ -67,30 +67,30 @@ final class AppStateForumWatchTests: XCTestCase {
     // MARK: - parseThreadInput Tests
 
     func testParseThreadInput_bareId() {
-        XCTAssertEqual(appState.parseThreadInput("12345"), 12345)
+        XCTAssertEqual(appState.forumWatch.parseThreadInput("12345"), 12345)
     }
 
     func testParseThreadInput_bareIdWithSpaces() {
-        XCTAssertEqual(appState.parseThreadInput("  12345  "), 12345)
+        XCTAssertEqual(appState.forumWatch.parseThreadInput("  12345  "), 12345)
     }
 
     func testParseThreadInput_urlWithThreadId() {
         let url = "https://www.torn.com/forums.php#/p=threads&f=67&t=16532308"
-        XCTAssertEqual(appState.parseThreadInput(url), 16532308)
+        XCTAssertEqual(appState.forumWatch.parseThreadInput(url), 16532308)
     }
 
     func testParseThreadInput_urlWithQueryParam() {
         let url = "https://www.torn.com/forums.php?t=12345"
-        XCTAssertEqual(appState.parseThreadInput(url), 12345)
+        XCTAssertEqual(appState.forumWatch.parseThreadInput(url), 12345)
     }
 
     func testParseThreadInput_invalidInput() {
-        XCTAssertNil(appState.parseThreadInput("abc"))
-        XCTAssertNil(appState.parseThreadInput(""))
-        XCTAssertNil(appState.parseThreadInput("https://www.torn.com/forums.php"))
-        XCTAssertNil(appState.parseThreadInput("0"))
-        XCTAssertNil(appState.parseThreadInput("-42"))
-        XCTAssertNil(appState.parseThreadInput("https://www.torn.com/forums.php?t=0"))
+        XCTAssertNil(appState.forumWatch.parseThreadInput("abc"))
+        XCTAssertNil(appState.forumWatch.parseThreadInput(""))
+        XCTAssertNil(appState.forumWatch.parseThreadInput("https://www.torn.com/forums.php"))
+        XCTAssertNil(appState.forumWatch.parseThreadInput("0"))
+        XCTAssertNil(appState.forumWatch.parseThreadInput("-42"))
+        XCTAssertNil(appState.forumWatch.parseThreadInput("https://www.torn.com/forums.php?t=0"))
     }
 
     // MARK: - Add Thread Tests
@@ -135,7 +135,7 @@ final class AppStateForumWatchTests: XCTestCase {
             WatchedThread(id: 222, title: "Thread B")
         ]
 
-        appState.removeWatchedThread(111)
+        appState.forumWatch.remove(threadID: 111)
 
         XCTAssertEqual(appState.watchedThreads.count, 1)
         XCTAssertNil(appState.watchedThreads.first(where: { $0.id == 111 }))
@@ -147,7 +147,7 @@ final class AppStateForumWatchTests: XCTestCase {
             WatchedThread(id: 111, title: "Thread A")
         ]
 
-        appState.removeWatchedThread(999)
+        appState.forumWatch.remove(threadID: 999)
 
         XCTAssertEqual(appState.watchedThreads.count, 1)
     }
@@ -167,7 +167,7 @@ final class AppStateForumWatchTests: XCTestCase {
             WatchedThread(id: 333, title: "Thread C")
         ]
 
-        XCTAssertTrue(appState.restoreWatchedThread(removed, at: 1))
+        XCTAssertTrue(appState.forumWatch.restore(removed, at: 1))
 
         XCTAssertEqual(appState.watchedThreads.map(\.id), [111, 222, 333])
         let restored = appState.watchedThreads[1]
@@ -188,7 +188,7 @@ final class AppStateForumWatchTests: XCTestCase {
         let thread = WatchedThread(id: 111, title: "Thread A")
         appState.watchedThreads = [thread]
 
-        XCTAssertFalse(appState.restoreWatchedThread(thread, at: 0))
+        XCTAssertFalse(appState.forumWatch.restore(thread, at: 0))
         XCTAssertEqual(appState.watchedThreads.map(\.id), [111])
     }
 
@@ -199,10 +199,10 @@ final class AppStateForumWatchTests: XCTestCase {
             WatchedThread(id: 111, title: "Thread A", notificationsEnabled: true)
         ]
 
-        appState.toggleThreadNotifications(111)
+        appState.forumWatch.toggleNotifications(threadID: 111)
         XCTAssertFalse(appState.watchedThreads.first!.notificationsEnabled)
 
-        appState.toggleThreadNotifications(111)
+        appState.forumWatch.toggleNotifications(threadID: 111)
         XCTAssertTrue(appState.watchedThreads.first!.notificationsEnabled)
     }
 
@@ -215,7 +215,7 @@ final class AppStateForumWatchTests: XCTestCase {
         ]
         appState.forumWatchConfig.factionForumAutoMonitor = true
         appState.forumWatchConfig.pollingIntervalSeconds = 300
-        appState.saveForumWatch()
+        appState.forumWatch.save()
 
         let newAppState = AppState(session: mockSession, defaults: testDefaults)
 
@@ -232,7 +232,7 @@ final class AppStateForumWatchTests: XCTestCase {
         testDefaults.removeObject(forKey: "forumWatchedThreads")
         testDefaults.removeObject(forKey: "forumWatchConfig")
 
-        appState.loadForumWatch()
+        appState.forumWatch.load()
 
         XCTAssertTrue(appState.watchedThreads.isEmpty)
         XCTAssertFalse(appState.forumWatchConfig.factionForumAutoMonitor)

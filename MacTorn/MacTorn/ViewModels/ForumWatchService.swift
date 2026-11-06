@@ -6,8 +6,6 @@ struct ForumThreadSnapshot: Equatable {
     let postCount: Int
 }
 
-
-
 struct ForumNewPosts: Equatable {
     let threadID: Int
     let title: String
@@ -20,42 +18,18 @@ struct ForumCategoryThread: Equatable, Identifiable, Sendable {
     let title: String
 }
 
-
-
-@MainActor
-protocol ForumWatchServicing: AnyObject {
-    var threads: [WatchedThread] { get set }
-    var config: ForumWatchConfig { get set }
-
-    func load()
-    func save()
-    func parseThreadInput(_ input: String) -> Int?
-    func add(input: String) -> Int?
-    func remove(threadID: Int)
-    func restore(_ thread: WatchedThread, at originalIndex: Int) -> Bool
-    func toggleNotifications(threadID: Int)
-    func markAsRead(threadID: Int)
-    func apply(_ snapshot: ForumThreadSnapshot, to threadID: Int) -> ForumNewPosts?
-    func setError(_ error: String, for threadID: Int)
-    func fetchThread(from url: URL) async throws -> TornServiceResult<ForumThreadSnapshot>
-    func fetchCategoryThreads(from url: URL) async throws -> TornServiceResult<[ForumCategoryThread]>
-    func applyCategory(_ threads: [ForumCategoryThread], for categoryID: Int) -> [ForumCategoryThread]
-}
-
 /// Owns forum-watch state, config, persistence and response decoding. Poll timers,
 /// bounded fan-out, account cancellation, budgets and notifications stay in AppState.
 @MainActor
 @Observable
-final class ForumWatchService: ForumWatchServicing {
+final class ForumWatchService {
     var threads: [WatchedThread] = []
     var config = ForumWatchConfig()
 
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let session: NetworkSession
 
-    init(defaults: UserDefaults, session: NetworkSession) {
+    init(defaults: UserDefaults) {
         self.defaults = defaults
-        self.session = session
     }
 
     /// Set when a stored thread blob exists but could not be decoded. While true,
@@ -229,26 +203,24 @@ final class ForumWatchService: ForumWatchServicing {
         return fresh
     }
 
-    func fetchCategoryThreads(from url: URL) async throws -> TornServiceResult<[ForumCategoryThread]> {
-        try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
-            guard let rows = json["threads"] as? [[String: Any]] else {
-                return nil
-            }
-            // A row without an id cannot be tracked, and one without a title cannot be
-            // announced. Skip those rather than failing the whole listing over one bad row.
-            // `limit=20` is a request parameter, and what a remote server honours is not a
-            // guarantee. Left uncapped, a listing longer than `maximumSeenThreadIds` turns the
-            // page and the eviction cap into a loop: each poll writes the page to the front,
-            // evicts the tail, and re-announces that tail on the next one, permanently. The
-            // eviction policy is sound but assumes page size is far below the cap, and nothing
-            // else enforces that.
-            let threads: [ForumCategoryThread] = rows.prefix(ForumWatchService.maximumThreadsPerListing).compactMap { row in
-                guard let id = row["id"] as? Int else { return nil }
-                return ForumCategoryThread(id: id,
-                                           title: ForumWatchService.boundedTitle(row["title"]) ?? "Untitled thread")
-            }
-            return threads
+    nonisolated static func decodeCategoryThreads(_ data: Data, _ json: [String: Any]) -> [ForumCategoryThread]? {
+        guard let rows = json["threads"] as? [[String: Any]] else {
+            return nil
         }
+        // A row without an id cannot be tracked, and one without a title cannot be
+        // announced. Skip those rather than failing the whole listing over one bad row.
+        // `limit=20` is a request parameter, and what a remote server honours is not a
+        // guarantee. Left uncapped, a listing longer than `maximumSeenThreadIds` turns the
+        // page and the eviction cap into a loop: each poll writes the page to the front,
+        // evicts the tail, and re-announces that tail on the next one, permanently. The
+        // eviction policy is sound but assumes page size is far below the cap, and nothing
+        // else enforces that.
+        let threads: [ForumCategoryThread] = rows.prefix(ForumWatchService.maximumThreadsPerListing).compactMap { row in
+            guard let id = row["id"] as? Int else { return nil }
+            return ForumCategoryThread(id: id,
+                                       title: ForumWatchService.boundedTitle(row["title"]) ?? "Untitled thread")
+        }
+        return threads
     }
 
     /// Most rows MacTorn will accept from one category listing.
@@ -275,28 +247,26 @@ final class ForumWatchService: ForumWatchServicing {
         return cleaned.isEmpty ? nil : cleaned
     }
 
-    func fetchThread(from url: URL) async throws -> TornServiceResult<ForumThreadSnapshot> {
-        try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
-            let thread = json["thread"] as? [String: Any] ?? json
-            // The post count is the whole point of this call, so a response without a
-            // usable one is malformed — not a success with `postCount: 0`. Accepting the
-            // zero wrote it into `lastKnownPostCount`, and the `previousCount > 0` guard in
-            // `apply` then swallowed the next real increase: the "new posts" alert was lost
-            // for good and the counter silently jumped (audit finding D-02).
-            let postCount: Int
-            if let count = thread["posts"] as? Int {
-                postCount = count
-            } else if let text = thread["posts"] as? String, let count = Int(text) {
-                postCount = count   // tolerate a stringified number
-            } else {
-                return nil
-            }
-            // Likewise, never overwrite a good title with a placeholder.
-            let title = ForumWatchService.boundedTitle(thread["title"])
-            return ForumThreadSnapshot(
-                    title: title ?? "Unknown",
-                    postCount: postCount
-            )
+    nonisolated static func decodeThread(_ data: Data, _ json: [String: Any]) -> ForumThreadSnapshot? {
+        let thread = json["thread"] as? [String: Any] ?? json
+        // The post count is the whole point of this call, so a response without a
+        // usable one is malformed — not a success with `postCount: 0`. Accepting the
+        // zero wrote it into `lastKnownPostCount`, and the `previousCount > 0` guard in
+        // `apply` then swallowed the next real increase: the "new posts" alert was lost
+        // for good and the counter silently jumped (audit finding D-02).
+        let postCount: Int
+        if let count = thread["posts"] as? Int {
+            postCount = count
+        } else if let text = thread["posts"] as? String, let count = Int(text) {
+            postCount = count   // tolerate a stringified number
+        } else {
+            return nil
         }
+        // Likewise, never overwrite a good title with a placeholder.
+        let title = ForumWatchService.boundedTitle(thread["title"])
+        return ForumThreadSnapshot(
+                title: title ?? "Unknown",
+                postCount: postCount
+        )
     }
 }

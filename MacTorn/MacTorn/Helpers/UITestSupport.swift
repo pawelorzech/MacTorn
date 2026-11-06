@@ -416,7 +416,7 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             granted[category.rawValue] = []
         }
         for endpoint in TornEndpointRegistry.all {
-            let category = KeyValidator.category(for: endpoint).rawValue
+            let category = endpoint.keyCategory.rawValue
             var names = granted[category] ?? []
             for selection in endpoint.selections where !names.contains(selection) {
                 names.append(selection)

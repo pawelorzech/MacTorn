@@ -47,7 +47,6 @@ extension AppState {
     private static var itemCatalogFetchedAtKey: String { "itemCatalogFetchedAt" }
     /// A week. Torn adds items occasionally, never hourly.
     private static var itemCatalogMaxAge: TimeInterval { 604_800 }
-    private static var itemCatalogBackoffLadder: [TimeInterval] { [60, 300, 1_800] }
 
     // MARK: Cache
 
@@ -80,8 +79,7 @@ extension AppState {
     /// on every poll — it does nothing almost every time.
     func triggerItemCatalogFetchIfNeeded() {
         guard itemCatalogIsStale, !apiKey.isEmpty else { return }
-        if let retryAfter = itemCatalogNextRetryAfter, time.now < retryAfter { return }
-        guard referenceFetchIDs["torn.items"] == nil else { return }
+        guard itemCatalogBackoff.allows(at: time.now), !requester.isInFlight("torn.items") else { return }
         accountSession.startTask(.itemCatalog) { _ = await self.fetchItemCatalog() }
     }
 
@@ -92,14 +90,13 @@ extension AppState {
         let previousFetchedAt = itemCatalogFetchedAt
         await fetchReferenceData("torn.items", cacheKey: Self.itemCatalogCacheKey,
                                  parse: { Self.parseExpandedItemCatalog(json: $0, logger: $1) },
-                                 onFailure: recordItemCatalogFailure) { parsed in
+                                 onFailure: { itemCatalogBackoff.fail(at: time.now) }) { parsed in
             itemCatalog = parsed.mapValues(\.name)
             let now = time.now
             itemCatalogFetchedAt = now
             itemCatalogCacheExpanded = true
             defaults.set(now.timeIntervalSince1970, forKey: Self.itemCatalogFetchedAtKey)
-            itemCatalogFailureCount = 0
-            itemCatalogNextRetryAfter = nil
+            itemCatalogBackoff.succeed()
             backfillWatchlistNames()
         }
         return itemCatalogFetchedAt != previousFetchedAt
@@ -111,14 +108,11 @@ extension AppState {
         loadItemCatalogFromCache()
         let cached = cachedShopItems()
         guard itemCatalogIsStale else { return .success(cached) }
-        guard referenceFetchIDs["torn.items"] == nil else { return .pending(cached) }
-        if let denial = endpointGate.denial(for: "torn.items", keyInfo: keyInfo,
-                                             coordinator: pollingCoordinator) {
+        guard !requester.isInFlight("torn.items") else { return .pending(cached) }
+        if let denial = requester.denial("torn.items") {
             return .denied(denial.userExplanation, cached)
         }
-        if let retryAfter = itemCatalogNextRetryAfter, time.now < retryAfter {
-            return .pending(cached)
-        }
+        guard itemCatalogBackoff.allows(at: time.now) else { return .pending(cached) }
         return await fetchItemCatalog() ? .success(cachedShopItems()) : .failed(cachedShopItems())
     }
 
@@ -143,12 +137,6 @@ extension AppState {
     private func cachedCatalogItems() -> [Int: CachedCatalogItem]? {
         guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else { return nil }
         return try? JSONDecoder().decode([Int: CachedCatalogItem].self, from: data)
-    }
-
-    func recordItemCatalogFailure() {
-        itemCatalogFailureCount += 1
-        let index = min(itemCatalogFailureCount - 1, Self.itemCatalogBackoffLadder.count - 1)
-        itemCatalogNextRetryAfter = time.now.addingTimeInterval(Self.itemCatalogBackoffLadder[index])
     }
 
     /// Most entries MacTorn will keep from one catalog response.
@@ -277,7 +265,7 @@ extension AppState {
             changed = true
         }
         if changed {
-            marketWatchService.save()
+            watchlist.save()
             logger.info("Backfilled watchlist item names from the catalog")
         }
     }

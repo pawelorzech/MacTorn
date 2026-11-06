@@ -85,9 +85,9 @@ final class FactionChainExpiryTests: XCTestCase {
             ],
         ])
 
-        let payload = try await app.factionService.loadBasic(from: URL(string: "https://api.torn.com/faction/?selections=basic,chain")!)
+        let payload = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/faction/?selections=basic,chain")!, session: mock, decode: FactionStore.decodeBasic)
         guard case .success(let data, _) = payload else { return XCTFail("expected a decoded faction payload") }
-        app.factionService.publishBasic(data.resolvingChainExpiry(fetchedAt: Date(), clock: app.serverClock))
+        app.faction.basic = (data.resolvingChainExpiry(fetchedAt: Date(), clock: app.serverClock))
 
         let chain = try XCTUnwrap(app.liveChain)
         XCTAssertTrue(chain.isActive)
@@ -113,9 +113,9 @@ final class FactionChainExpiryTests: XCTestCase {
             ],
         ])
 
-        let payload = try await app.factionService.loadBasic(from: URL(string: "https://api.torn.com/faction/?selections=basic,chain")!)
+        let payload = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/faction/?selections=basic,chain")!, session: mock, decode: FactionStore.decodeBasic)
         guard case .success(let data, _) = payload else { return XCTFail("expected a decoded faction payload") }
-        app.factionService.publishBasic(data.resolvingChainExpiry(fetchedAt: Date(), clock: app.serverClock))
+        app.faction.basic = (data.resolvingChainExpiry(fetchedAt: Date(), clock: app.serverClock))
 
         XCTAssertNil(app.lastUpdated, "User poll has not run yet, lastUpdated must be nil")
         let chain = try XCTUnwrap(app.liveChain)

@@ -9,9 +9,9 @@ final class UserSnapshotServiceTests: XCTestCase {
             mock.mockData = Data(#"{"events":{},"virus":null,"notifications":{"messages":1,"events":0,"awards":0,"competition":0}}"#.utf8)
             let service = UserSnapshotService(session: mock)
             let url = URL(string: "https://api.torn.com/v2/user")!
-            guard case .httpError(let activity, _) = try await service.loadActivity(url),
-                  case .httpError(let user, _) = try await service.loadUserV2(url),
-                  case .httpError(let virus, _) = try await service.loadVirus(url) else {
+            guard case .httpError(let activity, _) = try await TornAPIClient.loadJSON(from: url, session: mock, decode: UserSnapshotService.decodeActivity),
+                  case .httpError(let user, _) = try await TornAPIClient.loadJSON(from: url, session: mock, decode: UserSnapshotService.decodeUserV2(requested: userV2Selections(url))),
+                  case .httpError(let virus, _) = try await TornAPIClient.loadJSON(from: url, session: mock, decode: UserSnapshotService.decodeVirus) else {
                 return XCTFail("HTTP errors must not publish plausible bodies")
             }
             XCTAssertEqual(activity, status)
@@ -109,15 +109,12 @@ final class UserSnapshotServiceTests: XCTestCase {
         mock.mockData = data
         let service = UserSnapshotService(session: mock)
 
-        let result = try await service.loadActivity(
-            URL(string: "https://api.torn.com/user")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/user")!, session: mock, decode: UserSnapshotService.decodeActivity)
 
         guard case .success(let payload, let bytes) = result else {
             return XCTFail("Expected activity payload")
         }
         XCTAssertEqual(payload.events?.count, 1)
-        XCTAssertEqual(payload.unreadMessages, 1)
         XCTAssertEqual(bytes, data.count)
     }
 
@@ -130,15 +127,12 @@ final class UserSnapshotServiceTests: XCTestCase {
         mock.mockData = try TornAPIFixtures.toData([:])
         let service = UserSnapshotService(session: mock)
 
-        let result = try await service.loadActivity(
-            URL(string: "https://api.torn.com/user")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/user")!, session: mock, decode: UserSnapshotService.decodeActivity)
 
         guard case .success(let payload, _) = result else {
             return XCTFail("Expected activity payload")
         }
         XCTAssertNil(payload.events, "A missing \"events\" key must not decode to []")
-        XCTAssertNil(payload.unreadMessages, "A missing \"messages\" key must not decode to 0")
         XCTAssertNil(payload.recentAttacks, "A missing \"attacks\" key must not decode to []")
     }
 
@@ -153,15 +147,12 @@ final class UserSnapshotServiceTests: XCTestCase {
         ])
         let service = UserSnapshotService(session: mock)
 
-        let result = try await service.loadActivity(
-            URL(string: "https://api.torn.com/user")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/user")!, session: mock, decode: UserSnapshotService.decodeActivity)
 
         guard case .success(let payload, _) = result else {
             return XCTFail("Expected activity payload")
         }
         XCTAssertEqual(payload.events?.isEmpty, true)
-        XCTAssertEqual(payload.unreadMessages, 0)
         XCTAssertEqual(payload.recentAttacks?.isEmpty, true)
     }
 
@@ -175,9 +166,7 @@ final class UserSnapshotServiceTests: XCTestCase {
         mock.mockData = data
         let service = UserSnapshotService(session: mock)
 
-        let result = try await service.loadUserV2(
-            URL(string: "https://api.torn.com/v2/user")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/user")!, session: mock, decode: UserSnapshotService.decodeUserV2(requested: userV2Selections(URL(string: "https://api.torn.com/v2/user")!)))
 
         guard case .success(let payload, let bytes) = result else {
             return XCTFail("Expected v2 payload")
@@ -203,7 +192,7 @@ final class UserSnapshotServiceTests: XCTestCase {
         let service = UserSnapshotService(session: mock)
         let url = URL(string: "https://api.torn.com/v2/user?selections=bounties,notifications")!
 
-        let result = try await service.loadUserV2(url)
+        let result = try await TornAPIClient.loadJSON(from: url, session: mock, decode: UserSnapshotService.decodeUserV2(requested: userV2Selections(url)))
 
         guard case .success(let payload, _) = result else {
             return XCTFail("Valid sibling sections should still be publishable")
@@ -225,9 +214,7 @@ final class UserSnapshotServiceTests: XCTestCase {
             "notifications": ["messages": 4, "events": 1, "awards": 0, "competition": 0]
         ])
         let service = UserSnapshotService(session: mock)
-        let result = try await service.loadUserV2(
-            URL(string: "https://api.torn.com/v2/user?selections=organizedcrime,refills,notifications")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/user?selections=organizedcrime,refills,notifications")!, session: mock, decode: UserSnapshotService.decodeUserV2(requested: userV2Selections(URL(string: "https://api.torn.com/v2/user?selections=organizedcrime,refills,notifications")!)))
 
         guard case .success(let payload, _) = result,
               case .unavailable(let message) = payload.organizedCrime,
@@ -253,9 +240,7 @@ final class UserSnapshotServiceTests: XCTestCase {
         mock.mockData = try TornAPIFixtures.toData(["bounties": []])
         let service = UserSnapshotService(session: mock)
 
-        let result = try await service.loadUserV2(
-            URL(string: "https://api.torn.com/v2/user?selections=bounties")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/user?selections=bounties")!, session: mock, decode: UserSnapshotService.decodeUserV2(requested: userV2Selections(URL(string: "https://api.torn.com/v2/user?selections=bounties")!)))
 
         guard case .success(let payload, _) = result,
               case .replace(let bounties) = payload.bounties else {
@@ -269,7 +254,7 @@ final class UserSnapshotServiceTests: XCTestCase {
         mock.mockData = try TornAPIFixtures.toData(["virus": NSNull()])
         let service = UserSnapshotService(session: mock)
 
-        let result = try await service.loadVirus(URL(string: "https://api.torn.com/v2/user/virus")!)
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/user/virus")!, session: mock, decode: UserSnapshotService.decodeVirus)
 
         guard case .success(let virus, _) = result else {
             return XCTFail("Explicit null is Torn's valid idle state")
@@ -283,9 +268,7 @@ final class UserSnapshotServiceTests: XCTestCase {
             mock.mockData = try TornAPIFixtures.toData(json)
             let service = UserSnapshotService(session: mock)
 
-            let result = try await service.loadVirus(
-                URL(string: "https://api.torn.com/v2/user/virus")!
-            )
+            let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/v2/user/virus")!, session: mock, decode: UserSnapshotService.decodeVirus)
 
             guard case .malformed = result else {
                 return XCTFail("Missing/malformed virus must not clear last-good state: \(json)")
@@ -298,9 +281,7 @@ final class UserSnapshotServiceTests: XCTestCase {
         try mock.setTornAPIError(code: 14, message: "Daily read limit reached")
         let service = UserSnapshotService(session: mock)
 
-        let result = try await service.loadActivity(
-            URL(string: "https://api.torn.com/user")!
-        )
+        let result = try await TornAPIClient.loadJSON(from: URL(string: "https://api.torn.com/user")!, session: mock, decode: UserSnapshotService.decodeActivity)
 
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected Torn API error")

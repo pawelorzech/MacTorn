@@ -82,6 +82,13 @@ struct TornKeyInfo: Decodable, Equatable, Sendable {
     struct Response: Decodable, Equatable, Sendable {
         let info: TornKeyInfo
     }
+
+    /// Custom keys list their dedicated-endpoint capabilities; other key types imply them.
+    var isCustom: Bool { access.type.caseInsensitiveCompare("Custom") == .orderedSame }
+
+    func grantedNames(for endpoint: TornEndpoint) -> Set<String> {
+        Set(selections.names(for: endpoint.keyCategory))
+    }
 }
 
 // MARK: - Validation result
@@ -131,29 +138,18 @@ enum KeyValidationState: Equatable, Sendable {
 /// endpoint registry as the source of truth for what each feature needs.
 enum KeyValidator {
 
-    /// Maps a registered endpoint to its `/key/info` selections category.
-    static func category(for endpoint: TornEndpoint) -> TornKeyInfo.Category {
-        let path = endpoint.path
-        if path.contains("/faction") { return .faction }
-        if path.contains("/market") { return .market }
-        if path.contains("/forum") { return .forum }
-        if path.contains("/torn") { return .torn }
-        // Both the v1 `/user/` fast+activity calls and the v2 `/user` call.
-        return .user
-    }
-
     /// Availability of a single endpoint under a validated key. Endpoints that take no
     /// `selections` parameter are checked against their documented access tier and any
     /// dedicated permission bit exposed by `/key/info`.
     static func availability(of endpoint: TornEndpoint, given info: TornKeyInfo) -> EndpointAvailability {
-        let required = info.access.type.caseInsensitiveCompare("Custom") == .orderedSame
+        let required = info.isCustom
             ? endpoint.selections + endpoint.requiredCapabilities
             : endpoint.selections
         let missing: [String]
         if required.isEmpty {
             missing = []
         } else {
-            let granted = Set(info.selections.names(for: category(for: endpoint)))
+            let granted = info.grantedNames(for: endpoint)
             missing = required.filter { !granted.contains($0) }
         }
         // Selection-bearing endpoints are governed by the authoritative selection list:

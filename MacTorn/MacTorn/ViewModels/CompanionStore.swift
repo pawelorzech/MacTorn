@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Optional modules share the application's request gate and account boundary.
+/// Optional modules share the application's request pipeline and account boundary.
 /// Only preferences persist; private responses and alert baselines are session scoped.
 @MainActor @Observable
 final class CompanionStore {
@@ -16,7 +16,25 @@ final class CompanionStore {
             case .shops: return "Travel shop prices"
             }
         }
+
+        /// What the module reads; its errors, spinners and "last checked" are keyed by these.
+        var endpointIDs: [String] {
+            switch self {
+            case .recruiting: return ["user.recruiting"]
+            case .stocks: return ["user.stocksv2", "torn.stocksv2"]
+            case .competition: return ["user.competition", "torn.elimination", "torn.calendar", "user.calendar"]
+            case .trades: return ["user.trades"]
+            case .shops: return ["torn.items"]
+            }
+        }
+
+        var canAlert: Bool { [.recruiting, .stocks, .trades].contains(self) }
     }
+
+    /// Torn's answer when a competition or elimination round is not running (code 33).
+    private static let noCompetitionCode = 33
+    private static let shopCatalogCadence: TimeInterval = 604_800
+
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let notifier: Notifying
     var enabled: Set<Feature>
@@ -38,10 +56,10 @@ final class CompanionStore {
     var nextWarPage: [WarfareCategory: Int] = [:]
     var errors: [String: String] = [:]
     var fetchedAt: [String: Date] = [:]
-    var loading: Set<String> = []
-    @ObservationIgnored var task: Task<Void, Never>?
+    private(set) var isRefreshing = false
+    @ObservationIgnored private(set) var task: Task<Void, Never>?
     @ObservationIgnored private var generation: UInt = 0
-    @ObservationIgnored private var lastAttempt: [String: Date] = [:]
+    @ObservationIgnored private var shopsLoadedAt: Date?
     @ObservationIgnored private var fingerprints: [Feature: Set<String>] = [:]
     @ObservationIgnored private var previousTrades: [Int: String]?
 
@@ -53,47 +71,59 @@ final class CompanionStore {
         minimumCPR = min(100, max(0, defaults.integer(forKey: "companion.minimumCPR")))
     }
 
-    func setEnabled(_ feature: Feature, _ value: Bool) {
+    func setEnabled(_ feature: Feature, _ value: Bool, app: AppState) {
         if value { enabled.insert(feature) } else { enabled.remove(feature) }
         defaults.set(enabled.map(\.rawValue), forKey: "companion.enabled")
         // An in-flight response from before this preference change must not publish.
-        invalidate()
-        fingerprints[feature] = nil
-        if feature == .trades { previousTrades = nil }
+        invalidate(app: app)
+        forgetAlertBaseline(feature)
     }
+
     func setAlerts(_ feature: Feature, _ value: Bool) {
         if value { alerts.insert(feature) } else { alerts.remove(feature) }
         defaults.set(alerts.map(\.rawValue), forKey: "companion.alerts")
+        forgetAlertBaseline(feature)
+    }
+
+    private func forgetAlertBaseline(_ feature: Feature) {
         fingerprints[feature] = nil
         if feature == .trades { previousTrades = nil }
     }
-    private func invalidate() {
+
+    private func invalidate(app: AppState) {
         generation &+= 1
         task?.cancel()
         task = nil
-        loading = []
-        lastAttempt = [:]
+        isRefreshing = false
+        shopsLoadedAt = nil
+        app.requester.makeDue(Feature.allCases.flatMap(\.endpointIDs))
     }
+
     func reset() {
-        invalidate()
+        generation &+= 1
+        task?.cancel()
+        task = nil
+        isRefreshing = false
+        shopsLoadedAt = nil
         recruiting = []; stocks = []; stockReferences = []; competition = nil
         calendarActivities = []; calendarStartTime = nil; notAvailable = [:]
         teams = []; trades = []; tradeDetails = [:]; shops = []; warfare = [:]; nextWarPage = [:]
         errors = [:]; fetchedAt = [:]; fingerprints = [:]; previousTrades = nil
     }
+
     func start(app: AppState) {
         guard task == nil, !enabled.isEmpty, !app.apiKey.isEmpty, !app.keyHalted,
               app.connectivity.isConnected else { return }
         let token = generation
+        isRefreshing = true
         task = Task { [weak self, weak app] in
             guard let self, let app else { return }
             await self.refresh(app: app)
-            if self.generation == token { self.task = nil }
+            if self.generation == token {
+                self.task = nil
+                self.isRefreshing = false
+            }
         }
-    }
-    func due(_ id: String, seconds: TimeInterval, now: Date) -> Bool {
-        guard !loading.contains(id) else { return false }
-        return lastAttempt[id].map { now.timeIntervalSince($0) >= seconds } ?? true
     }
 
     /// Seeds without alerting; only edges since a successful prior read are announced.
@@ -102,121 +132,120 @@ final class CompanionStore {
         guard let old else { return [] }
         return values.subtracting(old)
     }
+
     var eligibleSlots: [(crime: RecruitingCrime, slot: RecruitingCrime.Slot)] {
         recruiting.filter { $0.status == "Recruiting" }.flatMap { crime in
             crime.slots.filter { $0.user == nil && $0.checkpointPassRate >= minimumCPR }.map { (crime, $0) }
         }
     }
 
+    func isLoading(_ feature: Feature, app: AppState) -> Bool {
+        feature.endpointIDs.contains(where: app.requester.isInFlight)
+    }
+
     func retry(_ feature: Feature, app: AppState) {
         guard task == nil else { return }
-        let ids: [String]
-        switch feature {
-        case .recruiting: ids = ["user.recruiting"]
-        case .stocks: ids = ["user.stocksv2", "torn.stocksv2"]
-        case .competition: ids = ["user.competition", "torn.elimination", "torn.calendar", "user.calendar"]
-        case .trades: ids = ["user.trades"]
-        case .shops: ids = ["torn.items"]
-        }
-        for id in ids where due(id, seconds: 30, now: app.time.now) { lastAttempt[id] = nil }
+        // A refresh within thirty seconds of the last read just waits for that read.
+        app.requester.makeDue(feature.endpointIDs.filter { app.requester.isDue($0, every: 30) })
+        if feature == .shops { shopsLoadedAt = nil }
         start(app: app)
     }
 
     private func refresh(app: AppState) async {
         let token = generation
+        let requester = app.requester
         func active(_ feature: Feature) -> Bool {
             token == generation && !Task.isCancelled && enabled.contains(feature)
         }
-        if active(.recruiting), app.organizedCrime == nil,
-           due("user.recruiting", seconds: 300, now: app.time.now) {
-            if let value: RecruitingResponse = await request("user.recruiting", app: app) {
-                recruiting = value.organizedcrimes
-                let fresh = newlyAvailable(Set(eligibleSlots.map { "\($0.crime.id):\($0.slot.positionInfo.id)" }), feature: .recruiting)
-                if alerts.contains(.recruiting), !fresh.isEmpty {
-                    notify("Open OC slots", "\(fresh.count) new slots meet your CPR filter.", type: .ocOpportunity)
-                }
+        if active(.recruiting), app.organizedCrime == nil, requester.isDue("user.recruiting"),
+           let value: RecruitingResponse = await request("user.recruiting", app: app) {
+            recruiting = value.organizedcrimes
+            let fresh = newlyAvailable(Set(eligibleSlots.map { "\($0.crime.id):\($0.slot.positionInfo.id)" }), feature: .recruiting)
+            if alerts.contains(.recruiting), !fresh.isEmpty {
+                notifier.send(title: "Open OC slots", body: "\(fresh.count) new slots meet your CPR filter.", type: .ocOpportunity)
             }
         }
         if active(.stocks) {
-            if due("torn.stocksv2", seconds: 300, now: app.time.now),
+            if requester.isDue("torn.stocksv2"),
                let value: StockReferencesResponse = await request("torn.stocksv2", app: app) {
                 stockReferences = value.stocks
             }
-            if active(.stocks), due("user.stocksv2", seconds: 300, now: app.time.now),
+            if active(.stocks), requester.isDue("user.stocksv2"),
                let value: StocksV2Response = await request("user.stocksv2", app: app) {
                 stocks = value.stocks
                 let fresh = newlyAvailable(Set(stocks.filter { $0.bonus.available }.map { String($0.id) }), feature: .stocks)
                 if alerts.contains(.stocks), !fresh.isEmpty {
-                    notify("Stock bonus ready", "\(fresh.count) stock bonuses can be collected in Torn.", type: .stockBonus)
+                    notifier.send(title: "Stock bonus ready", body: "\(fresh.count) stock bonuses can be collected in Torn.", type: .stockBonus)
                 }
             }
         }
         if active(.competition) {
+            // Elimination changes by the minute; other competitions slowly; none rarely.
             let cadence: TimeInterval = competition.map { $0.isElimination ? 60 : 300 } ?? 3600
-            if due("user.competition", seconds: cadence, now: app.time.now) {
+            if requester.isDue("user.competition", every: cadence) {
                 if let value: CompetitionResponse = await request("user.competition", app: app) {
                     competition = value.competition
                     if competition?.isElimination != true { teams = [] }
-                } else if notAvailable["user.competition"] == 33 {
+                } else if notAvailable["user.competition"] == Self.noCompetitionCode {
                     competition = nil; teams = []
                 }
             }
         }
-        if active(.competition), competition?.isElimination == true,
-           due("torn.elimination", seconds: 60, now: app.time.now) {
+        if active(.competition), competition?.isElimination == true, requester.isDue("torn.elimination") {
             if let value: EliminationResponse = await request("torn.elimination", app: app) {
                 teams = value.elimination.sorted { $0.position < $1.position }
-            } else if notAvailable["torn.elimination"] == 33 {
+            } else if notAvailable["torn.elimination"] == Self.noCompetitionCode {
                 competition = nil; teams = []
             }
         }
-        if active(.competition), due("torn.calendar", seconds: 21600, now: app.time.now),
+        if active(.competition), requester.isDue("torn.calendar"),
            let value: TornCalendarResponse = await request("torn.calendar", app: app) {
             calendarActivities = value.calendar.competitions.map { ($0, true) } + value.calendar.events.map { ($0, false) }
         }
         // Optional: without it non-fixed events just keep the 00:00 TCT start.
-        if active(.competition), due("user.calendar", seconds: 21600, now: app.time.now),
+        if active(.competition), requester.isDue("user.calendar"),
            let value: UserCalendarResponse = await request("user.calendar", app: app) {
             calendarStartTime = value.calendar.startTime
         }
-        if active(.trades), due("user.trades", seconds: 120, now: app.time.now),
+        if active(.trades), requester.isDue("user.trades"),
            let value: TradesResponse = await request("user.trades", app: app) {
             let current = Dictionary(value.trades.map { ($0.id, $0.signature) }, uniquingKeysWith: { _, new in new })
             if let previousTrades, alerts.contains(.trades), previousTrades != current {
-                notify("Trades changed", "Your active trades have changed. Open Torn to review them.", type: .tradeChanged)
+                notifier.send(title: "Trades changed", body: "Your active trades have changed. Open Torn to review them.", type: .tradeChanged)
             }
             previousTrades = current
             trades = value.trades
             tradeDetails = [:] // Details are point-in-time; refetch after trade changes.
         }
-        if active(.shops), due("torn.items", seconds: 604800, now: app.time.now) {
-            let identity = app.accountSession.identity
-            lastAttempt["torn.items"] = app.time.now
-            loading.insert("torn.shops")
-            let result = await app.shopCatalogRefreshingIfNeeded()
-            guard active(.shops), app.accountSession.isCurrent(identity) else { return }
-            switch result {
-            case .success(let value):
-                shops = value
-                loading.remove("torn.shops")
-                fetchedAt["torn.shops"] = app.time.now
-                errors["torn.shops"] = nil
-            case .pending(let value):
-                shops = value
-                // Keep the shared-catalog spinner truthful until a later tick observes
-                // the coalesced request or retry as complete.
-                lastAttempt["torn.items"] = nil
-            case .denied(let message, let value):
-                shops = value
-                loading.remove("torn.shops")
-                errors["torn.shops"] = message
-                lastAttempt["torn.items"] = nil
-            case .failed(let value):
-                shops = value
-                loading.remove("torn.shops")
-                errors["torn.shops"] = "Could not refresh the item catalog. Previous shop data may be out of date."
-                lastAttempt["torn.items"] = nil
-            }
+        if active(.shops), shopsLoadedAt.map({ app.time.now.timeIntervalSince($0) >= Self.shopCatalogCadence }) ?? true {
+            await refreshShops(app: app, isActive: { active(.shops) })
+        }
+    }
+
+    /// The shop module reads the same public catalogue (and cache) as item-name search,
+    /// so a fresh catalogue never costs a second full download.
+    private func refreshShops(app: AppState, isActive: () -> Bool) async {
+        let identity = app.accountSession.identity
+        shopsLoadedAt = app.time.now
+        let result = await app.shopCatalogRefreshingIfNeeded()
+        guard isActive(), app.accountSession.isCurrent(identity) else { return }
+        switch result {
+        case .success(let value):
+            shops = value
+            fetchedAt["torn.items"] = app.time.now
+            errors["torn.items"] = nil
+        case .pending(let value):
+            shops = value
+            // Ask again next tick, so the module notices when the shared request lands.
+            shopsLoadedAt = nil
+        case .denied(let message, let value):
+            shops = value
+            errors["torn.items"] = message
+            shopsLoadedAt = nil
+        case .failed(let value):
+            shops = value
+            errors["torn.items"] = "Could not refresh the item catalog. Previous shop data may be out of date."
+            shopsLoadedAt = nil
         }
     }
 
@@ -226,18 +255,14 @@ final class CompanionStore {
         return calendarActivities.map { CalendarEntry($0.activity, isCompetition: $0.isCompetition, personalOffset: offset) }
     }
 
-    private func notify(_ title: String, _ body: String, type: NotificationType) {
-        notifier.send(title: title, body: body, type: type)
-    }
-
     func request<Value: Decodable>(_ id: String, app: AppState) async -> Value? {
         await load(id, app: app) { data, _ in try? JSONDecoder().decode(Value.self, from: data) }
     }
 
-    /// All optional reads use existing health/error handling and the global budget.
-    private func load<Value>(_ id: String, app: AppState, to: Int? = nil,
-                             parameter: Int? = nil, parse: @escaping @Sendable (Data, [String: Any]) -> Value?) async -> Value? {
-        guard !Task.isCancelled, !loading.contains(id) else { return nil }
+    private func load<Value>(_ id: String, app: AppState, to: Int? = nil, parameter: Int? = nil,
+                             parse: @escaping @Sendable (Data, [String: Any]) -> Value?) async -> Value? {
+        let requester = app.requester
+        guard !Task.isCancelled, !requester.isInFlight(id) else { return nil }
         guard !app.apiKey.isEmpty, !app.keyHalted else {
             errors[id] = "Connect a valid API key in Settings to load this data."
             return nil
@@ -246,60 +271,39 @@ final class CompanionStore {
             errors[id] = "No internet connection. Reconnect and try again."
             return nil
         }
-        if let denial = app.endpointGate.denial(for: id, keyInfo: app.keyInfo, coordinator: app.pollingCoordinator) {
+        if let denial = requester.denial(id) {
             errors[id] = denial.userExplanation
             return nil
         }
-        guard let base = app.endpointURL(id, parameter: parameter) else {
+        guard requester.url(id, parameter: parameter) != nil else {
             errors[id] = "This data is unavailable with your current API key. Check Settings."
             return nil
         }
-        guard app.reserveRequest(id) else { return nil }
-        var components = URLComponents(url: base, resolvingAgainstBaseURL: false)!
-        if let to { components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "to", value: String(to))] }
-        guard let url = components.url else { return nil }
-        let identity = app.accountSession.identity
         let token = generation
-        let started = app.time.now
-        loading.insert(id)
-        lastAttempt[id] = started
-        defer { if generation == token { loading.remove(id) } }
-        do {
-            let result = try await TornAPIClient.loadJSON(from: url, session: app.session, decode: parse)
-            guard !Task.isCancelled, generation == token, app.accountSession.isCurrent(identity) else { return nil }
-            switch result {
-            case .success(let value, let bytes):
-                fetchedAt[id] = app.time.now
-                errors[id] = nil
-                notAvailable[id] = nil
-                app.endpointGate.noteSuccess(for: id)
-                app.recordHealth(id, outcome: .ok, since: started, bytes: bytes)
-                return value
-            case .apiError(let error, let bytes) where error.classification == .notAvailable:
-                // Healthy endpoint, nothing to serve: no error string, no failure record.
-                errors[id] = nil
-                notAvailable[id] = error.tornCode
-                fetchedAt[id] = app.time.now
-                app.endpointGate.noteSuccess(for: id)
-                app.recordHealth(id, outcome: .ok, since: started, bytes: bytes)
-                return nil
-            case .apiError(let error, _): errors[id] = error.userMessage
-            case .httpError(let code, _): errors[id] = "Server error (HTTP \(code)). Try again later."
-            case .malformed: errors[id] = "Torn returned an unexpected response. Previous data may be out of date."
-            }
-            app.recordServiceFailure(result, for: id, since: started)
-        } catch {
-            guard !Task.isCancelled, generation == token, app.accountSession.isCurrent(identity) else { return nil }
-            errors[id] = "Could not connect to Torn. Try again."
-            app.recordHealth(id, outcome: .error, since: started, bytes: 0, errorClass: "transport")
+        let query = to.map { [URLQueryItem(name: "to", value: String($0))] } ?? []
+        let result = await requester.fetch(id, parameter: parameter, query: query, decode: parse)
+        guard generation == token else { return nil }
+        switch result {
+        case .loaded(let value):
+            fetchedAt[id] = app.time.now
+            errors[id] = nil
+            notAvailable[id] = nil
+            return value
+        case .nothingToServe(let code):
+            errors[id] = nil
+            notAvailable[id] = code
+            fetchedAt[id] = app.time.now
+            return nil
+        case .failed(let failure):
+            errors[id] = failure.userMessage
+            return nil
+        case .skipped, .superseded:
+            return nil
         }
-        // Long-lived lookups retry after a short delay on failure, not a whole week.
-        lastAttempt[id] = app.time.now
-        return nil
     }
 
     func loadTrade(_ tradeID: Int, app: AppState) async {
-        guard enabled.contains(.trades), !loading.contains("user.trade") else { return }
+        guard enabled.contains(.trades) else { return }
         guard let detail: TradeDetailResponse = await load("user.trade", app: app, parameter: tradeID, parse: { data, _ in
             try? JSONDecoder().decode(TradeDetailResponse.self, from: data)
         }) else { return }

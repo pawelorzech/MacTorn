@@ -38,6 +38,7 @@ extension TornEndpointRegistry {
                      cadence: id.hasPrefix("faction.") ? "On demand" : "Opt-in; at least \(Int(seconds))s between background reads",
                      dataShape: rows == nil ? .pointInTime : .rowBased, recordLimit: rows,
                      sendsLimitQuery: rows != nil, budget: budget,
-                     critical: false, requiredCapabilities: [capability], requiresFaction: faction)
+                     critical: false, requiredCapabilities: [capability], requiresFaction: faction,
+                     minimumInterval: seconds)
     }
 }

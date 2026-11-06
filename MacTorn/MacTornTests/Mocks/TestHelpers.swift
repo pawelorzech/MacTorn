@@ -157,3 +157,11 @@ final class RecordingNotifier: Notifying {
     func cancelPending(identifiers: [String]) { cancelled.append(identifiers) }
     func play(_ sound: NotificationSound) { sounds.append(sound) }
 }
+
+/// The selections a v2 user URL asks for, as the app's request would carry them.
+func userV2Selections(_ url: URL) -> Set<String> {
+    URLComponents(url: url, resolvingAgainstBaseURL: false)?
+        .queryItems?.first { $0.name == "selections" }?.value
+        .map { Set($0.split(separator: ",").map(String.init)) }
+        ?? Set(TornEndpointRegistry.endpoint(id: "user.v2")?.selections ?? [])
+}

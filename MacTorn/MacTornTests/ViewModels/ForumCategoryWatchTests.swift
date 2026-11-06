@@ -20,8 +20,7 @@ final class ForumCategoryWatchTests: XCTestCase {
     private let category = 4
 
     private func makeService(watching categoryID: Int? = 4) -> ForumWatchService {
-        let service = ForumWatchService(defaults: UserDefaults.createMockDefaults(),
-                                        session: MockNetworkSession())
+        let service = ForumWatchService(defaults: UserDefaults.createMockDefaults())
         service.config.factionForumCategoryId = categoryID
         return service
     }
@@ -147,11 +146,11 @@ final class ForumCategoryWatchTests: XCTestCase {
 
     func testSeenThreadsSurviveARestart() {
         let defaults = UserDefaults.createMockDefaults()
-        let first = ForumWatchService(defaults: defaults, session: MockNetworkSession())
+        let first = ForumWatchService(defaults: defaults)
         first.config.factionForumCategoryId = category
         first.applyCategory(threads([1, 2]), for: category)
 
-        let second = ForumWatchService(defaults: defaults, session: MockNetworkSession())
+        let second = ForumWatchService(defaults: defaults)
         second.load()
         XCTAssertEqual(Set(second.config.seenFactionThreadIds), [1, 2])
         XCTAssertEqual(second.applyCategory(threads([1, 2, 3]), for: category).map(\.id), [3],
@@ -210,8 +209,8 @@ final class ForumCategoryWatchTests: XCTestCase {
     /// re-announcing the tail every poll forever.
     func testAnOversizedListingIsCappedFarBelowTheSeenListCeiling() async throws {
         let rows = (1...5_000).map { ["id": $0, "title": "Thread \($0)"] }
-        let service = try respond(["threads": rows])
-        guard case .success(let threads, _) = try await service.fetchCategoryThreads(from: url()) else {
+        let session = try respond(["threads": rows])
+        guard case .success(let threads, _) = try await TornAPIClient.loadJSON(from: url(), session: session, decode: ForumWatchService.decodeCategoryThreads) else {
             return XCTFail("expected success")
         }
         XCTAssertEqual(threads.count, ForumWatchService.maximumThreadsPerListing)
@@ -275,26 +274,24 @@ final class ForumCategoryWatchTests: XCTestCase {
 
     // MARK: - Decoding
 
-    private func respond(_ object: [String: Any], statusCode: Int = 200) throws -> ForumWatchService {
+    private func respond(_ object: [String: Any], statusCode: Int = 200) throws -> MockNetworkSession {
         let session = MockNetworkSession()
         try session.setSuccessResponse(json: object)
         if statusCode != 200 {
             session.mockResponse = HTTPURLResponse(url: url(), statusCode: statusCode,
                                                    httpVersion: nil, headerFields: nil)
         }
-        let service = ForumWatchService(defaults: UserDefaults.createMockDefaults(), session: session)
-        service.config.factionForumCategoryId = category
-        return service
+        return session
     }
 
     private func url() -> URL { URL(string: "https://api.torn.com/v2/forum/4/threads")! }
 
     func testDecodesTheSpecShape() async throws {
-        let service = try respond(["threads": [
+        let session = try respond(["threads": [
             ["id": 16_532_308, "title": "Raid tonight", "posts": 12],
             ["id": 16_532_309, "title": "Recruitment", "posts": 3],
         ]])
-        guard case .success(let threads, _) = try await service.fetchCategoryThreads(from: url()) else {
+        guard case .success(let threads, _) = try await TornAPIClient.loadJSON(from: url(), session: session, decode: ForumWatchService.decodeCategoryThreads) else {
             return XCTFail("expected success")
         }
         XCTAssertEqual(threads.map(\.id), [16_532_308, 16_532_309])
@@ -302,12 +299,12 @@ final class ForumCategoryWatchTests: XCTestCase {
     }
 
     func testOneUnusableRowDoesNotCostTheRestOfTheListing() async throws {
-        let service = try respond(["threads": [
+        let session = try respond(["threads": [
             ["title": "No id"],
             ["id": 5, "title": "Fine"],
             ["id": 6],
         ]])
-        guard case .success(let threads, _) = try await service.fetchCategoryThreads(from: url()) else {
+        guard case .success(let threads, _) = try await TornAPIClient.loadJSON(from: url(), session: session, decode: ForumWatchService.decodeCategoryThreads) else {
             return XCTFail("expected success")
         }
         XCTAssertEqual(threads.map(\.id), [5, 6])
@@ -318,17 +315,17 @@ final class ForumCategoryWatchTests: XCTestCase {
     /// Titles reach the persisted `forumWatchedThreads` blob, so they get the same cap a
     /// typed watchlist name does.
     func testTitlesAreCappedBeforeTheyCanBePersisted() async throws {
-        let service = try respond(["threads": [["id": 1,
+        let session = try respond(["threads": [["id": 1,
                                                 "title": String(repeating: "A", count: 10_000)]]])
-        guard case .success(let threads, _) = try await service.fetchCategoryThreads(from: url()) else {
+        guard case .success(let threads, _) = try await TornAPIClient.loadJSON(from: url(), session: session, decode: ForumWatchService.decodeCategoryThreads) else {
             return XCTFail("expected success")
         }
         XCTAssertEqual(threads.first?.title.count, WatchlistItem.maximumNameLength)
     }
 
     func testAnErrorEnvelopeIsClassifiedNotTreatedAsAnEmptyCategory() async throws {
-        let service = try respond(["code": 5, "error": "Too many requests"])
-        guard case .apiError(let error, _) = try await service.fetchCategoryThreads(from: url()) else {
+        let session = try respond(["code": 5, "error": "Too many requests"])
+        guard case .apiError(let error, _) = try await TornAPIClient.loadJSON(from: url(), session: session, decode: ForumWatchService.decodeCategoryThreads) else {
             return XCTFail("expected an API error")
         }
         XCTAssertEqual(error.classification, .rateLimit)
@@ -337,15 +334,15 @@ final class ForumCategoryWatchTests: XCTestCase {
     /// Reading a missing `threads` array as "no threads" would seed an empty set and then
     /// announce the whole category on the next successful call.
     func testAMissingThreadsArrayIsMalformedNotEmpty() async throws {
-        let service = try respond(["unexpected": true])
-        guard case .malformed = try await service.fetchCategoryThreads(from: url()) else {
+        let session = try respond(["unexpected": true])
+        guard case .malformed = try await TornAPIClient.loadJSON(from: url(), session: session, decode: ForumWatchService.decodeCategoryThreads) else {
             return XCTFail("expected malformed")
         }
     }
 
     func testNon200IsReportedAsAnHTTPError() async throws {
-        let service = try respond(["threads": []], statusCode: 503)
-        guard case .httpError(let statusCode, _) = try await service.fetchCategoryThreads(from: url()) else {
+        let session = try respond(["threads": []], statusCode: 503)
+        guard case .httpError(let statusCode, _) = try await TornAPIClient.loadJSON(from: url(), session: session, decode: ForumWatchService.decodeCategoryThreads) else {
             return XCTFail("expected an HTTP error")
         }
         XCTAssertEqual(statusCode, 503)
