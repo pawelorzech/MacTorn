@@ -197,9 +197,9 @@ final class DiagnosticsTests: XCTestCase {
     }
 
     func testEnvironmentProbesAreNonEmpty() {
-        XCTAssertFalse(DiagnosticsEnvironment.appVersion.isEmpty)
-        XCTAssertFalse(DiagnosticsEnvironment.osVersion.isEmpty)
-        XCTAssertTrue(["arm64", "x86_64", "unknown"].contains(DiagnosticsEnvironment.architecture))
+        XCTAssertFalse(BuildInfo.appVersion.isEmpty)
+        XCTAssertFalse(BuildInfo.osVersion.isEmpty)
+        XCTAssertTrue(["arm64", "x86_64", "unknown"].contains(BuildInfo.architecture))
     }
 
     // MARK: Module presentation state

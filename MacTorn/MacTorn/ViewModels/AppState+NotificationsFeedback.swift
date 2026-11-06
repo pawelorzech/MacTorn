@@ -179,10 +179,8 @@ extension AppState {
     // MARK: - Updates
 
     func checkForAppUpdates() {
-        guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else { return }
-
         updateCheckTask = Task {
-            if let release = await updateManager.checkForUpdates(currentVersion: currentVersion) {
+            if let release = await updateManager.checkForUpdates(currentVersion: BuildInfo.appVersion) {
                 await MainActor.run {
                     self.updateAvailable = release
                 }

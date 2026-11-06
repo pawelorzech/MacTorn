@@ -54,11 +54,12 @@ private enum SettingsFocus: Hashable {
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
-    @AppStorage("appearanceMode") private var appearanceMode: String = AppearanceMode.system.rawValue
-    @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
-    @AppStorage("preferredBrowser") private var preferredBrowser: String = PreferredBrowser.system.rawValue
-    @AppStorage("boosterCooldownTarget") private var boosterCooldownTarget: String = "boosters"
-    @AppStorage("privateIsland") private var privateIsland: Bool = false
+    @AppStorage(StoredPreference.appearanceMode) private var appearanceMode: AppearanceMode = .system
+    @AppStorage(StoredPreference.reduceTransparency) private var reduceTransparencyOverride: Bool = false
+    @Environment(\.reduceTransparency) private var reduceTransparency
+    @AppStorage(StoredPreference.preferredBrowser) private var preferredBrowser: String = PreferredBrowser.system.rawValue
+    @AppStorage(StoredPreference.boosterCooldownTarget) private var boosterCooldownTarget: BoosterCooldownTarget = .boosters
+    @AppStorage(StoredPreference.privateIsland) private var privateIsland: Bool = false
     @AppStorage(SentryManager.enabledKey) private var sentryEnabled: Bool = false
     @State private var inputKey: String = ""
     @State private var showCredits = false
@@ -436,7 +437,7 @@ struct SettingsView: View {
 
             Picker("Appearance", selection: $appearanceMode) {
                 ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode.rawValue)
+                    Text(mode.rawValue).tag(mode)
                 }
             }
             .pickerStyle(.segmented)
@@ -449,8 +450,9 @@ struct SettingsView: View {
             .pickerStyle(.menu)
 
             Picker("Booster cooldown link", selection: $boosterCooldownTarget) {
-                Text("Boosters").tag("boosters")
-                Text("Alcohol").tag("alcohol")
+                ForEach(BoosterCooldownTarget.allCases, id: \.self) { target in
+                    Text(target.title).tag(target)
+                }
             }
             .pickerStyle(.segmented)
 
@@ -462,7 +464,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Toggle("Always reduce transparency", isOn: $reduceTransparency)
+            Toggle("Always reduce transparency", isOn: $reduceTransparencyOverride)
                 .toggleStyle(.switch)
                 .help("MacTorn already follows System Settings → Accessibility → "
                       + "Display → Reduce transparency. Turn this on to use solid "
@@ -536,11 +538,9 @@ struct SettingsView: View {
                 .controlSize(.small)
             }
 
-            if let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
-                Text("MacTorn v\(version)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
+            Text("MacTorn v\(BuildInfo.appVersion)")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 

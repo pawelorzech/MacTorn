@@ -23,6 +23,15 @@ enum SentryManager {
         UserDefaults.standard.bool(forKey: enabledKey)
     }
 
+    /// The opt-in prompt is offered once per app version, and never once crash reporting is on.
+    static var isPromptDue: Bool {
+        !isEnabled && UserDefaults.standard.string(forKey: promptShownKey) != BuildInfo.appVersion
+    }
+
+    static func markPromptShown() {
+        UserDefaults.standard.set(BuildInfo.appVersion, forKey: promptShownKey)
+    }
+
     /// Call once at app launch. Starts the SDK only if the user has opted in.
     static func startIfEnabled() {
         guard shouldStart(isEnabled: isEnabled, isUITesting: UITestConfiguration.isIsolated) else {
@@ -48,7 +57,7 @@ enum SentryManager {
         guard !isStarted else { return }
         isStarted = true
 
-        let release = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let release = BuildInfo.appVersion
 
         SentrySDK.start { options in
             configure(options, release: release, environment: Self.environment())

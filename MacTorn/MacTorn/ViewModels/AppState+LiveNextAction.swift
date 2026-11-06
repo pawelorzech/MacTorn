@@ -181,10 +181,10 @@ extension AppState {
         }
         let suppressions = currentEndpointSuppressions()
         return DiagnosticsReport(
-            appVersion: DiagnosticsEnvironment.appVersion,
-            build: DiagnosticsEnvironment.build,
-            osVersion: DiagnosticsEnvironment.osVersion,
-            architecture: DiagnosticsEnvironment.architecture,
+            appVersion: BuildInfo.appVersion,
+            build: BuildInfo.build,
+            osVersion: BuildInfo.osVersion,
+            architecture: BuildInfo.architecture,
             isOnline: connectivity.isConnected,
             notificationPermission: notif,
             lastSuccessfulRefresh: lastUpdated,

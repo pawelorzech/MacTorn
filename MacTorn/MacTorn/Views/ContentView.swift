@@ -425,8 +425,7 @@ struct ContentView: View {
 
     private func handleEscape() {
         if showSentryOptIn {
-            let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-            UserDefaults.standard.set(version, forKey: SentryManager.promptShownKey)
+            SentryManager.markPromptShown()
             showSentryOptIn = false
             return
         }
@@ -450,9 +449,7 @@ struct ContentView: View {
     private func checkSentryOptInPrompt() {
         guard !UITestConfiguration.isIsolated else { return }
         guard !appState.apiKey.isEmpty else { return }
-        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        let shownFor = UserDefaults.standard.string(forKey: SentryManager.promptShownKey) ?? ""
-        if shownFor != currentVersion && !SentryManager.isEnabled {
+        if SentryManager.isPromptDue {
             showSentryOptIn = true
         }
     }

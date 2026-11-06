@@ -530,7 +530,7 @@ final class UITestAppDelegate: NSObject, NSApplicationDelegate {
 /// window, so a normal Debug launch is unaffected.
 struct UITestRootView: View {
     let appState: AppState
-    @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
+    let navigation: AppNavigationState
 
     var body: some View {
         Group {
@@ -539,8 +539,7 @@ struct UITestRootView: View {
                 // to every descendant in AppKit-backed SwiftUI and shadows the per-element
                 // ids the tests rely on. The window itself is the query root instead.
                 ContentView()
-                    .environment(appState)
-                    .environment(\.reduceTransparency, reduceTransparency)
+                    .macTornRoot(appState, navigation: navigation)
                     .frame(width: 320, height: UITestConfiguration.windowHeight)
             } else {
                 EmptyView()

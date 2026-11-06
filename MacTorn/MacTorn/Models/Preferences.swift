@@ -1,5 +1,31 @@
 import Foundation
 
+/// UserDefaults keys that more than one type reads (`@AppStorage` in views, direct reads
+/// elsewhere). A key that only one type touches stays private to that type.
+enum StoredPreference {
+    static let appearanceMode = "appearanceMode"
+    static let reduceTransparency = "reduceTransparency"
+    static let preferredBrowser = "preferredBrowser"
+    static let boosterCooldownTarget = "boosterCooldownTarget"
+    static let privateIsland = "privateIsland"
+}
+
+enum AppearanceMode: String, CaseIterable {
+    case system = "System"
+    case light = "Light"
+    case dark = "Dark"
+}
+
+/// Which items page the booster cooldown links to: some players reset it with alcohol.
+enum BoosterCooldownTarget: String, CaseIterable {
+    case boosters
+    case alcohol
+
+    var title: String { rawValue.capitalized }
+    var actionLabel: String { self == .alcohol ? "Use Alcohol →" : "Use Booster →" }
+    var itemsURL: URL { TornLink.page("item.php#\(rawValue)-items") }
+}
+
 // MARK: - Travel Notification Settings
 struct TravelNotificationSetting: Codable, Identifiable, Equatable {
     let id: String

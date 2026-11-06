@@ -115,7 +115,7 @@ final class BrowserManager {
     func open(_ url: URL) {
         guard Self.isWebURL(url) else { return }
 
-        let preference = PreferredBrowser(storedValue: UserDefaults.standard.string(forKey: "preferredBrowser"))
+        let preference = PreferredBrowser(storedValue: UserDefaults.standard.string(forKey: StoredPreference.preferredBrowser))
         guard let appURL = preference.installedApplicationURL else {
             NSWorkspace.shared.open(url)
             return

@@ -3,7 +3,7 @@ import SwiftUI
 struct StatusView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
-    @AppStorage("boosterCooldownTarget") private var boosterCooldownTarget: String = "boosters"
+    @AppStorage(StoredPreference.boosterCooldownTarget) private var boosterCooldownTarget: BoosterCooldownTarget = .boosters
 
     var body: some View {
         ScrollView {
@@ -278,10 +278,8 @@ struct StatusView: View {
     private func cooldownsSection(_ cooldowns: Cooldowns) -> some View {
         let drugURL = TornLink.page("item.php#drugs-items")
         let medicalURL = TornLink.page("item.php#medical-items")
-        let boosterURL = boosterCooldownTarget == "alcohol"
-            ? TornLink.page("item.php#alcohol-items")
-            : TornLink.page("item.php#boosters-items")
-        let boosterLabel = boosterCooldownTarget == "alcohol" ? "Use Alcohol →" : "Use Booster →"
+        let boosterURL = boosterCooldownTarget.itemsURL
+        let boosterLabel = boosterCooldownTarget.actionLabel
 
         return VStack(alignment: .leading, spacing: 8) {
             Divider()

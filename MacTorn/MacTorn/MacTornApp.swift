@@ -4,11 +4,6 @@ import SwiftUI
 struct MacTornApp: App {
     @State private var appState: AppState
     @State private var navigation = AppNavigationState()
-    @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
-    /// In-app override. The *effective* value also honours the macOS system setting —
-    /// see `TransparencyPolicy`.
-    @AppStorage("reduceTransparency") private var reduceTransparency: Bool = false
-    @State private var systemAccessibility = SystemAccessibilitySettings()
 
     #if DEBUG
     // Promotes the accessory app to a regular window when launched under `--uitesting`,
@@ -42,13 +37,7 @@ struct MacTornApp: App {
         #endif
         WindowGroup("MacTorn", id: "widget") {
             ContentView()
-                .environment(appState)
-                .environment(navigation)
-                .environment(\.reduceTransparency,
-                              TransparencyPolicy.effective(system: systemAccessibility.reduceTransparency,
-                                                           userOverride: reduceTransparency))
-                .onAppear { updateAppearance() }
-                .onChange(of: appearanceModeRaw) { _, _ in updateAppearance() }
+                .macTornRoot(appState, navigation: navigation)
                 .handlesExternalEvents(preferring: ["mactorn"], allowing: ["mactorn"])
                 .onOpenURL { url in
                     guard url.scheme == "mactorn" else { return }
@@ -61,18 +50,7 @@ struct MacTornApp: App {
         MenuBarExtra {
             ContentView()
                 .frame(height: 640)
-                .environment(appState)
-                .environment(navigation)
-                .environment(\.reduceTransparency,
-                              TransparencyPolicy.effective(
-                                system: systemAccessibility.reduceTransparency,
-                                userOverride: reduceTransparency))
-                .onAppear {
-                    updateAppearance()
-                }
-                .onChange(of: appearanceModeRaw) { _, _ in
-                    updateAppearance()
-                }
+                .macTornRoot(appState, navigation: navigation)
         } label: {
             MenuBarLabel(appState: appState)
         }
@@ -95,23 +73,10 @@ struct MacTornApp: App {
     // window on a normal (non-UI-test) Debug launch, so it is invisible outside UI tests.
     private var uiTestWindow: some Scene {
         WindowGroup("MacTorn UI Tests", id: "uitest-window") {
-            UITestRootView(appState: appState)
-                .environment(navigation)
+            UITestRootView(appState: appState, navigation: navigation)
         }
     }
     #endif
-
-    private func updateAppearance() {
-        let mode = AppearanceMode(rawValue: appearanceModeRaw) ?? .system
-        switch mode {
-        case .system:
-            NSApp.appearance = nil
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            NSApp.appearance = NSAppearance(named: .darkAqua)
-        }
-    }
 }
 
 /// Native macOS command menu. The popover also exposes the same actions in its visible
@@ -164,6 +129,7 @@ struct MenuBarLabel: View {
     // would also work since SwiftUI tracks property reads in body for @Observable
     // types, but @Bindable keeps the call-site identical to before.
     @Bindable var appState: AppState
+    @AppStorage(StoredPreference.privateIsland) private var hasPrivateIsland = false
 
     #if DEBUG
     @Environment(\.openWindow) private var openWindow
@@ -173,9 +139,9 @@ struct MenuBarLabel: View {
         Group {
             switch appState.menuBarDisplay {
             case .traveling(let destination, let seconds):
-                Text("✈️\(Self.flag(for: destination))\(Self.formatShortTime(seconds))")
+                Text("✈️\(flag(for: destination))\(Self.formatShortTime(seconds))")
             case .hospitalAbroad(let destination, let seconds):
-                Text("🏥\(Self.flag(for: destination))\(Self.formatShortTime(seconds))")
+                Text("🏥\(flag(for: destination))\(Self.formatShortTime(seconds))")
             case .hospitalAtHome(let seconds):
                 Text("🏥\(Self.formatShortTime(seconds))")
             case .jail(let seconds):
@@ -183,7 +149,7 @@ struct MenuBarLabel: View {
             case .cooldown(let kind, let seconds):
                 Text("\(kind.emoji)\(Self.formatShortTime(seconds))")
             case .fallbackIcon:
-                Image(systemName: menuBarIcon)
+                Image(systemName: idleState.icon)
             }
         }
         .transaction { $0.animation = nil }
@@ -203,51 +169,48 @@ struct MenuBarLabel: View {
         #endif
     }
 
-    /// The fallback icon itself encodes state (error / abroad / energy full), so speak
-    /// that state rather than the generic "no active timer". Derived from `menuBarIcon`
-    /// so the spoken label can never disagree with the glyph on screen.
-    private var accessibilityText: String {
-        guard case .fallbackIcon = appState.menuBarDisplay else {
-            return appState.menuBarDisplay.accessibilityDescription
-        }
-        switch menuBarIcon {
-        case "exclamationmark.triangle.fill":
-            return "MacTorn — error, open for details"
-        case "globe":
-            return "MacTorn — abroad"
-        case "bolt.fill":
-            return "MacTorn — energy full"
-        default:
-            return appState.menuBarDisplay.accessibilityDescription
-        }
-    }
+    /// With no timer running, the icon still says something: an error, being abroad, or
+    /// full energy. Glyph and spoken text come from the same case.
+    private enum IdleState {
+        case error, abroad, energyFull, idle
 
-    private var menuBarIcon: String {
-        // Error state
-        if appState.errorMsg != nil {
-            return "exclamationmark.triangle.fill"
-        }
-
-        // Abroad state
-        if let travel = appState.data?.travel, travel.isAbroad {
-            return "globe"
-        }
-
-        // Energy full state
-        if let bars = appState.data?.bars {
-            if bars.energy.current >= bars.energy.maximum {
-                return "bolt.fill"
+        var icon: String {
+            switch self {
+            case .error: return "exclamationmark.triangle.fill"
+            case .abroad: return "globe"
+            case .energyFull: return "bolt.fill"
+            case .idle: return "bolt"
             }
         }
 
-        // Default
-        return "bolt"
+        var spoken: String? {
+            switch self {
+            case .error: return "MacTorn — error, open for details"
+            case .abroad: return "MacTorn — abroad"
+            case .energyFull: return "MacTorn — energy full"
+            case .idle: return nil
+            }
+        }
+    }
+
+    private var idleState: IdleState {
+        if appState.errorMsg != nil { return .error }
+        if let travel = appState.data?.travel, travel.isAbroad { return .abroad }
+        if let energy = appState.data?.bars?.energy, energy.current >= energy.maximum { return .energyFull }
+        return .idle
+    }
+
+    private var accessibilityText: String {
+        guard case .fallbackIcon = appState.menuBarDisplay, let spoken = idleState.spoken else {
+            return appState.menuBarDisplay.accessibilityDescription
+        }
+        return spoken
     }
 
     /// Presentation-only mapping. `MenuBarDisplay` carries the destination *name*; the
     /// flag glyph is derived here so the model stays speakable (see `MenuBarDisplay`).
-    private static func flag(for destination: String?) -> String {
-        TornDestination.flag(for: destination ?? "?")
+    private func flag(for destination: String?) -> String {
+        TornDestination.flag(for: destination ?? "?", hasPrivateIsland: hasPrivateIsland)
     }
 
     /// Menu-bar label is the one surface where a zero countdown means "0:00" rather than

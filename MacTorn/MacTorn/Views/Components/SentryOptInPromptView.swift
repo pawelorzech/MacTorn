@@ -67,8 +67,7 @@ struct SentryOptInPromptView: View {
     }
 
     private func dismiss() {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        UserDefaults.standard.set(version, forKey: SentryManager.promptShownKey)
+        SentryManager.markPromptShown()
         isPresented = false
     }
 }

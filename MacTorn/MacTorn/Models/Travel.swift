@@ -151,12 +151,11 @@ enum TornDestination: String, CaseIterable, Identifiable {
     }
 
     /// Look up flag emoji for a destination string, including non-enum values like "Torn"
-    static func flag(for destination: String) -> String {
+    static func flag(for destination: String, hasPrivateIsland: Bool) -> String {
         if let known = TornDestination(rawValue: destination) {
             return known.flag
         }
         if destination.lowercased() == "torn" {
-            let hasPrivateIsland = UserDefaults.standard.bool(forKey: "privateIsland")
             return hasPrivateIsland ? "🏝️" : "🏠"
         }
         return "🌍"

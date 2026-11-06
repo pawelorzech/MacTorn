@@ -1338,7 +1338,7 @@ final class AppStateTests: XCTestCase {
         }
         XCTAssertEqual(destination, "Japan")
         // The rendered glyph is derived from the name, so the menu bar still shows the flag.
-        XCTAssertEqual(TornDestination.flag(for: destination ?? ""), "🇯🇵")
+        XCTAssertEqual(TornDestination.flag(for: destination ?? "", hasPrivateIsland: false), "🇯🇵")
         XCTAssertGreaterThan(seconds, 0)
         XCTAssertLessThanOrEqual(seconds, 600)
     }
@@ -1357,7 +1357,7 @@ final class AppStateTests: XCTestCase {
             return XCTFail("Expected .hospitalAbroad, got \(appState.menuBarDisplay)")
         }
         XCTAssertEqual(destination, "Mexico")
-        XCTAssertEqual(TornDestination.flag(for: destination ?? ""), "🇲🇽")
+        XCTAssertEqual(TornDestination.flag(for: destination ?? "", hasPrivateIsland: false), "🇲🇽")
         XCTAssertGreaterThan(seconds, 500)
         XCTAssertLessThanOrEqual(seconds, 600)
     }
