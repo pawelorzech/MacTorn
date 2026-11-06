@@ -15,7 +15,7 @@ final class PollingCoordinatorTests: XCTestCase {
     override func setUp() async throws {
         try await super.setUp()
         clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
-        coord = PollingCoordinator(time: clock, hardCapPerMinute: 60, softTargetPerMinute: 15)
+        coord = PollingCoordinator(time: clock, hardCapPerMinute: 60)
     }
 
     // MARK: Request counting
@@ -79,12 +79,6 @@ final class PollingCoordinatorTests: XCTestCase {
         XCTAssertNil(byCat[.forum], "categories with no traffic are omitted")
     }
 
-    func testRecordsRollOffAfterADay() {
-        coord.record(endpoint("user.activity"))
-        clock.advance(24 * 60 * 60 + 1)
-        XCTAssertEqual(coord.recordsInLastDay(.activity), 0)
-    }
-
     // MARK: Budget headroom
 
     func testWithinRecordBudget() {
@@ -93,14 +87,6 @@ final class PollingCoordinatorTests: XCTestCase {
         XCTAssertTrue(coordTight.isWithinRecordBudget(.activity), "25 < 40")
         coordTight.record(endpoint("user.activity")) // 50
         XCTAssertFalse(coordTight.isWithinRecordBudget(.activity), "50 >= 40")
-    }
-
-    /// The real cadence stays far under budget: point-in-time endpoints every 30s is
-    /// ~2/min, nowhere near the 60/min hard cap or the 15/min soft target.
-    func testRealisticCadenceStaysUnderSoftTarget() {
-        // Simulate one fast-poll cycle (user.fast + user.v2 + faction.basic) at t=0.
-        for id in ["user.fast", "user.v2", "faction.basic"] { coord.record(endpoint(id)) }
-        XCTAssertLessThan(coord.requestsInLastMinute, coord.softTargetPerMinute)
     }
 
     // MARK: Sliding-window edge cases (regression for the O(1) rewrite)

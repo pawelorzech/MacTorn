@@ -2,13 +2,8 @@ import XCTest
 import os.log
 @testable import MacTorn
 
-/// Performance baselines + regression guards for the perf-sensitive paths flagged in
-/// `Plans/performance-optimization-review-unified-clarke.md`. These tests do not assert
-/// absolute timings (they vary across machines); they record a baseline via XCTest's
-/// `measure { }` so future regressions surface as CI failures vs. the recorded baseline.
+/// Live-timer lifecycle and retry back-off regression guards.
 final class AppStatePerformanceTests: XCTestCase {
-
-    // MARK: - Backoff ladder regression
 
     @MainActor
     func testLiveTimerStopsAtDeadlineAndRestartsForNewCooldown() throws {
@@ -54,10 +49,4 @@ final class AppStatePerformanceTests: XCTestCase {
         backoff.succeed()
         XCTAssertTrue(backoff.allows(at: t0))
     }
-}
-
-/// Test connectivity stub: always claims online so AppState code paths run.
-private final class AlwaysOnlineConnectivity: NetworkConnectivity {
-    var isConnected: Bool { true }
-    var onConnectivityRestored: (() -> Void)?
 }

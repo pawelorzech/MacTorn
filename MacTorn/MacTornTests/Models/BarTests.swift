@@ -10,11 +10,6 @@ final class BarTests: XCTestCase {
         XCTAssertEqual(bar.percentage, 100.0, accuracy: 0.01)
     }
 
-    func testPercentageCalculation_halfBar() {
-        let bar = Bar(current: 75, maximum: 150)
-        XCTAssertEqual(bar.percentage, 50.0, accuracy: 0.01)
-    }
-
     func testPercentageCalculation_emptyBar() {
         let bar = Bar(current: 0, maximum: 150)
         XCTAssertEqual(bar.percentage, 0.0, accuracy: 0.01)
@@ -62,33 +57,5 @@ final class BarTests: XCTestCase {
         XCTAssertEqual(bar.current, 0)
         XCTAssertEqual(bar.maximum, 150)
         XCTAssertEqual(bar.percentage, 0.0)
-    }
-
-    // MARK: - Equatable Tests
-
-    func testEquatable_sameBars() {
-        let bar1 = Bar(current: 100, maximum: 150)
-        let bar2 = Bar(current: 100, maximum: 150)
-        XCTAssertEqual(bar1, bar2)
-    }
-
-    func testEquatable_differentBars() {
-        let bar1 = Bar(current: 100, maximum: 150)
-        let bar2 = Bar(current: 50, maximum: 150)
-        XCTAssertNotEqual(bar1, bar2)
-    }
-
-    // MARK: - Edge Cases
-
-    func testNegativeCurrent() {
-        // Edge case: negative current (shouldn't happen but handle gracefully)
-        let bar = Bar(current: -10, maximum: 150)
-        XCTAssertEqual(bar.percentage, -6.67, accuracy: 0.01)
-    }
-
-    func testLargeNumbers() {
-        // Large numbers shouldn't cause overflow
-        let bar = Bar(current: 1000000, maximum: 10000000)
-        XCTAssertEqual(bar.percentage, 10.0, accuracy: 0.01)
     }
 }

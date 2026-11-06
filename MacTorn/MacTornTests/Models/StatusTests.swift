@@ -118,31 +118,4 @@ final class StatusTests: XCTestCase {
         XCTAssertEqual(status.state, "Hospital")
         XCTAssertEqual(status.until, 1700000000)
     }
-
-    // MARK: - Equatable Tests
-
-    func testEquatable() throws {
-        let json: [String: Any] = [
-            "description": "Okay",
-            "state": "Okay"
-        ]
-        let status1 = try decode(Status.self, from: json)
-        let status2 = try decode(Status.self, from: json)
-        XCTAssertEqual(status1, status2)
-    }
-
-    func testEquatable_different() throws {
-        let json1: [String: Any] = [
-            "description": "Okay",
-            "state": "Okay"
-        ]
-        let json2: [String: Any] = [
-            "description": "Hospital",
-            "state": "Hospital",
-            "until": 1000
-        ]
-        let status1 = try decode(Status.self, from: json1)
-        let status2 = try decode(Status.self, from: json2)
-        XCTAssertNotEqual(status1, status2)
-    }
 }

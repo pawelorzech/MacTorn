@@ -4,11 +4,6 @@ import XCTest
 
 // MARK: - Test Helpers
 
-/// Creates a Bar instance for testing
-func makeBar(current: Int = 100, maximum: Int = 150, increment: Double? = 5.0, interval: Int? = 300, ticktime: Int? = 60, fulltime: Int? = 600) -> Bar {
-    return Bar(current: current, maximum: maximum, increment: increment, interval: interval, ticktime: ticktime, fulltime: fulltime)
-}
-
 /// Creates a Travel instance for testing
 func makeTravel(destination: String? = "Torn", timestamp: Int? = nil, departed: Int? = nil, timeLeft: Int? = 0) -> Travel {
     return Travel(destination: destination, timestamp: timestamp, departed: departed, timeLeft: timeLeft)
@@ -61,27 +56,6 @@ extension XCTestCase {
     }
 }
 
-// MARK: - Async Test Helpers
-
-extension XCTestCase {
-    /// Run async test with timeout
-    func runAsyncTest(timeout: TimeInterval = 5.0, testBlock: @escaping () async throws -> Void) {
-        let expectation = XCTestExpectation(description: "Async test")
-
-        Task {
-            do {
-                try await testBlock()
-                expectation.fulfill()
-            } catch {
-                XCTFail("Async test failed with error: \(error)")
-                expectation.fulfill()
-            }
-        }
-
-        wait(for: [expectation], timeout: timeout)
-    }
-}
-
 // MARK: - Connectivity Test Double
 
 /// Controllable connectivity for tests: flip `isConnected` and fire the restore edge
@@ -110,13 +84,6 @@ extension UserDefaults {
         let suiteName = "com.mactorn.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         return defaults
-    }
-
-    /// Clear all data in UserDefaults
-    func clearAll() {
-        dictionaryRepresentation().keys.forEach { key in
-            removeObject(forKey: key)
-        }
     }
 }
 
@@ -178,5 +145,37 @@ extension TornRequester {
         set {
             if let newValue { adopt(newValue, at: Date()) } else { forgetKeyInfo() }
         }
+    }
+}
+
+/// The URL the app would request for a registry endpoint.
+func tornURL(_ id: String, key: String, parameter: Int? = nil) -> URL {
+    guard let url = TornEndpointRegistry.endpoint(id: id)?.url(key: key, parameter: parameter) else {
+        preconditionFailure("no URL for endpoint \(id)")
+    }
+    return url
+}
+
+/// Polls `condition` until it holds or `timeout` passes; returns whether it held.
+@MainActor
+func eventually(timeout: TimeInterval = 3, _ condition: () -> Bool) async -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if condition() { return true }
+        try? await Task.sleep(nanoseconds: 10_000_000)
+    }
+    return condition()
+}
+
+/// Lets in-flight work run so an assertion that something did NOT happen has had its chance.
+func settle(milliseconds: UInt64 = 150) async {
+    try? await Task.sleep(nanoseconds: milliseconds * 1_000_000)
+}
+
+extension TornRequester {
+    /// Whether `endpointID` is currently in a cool-off.
+    func isPaused(_ endpointID: String) -> Bool {
+        if case .paused = denial(endpointID) { return true }
+        return false
     }
 }

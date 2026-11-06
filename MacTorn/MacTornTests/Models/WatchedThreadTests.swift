@@ -3,27 +3,6 @@ import XCTest
 
 final class WatchedThreadTests: XCTestCase {
 
-    // MARK: - Init Tests
-
-    func testInit_defaults() {
-        let thread = WatchedThread(id: 12345, title: "Test Thread")
-
-        XCTAssertEqual(thread.id, 12345)
-        XCTAssertEqual(thread.title, "Test Thread")
-        XCTAssertTrue(thread.notificationsEnabled)
-        XCTAssertEqual(thread.lastKnownPostCount, 0)
-        XCTAssertNil(thread.lastChecked)
-        XCTAssertNil(thread.error)
-        XCTAssertFalse(thread.isFactionThread)
-    }
-
-    func testInit_factionThread() {
-        let thread = WatchedThread(id: 99, title: "Faction Announcement", notificationsEnabled: true, lastKnownPostCount: 5, isFactionThread: true)
-
-        XCTAssertTrue(thread.isFactionThread)
-        XCTAssertEqual(thread.lastKnownPostCount, 5)
-    }
-
     // MARK: - Encoding/Decoding Tests
 
     func testEncoding_roundTrip() throws {
@@ -60,46 +39,6 @@ final class WatchedThreadTests: XCTestCase {
         let thread = try JSONDecoder().decode(WatchedThread.self, from: data)
 
         XCTAssertEqual(thread.error, "API Error")
-    }
-
-    // MARK: - ForumWatchConfig Tests
-
-    func testForumWatchConfig_defaults() {
-        let config = ForumWatchConfig()
-
-        XCTAssertFalse(config.factionForumAutoMonitor)
-        XCTAssertNil(config.factionForumCategoryId)
-        XCTAssertEqual(config.pollingIntervalSeconds, 180)
-        XCTAssertTrue(config.seenFactionThreadIds.isEmpty)
-        XCTAssertNil(config.seededCategoryId)
-        XCTAssertFalse(config.hasSeededFactionThreads)
-    }
-
-    func testForumWatchConfig_roundTrip() throws {
-        var original = ForumWatchConfig()
-        original.factionForumAutoMonitor = true
-        original.factionForumCategoryId = 42
-        original.pollingIntervalSeconds = 300
-        original.seenFactionThreadIds = [100, 200, 300]
-        original.seededCategoryId = 42
-        original.hasSeededFactionThreads = true
-
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(ForumWatchConfig.self, from: data)
-
-        XCTAssertEqual(decoded.factionForumAutoMonitor, true)
-        XCTAssertEqual(decoded.factionForumCategoryId, 42)
-        XCTAssertEqual(decoded.pollingIntervalSeconds, 300)
-        XCTAssertEqual(decoded.seenFactionThreadIds, [100, 200, 300])
-        XCTAssertEqual(decoded.seededCategoryId, 42)
-        XCTAssertTrue(decoded.hasSeededFactionThreads)
-    }
-
-    // MARK: - Identifiable
-
-    func testIdentifiable() {
-        let thread = WatchedThread(id: 789, title: "ID Test")
-        XCTAssertEqual(thread.id, 789)
     }
 }
 

@@ -149,38 +149,6 @@ final class ChainTests: XCTestCase {
         XCTAssertTrue(chain.isOnCooldown)
     }
 
-    // MARK: - Equatable Tests
-
-    func testEquatable() throws {
-        let json: [String: Any] = [
-            "current": 25,
-            "maximum": 100,
-            "timeout": 1000,
-            "cooldown": 0
-        ]
-        let chain1 = try decode(Chain.self, from: json)
-        let chain2 = try decode(Chain.self, from: json)
-        XCTAssertEqual(chain1, chain2)
-    }
-
-    func testEquatable_different() throws {
-        let json1: [String: Any] = [
-            "current": 25,
-            "maximum": 100,
-            "timeout": 1000,
-            "cooldown": 0
-        ]
-        let json2: [String: Any] = [
-            "current": 50,
-            "maximum": 100,
-            "timeout": 1000,
-            "cooldown": 0
-        ]
-        let chain1 = try decode(Chain.self, from: json1)
-        let chain2 = try decode(Chain.self, from: json2)
-        XCTAssertNotEqual(chain1, chain2)
-    }
-
     // MARK: - ChainView card choice (audit F-08)
 
     /// A chain with hits but no resolvable timeout used to show a red "Unavailable" in

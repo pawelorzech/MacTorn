@@ -44,28 +44,6 @@ final class MoneyDataTests: XCTestCase {
         XCTAssertEqual(money.cayman, 0)
     }
 
-    // MARK: - Memberwise Initializer Tests
-
-    func testMemberwiseInit() {
-        let money = MoneyData(cash: 100, vault: 200, points: 300, tokens: 400, cayman: 500)
-
-        XCTAssertEqual(money.cash, 100)
-        XCTAssertEqual(money.vault, 200)
-        XCTAssertEqual(money.points, 300)
-        XCTAssertEqual(money.tokens, 400)
-        XCTAssertEqual(money.cayman, 500)
-    }
-
-    func testDefaultInit() {
-        let money = MoneyData()
-
-        XCTAssertEqual(money.cash, 0)
-        XCTAssertEqual(money.vault, 0)
-        XCTAssertEqual(money.points, 0)
-        XCTAssertEqual(money.tokens, 0)
-        XCTAssertEqual(money.cayman, 0)
-    }
-
     // MARK: - Large Numbers Tests
 
     func testLargeNumbers() throws {

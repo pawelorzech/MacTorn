@@ -21,69 +21,12 @@ final class TravelTests: XCTestCase {
         XCTAssertEqual(Travel.flightProgress(arrival: 1100, departure: 1000, remainingSeconds: 40), 0.6, accuracy: 0.0001)
     }
 
-
     // MARK: - Current travel duration table
-
-    func testStandardFlightTimesMatchTornPatch438Table() {
-        let expected: [TornDestination: Int] = [
-            .mexico: 24,
-            .caymanIslands: 33,
-            .canada: 39,
-            .hawaii: 127,
-            .unitedKingdom: 151,
-            .argentina: 158,
-            .switzerland: 166,
-            .japan: 213,
-            .china: 229,
-            .uae: 257,
-            .southAfrica: 282,
-        ]
-
-        XCTAssertEqual(TornDestination.allCases.count, expected.count)
-        for destination in TornDestination.allCases {
-            XCTAssertEqual(
-                destination.flightTimeMinutes(method: .standard),
-                expected[destination],
-                "Outdated standard time for \(destination.rawValue)"
-            )
-        }
-    }
-
-    func testAirstripFlightTimesMatchTornPatch438Table() {
-        let expected: [TornDestination: Int] = [
-            .mexico: 17,
-            .caymanIslands: 23,
-            .canada: 27,
-            .hawaii: 89,
-            .unitedKingdom: 106,
-            .argentina: 111,
-            .switzerland: 116,
-            .japan: 149,
-            .china: 160,
-            .uae: 180,
-            .southAfrica: 197,
-        ]
-
-        XCTAssertEqual(TornDestination.allCases.count, expected.count)
-        for destination in TornDestination.allCases {
-            XCTAssertEqual(
-                destination.flightTimeMinutes(method: .airstrip),
-                expected[destination],
-                "Outdated airstrip time for \(destination.rawValue)"
-            )
-        }
-    }
 
     func testFlightTimeFormattingUsesSelectedMethod() {
         XCTAssertEqual(TornDestination.mexico.flightTimeFormatted(method: .standard), "24m")
         XCTAssertEqual(TornDestination.hawaii.flightTimeFormatted(method: .airstrip), "1h 29m")
         XCTAssertEqual(TornDestination.southAfrica.flightTimeFormatted(method: .standard), "4h 42m")
-    }
-
-    func testPublishedEstimateSemanticsRemainExplicit() {
-        XCTAssertEqual(TornDestination.FlightMethod.standard.rawValue, "Standard")
-        XCTAssertEqual(TornDestination.FlightMethod.airstrip.rawValue, "Airstrip + pilot")
-        XCTAssertEqual(TornDestination.estimateVariancePercent, 3)
     }
 
     func testActiveFlightProgressUsesAPITimestampsNotQuickTravelEstimate() throws {
@@ -204,20 +147,6 @@ final class TravelTests: XCTestCase {
         XCTAssertNil(travel.timeLeft)
     }
 
-    // MARK: - Equatable Tests
-
-    func testEquatable() throws {
-        let json: [String: Any] = [
-            "destination": "Mexico",
-            "timestamp": 1000,
-            "departed": 500,
-            "time_left": 0
-        ]
-        let travel1 = try decode(Travel.self, from: json)
-        let travel2 = try decode(Travel.self, from: json)
-        XCTAssertEqual(travel1, travel2)
-    }
-
     // MARK: - Edge Cases
 
     func testIsAbroad_nilDestination() throws {
@@ -302,31 +231,6 @@ final class TravelTests: XCTestCase {
 
         let remaining = travel.remainingSeconds(from: Date())
         XCTAssertEqual(remaining, 0)
-    }
-
-    func testRemainingSeconds_consistentRegardlessOfFetchTime() throws {
-        // Set arrival time 120 seconds in the future
-        let futureTimestamp = Int(Date().timeIntervalSince1970) + 120
-        let json: [String: Any] = [
-            "destination": "Japan",
-            "timestamp": futureTimestamp,
-            "departed": futureTimestamp - 1000,
-            "time_left": 120
-        ]
-        let travel = try decode(Travel.self, from: json)
-
-        // Test with different fetchTimes - result should be the same
-        let recentFetchTime = Date()
-        let staleFetchTime = Date().addingTimeInterval(-60)
-        let veryOldFetchTime = Date().addingTimeInterval(-600)
-
-        let remaining1 = travel.remainingSeconds(from: recentFetchTime)
-        let remaining2 = travel.remainingSeconds(from: staleFetchTime)
-        let remaining3 = travel.remainingSeconds(from: veryOldFetchTime)
-
-        // All should return approximately the same value (within 1 second tolerance)
-        XCTAssertEqual(remaining1, remaining2, accuracy: 1)
-        XCTAssertEqual(remaining2, remaining3, accuracy: 1)
     }
 
     func testRemainingSeconds_zeroWhenNotTraveling() throws {

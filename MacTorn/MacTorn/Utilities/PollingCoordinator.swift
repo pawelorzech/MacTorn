@@ -4,8 +4,7 @@ import Foundation
 // budgets, both keyed off the typed `TornEndpoint` registry:
 //
 //   - Requests: a rolling per-minute and per-day count. Torn allows 100 req/min; we cap at a
-//     conservative `hardCapPerMinute` and treat `softTargetPerMinute` as the "healthy" line for
-//     diagnostics. `canMakeRequest()` is the gate no code path may bypass.
+//     conservative `hardCapPerMinute`. `canMakeRequest()` is the gate no code path may bypass.
 //   - Records: row-based categories (events, attacks, news, forum) count against Torn's
 //     50,000-rows/day-per-category cap. Rows/day are tracked per `TornBudgetCategory` and flagged
 //     near `recordBudgetPerDayPerCategory`.
@@ -17,8 +16,6 @@ final class PollingCoordinator {
 
     /// Conservative per-minute ceiling (Torn's own limit is 100/min).
     let hardCapPerMinute: Int
-    /// "Healthy" per-minute cadence used for diagnostics coloring.
-    let softTargetPerMinute: Int
     /// Per-category daily row budget (Torn's hard cap is 50,000).
     let recordBudgetPerDayPerCategory: Int
 
@@ -33,11 +30,9 @@ final class PollingCoordinator {
 
     init(time: TimeSource = SystemTimeSource(),
          hardCapPerMinute: Int = 60,
-         softTargetPerMinute: Int = 15,
          recordBudgetPerDayPerCategory: Int = 15_000) {
         self.time = time
         self.hardCapPerMinute = hardCapPerMinute
-        self.softTargetPerMinute = softTargetPerMinute
         self.recordBudgetPerDayPerCategory = recordBudgetPerDayPerCategory
     }
 

@@ -239,9 +239,7 @@ final class ServerClockOffsetTests: XCTestCase {
 
     /// No `server_time` in the payload (and no legacy `timestamp` either) → offset 0,
     /// i.e. exactly the old local-clock behaviour. A fix must not invent an offset out
-    /// of nothing. (Red today only by the second that elapses between the fixture being
-    /// built and the assertion — the countdown is reading `Date()` rather than the
-    /// injected clock. Once it reads `AppState.time` the number is exact.)
+    /// of nothing.
     func testMissingServerTimeFallsBackToTheLocalClock() async throws {
         try await poll(serverTime: nil, status: hospitalSlice(until: localNow + 300))
 
@@ -322,8 +320,7 @@ final class ServerClockOffsetTests: XCTestCase {
 
     /// `Bar.fulltime` is a duration relative to the response, exactly like travel's
     /// `time_left`. Nudging the timeline's "now" onto the server clock without moving
-    /// bar anchors with it would knock 90 s off every bar ETA. The one test in this
-    /// file that is GREEN today — it must stay green.
+    /// bar anchors with it would knock 90 s off every bar ETA.
     func testBarFulltimeStaysCorrectUnderClockSkew() async throws {
         // validFullResponse: energy 100/150 with fulltime 600.
         try await poll(serverTime: localNow + skew)

@@ -43,18 +43,6 @@ final class StockHoldingTests: XCTestCase {
         XCTAssertEqual(stock.totalCostBasis, 5_500_000)
     }
 
-    func testStockHolding_totalCostBasis() {
-        let stock = StockHolding(
-            stockId: 1, totalShares: 10000,
-            transactions: [
-                StockTransaction(shares: 5000, boughtPrice: 500, timeBought: 1700000000),
-                StockTransaction(shares: 5000, boughtPrice: 600, timeBought: 1700100000)
-            ]
-        )
-
-        XCTAssertEqual(stock.totalCostBasis, 5_500_000) // 5000*500 + 5000*600
-    }
-
     func testStockHolding_decodesWithoutTransactions() throws {
         let json: [String: Any] = [
             "stock_id": 25,

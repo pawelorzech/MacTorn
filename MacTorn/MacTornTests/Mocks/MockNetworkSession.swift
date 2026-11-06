@@ -42,6 +42,19 @@ final class MockNetworkSession: NetworkSession, @unchecked Sendable {
         return (mockData ?? Data(), response)
     }
 
+    // MARK: - Observation
+
+    /// A snapshot of every URL requested so far, safe to read while requests are in flight.
+    var seenURLs: [URL] { lock.withLock { requestedURLs } }
+
+    /// How many requests went to `path` (e.g. "/v2/key/info").
+    func requests(to path: String) -> Int { seenURLs.filter { $0.path == path }.count }
+
+    /// How many user fast polls went out; each poll carries the `bars` selection.
+    var userPollCount: Int {
+        seenURLs.filter { $0.path == "/user" && ($0.query ?? "").contains("bars") }.count
+    }
+
     // MARK: - Helper Methods
 
     /// Set up successful response with JSON data
@@ -110,20 +123,10 @@ final class MockNetworkSession: NetworkSession, @unchecked Sendable {
         mockResponse = nil
         mockError = error
     }
-
-    /// Reset all mock data
-    func reset() {
-        mockData = nil
-        mockResponse = nil
-        mockError = nil
-        requestedURLs.removeAll()
-    }
 }
 
 // MARK: - Test Errors
 
 enum MockNetworkError: Error {
     case connectionFailed
-    case timeout
-    case noInternet
 }

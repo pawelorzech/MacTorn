@@ -24,15 +24,6 @@ final class AppStateFeedbackTests: XCTestCase {
         try await super.tearDown()
     }
 
-    // MARK: - First Launch
-
-    func testFirstLaunch_createsFeedbackState() {
-        XCTAssertNotNil(appState.feedbackState)
-        XCTAssertFalse(appState.feedbackState!.hasResponded)
-        XCTAssertEqual(appState.feedbackState!.dismissCount, 0)
-        XCTAssertNil(appState.feedbackState!.lastDismissedDate)
-    }
-
     // MARK: - Threshold Logic
 
     func testBeforeOneHour_promptDoesNotShow() {

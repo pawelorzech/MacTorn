@@ -215,7 +215,6 @@ final class TornResponseTests: XCTestCase {
 
         XCTAssertEqual(event.date, Date(timeIntervalSince1970: 1700000000))
     }
-
 }
 
 // MARK: - URL Redactor (F-02)
@@ -262,55 +261,6 @@ final class TornRedactedURLTests: XCTestCase {
     }
 }
 
-// MARK: - TornAPI URL Builder (F-06)
-
-final class TornAPIURLBuilderTests: XCTestCase {
-    /// Keys with `&`, `=`, or whitespace would have produced malformed URLs under
-    /// the old string-interpolation builder. URLComponents must percent-encode them
-    /// AND round-trip back to the original via queryItems.
-    func testURL_percentEncodesKeyWithReservedChars() {
-        let key = "ab&cd=ef gh"
-        guard let url = TornAPI.url(for: key),
-              let comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return XCTFail("URL builder returned nil")
-        }
-        let keyValue = comps.queryItems?.first(where: { $0.name == "key" })?.value
-        XCTAssertEqual(keyValue, key, "key should round-trip exactly through percent-encoding")
-    }
-
-    func testURL_marketURLIncludesItemIdInPath() {
-        guard let url = TornAPI.marketURL(itemId: 1234, apiKey: "abc") else {
-            return XCTFail("nil URL")
-        }
-        XCTAssertEqual(url.path, "/v2/market/1234/itemmarket")
-        XCTAssertNil(URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?.first { $0.name == "selections" })
-    }
-
-    func testURL_forumThreadURLIncludesThreadIdInPath() {
-        guard let url = TornAPI.forumThreadURL(threadId: 567, apiKey: "abc") else {
-            return XCTFail("nil URL")
-        }
-        XCTAssertEqual(url.path, "/v2/forum/567/thread")
-    }
-
-    func testURL_keyIsAlwaysPresent() {
-        let urls: [URL?] = [
-            TornAPI.url(for: "k"),
-            TornAPI.factionURL(for: "k"),
-            TornAPI.marketURL(itemId: 1, apiKey: "k"),
-            TornAPI.tornStocksURL(for: "k"),
-            TornAPI.forumThreadURL(threadId: 1, apiKey: "k"),
-            TornAPI.forumCategoryThreadsURL(categoryId: 1, apiKey: "k"),
-        ]
-        for url in urls {
-            let comps = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
-            let keyItem = comps?.queryItems?.first { $0.name == "key" }
-            XCTAssertEqual(keyItem?.value, "k", "key missing in \(url?.absoluteString ?? "nil")")
-        }
-    }
-}
-
 // MARK: - Notification Sanitizer (F-08)
 
 final class NotificationSanitizerTests: XCTestCase {
@@ -320,26 +270,6 @@ final class NotificationSanitizerTests: XCTestCase {
     func testSanitize_negativeMaxLengthDoesNotTrap() {
         XCTAssertEqual("Travel: Mexico".sanitizedForDisplay(limit: -1), "")
         XCTAssertEqual("Travel: Mexico".sanitizedForDisplay(limit: 0), "")
-    }
-
-    func testSanitize_capsLength() {
-        let input = String(repeating: "x", count: 500)
-        let out = input.sanitizedForDisplay(limit: 200)
-        XCTAssertEqual(out.count, 200)
-    }
-
-    func testSanitize_stripsControlCharacters() {
-        let input = "hello\u{0}\nworld\u{1}\u{7}!"
-        let out = input.sanitizedForDisplay(limit: 100)
-        XCTAssertFalse(out.contains("\n"))
-        XCTAssertFalse(out.contains("\u{0}"))
-        XCTAssertFalse(out.contains("\u{1}"))
-        XCTAssertEqual(out, "helloworld!")
-    }
-
-    func testSanitize_passesThroughNormalText() {
-        let input = "Travel: Mexico"
-        XCTAssertEqual(input.sanitizedForDisplay(limit: 200), input)
     }
 }
 

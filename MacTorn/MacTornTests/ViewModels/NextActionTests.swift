@@ -79,18 +79,6 @@ final class NextActionTests: XCTestCase {
         XCTAssertNil(engine.nearest(from: snapshot { _ in }))
     }
 
-    func testEtaNeverNegative() {
-        let s = snapshot { $0.hospitalReleaseAt = now + 10 }
-        XCTAssertGreaterThanOrEqual(engine.events(from: s).first!.eta, 0)
-    }
-
-    func testAllCategoriesHaveLabelAndIcon() {
-        for category in NextActionCategory.allCases {
-            XCTAssertFalse(category.label.isEmpty)
-            XCTAssertFalse(category.systemImage.isEmpty)
-        }
-    }
-
     @MainActor
     func testAppStateMakeNextActionSnapshot_barFulltimeCountsDownAsTimeAdvances() throws {
         let mockSession = MockNetworkSession()

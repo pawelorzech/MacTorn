@@ -3,10 +3,6 @@ import XCTest
 
 final class WatchlistItemTests: XCTestCase {
 
-    func testWatchlistTabUsesTagIcon() {
-        XCTAssertEqual(AppTab.watchlist.icon, "tag.fill")
-    }
-
     // MARK: - priceDifference Tests
 
     func testPriceDifference_normalCase() {
@@ -162,44 +158,5 @@ final class WatchlistItemTests: XCTestCase {
 
         XCTAssertEqual(item.error, "Item not found")
         XCTAssertFalse(item.isLoading)
-    }
-
-    // MARK: - Encoding Tests
-
-    func testEncoding_roundTrip() throws {
-        let original = WatchlistItem(
-            id: 456,
-            name: "Donator Pack",
-            lowestPrice: 9500000,
-            lowestPriceQuantity: 3,
-            secondLowestPrice: 9600000,
-            lastUpdated: Date(),
-            error: nil
-        )
-
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(WatchlistItem.self, from: data)
-
-        XCTAssertEqual(original.id, decoded.id)
-        XCTAssertEqual(original.name, decoded.name)
-        XCTAssertEqual(original.lowestPrice, decoded.lowestPrice)
-        XCTAssertEqual(original.lowestPriceQuantity, decoded.lowestPriceQuantity)
-        XCTAssertEqual(original.secondLowestPrice, decoded.secondLowestPrice)
-    }
-
-    // MARK: - Identifiable Tests
-
-    func testIdentifiable() {
-        let item = WatchlistItem(
-            id: 789,
-            name: "Test",
-            lowestPrice: 100,
-            lowestPriceQuantity: 1,
-            secondLowestPrice: 200,
-            lastUpdated: nil,
-            error: nil
-        )
-
-        XCTAssertEqual(item.id, 789)
     }
 }

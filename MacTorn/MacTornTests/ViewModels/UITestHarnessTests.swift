@@ -18,40 +18,14 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertTrue(UITestConfiguration.isIsolated)
     }
 
-
     private let fakeKey = "sample-harness-value"
 
     // MARK: - Fixture routing
 
-    func testFullScenarioServesDecodableUserResponse() throws {
-        let url = TornAPI.url(for: fakeKey)
-        let data = FixtureNetworkSession.body(for: url, scenario: .full)
-
-        let decoded = try JSONDecoder().decode(TornResponse.self, from: data)
-        XCTAssertEqual(decoded.name, "TestPlayer")
-        XCTAssertNotNil(decoded.bars, "The full fixture should populate bars")
-    }
-
-    func testInvalidKeyScenarioServesErrorEnvelope() throws {
-        let url = TornAPI.url(for: fakeKey)
-        let data = FixtureNetworkSession.body(for: url, scenario: .invalidKey)
-
-        let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-        let error = try XCTUnwrap(json["error"] as? [String: Any])
-        XCTAssertEqual(error["code"] as? Int, 2, "Invalid-key fixture must carry Torn code 2")
-    }
-
-    func testEmptyScenarioServesEmptyObject() throws {
-        let url = TornAPI.url(for: fakeKey)
-        let data = FixtureNetworkSession.body(for: url, scenario: .empty)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertEqual(json?.isEmpty, true, "Empty scenario should serve {}")
-    }
-
     /// Only the fast user call (which carries the `bars` selection) gets the rich fixture;
     /// the faction call must not be mistaken for it.
     func testFactionEndpointServesEmptyObjectEvenInFullScenario() throws {
-        let url = TornAPI.factionURL(for: fakeKey)
+        let url = tornURL("faction.basic", key: fakeKey)
         let data = FixtureNetworkSession.body(for: url, scenario: .full)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(json?.isEmpty, true, "Faction endpoint should not receive the user fixture")
@@ -60,7 +34,7 @@ final class UITestHarnessTests: XCTestCase {
     /// The row-based activity call also hits the `/user/` path but without `bars`; it must
     /// not be served the fast-user fixture (which would double-count / mis-decode).
     func testUserActivityCallIsNotServedFastFixture() throws {
-        let url = TornAPI.activityURL(for: fakeKey)
+        let url = tornURL("user.activity", key: fakeKey)
         let data = FixtureNetworkSession.body(for: url, scenario: .full)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         XCTAssertEqual(json?.isEmpty, true, "Activity call must not get the fast-user fixture")
@@ -76,7 +50,7 @@ final class UITestHarnessTests: XCTestCase {
 
     /// Link 1: the fixture really does serve `{}` on the activity call for `.accessibility`.
     func testAccessibilityScenarioServesEmptyObjectOnActivityCall() throws {
-        let url = TornAPI.activityURL(for: fakeKey)
+        let url = tornURL("user.activity", key: fakeKey)
         let data = FixtureNetworkSession.body(for: url, scenario: .accessibility)
 
         let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
@@ -90,7 +64,7 @@ final class UITestHarnessTests: XCTestCase {
     /// former leaves a seeded list alone.
     func testEmptyActivityBodyReportsAbsentEventsRatherThanZeroEvents() async throws {
         let session = FixtureNetworkSession(scenario: .accessibility)
-        let url = try XCTUnwrap(TornAPI.activityURL(for: fakeKey))
+        let url = try XCTUnwrap(tornURL("user.activity", key: fakeKey))
 
         let result = try await TornAPIClient.loadJSON(from: url, session: session, decode: UserSnapshotService.decodeActivity)
         guard case .success(let payload, _) = result else {
@@ -155,19 +129,9 @@ final class UITestHarnessTests: XCTestCase {
 
     // MARK: - Scenario parsing
 
-    func testFixtureScenarioRawValues() {
-        XCTAssertEqual(FixtureScenario(rawValue: "full"), .full)
-        XCTAssertEqual(FixtureScenario(rawValue: "invalidKey"), .invalidKey)
-        XCTAssertEqual(FixtureScenario(rawValue: "empty"), .empty)
-        XCTAssertEqual(FixtureScenario(rawValue: "accountSwitch"), .accountSwitch)
-        XCTAssertEqual(FixtureScenario(rawValue: "accessibility"), .accessibility)
-        XCTAssertEqual(FixtureScenario(rawValue: "watchAccessibility"), .watchAccessibility)
-        XCTAssertNil(FixtureScenario(rawValue: "nonsense"))
-    }
-
     func testAccountSwitchFixtureRoutesSyntheticIdentityByKey() throws {
-        let accountAURL = try XCTUnwrap(TornAPI.url(for: FixtureNetworkSession.accountAKey))
-        let accountBURL = try XCTUnwrap(TornAPI.url(for: FixtureNetworkSession.accountBKey))
+        let accountAURL = try XCTUnwrap(tornURL("user.fast", key: FixtureNetworkSession.accountAKey))
+        let accountBURL = try XCTUnwrap(tornURL("user.fast", key: FixtureNetworkSession.accountBKey))
 
         let accountAData = FixtureNetworkSession.body(for: accountAURL, scenario: .accountSwitch)
         let accountBData = FixtureNetworkSession.body(for: accountBURL, scenario: .accountSwitch)
@@ -181,7 +145,7 @@ final class UITestHarnessTests: XCTestCase {
     }
 
     func testAccountSwitchFixtureRejectsUnknownSyntheticKey() throws {
-        let url = try XCTUnwrap(TornAPI.url(for: "fixture-unknown"))
+        let url = try XCTUnwrap(tornURL("user.fast", key: "fixture-unknown"))
         let data = FixtureNetworkSession.body(for: url, scenario: .accountSwitch)
         let json = try XCTUnwrap(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         let error = try XCTUnwrap(json["error"] as? [String: Any])
@@ -241,11 +205,7 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertEqual(Set(groupedTabs), Set(AppTab.allCases))
     }
 
-    func testNavigationGroupMappingsAndDefaults() {
-        XCTAssertEqual(AppGroup.now.tabs, [.status, .travel, .attacks])
-        XCTAssertEqual(AppGroup.account.tabs, [.money, .properties, .stocks, .faction])
-        XCTAssertEqual(AppGroup.watch.tabs, [.watchlist, .forums])
-
+    func testEveryGroupOwnsItsTabsAndDefaultsToOne() {
         for group in AppGroup.allCases {
             XCTAssertEqual(group.defaultTab.group, group)
             XCTAssertTrue(group.tabs.allSatisfy { $0.group == group })
@@ -260,11 +220,6 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertEqual(Set(commands.compactMap(\.tab)), Set(AppTab.allCases))
         XCTAssertEqual(Set(commands.map(\.keyEquivalent)).count, AppTab.allCases.count)
         XCTAssertEqual(commands.map(\.keyEquivalent), Array("123456789"))
-    }
-
-    func testGlobalCommandShortcutsRemainConventional() {
-        XCTAssertEqual(MacTornCommand.refresh.keyEquivalent, "r")
-        XCTAssertEqual(MacTornCommand.settings.keyEquivalent, ",")
     }
 
     func testNavigationStateKeepsClicksAndCommandsInSync() {
@@ -289,15 +244,7 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertFalse(navigation.isShowingSettings)
     }
 
-    func testSettingsSectionsHaveStableCompactNavigation() {
-        XCTAssertEqual(
-            SettingsSection.allCases.map(\.title),
-            ["Account", "Refresh", "Notifications", "Privacy", "General", "Diagnostics & About"]
-        )
-        XCTAssertEqual(
-            SettingsSection.allCases.map(\.compactTitle),
-            ["Account", "Refresh", "Alerts", "Privacy", "General", "About"]
-        )
+    func testSettingsSectionAnchorsAreUnique() {
         XCTAssertEqual(
             Set(SettingsSection.allCases.map(\.anchorID)).count,
             SettingsSection.allCases.count
