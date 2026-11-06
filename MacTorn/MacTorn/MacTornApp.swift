@@ -41,7 +41,7 @@ struct MacTornApp: App {
                 .handlesExternalEvents(preferring: ["mactorn"], allowing: ["mactorn"])
                 .onOpenURL { url in
                     guard url.scheme == "mactorn" else { return }
-                    navigation.select(url.host == "travel" ? .travel : .status)
+                    navigation.select(url.host.flatMap(AppTab.init(route:)) ?? .status)
                     NSApp.activate(ignoringOtherApps: true)
                 }
         }
@@ -111,9 +111,7 @@ struct MacTornCommands: Commands {
 
             ForEach(MacTornCommand.navigation) { command in
                 Button(command.title) {
-                    if let tab = command.tab {
-                        navigation.select(tab)
-                    }
+                    if let tab = command.tab { navigation.select(tab) }
                 }
                 .keyboardShortcut(KeyEquivalent(command.keyEquivalent), modifiers: .command)
                 .disabled(appState.apiKey.isEmpty)

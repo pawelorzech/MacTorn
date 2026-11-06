@@ -1,68 +1,5 @@
 import SwiftUI
 
-enum AppGroup: String, CaseIterable {
-    case now = "Now"
-    case account = "Account"
-    case watch = "Watch"
-
-    var icon: String {
-        switch self {
-        case .now: return "bolt.fill"
-        case .account: return "person.crop.circle"
-        case .watch: return "eye.fill"
-        }
-    }
-
-    var tabs: [AppTab] {
-        switch self {
-        case .now: return [.status, .travel, .attacks]
-        case .account: return [.money, .properties, .stocks, .faction]
-        case .watch: return [.watchlist, .forums]
-        }
-    }
-
-    var defaultTab: AppTab {
-        tabs[0]
-    }
-
-    /// The group a tab belongs to. `AppGroup.tabs` is the single source of truth; the
-    /// reverse mapping used to be a second hand-maintained switch that could drift from it
-    /// (audit D-8).
-    static func group(of tab: AppTab) -> AppGroup {
-        allCases.first { $0.tabs.contains(tab) } ?? .now
-    }
-}
-
-enum AppTab: String, CaseIterable {
-    case status = "Status"
-    case travel = "Travel"
-    case money = "Money"
-    case properties = "Properties"
-    case stocks = "Stocks"
-    case attacks = "Attacks"
-    case faction = "Faction"
-    case watchlist = "Watchlist"
-    case forums = "Forums"
-
-    var icon: String {
-        switch self {
-        case .status: return "chart.bar.fill"
-        case .travel: return "airplane"
-        case .money: return "dollarsign.circle.fill"
-        case .properties: return "house.fill"
-        case .stocks: return "chart.line.uptrend.xyaxis"
-        case .attacks: return "bolt.shield.fill"
-        case .faction: return "person.3.fill"
-        case .watchlist: return "tag.fill"
-        case .forums: return "bubble.left.and.bubble.right.fill"
-        }
-    }
-
-    var group: AppGroup {
-        AppGroup.group(of: self)
-    }
-}
-
 private enum NavigationFocus: Hashable {
     case group(AppGroup)
     case tab(AppTab)
@@ -99,7 +36,6 @@ struct ContentView: View {
                         SettingsView {
                             _ = navigation.dismissSettings(hasConfiguredAccount: !appState.apiKey.isEmpty)
                         }
-                            .environment(appState)
                     } else {
                         // Header with last updated
                         headerView
@@ -162,7 +98,6 @@ struct ContentView: View {
                     .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
 
                 FeedbackPromptView()
-                    .environment(appState)
                     .accessibilityAddTraits(.isModal)
             }
 
@@ -310,31 +245,22 @@ struct ContentView: View {
         switch currentTab {
         case .status:
             StatusView()
-                .environment(appState)
         case .travel:
             TravelView()
-                .environment(appState)
         case .money:
             MoneyView()
-                .environment(appState)
         case .properties:
             PropertiesView()
-                .environment(appState)
         case .stocks:
             StocksView()
-                .environment(appState)
         case .attacks:
             AttacksView()
-                .environment(appState)
         case .faction:
             FactionView()
-                .environment(appState)
         case .watchlist:
             WatchlistView()
-                .environment(appState)
         case .forums:
             ForumWatchView()
-                .environment(appState)
         }
     }
     
@@ -412,14 +338,9 @@ struct ContentView: View {
 
     private func perform(_ command: MacTornCommand) {
         switch command {
-        case .refresh:
-            appState.refreshNow()
-        case .settings:
-            navigation.showSettings()
-        default:
-            if let tab = command.tab {
-                navigation.select(tab)
-            }
+        case .refresh: appState.refreshNow()
+        case .settings: navigation.showSettings()
+        case .go(let tab): navigation.select(tab)
         }
     }
 

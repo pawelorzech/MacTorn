@@ -266,8 +266,6 @@ final class UITestHarnessTests: XCTestCase {
     func testGlobalCommandShortcutsRemainConventional() {
         XCTAssertEqual(MacTornCommand.refresh.keyEquivalent, "r")
         XCTAssertEqual(MacTornCommand.settings.keyEquivalent, ",")
-        XCTAssertNil(MacTornCommand.refresh.tab)
-        XCTAssertNil(MacTornCommand.settings.tab)
     }
 
     func testNavigationStateKeepsClicksAndCommandsInSync() {
