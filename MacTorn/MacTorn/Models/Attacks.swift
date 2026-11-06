@@ -113,9 +113,6 @@ struct AttackResult: Codable, Identifiable {
     /// `timestampEnded` is Torn's clock, so `now` should be too (`AppState.serverNow`).
     func timeAgo(at now: Date) -> String {
         guard let ts = timestampEnded else { return "" }
-        guard let diff = NumericSafety.elapsed(since: ts, now: Int(now.timeIntervalSince1970)) else { return "" }
-        if diff < 3600 { return "\(diff / 60)m" }
-        if diff < 86400 { return "\(diff / 3600)h" }
-        return "\(diff / 86400)d"
+        return TornFormatter.timeAgo(since: ts, now: Int(now.timeIntervalSince1970)) ?? ""
     }
 }

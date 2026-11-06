@@ -8,6 +8,18 @@ private enum NavigationFocus: Hashable {
     case quit
 }
 
+/// Full-panel backdrop behind a blocking overlay: an opaque window colour under
+/// Reduce Transparency, otherwise a dimmed blur.
+private struct ModalScrim: View {
+    var dimming: Double = 0.3
+    @Environment(\.reduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(dimming))
+            .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+    }
+}
+
 struct ContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(AppNavigationState.self) private var navigation
@@ -37,7 +49,6 @@ struct ContentView: View {
                             _ = navigation.dismissSettings(hasConfiguredAccount: !appState.apiKey.isEmpty)
                         }
                     } else {
-                        // Header with last updated
                         headerView
 
                         // Two-level navigation: three stable groups and only the active
@@ -75,10 +86,8 @@ struct ContentView: View {
             .accessibilityHidden(isShowingModalPrompt)
             .disabled(isShowingModalPrompt)
             
-            // Loading Overlay
             if isBlockingInitialLoad && !navigation.isShowingSettings {
-                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.4))
-                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+                ModalScrim(dimming: 0.4)
                     .allowsHitTesting(false)
 
                 VStack(spacing: 12) {
@@ -94,17 +103,14 @@ struct ContentView: View {
             // Feedback Prompt Overlay — the Sentry opt-in wins when both are due, so at
             // most one modal is on screen; feedback shows once the opt-in is dismissed.
             if appState.showFeedbackPrompt && !showSentryOptIn {
-                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.3))
-                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+                ModalScrim()
 
                 FeedbackPromptView()
                     .accessibilityAddTraits(.isModal)
             }
 
-            // Sentry Opt-In Prompt Overlay
             if showSentryOptIn {
-                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.3))
-                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+                ModalScrim()
 
                 SentryOptInPromptView(isPresented: $showSentryOptIn)
                     .accessibilityAddTraits(.isModal)
@@ -233,7 +239,7 @@ struct ContentView: View {
     private var tabContent: some View {
         tabContentBody
             // A single element whose identifier tracks the active tab, so a UI test can
-            // assert navigation actually switched content (Etap G).
+            // assert navigation actually switched content.
             .uiTestID("uitest.tabContent.\(currentTab.rawValue)")
     }
 

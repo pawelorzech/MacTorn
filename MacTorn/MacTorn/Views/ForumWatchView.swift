@@ -7,8 +7,7 @@ struct ForumWatchView: View {
     @State private var showAddThread = false
     @State private var threadInput = ""
     @State private var threadInputError: String?
-    @State private var recentlyRemoved: RemovedWatchedThread?
-    @State private var undoDismissTask: Task<Void, Never>?
+    @State private var undo = UndoController<RemovedWatchedThread>()
 
     var body: some View {
         ScrollView {
@@ -21,7 +20,6 @@ struct ForumWatchView: View {
                     }
                 }
 
-                // Header
                 HStack {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
                         .foregroundColor(.blue)
@@ -55,7 +53,6 @@ struct ForumWatchView: View {
                     .accessibilityLabel(showAddThread ? "Close add thread form" : "Add watched thread")
                 }
 
-                // Add Thread Section
                 if showAddThread {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Thread URL or ID:")
@@ -94,7 +91,6 @@ struct ForumWatchView: View {
                     .cornerRadius(6)
                 }
 
-                // Faction Forum Hint
                 if appState.factionData != nil {
                     HStack(spacing: 4) {
                         Image(systemName: "info.circle")
@@ -106,7 +102,6 @@ struct ForumWatchView: View {
                     }
                 }
 
-                // Thread List
                 if appState.watchedThreads.isEmpty && !showAddThread {
                     EmptyStateView(icon: "bubble.left.and.exclamationmark.bubble.right",
                                    title: "No threads watched",
@@ -129,25 +124,19 @@ struct ForumWatchView: View {
                     }
                 }
 
-                if let recentlyRemoved {
-                    UndoBanner(message: "\(recentlyRemoved.thread.title) removed") {
-                        undoRemoval()
-                    }
-                    .transition(reduceMotion
-                                ? .opacity
-                                : .move(edge: .top).combined(with: .opacity))
+                PendingUndoBanner(controller: undo, message: { "\($0.thread.title) removed" }) {
+                    undoRemoval()
                 }
 
                 Divider()
 
-                // Quick Links
                 HStack(spacing: 8) {
-                    ActionButton(title: "Forums", icon: "bubble.left.fill", color: .blue) {
+                    TileButton(title: "Forums", icon: "bubble.left.fill", color: .blue) {
                         openTorn(TornLink.forums)
                     }
 
                     if appState.factionData != nil {
-                        ActionButton(title: "Faction Forum", icon: "person.3.fill", color: .orange) {
+                        TileButton(title: "Faction Forum", icon: "person.3.fill", color: .orange) {
                             openTorn(TornLink.page("forums.php#/p=forums&f=999&b=1&a=\(appState.factionData?.factionId ?? 0)"))
                         }
                     }
@@ -156,8 +145,7 @@ struct ForumWatchView: View {
             .padding()
         }
         .onDisappear {
-            undoDismissTask?.cancel()
-            recentlyRemoved = nil
+            undo.reset()
         }
     }
 
@@ -192,27 +180,14 @@ struct ForumWatchView: View {
         }
         let removedThread = appState.watchedThreads[index]
 
-        undoDismissTask?.cancel()
-        appState.forumWatch.remove(threadID: thread.id)
-        withAnimation(reduceMotion ? nil : .default) {
-            recentlyRemoved = RemovedWatchedThread(thread: removedThread, index: index)
-        }
-        undoDismissTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 6_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(reduceMotion ? nil : .default) {
-                recentlyRemoved = nil
-            }
+        undo.schedule(RemovedWatchedThread(thread: removedThread, index: index), reduceMotion: reduceMotion) {
+            appState.forumWatch.remove(threadID: thread.id)
         }
     }
 
     private func undoRemoval() {
-        guard let recentlyRemoved else { return }
-
-        undoDismissTask?.cancel()
-        appState.forumWatch.restore(recentlyRemoved.thread, at: recentlyRemoved.index)
-        withAnimation(reduceMotion ? nil : .default) {
-            self.recentlyRemoved = nil
+        undo.undo(reduceMotion: reduceMotion) { removed in
+            appState.forumWatch.restore(removed.thread, at: removed.index)
         }
     }
 }
@@ -232,7 +207,6 @@ struct ForumThreadRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
-            // Faction badge
             if thread.isFactionThread {
                 Image(systemName: "person.3.fill")
                     .font(.caption2)
@@ -240,7 +214,6 @@ struct ForumThreadRow: View {
                     .accessibilityLabel("Faction thread")
             }
 
-            // Thread title (clickable)
             VStack(alignment: .leading, spacing: 2) {
                 Button {
                     onOpen()
@@ -263,7 +236,6 @@ struct ForumThreadRow: View {
 
             Spacer()
 
-            // Error indicator
             if let error = thread.error {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption2)
@@ -272,7 +244,6 @@ struct ForumThreadRow: View {
                     .accessibilityLabel("Error: \(error)")
             }
 
-            // Last checked indicator
             if thread.lastChecked != nil && thread.error == nil {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.caption2)
@@ -281,7 +252,6 @@ struct ForumThreadRow: View {
                     .accessibilityLabel("Last checked successfully")
             }
 
-            // Notification toggle
             Button {
                 onToggleNotifications()
             } label: {
@@ -297,7 +267,6 @@ struct ForumThreadRow: View {
                                 ? "Notifications on for \(thread.title). Disable notifications"
                                 : "Notifications off for \(thread.title). Enable notifications")
 
-            // Remove button
             Button {
                 onRemove()
             } label: {

@@ -8,16 +8,10 @@ struct PropertiesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast"],
-                        hasContent: appState.player.propertiesData != nil,
-                        staleAfter: 120,
-                        requiredUserSelections: ["properties"]
-                    ),
+                    state: appState.presentationState(for: .properties, hasContent: appState.player.propertiesData != nil),
                     onRetry: appState.refreshNow
                 )
 
-                // Property Info
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "house.fill")
@@ -45,13 +39,12 @@ struct PropertiesView: View {
                     }
                 }
                 
-                // Actions
                 HStack(spacing: 8) {
-                    ActionButton(title: "Properties", icon: "house.fill", color: .brown) {
+                    TileButton(title: "Properties", icon: "house.fill", color: .brown) {
                         openTorn(TornLink.page("properties.php"))
                     }
                     
-                    ActionButton(title: "Estate Agents", icon: "building.2.fill", color: .blue) {
+                    TileButton(title: "Estate Agents", icon: "building.2.fill", color: .blue) {
                         openTorn(TornLink.page("estateagents.php"))
                     }
                 }

@@ -8,15 +8,10 @@ struct AttacksView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast", "user.activity"],
-                        hasContent: appState.player.battleStats != nil || appState.player.recentAttacks != nil,
-                        staleAfter: 360
-                    ),
+                    state: appState.presentationState(for: .attacks, hasContent: appState.player.battleStats != nil || appState.player.recentAttacks != nil),
                     onRetry: appState.refreshNow
                 )
 
-                // Battle Stats
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "figure.martial.arts")
@@ -63,7 +58,6 @@ struct AttacksView: View {
                 .background(Color.red.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
 
-                // Recent Attacks
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "bolt.shield.fill")
@@ -83,9 +77,10 @@ struct AttacksView: View {
                             let direction = userWasAttacker
                                 ? "outgoing attack against"
                                 : "incoming attack from"
-                            let timeDescription = attack.timeAgo(at: appState.serverNow).isEmpty
-                                ? ""
-                                : ", \(attack.timeAgo(at: appState.serverNow)) ago"
+                            let timeAgo = attack.timeAgo(at: appState.serverNow)
+                            let timeDescription = timeAgo.isEmpty ? ""
+                                : timeAgo == "now" ? ", just now"
+                                : ", \(timeAgo) ago"
 
                             Button {
                                 if let opponentId = attack.opponentId(forUserId: userId) {
@@ -139,17 +134,16 @@ struct AttacksView: View {
                 .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
 
-                // Actions
                 HStack(spacing: 8) {
-                    ActionButton(title: "Attack", icon: "bolt.fill", color: .red) {
+                    TileButton(title: "Attack", icon: "bolt.fill", color: .red) {
                         openTorn(TornLink.page("loader.php?sid=attack&user2ID="))
                     }
                     
-                    ActionButton(title: "Hospital", icon: "cross.case.fill", color: .pink) {
+                    TileButton(title: "Hospital", icon: "cross.case.fill", color: .pink) {
                         openTorn(TornLink.hospital)
                     }
                     
-                    ActionButton(title: "Bounties", icon: "target", color: .purple) {
+                    TileButton(title: "Bounties", icon: "target", color: .purple) {
                         openTorn(TornLink.bounties)
                     }
                 }

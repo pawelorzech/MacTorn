@@ -72,8 +72,8 @@ struct TornWidgetView: View {
                         Text(meter.name).frame(width: 44, alignment: .leading)
                         GeometryReader { geometry in
                             ZStack(alignment: .leading) {
-                                Capsule().fill(color(meter.name).opacity(0.12))
-                                Capsule().fill(color(meter.name).opacity(0.4))
+                                Capsule().fill((meter.kind?.color ?? .blue).opacity(0.12))
+                                Capsule().fill((meter.kind?.color ?? .blue).opacity(0.4))
                                     .frame(width: geometry.size.width * meter.fraction)
                             }
                             .overlay {
@@ -120,9 +120,6 @@ struct TornWidgetView: View {
                 } else { Text("Arrival time reached. Open MacTorn to confirm.").font(.caption) }
             } else { Text("Not flying").font(.callout).foregroundStyle(.secondary) }
         }
-    }
-    private func color(_ name: String) -> Color {
-        switch name { case "Energy": .green; case "Nerve": .red; case "Happy": .orange; default: .blue }
     }
 }
 struct PlayerStatusWidget: Widget {

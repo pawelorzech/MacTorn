@@ -4,7 +4,7 @@ import SwiftUI
 /// surface deliberately avoids repeating the full timeline.
 struct NextActionView: View {
     @Environment(AppState.self) private var appState
-    var reduceTransparency: Bool = false
+    @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
