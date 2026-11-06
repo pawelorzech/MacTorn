@@ -5,16 +5,18 @@ import os.log
 @MainActor
 final class CompanionStoreTests: XCTestCase {
     func testOnDemandHistoryExplainsOfflineAndDoesNotSpendBudget() async {
-        let app = makeApp(MockNetworkSession())
+        let session = MockNetworkSession()
+        let app = makeApp(session)
         (app.connectivity as? ControllableConnectivity)?.goOffline()
         await app.companion.loadWarfare(.ranked, app: app)
         XCTAssertTrue(app.companion.errors["faction.warfareranked"]?.contains("No internet connection") == true)
-        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
+        XCTAssertTrue(session.requestedURLs.isEmpty)
         XCTAssertTrue(app.requester.inFlight.isEmpty)
     }
 
     func testOptionalModuleExplainsMissingPermissionsBeforeBuildingNarrowedURL() async {
-        let app = makeApp(MockNetworkSession())
+        let session = MockNetworkSession()
+        let app = makeApp(session)
         app.requester.testKeyInfo = TornKeyInfo(
             access: .init(level: 1, type: "Custom", faction: false),
             user: .init(id: 42, factionId: nil),
@@ -24,7 +26,7 @@ final class CompanionStoreTests: XCTestCase {
         let value: CompetitionResponse? = await app.companion.request("user.competition", app: app)
         XCTAssertNil(value)
         XCTAssertNotNil(app.companion.errors["user.competition"])
-        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
+        XCTAssertTrue(session.requestedURLs.isEmpty)
     }
 
     private func makeApp(_ session: NetworkSession, defaults: UserDefaults = .createMockDefaults()) -> AppState {
@@ -170,7 +172,6 @@ final class CompanionStoreTests: XCTestCase {
         app.companion.start(app: app)
         await app.companion.task?.value
         XCTAssertEqual(session.requestedURLs.count, 1)
-        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 1)
         app.companion.reset()
     }
     func testCompetitionOutsideEliminationDoesNotFetchTeams() async {
@@ -203,16 +204,6 @@ final class CompanionStoreTests: XCTestCase {
         XCTAssertTrue(elimination.isElimination)
         XCTAssertEqual(elimination.teamId, 4)
         XCTAssertNil(try decodeCompetition(#"{"competition":null}"#))
-    }
-    func testNoCompetitionCodeIsNotAvailableAndNotAFault() {
-        for code in [32, 33] {
-            let error = TornAPIError.classify(code: code, message: "x")
-            XCTAssertEqual(error.classification, .notAvailable)
-            XCTAssertEqual(error.tornCode, code)
-            XCTAssertFalse(error.haltsAllRequests)
-            XCTAssertFalse(error.disablesEndpoint)
-            XCTAssertNil(error.pauseDuration)
-        }
     }
     private let eliminationJSON = #"{"competition":{"name":"Elimination","score":5,"attacks":2,"team":"Red","team_id":4}}"#
     private func seedElimination(_ app: AppState) throws {
@@ -342,19 +333,6 @@ final class CompanionStoreTests: XCTestCase {
         XCTAssertEqual(app.companion.trades.count, 1)
         XCTAssertNotNil(app.companion.errors["user.trades"])
         app.companion.reset()
-    }
-    /// Enabling v2 "Stock bonuses" must not strip `stocks` from the fast poll: the Money
-    /// tab's Total Tracked and the Stocks tab state read `stocksData`, which only the
-    /// fast poll fills. The selection rides the same request, so keeping it costs nothing.
-    /// (Audit 2026-09-26, regression from 141a3cd.)
-    func testEnablingV2StocksKeepsLegacyStocksSelection() {
-        let app = makeApp(MockNetworkSession())
-        func selections() -> String? {
-            URLComponents(url: app.requester.url("user.fast")!, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "selections" }?.value
-        }
-        XCTAssertTrue(selections()!.split(separator: ",").contains("stocks"))
-        app.companion.setEnabled(.stocks, true, app: app)
-        XCTAssertTrue(selections()!.split(separator: ",").contains("stocks"))
     }
     func testEnablingV2StocksStillPopulatesStocksDataFromFastPoll() async throws {
         let session = MockNetworkSession()

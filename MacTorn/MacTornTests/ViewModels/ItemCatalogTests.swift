@@ -65,7 +65,7 @@ final class ItemCatalogTests: XCTestCase {
 
         await state.fetchItemCatalog()
 
-        XCTAssertTrue(state.requester.gate.isPaused("forum.thread"),
+        XCTAssertTrue(state.requester.isPaused("forum.thread"),
                       "code 5 from reference data must pause unrelated endpoint families")
         XCTAssertEqual(state.requester.health.latest(for: "torn.items")?.errorClass, .rateLimit)
         state.stopPolling()

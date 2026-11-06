@@ -107,14 +107,6 @@ struct KeyValidationResult: Equatable, Sendable {
     let playerID: Int
     let inFaction: Bool
     let availability: [EndpointAvailability]
-
-    var allCriticalAvailable: Bool {
-        availability.filter(\.critical).allSatisfy(\.available)
-    }
-
-    var unavailableCount: Int {
-        availability.filter { !$0.available }.count
-    }
 }
 
 /// UI state for the onboarding "Test Connection" flow. `failure` carries an

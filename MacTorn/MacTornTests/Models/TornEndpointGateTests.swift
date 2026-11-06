@@ -62,6 +62,15 @@ final class TornEndpointGateTests: XCTestCase {
         gate.denial(for: id, keyInfo: keyInfo, coordinator: coordinator)
     }
 
+    private func isPaused(_ id: String) -> Bool {
+        if case .paused = denial(id) { return true }
+        return false
+    }
+
+    private var anyEndpointPaused: Bool {
+        TornEndpointRegistry.all.contains { isPaused($0.id) }
+    }
+
     // MARK: - Never refuse on missing knowledge
 
     func testUnvalidatedKeyBlocksNothing() {
@@ -135,14 +144,14 @@ final class TornEndpointGateTests: XCTestCase {
         let error = TornAPIError.classify(code: 14, message: "")
         let pause = try XCTUnwrap(error.pauseDuration)
         gate.note(error, for: "user.activity")
-        XCTAssertTrue(gate.isPaused("user.activity"))
+        XCTAssertTrue(isPaused("user.activity"))
         XCTAssertNil(denial("user.fast"), "one paused endpoint must not stop the others")
 
         clock.advance(pause - 1)
-        XCTAssertTrue(gate.isPaused("user.activity"))
+        XCTAssertTrue(isPaused("user.activity"))
 
         clock.advance(2)
-        XCTAssertFalse(gate.isPaused("user.activity"))
+        XCTAssertFalse(isPaused("user.activity"))
         XCTAssertNil(denial("user.activity"))
     }
 
@@ -151,14 +160,14 @@ final class TornEndpointGateTests: XCTestCase {
         gate.note(TornAPIError.classify(code: 5, message: ""), for: "user.fast")   // 1 min rate limit
 
         clock.advance(120)
-        XCTAssertTrue(gate.isPaused("user.fast"),
+        XCTAssertTrue(isPaused("user.fast"),
                       "a rate-limit blip must not release an hour-long IP block early")
     }
 
     func testErrorsWithNoCoolOffLeaveNoMark() {
         gate.note(.transport(detail: "timeout"), for: "user.fast")
         gate.note(TornAPIError.classify(code: 17, message: ""), for: "user.fast")
-        XCTAssertFalse(gate.isPaused("user.fast"),
+        XCTAssertFalse(isPaused("user.fast"),
                        "the next poll tick is already the retry for a transient failure")
     }
 
@@ -167,34 +176,33 @@ final class TornEndpointGateTests: XCTestCase {
     func testAnAccountWideFailurePausesEveryEndpoint() {
         gate.noteAccountWideFailure(TornAPIError.classify(code: 8, message: ""))
         for endpoint in TornEndpointRegistry.all {
-            XCTAssertTrue(gate.isPaused(endpoint.id), "\(endpoint.id) kept running through an IP block")
+            XCTAssertTrue(isPaused(endpoint.id), "\(endpoint.id) kept running through an IP block")
         }
         clock.advance(3_601)
         for endpoint in TornEndpointRegistry.all {
-            XCTAssertFalse(gate.isPaused(endpoint.id), "\(endpoint.id) never came back")
+            XCTAssertFalse(isPaused(endpoint.id), "\(endpoint.id) never came back")
         }
     }
-
 
     func testPerUserRateLimitPausesEveryEndpoint() {
         gate.noteAccountWideFailure(TornAPIError.classify(code: 5, message: ""))
         for endpoint in TornEndpointRegistry.all {
-            XCTAssertTrue(gate.isPaused(endpoint.id), "\(endpoint.id) kept running through a per-user limit")
+            XCTAssertTrue(isPaused(endpoint.id), "\(endpoint.id) kept running through a per-user limit")
         }
         clock.advance(61)
-        XCTAssertTrue(gate.activePauses().isEmpty)
+        XCTAssertFalse(anyEndpointPaused)
     }
 
     func testAnAccountWideFailureWithNoCoolOffPausesNothing() {
         gate.noteAccountWideFailure(.transport(detail: "timeout"))
-        XCTAssertTrue(gate.activePauses().isEmpty)
+        XCTAssertFalse(anyEndpointPaused)
     }
 
     func testResetClearsEveryPause() {
         gate.note(TornAPIError.classify(code: 14, message: ""), for: "user.activity")
         gate.reset()
-        XCTAssertFalse(gate.isPaused("user.activity"))
-        XCTAssertTrue(gate.activePauses().isEmpty)
+        XCTAssertFalse(isPaused("user.activity"))
+        XCTAssertFalse(anyEndpointPaused)
     }
 
     func testPermissionRefreshRetriesOnlyOnceUntilSuccess() {
@@ -227,13 +235,6 @@ final class TornEndpointGateTests: XCTestCase {
     }
 
     // MARK: - Diagnostics surface
-
-    func testActivePausesPrunesExpiredEntries() {
-        gate.note(TornAPIError.classify(code: 5, message: ""), for: "user.fast")
-        XCTAssertEqual(gate.activePauses().count, 1)
-        clock.advance(3_600)
-        XCTAssertTrue(gate.activePauses().isEmpty)
-    }
 
     /// Every denial has to be able to answer "why is this tab empty?" in words.
     func testEveryDenialExplainsItselfInPlainWords() {

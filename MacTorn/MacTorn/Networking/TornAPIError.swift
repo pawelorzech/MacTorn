@@ -102,13 +102,6 @@ enum TornAPIError: Error, Equatable, Sendable {
         }
     }
 
-    /// A key problem that should halt *all* requests until the user changes the key.
-    /// Only the three genuinely permanent key codes qualify; code 16 refreshes
-    /// capabilities and retries a narrowed request instead.
-    var haltsAllRequests: Bool {
-        classification == .permanentKey
-    }
-
     /// Errors that refuse the whole account rather than one endpoint: the key, the rate
     /// limit, the network, or capabilities that have changed since `/key/info` was read.
     var isAccountWide: Bool {
@@ -116,19 +109,6 @@ enum TornAPIError: Error, Equatable, Sendable {
         case .permanentKey, .temporaryKey, .ipBlocked, .rateLimit, .insufficientPermissions: return true
         default: return false
         }
-    }
-
-    /// A daily-row-limit hit (error 14) halts only the row-based category that tripped
-    /// it, leaving point-in-time polling (bars, countdowns) alive.
-    var haltsCategoryOnly: Bool {
-        classification == .dailyRowLimit
-    }
-
-    /// Whether this error means the *specific endpoint* is unusable but the rest of the
-    /// app is fine — so the caller should stop calling that one endpoint rather than
-    /// stop the app or keep retrying a request that cannot ever succeed.
-    var disablesEndpoint: Bool {
-        classification == .endpointUnavailable
     }
 
     /// How long to stay quiet before trying again, for the self-healing failures.

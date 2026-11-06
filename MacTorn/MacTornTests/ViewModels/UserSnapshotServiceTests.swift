@@ -286,7 +286,7 @@ final class UserSnapshotServiceTests: XCTestCase {
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected Torn API error")
         }
-        XCTAssertTrue(error.haltsCategoryOnly)
+        XCTAssertEqual(error.classification, .dailyRowLimit)
     }
 
     func testParsePropertiesSortsDeterministicallyByPropertyId() async throws {

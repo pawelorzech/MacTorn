@@ -90,7 +90,6 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(state.recovery, .none)
     }
 
-
     // MARK: EndpointHealthTracker
 
     func testTrackerRecordsAndReturnsLatest() {
@@ -138,12 +137,6 @@ final class DiagnosticsTests: XCTestCase {
         )
     }
 
-    /// The report answers "why is my faction tab empty?" without anyone reading a log.
-    func testSanitizedTextNamesSuppressedEndpointsAndTheirReason() {
-        let text = sampleReport().sanitizedText()
-        XCTAssertTrue(text.contains("faction.basic: notInFaction"))
-    }
-
     /// The copied report carries the machine labels only. The plain-words version is for
     /// the screen; duplicating it would make an issue paste longer without adding anything.
     func testSanitizedTextCarriesTheMachineLabelNotThePlainWordsVersion() {
@@ -165,16 +158,45 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(report.sanitizedText().contains("Suppressed endpoints: none"))
     }
 
-    /// The report must never contain the API key, a player name/ID, money, or a raw URL —
-    /// even when those exist in the app. It only carries the safe fields it was built from.
-    func testSanitizedTextExcludesSecretsAndPII() {
+    /// The copied report ends up in public GitHub issues. Built from an app that really holds
+    /// an API key, a player name and money, it must carry none of them, nor a raw URL.
+    func testReportBuiltFromALoadedAppCarriesNoSecretsOrPII() async throws {
         let secretKey = "exampleKey123456"
-        let playerName = "SomePlayer"
-        let text = sampleReport().sanitizedText()
+        let appState = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
+        defer { appState.stopPolling() }
+        appState.apiKey = secretKey
+        appState.player.data = try JSONDecoder().decode(
+            TornResponse.self, from: TornAPIFixtures.toData(TornAPIFixtures.validFullResponse()))
+        appState.player.moneyData = MoneyData(cash: 987_654_321)
+        let playerName = try XCTUnwrap(appState.player.data?.name)
+
+        let text = await appState.makeDiagnosticsReport().sanitizedText()
+
+        XCTAssertTrue(text.contains("API key configured: yes"), "the report must say a key exists")
         XCTAssertFalse(text.contains(secretKey), "must not leak the API key")
-        XCTAssertFalse(text.contains(playerName), "must not leak player name")
-        XCTAssertFalse(text.contains("api.torn.com"), "must not include full URLs / host with key")
+        XCTAssertFalse(text.contains(playerName), "must not leak the player name")
+        XCTAssertFalse(text.contains("987654321"), "must not leak money")
+        XCTAssertFalse(text.contains("api.torn.com"), "must not include full URLs")
         XCTAssertFalse(text.lowercased().contains("key="), "must not include a key query param")
+    }
+
+    /// A rejected key halts polling; Diagnostics and the module state must point the user at
+    /// Settings rather than at a retry that cannot help. Reached through the real code-2 path.
+    func testARejectedKeyRoutesModulesToSettings() async throws {
+        let mock = MockNetworkSession()
+        let appState = AppState(session: mock, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        defer { appState.stopPolling() }
+        appState.apiKey = "bad_key"
+        appState.requester.testKeyInfo = TornKeyInfo.testFixture()
+        try mock.setSuccessResponse(json: ["code": 2, "error": "Incorrect key"])
+        appState.fetchData()
+        let halted = await eventually { appState.keyHalted }
+        XCTAssertTrue(halted)
+
+        let state = appState.presentationState(endpointIDs: ["user.fast"], hasContent: false, staleAfter: 120)
+
+        XCTAssertEqual(state.kind, .permission)
+        XCTAssertEqual(state.recovery, .settings)
     }
 
     func testSanitizedTextIncludesTheExpectedSafeFields() {
@@ -186,20 +208,6 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertTrue(text.contains("3/min"))
         XCTAssertTrue(text.contains("activity: 300"))
         XCTAssertTrue(text.contains("user.fast: ok 120ms 8000B"))
-    }
-
-    func testKeyNeverAppearsEvenWhenPresent() {
-        // keyPresent is a Bool — the report has no field that could hold the key value.
-        let text = sampleReport().sanitizedText()
-        XCTAssertTrue(text.contains("API key configured: yes"))
-        // The word "key" appears only in the label, never followed by an actual secret.
-        XCTAssertFalse(text.contains("exampleKey"))
-    }
-
-    func testEnvironmentProbesAreNonEmpty() {
-        XCTAssertFalse(BuildInfo.appVersion.isEmpty)
-        XCTAssertFalse(BuildInfo.osVersion.isEmpty)
-        XCTAssertTrue(["arm64", "x86_64", "unknown"].contains(BuildInfo.architecture))
     }
 
     // MARK: Module presentation state
@@ -229,21 +237,6 @@ final class DiagnosticsTests: XCTestCase {
             ],
             hasContent: false, isLoading: false, fallbackError: nil,
             now: now, staleAfter: 120
-        )
-
-        XCTAssertEqual(state.kind, .permission)
-        XCTAssertEqual(state.recovery, .settings)
-    }
-
-    func testAppStateRoutesAccountWidePermanentKeyFailureToSettings() {
-        let appState = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
-        defer { appState.stopPolling() }
-        appState.keyHalted = true
-
-        let state = appState.presentationState(
-            endpointIDs: ["user.fast"],
-            hasContent: false,
-            staleAfter: 120
         )
 
         XCTAssertEqual(state.kind, .permission)

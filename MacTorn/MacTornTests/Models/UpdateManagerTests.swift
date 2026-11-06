@@ -1,17 +1,8 @@
 import XCTest
 @testable import MacTorn
 
-/// GitHub issue #56 — `UpdateManager` bypasses the injected `NetworkSession` (it hard-codes
-/// `URLSession.shared`), so it has 0% test coverage today. These tests exercise the
-/// intended fix: an injectable session (`UpdateManager(session:)`), correct newer/older
-/// version comparison, a leading-"v"-only tag strip, and a stored+cancellable `Task`
-/// handle on `AppState`.
-///
-/// NOTE TO IMPLEMENTER: this file will not compile until `UpdateManager` gains a
-/// `session: NetworkSession` initializer (issue #56, part 1) and `AppState` gains a
-/// stored update-check `Task` handle that `stopPolling()` cancels (issue #56, part 2).
-/// That is expected — see the batch's redProof for the exact compiler diagnostics
-/// confirming this file is the reason the target does not build today.
+/// `UpdateManager` goes through an injectable `NetworkSession`, compares versions correctly
+/// (only a leading "v" is stripped) and its in-flight check dies with polling teardown.
 final class UpdateManagerTests: XCTestCase {
 
     private func makeRelease(tag: String) -> [String: Any] {
@@ -67,19 +58,7 @@ final class UpdateManagerTests: XCTestCase {
         XCTAssertNil(release, "an older tag is not a newer release")
     }
 
-    // MARK: - Leading-"v"-only stripping (the reported bug: replacingOccurrences(of: "v")
-    // strips EVERY "v" in the tag, not just the version prefix)
-
-    func testLeadingVIsStrippedForComparison() async throws {
-        let mock = MockNetworkSession()
-        try mock.setSuccessResponse(json: makeRelease(tag: "v1.2.3"))
-        let manager = UpdateManager(session: mock)
-
-        // 1.2.2 -> 1.2.3 must be recognized as newer once the leading "v" is stripped.
-        let release = await manager.checkForUpdates(currentVersion: "1.2.2")
-
-        XCTAssertNotNil(release)
-    }
+    // MARK: - Leading-"v"-only stripping
 
     func testInnerVCharactersSurviveTheStrip() async throws {
         // A hypothetical tag with a "v" inside the version string itself (e.g. a named
@@ -95,22 +74,45 @@ final class UpdateManagerTests: XCTestCase {
         XCTAssertNotNil(release, "1.2.3-victory must still compare as newer than 1.2.2 despite the inner \"v\"")
     }
 
-    // MARK: - Task handle lifecycle (issue #56, part 2)
+    // MARK: - Teardown
 
     @MainActor
-    func testUpdateCheckTaskIsCancelledByPollingTeardown() async throws {
-        let mock = MockNetworkSession()
-        try mock.setSuccessResponse(json: makeRelease(tag: "v9.9.9"))
-        let appState = AppState(session: mock, defaults: .createMockDefaults())
+    func testANewerReleaseIsPublishedToTheApp() async throws {
+        let appState = AppState(session: try SlowReleaseSession(), defaults: .createMockDefaults())
+        defer { appState.stopPolling() }
 
         appState.checkForAppUpdates()
-        XCTAssertNotNil(appState.updateCheckTask, "AppState must retain the update-check Task handle")
 
+        let published = await eventually { appState.updateAvailable?.tagName == "v9.9.9" }
+        XCTAssertTrue(published)
+    }
+
+    @MainActor
+    func testStoppingPollingDiscardsAnInFlightUpdateCheck() async throws {
+        let appState = AppState(session: try SlowReleaseSession(), defaults: .createMockDefaults())
+
+        appState.checkForAppUpdates()
         appState.stopPolling()
+        try await Task.sleep(nanoseconds: 600_000_000)
 
-        XCTAssertTrue(
-            appState.updateCheckTask?.isCancelled ?? true,
-            "stopPolling() must cancel any in-flight update-check task"
-        )
+        XCTAssertNil(appState.updateAvailable, "a check cancelled by teardown must not publish a result")
+    }
+}
+
+/// Answers with a newer release after a short delay, and honours cancellation while waiting.
+private struct SlowReleaseSession: NetworkSession {
+    let body: Data
+
+    init() throws {
+        body = try JSONSerialization.data(withJSONObject: [
+            "tag_name": "v9.9.9",
+            "html_url": "https://github.com/pawelorzech/MacTorn/releases/tag/v9.9.9",
+            "body": "notes",
+        ])
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await Task.sleep(nanoseconds: 300_000_000)
+        return (body, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
     }
 }

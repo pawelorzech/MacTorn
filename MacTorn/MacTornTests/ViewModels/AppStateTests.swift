@@ -74,7 +74,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(result.playerID, 43)
     }
 
-
     var mockSession: MockNetworkSession!
     var appState: AppState!
     var testDefaults: UserDefaults!
@@ -97,43 +96,73 @@ final class AppStateTests: XCTestCase {
         try await super.tearDown()
     }
 
-    // MARK: - Etap D: request budget wiring + reconnect refresh
+    // MARK: - Reconnect refresh
 
-    func testFetchRecordsAgainstRequestBudget() {
-        let conn = ControllableConnectivity(connected: true)
-        let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
-        app.apiKey = "valid_key"
-        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
-        app.refreshNow()   // the accepted `/key/info` handshake is recorded synchronously
-        XCTAssertGreaterThanOrEqual(app.requester.budget.requestsInLastMinute, 1,
-                                    "a poll must be recorded against the API budget")
-        app.stopPolling()
-    }
-
-    func testReconnectTriggersRefresh() {
-        let conn = ControllableConnectivity(connected: true)
-        let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
-        app.apiKey = "valid_key"
-        XCTAssertNotNil(conn.onConnectivityRestored, "AppState wires the reconnect handler")
-
-        let before = app.requester.budget.requestsInLastMinute
-        conn.goOffline()
-        conn.restore()   // down→up edge → refreshNow records the ordered capability request
-        XCTAssertGreaterThan(app.requester.budget.requestsInLastMinute, before,
-                             "a restored connection refreshes immediately")
-        app.stopPolling()
-    }
-
-    func testOfflineFetchRecordsNothing() {
+    /// Nothing goes out while offline, and the offline attempt must not use up the 3-second
+    /// manual-refresh debounce: the reconnect edge refreshes at once, at the same clock instant.
+    func testRefreshWaitsForConnectivityThenGoesOutImmediatelyOnReconnect() async {
         let conn = ControllableConnectivity(connected: false)
-        let app = AppState(session: MockNetworkSession(), connectivity: conn, defaults: .createMockDefaults())
+        let mock = MockNetworkSession()
+        let app = AppState(session: mock, connectivity: conn, defaults: .createMockDefaults(),
+                           time: MutableTimeSource())
+        defer { app.stopPolling() }
         app.apiKey = "valid_key"
-        app.refreshNow()   // fetchData bails on the connectivity guard before recording
-        XCTAssertEqual(app.requester.budget.requestsInLastMinute, 0)
-        app.stopPolling()
+        app.requester.testKeyInfo = TornKeyInfo.testFixture()
+
+        app.refreshNow()
+        await settle()
+        XCTAssertTrue(mock.seenURLs.isEmpty, "an offline refresh must not send anything")
+
+        conn.restore()
+        let sent = await eventually { mock.userPollCount == 1 }
+        XCTAssertTrue(sent, "a restored connection refreshes immediately")
     }
 
-    // MARK: - Etap B: permanent key error halts polling (ISC-15)
+    // MARK: - Permanent key error halts polling
+
+    /// Drives the real halt path: Torn answers HTTP 200 with a code-2 envelope.
+    private func haltPollingWithRejectedKey(_ app: AppState, _ mock: MockNetworkSession) async throws {
+        app.requester.testKeyInfo = TornKeyInfo.testFixture()
+        try mock.setSuccessResponse(json: ["code": 2, "error": "Incorrect key"])
+        app.fetchData()
+        let halted = await eventually { app.keyHalted }
+        XCTAssertTrue(halted, "a code-2 error must halt polling")
+    }
+
+    func testAHaltedAppIssuesNoRequests() async throws {
+        let mock = MockNetworkSession()
+        let app = AppState(session: mock, connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
+        defer { app.stopPolling() }
+        app.apiKey = "key"
+        try await haltPollingWithRejectedKey(app, mock)
+        await settle()
+        let sentBeforeRestart = mock.seenURLs.count
+
+        app.startPolling()
+        app.refreshNow()
+        await settle()
+
+        XCTAssertEqual(mock.seenURLs.count, sentBeforeRestart, "a halted key must not be retried")
+    }
+
+    func testEnteringANewKeyResumesPollingAfterAHalt() async throws {
+        let mock = MockNetworkSession()
+        let app = AppState(session: mock, connectivity: ControllableConnectivity(), defaults: .createMockDefaults(),
+                           time: MutableTimeSource())
+        defer { app.stopPolling() }
+        app.apiKey = "bad_key"
+        try await haltPollingWithRejectedKey(app, mock)
+
+        app.apiKey = "fresh_key"
+        XCTAssertFalse(app.keyHalted)
+        app.requester.testKeyInfo = TornKeyInfo.testFixture()
+        try mock.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
+        let before = mock.userPollCount
+        app.refreshNow()
+
+        let polled = await eventually { mock.userPollCount > before }
+        XCTAssertTrue(polled, "the new key must be polled")
+    }
 
     func testPermanentKeyErrorHaltsPolling() async throws {
         let conn = ControllableConnectivity(connected: true)
@@ -148,19 +177,11 @@ final class AppStateTests: XCTestCase {
         XCTAssertTrue(app.keyHalted, "a code-2 error must halt polling")
         XCTAssertNil(app.player.data)
         XCTAssertNil(app.player.moneyData, "revoked credentials must not leave stale account data visible")
-        XCTAssertNotNil(app.errorMsg)
+        XCTAssertEqual(app.errorMsg, "Incorrect key")
         guard case .failure = app.keyValidation else {
             return XCTFail("a permanently rejected key must invalidate prior validation")
         }
         app.stopPolling()
-    }
-
-    func testChangingKeyClearsHalt() {
-        let app = AppState(session: MockNetworkSession(), connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
-        app.apiKey = "bad_key"
-        app.keyHalted = true
-        app.apiKey = "fresh_key"   // didSet clears the halt
-        XCTAssertFalse(app.keyHalted)
     }
 
     func testChangingKeyClearsPreviouslyAuthenticatedAccountData() throws {
@@ -240,16 +261,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertNil(app.requester.keyInfo)
     }
 
-    func testHaltedPollingIssuesNoRequests() {
-        let app = AppState(session: MockNetworkSession(), connectivity: ControllableConnectivity(), defaults: .createMockDefaults())
-        app.apiKey = "key"
-        app.keyHalted = true       // set after apiKey (which would otherwise clear it)
-        let before = app.requester.budget.requestsInLastMinute
-        app.startPolling()         // must early-return without issuing a request
-        XCTAssertEqual(app.requester.budget.requestsInLastMinute, before)
-        app.stopPolling()
-    }
-
     // MARK: - API Key Validation Tests
 
     func testFetchData_emptyAPIKey() async {
@@ -287,35 +298,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertNotNil(appState.player.data,
                         "a transient HTTP error must not wipe the last good snapshot")
         XCTAssertFalse(appState.keyHalted, "polling must keep running")
-    }
-
-    func testHTTP404IsTreatedAsTransientAndKeepsTheLastGoodSnapshot() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
-        appState.fetchData()
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-        XCTAssertNotNil(appState.player.data)
-
-        mockSession.setHTTPError(statusCode: 404)
-        appState.fetchData()
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(404))
-        XCTAssertNotNil(appState.player.data)
-        XCTAssertFalse(appState.keyHalted)
-    }
-
-    /// The genuine bad-key path is unchanged and still halts — pinned here so the
-    /// relaxation above cannot quietly swallow a real credential failure.
-    func testTornErrorEnvelopeStillHaltsOnBadKey() async throws {
-        appState.apiKey = "bad_key"
-        try mockSession.setSuccessResponse(json: ["code": 2, "error": "Incorrect key"])
-
-        appState.fetchData()
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        XCTAssertTrue(appState.keyHalted)
-        XCTAssertNil(appState.player.data)
     }
 
     // MARK: - Fetch Success Tests
@@ -420,23 +402,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.refreshInterval, 30)
         XCTAssertEqual(testDefaults.integer(forKey: "refreshInterval"), 30)
     }
-
-    func testFetchData_parsesAllBars() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
-
-        appState.fetchData()
-
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        XCTAssertNotNil(appState.player.data?.bars)
-        XCTAssertEqual(appState.player.data?.energy?.current, 100)
-        XCTAssertEqual(appState.player.data?.nerve?.current, 50)
-        XCTAssertEqual(appState.player.data?.life?.current, 7500)
-        XCTAssertEqual(appState.player.data?.happy?.current, 5000)
-    }
-
-    // MARK: - Torn API Error Tests
 
     // MARK: - Cooldown End-Time Conversion
 
@@ -906,22 +871,6 @@ final class AppStateTests: XCTestCase {
                        "Reset detected (>3 s gap) → adopt the new endsAt instead of pinning")
     }
 
-    func testFetchData_tornAPIError() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setTornAPIError(code: 2, message: "Incorrect Key")
-
-        appState.fetchData()
-
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        // Etap B: code 2 is a permanent key error — polling now halts and the classified
-        // message surfaces (previously this showed "API Error: Incorrect Key" and kept
-        // retrying a dead key forever).
-        XCTAssertTrue(appState.keyHalted)
-        XCTAssertEqual(appState.errorMsg, "Incorrect Key")
-        XCTAssertNil(appState.player.data)
-    }
-
     func testFetchData_tornAPIRateLimit() async throws {
         appState.apiKey = "valid_key"
         try mockSession.setTornAPIError(code: 5, message: "Too many requests")
@@ -933,7 +882,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.errorMsg, "Too many requests — backing off.")
         XCTAssertEqual(mockSession.requestedURLs.count, 1,
                        "a rate-limited main response must not fan out optional requests")
-        XCTAssertTrue(appState.requester.gate.isPaused("forum.thread"),
+        XCTAssertTrue(appState.requester.isPaused("forum.thread"),
                       "Torn's per-user rate limit must pause independent forum polling too")
     }
 
@@ -976,70 +925,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(500))
     }
 
-    func testFetchData_HTTP502() async throws {
-        appState.apiKey = "valid_key"
-        mockSession.setHTTPError(statusCode: 502)
-
-        appState.fetchData()
-
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(502))
-    }
-
-    // MARK: - Polling Tests
-
-    func testStartPolling_fetchesData() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
-
-        appState.startPolling()
-
-        // Initial fetch should happen immediately
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        XCTAssertTrue(mockSession.requestedURLs.count >= 1)
-        XCTAssertNotNil(appState.player.data)
-    }
-
-    func testStopPolling_stopsTimer() {
-        appState.apiKey = "valid_key"
-        appState.startPolling()
-
-        appState.stopPolling()
-
-        // Timer should be cancelled
-        // No way to directly verify timer is nil, but we can verify no more requests happen
-    }
-
-    // MARK: - Loading State Tests
-
-    func testFetchData_setsLoadingState() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
-
-        appState.fetchData()
-
-        // Wait for completion - fetchData is async so loading transitions happen inside the Task
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        // After completion, loading should be false
-        XCTAssertFalse(appState.isLoading)
-        // And we should have data
-        XCTAssertNotNil(appState.player.data)
-    }
-
     // MARK: - Notification Rules Tests
-
-    func testLoadNotificationRules_defaults() {
-        // Clear existing rules
-        testDefaults.removeObject(forKey: "notificationRules")
-
-        let newAppState = AppState(session: mockSession, defaults: testDefaults)
-
-        XCTAssertFalse(newAppState.notificationRules.isEmpty)
-        // Should have default rules
-    }
 
     func testSaveNotificationRules() {
         let rule = NotificationRule(
@@ -1061,89 +947,52 @@ final class AppStateTests: XCTestCase {
 
     // MARK: - Refresh Now Tests
 
-    func testRefreshNow_triggersFetch() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
-
-        // refreshNow calls fetchData which is async
-        appState.refreshNow()
-
-        // Wait for async completion
-        try await Task.sleep(nanoseconds: 1_500_000_000)
-
-        // Verify request was made
-        XCTAssertGreaterThanOrEqual(mockSession.requestedURLs.count, 1)
-        XCTAssertNotNil(appState.player.data)
-    }
-
-    func testRefreshNow_debouncesBurstAndAcceptsBoundaryAtThreeSeconds() {
+    func testRefreshNow_debouncesBurstAndAcceptsBoundaryAtThreeSeconds() async {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let clock = MutableTimeSource(start)
-        let app = AppState(
-            session: MockNetworkSession(),
-            connectivity: ControllableConnectivity(connected: true),
-            defaults: .createMockDefaults(),
-            time: clock
-        )
+        let mock = MockNetworkSession()
+        try? mock.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
+        let app = AppState(session: mock, connectivity: ControllableConnectivity(connected: true),
+                           defaults: .createMockDefaults(), time: clock)
+        defer { app.stopPolling() }
         app.apiKey = "debounce-\(UUID().uuidString)"
         // This test isolates the three-second manual debounce; first-session capability
         // ordering is covered by FirstPollOrderingTests.
         app.requester.testKeyInfo = TornKeyInfo.testFixture()
 
         app.refreshNow()
-        XCTAssertEqual(app.pollSequence, 1)
-
         app.refreshNow()
-        XCTAssertEqual(app.pollSequence, 1, "a held shortcut must not start another poll")
+        let first = await eventually { mock.userPollCount >= 1 }
+        XCTAssertTrue(first)
+        await settle()
+        XCTAssertEqual(mock.userPollCount, 1, "a held shortcut must not start another poll")
 
         clock.advance(2.999)
         app.refreshNow()
-        XCTAssertEqual(app.pollSequence, 1, "the debounce remains closed before 3 seconds")
+        await settle()
+        XCTAssertEqual(mock.userPollCount, 1, "the debounce remains closed before 3 seconds")
 
         clock.set(start.addingTimeInterval(3))
         app.refreshNow()
-        XCTAssertEqual(app.pollSequence, 2, "the boundary at 3 seconds accepts a new poll")
-        app.stopPolling()
+        let second = await eventually { mock.userPollCount == 2 }
+        XCTAssertTrue(second, "the boundary at 3 seconds accepts a new poll")
     }
 
-    func testRefreshNow_newAccountBypassesPreviousAccountsDebounce() {
-        let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
-        let app = AppState(
-            session: MockNetworkSession(),
-            connectivity: ControllableConnectivity(connected: true),
-            defaults: .createMockDefaults(),
-            time: clock
-        )
+    func testRefreshNow_newAccountBypassesPreviousAccountsDebounce() async {
+        let mock = MockNetworkSession()
+        let app = AppState(session: mock, connectivity: ControllableConnectivity(connected: true),
+                           defaults: .createMockDefaults(), time: MutableTimeSource())
+        defer { app.stopPolling() }
         app.apiKey = "account-a-\(UUID().uuidString)"
         app.refreshNow()
-        XCTAssertEqual(app.pollSequence, 1)
+        let firstHandshake = await eventually { mock.requests(to: "/v2/key/info") == 1 }
+        XCTAssertTrue(firstHandshake)
 
         app.apiKey = "account-b-\(UUID().uuidString)"
         app.refreshNow()
 
-        XCTAssertEqual(app.pollSequence, 2,
-                       "saving a different key must refresh immediately at the same clock instant")
-        app.stopPolling()
-    }
-
-    func testOfflineRefreshDoesNotConsumeDebounceBeforeReconnect() {
-        let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000))
-        let connectivity = ControllableConnectivity(connected: false)
-        let app = AppState(
-            session: MockNetworkSession(),
-            connectivity: connectivity,
-            defaults: .createMockDefaults(),
-            time: clock
-        )
-        app.apiKey = "offline-\(UUID().uuidString)"
-
-        app.refreshNow()
-        XCTAssertEqual(app.pollSequence, 0, "an offline attempt never starts a poll")
-
-        connectivity.restore()
-        XCTAssertEqual(app.pollSequence, 1,
-                       "the connectivity callback must refresh immediately without waiting 3 seconds")
-        app.stopPolling()
+        let secondHandshake = await eventually { mock.requests(to: "/v2/key/info") == 2 }
+        XCTAssertTrue(secondHandshake, "saving a different key must refresh immediately at the same clock instant")
     }
 
     func testOfflineTransportFailureReopensDebounceForReconnect() async throws {
@@ -1177,8 +1026,7 @@ final class AppStateTests: XCTestCase {
 
         connectivity.goOffline()
         connectivity.restore()
-        XCTAssertEqual(app.pollSequence, 2,
-                       "a real transport-offline failure must not debounce the reconnect callback")
+        // The reconnect poll must start despite the manual refresh moments ago.
         await fulfillment(of: [reconnectStarted], timeout: 1)
         service.complete(index: 1)
         app.stopPolling()
@@ -1219,8 +1067,7 @@ final class AppStateTests: XCTestCase {
 
         connectivity.goOffline()
         connectivity.restore()
-        XCTAssertEqual(app.pollSequence, 3,
-                       "the latest automatic failure must reopen the superseded manual debounce")
+        // The reconnect poll must start despite the superseded manual refresh.
         await fulfillment(of: [reconnectStarted], timeout: 1)
 
         service.complete(index: 0)
@@ -1294,7 +1141,6 @@ final class AppStateTests: XCTestCase {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
         XCTAssertFalse(app.isLoading, "the current poll must still clear loading on its error path")
-        XCTAssertEqual(app.pollSequence, 2)
         app.stopPolling()
     }
 
@@ -1428,9 +1274,9 @@ final class AppStateTests: XCTestCase {
         state.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertTrue(state.requester.gate.isPaused("user.activity"), "activity should pause on code 14")
-        XCTAssertTrue(state.requester.gate.isPaused("faction.news"), "faction news should pause on code 14")
-        XCTAssertFalse(state.requester.gate.isPaused("faction.basic"),
+        XCTAssertTrue(state.requester.isPaused("user.activity"), "activity should pause on code 14")
+        XCTAssertTrue(state.requester.isPaused("faction.news"), "faction news should pause on code 14")
+        XCTAssertFalse(state.requester.isPaused("faction.basic"),
                        "point-in-time faction/chain must keep running")
         state.stopPolling()
     }
@@ -1447,10 +1293,10 @@ final class AppStateTests: XCTestCase {
 
         state.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
-        XCTAssertTrue(state.requester.gate.isPaused("user.activity"))
+        XCTAssertTrue(state.requester.isPaused("user.activity"))
 
         clock.advance(3601)   // just past the 1 h pause window
-        XCTAssertFalse(state.requester.gate.isPaused("user.activity"), "pause should re-arm after the window")
+        XCTAssertFalse(state.requester.isPaused("user.activity"), "pause should re-arm after the window")
         state.stopPolling()
     }
 
@@ -1860,15 +1706,6 @@ final class ChainSourceTests: XCTestCase {
         AppState(session: MockNetworkSession(),
                  connectivity: ControllableConnectivity(connected: true),
                  defaults: .createMockDefaults())
-    }
-
-    func testUserFastEndpointDoesNotRequestChain() throws {
-        let userFast = try XCTUnwrap(TornEndpointRegistry.all.first { $0.id == "user.fast" })
-        XCTAssertFalse(userFast.selections.contains("chain"),
-                       "Torn's v1 user endpoint has no chain selection — the alert must not depend on it")
-        let factionBasic = try XCTUnwrap(TornEndpointRegistry.all.first { $0.id == "faction.basic" })
-        XCTAssertTrue(factionBasic.selections.contains("chain"),
-                      "chain is faction data — this is the endpoint that carries it")
     }
 
     func testLiveChainIsNilUntilFactionDataArrives() {

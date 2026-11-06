@@ -170,13 +170,6 @@ final class NotificationCoordinator {
         return now.timeIntervalSince(observedAt) > window
     }
 
-    /// Whether `key` is currently latched — exposed for diagnostics/tests.
-    func isLatched(_ key: String) -> Bool { latches.entry(for: key)?.value == Self.latchedValue }
-
-    /// When `key` was last observed, or `nil` if never (or by a pre-timestamp build).
-    /// Exposed for diagnostics/tests.
-    func lastObserved(_ key: String) -> Date? { latches.entry(for: key)?.observedAt }
-
     /// Forget all dedup state (used when the key changes, or in tests).
     func reset() {
         latches.removeAll()

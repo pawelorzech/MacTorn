@@ -78,7 +78,7 @@ final class FactionServiceTests: XCTestCase {
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected faction.basic API error")
         }
-        XCTAssertTrue(error.haltsAllRequests)
+        XCTAssertEqual(error.classification, .permanentKey)
         XCTAssertNil(service.basic)
     }
 
@@ -91,8 +91,7 @@ final class FactionServiceTests: XCTestCase {
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected faction.wars API error")
         }
-        XCTAssertFalse(error.haltsAllRequests,
-                       "code 16 refreshes capabilities; it does not invalidate the key")
+        XCTAssertEqual(error.classification, .insufficientPermissions, "code 16 refreshes capabilities; it does not invalidate the key")
         XCTAssertTrue(service.wars.isEmpty)
     }
 
@@ -105,7 +104,7 @@ final class FactionServiceTests: XCTestCase {
         guard case .apiError(let error, _) = result else {
             return XCTFail("Expected faction.news API error")
         }
-        XCTAssertTrue(error.haltsCategoryOnly)
+        XCTAssertEqual(error.classification, .dailyRowLimit)
         XCTAssertTrue(service.news.isEmpty)
     }
 

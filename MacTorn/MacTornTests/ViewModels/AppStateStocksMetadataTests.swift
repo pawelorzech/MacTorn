@@ -78,10 +78,28 @@ final class AppStateStocksMetadataTests: XCTestCase {
         XCTAssertEqual(appState.requester.health.latest(for: "torn.stocks")?.errorClass, .permanentKey)
     }
 
+    /// A failure that must not count (wrong account, cancelled) leaves no back-off behind: the very
+    /// next fetch goes out instead of being held off for a minute or more.
+    private func assertNextFetchIsNotHeldBack(_ app: AppState, _ session: HeldMetadataSession, catalog: Bool,
+                                              file: StaticString = #filePath, line: UInt = #line) async {
+        let before = await session.requestCount
+        let retry = Task {
+            if catalog { await app.fetchItemCatalog() } else { await app.fetchStocksMetadata() }
+        }
+        var sent = false
+        for _ in 0..<200 {
+            if await session.requestCount > before { sent = true; break }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        await session.finish(Data("{}".utf8), index: before)
+        await retry.value
+        XCTAssertTrue(sent, "a fresh fetch must not be held back by a back-off", file: file, line: line)
+    }
+
     func testOldMetadataErrorCannotHaltNewAccount() async throws {
         for catalog in [false, true] {
             let requested = expectation(description: "Metadata request started")
-            let session = HeldMetadataSession { _ in requested.fulfill() }
+            let session = HeldMetadataSession { index in if index == 0 { requested.fulfill() } }
             let app = AppState(session: session, connectivity: ControllableConnectivity(connected: true),
                                defaults: .createMockDefaults())
             app.apiKey = "account-a"
@@ -95,8 +113,7 @@ final class AppStateStocksMetadataTests: XCTestCase {
             await old.value
             XCTAssertFalse(app.keyHalted, "An old metadata error must not halt account B")
             XCTAssertNil(app.errorMsg)
-            XCTAssertEqual(app.stocksBackoff.failures, 0)
-            XCTAssertEqual(app.itemCatalogBackoff.failures, 0)
+            await assertNextFetchIsNotHeldBack(app, session, catalog: catalog)
         }
     }
 
@@ -160,7 +177,7 @@ final class AppStateStocksMetadataTests: XCTestCase {
     func testCancelledMetadataDoesNotPublishOrBackOff() async throws {
         for catalog in [false, true] {
             let requested = expectation(description: "Metadata request started")
-            let session = HeldMetadataSession { _ in requested.fulfill() }
+            let session = HeldMetadataSession { index in if index == 0 { requested.fulfill() } }
             let app = AppState(session: session, connectivity: ControllableConnectivity(connected: true),
                                defaults: .createMockDefaults())
             app.apiKey = "account-a"
@@ -173,8 +190,7 @@ final class AppStateStocksMetadataTests: XCTestCase {
             await session.finish(Data(#"{"error":{"code":2,"error":"Incorrect key"}}"#.utf8))
             await task.value
             XCTAssertFalse(app.keyHalted)
-            XCTAssertEqual(app.stocksBackoff.failures, 0)
-            XCTAssertEqual(app.itemCatalogBackoff.failures, 0)
+            await assertNextFetchIsNotHeldBack(app, session, catalog: catalog)
         }
     }
 }

@@ -74,8 +74,7 @@ final class KeyValidationTests: XCTestCase {
     func testFullKeyMakesEveryEndpointAvailable() throws {
         let info = try decode(keyInfoJSON(level: 4, type: "Full Access", userSelections: fullUserSelections))
         let result = KeyValidator.validate(info)
-        XCTAssertTrue(result.allCriticalAvailable)
-        XCTAssertEqual(result.unavailableCount, 0)
+        XCTAssertTrue(result.availability.allSatisfy(\.available))
         XCTAssertEqual(result.playerID, 42)
         XCTAssertTrue(result.inFaction)
     }
@@ -89,7 +88,6 @@ final class KeyValidationTests: XCTestCase {
         let fast = try XCTUnwrap(result.availability.first { $0.endpointID == "user.fast" })
         XCTAssertFalse(fast.available)
         XCTAssertEqual(fast.missingSelections, ["battlestats"])
-        XCTAssertFalse(result.allCriticalAvailable, "user.fast is critical")
     }
 
     func testEmptyFactionSelectionsBlocksFaction() throws {
@@ -181,7 +179,7 @@ final class KeyValidationTests: XCTestCase {
         }
         XCTAssertEqual(result.accessType, "Full Access")
         XCTAssertEqual(result.playerID, 42)
-        XCTAssertTrue(result.allCriticalAvailable)
+        XCTAssertTrue(result.availability.allSatisfy(\.available))
         XCTAssertNotNil(state.requester.keyInfo)
     }
 

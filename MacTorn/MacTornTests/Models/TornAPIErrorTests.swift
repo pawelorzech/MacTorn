@@ -27,7 +27,6 @@ final class TornAPIErrorTests: XCTestCase {
         for code in [10, 11, 12, 13] {
             let error = TornAPIError.classify(code: code, message: "")
             XCTAssertEqual(error.classification, .temporaryKey, "code \(code) should be temporary")
-            XCTAssertFalse(error.haltsAllRequests, "code \(code) must not stop the app for good")
             XCTAssertNotNil(error.pauseDuration, "code \(code) needs a cool-off to retry after")
         }
     }
@@ -38,8 +37,6 @@ final class TornAPIErrorTests: XCTestCase {
         for code in [3, 4, 6, 7, 19, 21, 22, 23, 25, 26, 27, 28, 29, 30] {
             let error = TornAPIError.classify(code: code, message: "")
             XCTAssertEqual(error.classification, .endpointUnavailable, "code \(code)")
-            XCTAssertTrue(error.disablesEndpoint, "code \(code)")
-            XCTAssertFalse(error.haltsAllRequests, "code \(code) must not stop the whole app")
         }
     }
 
@@ -55,8 +52,6 @@ final class TornAPIErrorTests: XCTestCase {
     func testAccessLevelTooLowIsInsufficientPermissions() {
         let error = TornAPIError.classify(code: 16, message: "")
         XCTAssertEqual(error.classification, .insufficientPermissions)
-        XCTAssertFalse(error.haltsAllRequests,
-                       "selection-level permissions must refresh capabilities, not invalidate the key")
     }
 
     func testTooManyRequestsIsRateLimit() {
@@ -78,7 +73,6 @@ final class TornAPIErrorTests: XCTestCase {
         for code in [32, 33] {
             let error = TornAPIError.classify(code: code, message: "")
             XCTAssertEqual(error.classification, .notAvailable, "code \(code)")
-            XCTAssertFalse(error.haltsAllRequests)
             XCTAssertNil(error.pauseDuration)
         }
     }
@@ -87,26 +81,11 @@ final class TornAPIErrorTests: XCTestCase {
     func testUnknownFutureCodeDegradesToRetry() {
         let future = TornAPIError.classify(code: 999, message: "")
         XCTAssertEqual(future.classification, .temporaryBackend)
-        XCTAssertFalse(future.haltsAllRequests)
     }
 
     func testTornCodeIsPreserved() {
         XCTAssertEqual(TornAPIError.classify(code: 14, message: "x").tornCode, 14)
         XCTAssertNil(TornAPIError.offline.tornCode)
-    }
-
-    // MARK: - Halt / retry semantics
-
-    func testOnlyPermanentKeyErrorsHaltAllRequests() {
-        XCTAssertTrue(TornAPIError.classify(code: 2, message: "").haltsAllRequests)
-        XCTAssertFalse(TornAPIError.classify(code: 16, message: "").haltsAllRequests)
-        XCTAssertTrue(TornAPIError.classify(code: 18, message: "").haltsAllRequests)
-    }
-
-    func testDailyRowLimitHaltsCategoryOnly() {
-        let err = TornAPIError.classify(code: 14, message: "")
-        XCTAssertTrue(err.haltsCategoryOnly)
-        XCTAssertFalse(err.haltsAllRequests, "error 14 must NOT stop bars/countdowns")
     }
 
     // MARK: - Transport mapping
@@ -157,8 +136,7 @@ final class TornAPIErrorTests: XCTestCase {
 
     func testEnvelopeDailyLimit() {
         let error = tornAPIError(in: ["code": 14, "error": "Daily read limit reached"])
-        XCTAssertTrue(error!.haltsCategoryOnly)
-        XCTAssertFalse(error!.haltsAllRequests)
+        XCTAssertEqual(error?.classification, .dailyRowLimit)
     }
 
     func testNonEnvelopeReturnsNil() {

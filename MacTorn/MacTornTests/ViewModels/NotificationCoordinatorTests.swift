@@ -44,7 +44,6 @@ final class NotificationCoordinatorTests: XCTestCase {
         NotificationCoordinator(defaults: defaults).shouldFireOnEdge("chain", active: true)
         // Simulate relaunch: a fresh coordinator over the same store.
         let relaunched = NotificationCoordinator(defaults: defaults)
-        XCTAssertTrue(relaunched.isLatched("chain"))
         XCTAssertFalse(relaunched.shouldFireOnEdge("chain", active: true),
                        "relaunch mid-danger must not re-alert")
         XCTAssertTrue(relaunched.shouldFireOnEdge("chain", active: false) == false)
@@ -84,13 +83,14 @@ final class NotificationCoordinatorTests: XCTestCase {
     func testEveryObservationRefreshesTheRecordedInstant() {
         let clock = MutableTimeSource()
         let coord = NotificationCoordinator(defaults: defaults, time: clock)
-        coord.shouldFireOnEdge("cooldown", active: true)
-        clock.advance(90 * 60)
+        coord.shouldFireOnEdge("cooldown", active: false, seedOnFirstSight: true)
+        clock.advance(coord.stalenessWindow * 0.8)
         // Same value, so nothing "changed" — but the observation instant must move anyway,
         // otherwise a value that legitimately holds steady while the app polls ages out.
-        coord.shouldFireOnEdge("cooldown", active: true)
-        XCTAssertEqual(coord.lastObserved("cooldown"), clock.now,
-                       "the instant answers 'when did we last look', not 'when did it change'")
+        coord.shouldFireOnEdge("cooldown", active: false, seedOnFirstSight: true)
+        clock.advance(coord.stalenessWindow * 0.8)
+        XCTAssertTrue(coord.shouldFireOnEdge("cooldown", active: true, seedOnFirstSight: true),
+                      "the last look was recent, so this is a real edge: the instant answers 'when did we last look', not 'when did it change'")
     }
 
     func testRowsWrittenBeforeTimestampsExistedAreTreatedAsStale() {
@@ -100,14 +100,17 @@ final class NotificationCoordinatorTests: XCTestCase {
         defaults.set(["cooldown\u{1F}0", "probe\u{1F}1"], forKey: latchStore)
 
         let coord = NotificationCoordinator(defaults: defaults)
-        XCTAssertTrue(coord.isLatched("probe"),
-                      "guards the store id above: the old rows really were read back")
-        XCTAssertNil(coord.lastObserved("cooldown"), "the old row parses, it just has no instant")
         XCTAssertFalse(
             coord.shouldFireOnEdge("cooldown", active: true, seedOnFirstSight: true),
             "an observation of unknown age must not be trusted as recent"
         )
-        XCTAssertNotNil(coord.lastObserved("cooldown"), "and it is re-stamped on the way through")
+        let persisted = defaults.stringArray(forKey: latchStore) ?? []
+        XCTAssertTrue(persisted.contains { $0.hasPrefix("probe") },
+                      "guards the store id above: the old rows really were read back")
+        // The unknown-age observation was re-stamped on the way through, so the next real
+        // transition is trusted.
+        coord.shouldFireOnEdge("cooldown", active: false, seedOnFirstSight: true)
+        XCTAssertTrue(coord.shouldFireOnEdge("cooldown", active: true, seedOnFirstSight: true))
     }
 
     /// #90: quit at 12:00 with a drug cooldown 90 minutes out, relaunch at 14:00. The
@@ -144,7 +147,8 @@ final class NotificationCoordinatorTests: XCTestCase {
                      forKey: latchStore)
         let coord = NotificationCoordinator(defaults: defaults)
         for index in corrupt.indices {
-            XCTAssertNil(coord.lastObserved("k\(index)"), "\(corrupt[index]) must not parse as an instant")
+            XCTAssertFalse(coord.shouldFireOnEdge("k\(index)", active: true, seedOnFirstSight: true),
+                           "\(corrupt[index]) must not parse as a recent instant")
         }
     }
 
@@ -152,9 +156,9 @@ final class NotificationCoordinatorTests: XCTestCase {
         let latchStore = ["notifications", "latched", "v2"].joined(separator: ".")
         let rows = (0..<(NotificationCoordinator.maxTrackedKeys + 10)).map { "k\($0)\u{1F}1\u{1F}1700000000" }
         defaults.set(rows, forKey: latchStore)
-        let coord = NotificationCoordinator(defaults: defaults)
-        XCTAssertFalse(coord.isLatched("k0"), "coldest rows beyond capacity are dropped")
-        XCTAssertTrue(coord.isLatched("k\(NotificationCoordinator.maxTrackedKeys + 9)"), "hottest row survives")
+        let coord = NotificationCoordinator(defaults: defaults, time: MutableTimeSource(Date(timeIntervalSince1970: 1_700_000_000)))
+        XCTAssertFalse(coord.shouldFireOnEdge("k\(NotificationCoordinator.maxTrackedKeys + 9)", active: true), "hottest row survives, still latched")
+        XCTAssertTrue(coord.shouldFireOnEdge("k0", active: true), "coldest rows beyond capacity are dropped, so k0 is new")
     }
 
     // MARK: - Epoch dedup
@@ -188,7 +192,7 @@ final class NotificationCoordinatorTests: XCTestCase {
         coord.shouldFireOnEdge("chain", active: true)
         coord.shouldFireOnce("oc", epoch: "1")
         coord.reset()
-        XCTAssertFalse(coord.isLatched("chain"))
+        XCTAssertTrue(coord.shouldFireOnEdge("chain", active: true), "reset forgets the latch")
         XCTAssertTrue(coord.shouldFireOnce("oc", epoch: "1"), "reset forgets the epoch")
     }
 

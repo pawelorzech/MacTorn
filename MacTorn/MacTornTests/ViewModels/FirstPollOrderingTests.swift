@@ -15,11 +15,12 @@ import XCTest
 @MainActor
 final class FirstPollOrderingTests: XCTestCase {
 
-    private func makeApp() -> AppState {
+    private func makeApp(_ session: NetworkSession = MockNetworkSession()) -> AppState {
         AppState(
-            session: MockNetworkSession(),
+            session: session,
             connectivity: ControllableConnectivity(connected: true),
-            defaults: .createMockDefaults()
+            defaults: .createMockDefaults(),
+            time: MutableTimeSource()
         )
     }
 
@@ -28,85 +29,77 @@ final class FirstPollOrderingTests: XCTestCase {
     /// `refreshNow` installs a timer whenever it finds none, so a window where
     /// `startPolling` has returned without one is a window where a manual refresh creates
     /// a duplicate and orphans whatever arrives later.
-    func testStartPollingInstallsTheTimerSynchronously() throws {
+    func testStartPollingInstallsTheTimerSynchronously() {
         let app = makeApp()
         app.apiKey = "ordering-\(UUID().uuidString)"
         app.startPolling()
 
         XCTAssertTrue(app.pollTimer.isRunning,
-                        "a caller that returns without a timer lets refreshNow create a second one")
-        app.stopPolling()
-    }
-
-    func testAManualRefreshDuringTheWaitDoesNotReplaceTheTimer() throws {
-        let app = makeApp()
-        app.apiKey = "ordering-\(UUID().uuidString)"
-        app.startPolling()
-        let started = try XCTUnwrap(app.pollTimer.startedAt)
-
-        app.refreshNow()
-
-        XCTAssertEqual(app.pollTimer.startedAt, started,
-                      "the automatic timer must survive a refresh issued mid-wait")
+                      "a caller that returns without a timer lets refreshNow create a second one")
         app.stopPolling()
     }
 
     // MARK: - Nothing polls while the wait is on
 
-    func testAManualRefreshIsRefusedWhileWaitingOnKeyInfo() {
-        let app = makeApp()
+    func testNothingPollsWhileKeyInfoIsPendingAndManualRefreshesAreTurnedAway() async {
+        let session = FirstPollRoutingSession(holdKeyInfo: true)
+        let app = makeApp(session)
+        defer { session.releaseKeyInfo(); app.stopPolling() }
         app.apiKey = "ordering-\(UUID().uuidString)"
-        app.awaitingFirstKeyInfo = true
-        app.lastManualRefreshAt = nil
+
+        app.startPolling()
+        let asked = await eventually { session.requestedPaths() == ["/v2/key/info"] }
+        XCTAssertTrue(asked, "the capabilities load goes out first")
+
+        app.refreshNow()
+        app.refreshNow()
+        await settle()
+        XCTAssertEqual(session.requestedPaths(), ["/v2/key/info"],
+                       "no poll and no second handshake may jump the capabilities load")
+
+        session.releaseKeyInfo()
+        let polled = await eventually { session.requestedPaths().contains("/user") }
+        XCTAssertTrue(polled, "the first poll follows once the key is understood")
+        XCTAssertEqual(session.requestedPaths().first, "/v2/key/info")
+        XCTAssertEqual(session.requestedPaths().filter { $0 == "/v2/key/info" }.count, 1)
+    }
+
+    func testAManualRefreshIsAcceptedOnceTheWaitIsOver() async {
+        let session = FirstPollRoutingSession(holdKeyInfo: false)
+        let app = makeApp(session)
+        defer { app.stopPolling() }
+        app.apiKey = "ordering-\(UUID().uuidString)"
+        app.startPolling()
+        let firstPoll = await eventually { app.player.data != nil }
+        XCTAssertTrue(firstPoll)
+        XCTAssertEqual(session.userPolls(), 1)
 
         app.refreshNow()
 
-        // `refreshNow` stamps this only on a refresh it accepted, so an untouched value is
-        // the observable proof that the guard turned it away.
-        XCTAssertNil(app.lastManualRefreshAt,
-                     "a manual refresh must not jump the capabilities load")
-        app.stopPolling()
+        let refreshed = await eventually { session.userPolls() == 2 }
+        XCTAssertTrue(refreshed, "the guard must lift, not latch")
     }
 
-    func testAManualRefreshIsAcceptedOnceTheWaitIsOver() {
-        let app = makeApp()
-        app.apiKey = "ordering-\(UUID().uuidString)"
-        app.requester.testKeyInfo = TornKeyInfo.testFixture()
-        app.awaitingFirstKeyInfo = false
-        app.lastManualRefreshAt = nil
-
-        app.refreshNow()
-
-        XCTAssertNotNil(app.lastManualRefreshAt, "the guard must lift, not latch")
-        app.stopPolling()
-    }
-
-    func testSaveAndConnectRefreshRequestsKeyInfoBeforeUserData() async throws {
-        let session = FirstPollRoutingSession()
-        let app = AppState(
-            session: session,
-            connectivity: ControllableConnectivity(connected: true),
-            defaults: .createMockDefaults()
-        )
+    func testSaveAndConnectRefreshRequestsKeyInfoBeforeUserData() async {
+        let session = FirstPollRoutingSession(holdKeyInfo: false)
+        let app = makeApp(session)
+        defer { app.stopPolling() }
         app.apiKey = "save-connect-\(UUID().uuidString)"
 
         app.refreshNow()
 
-        for _ in 0..<100 where session.requestedPaths().count < 2 {
-            try await Task.sleep(nanoseconds: 10_000_000)
-        }
+        let sent = await eventually { session.requestedPaths().count >= 2 }
+        XCTAssertTrue(sent)
         let paths = session.requestedPaths()
-        XCTAssertGreaterThanOrEqual(paths.count, 2)
         XCTAssertEqual(paths.first, "/v2/key/info")
         XCTAssertEqual(paths.first(where: { $0 != "/v2/key/info" }), "/user")
-        app.stopPolling()
     }
 
     // MARK: - Account changes
 
     /// An account change must tear down the previous account's timer, or `startPolling`'s
-    /// early-return guard reads `timerCancellable` and `lastFetchTime` from the old account
-    /// and skips establishing the ordering for the new key entirely.
+    /// early-return guard reads the old account's state and skips establishing the
+    /// ordering for the new key entirely.
     func testAnAccountChangeTearsDownThePreviousTimer() {
         let app = makeApp()
         app.apiKey = "first-\(UUID().uuidString)"
@@ -116,62 +109,89 @@ final class FirstPollOrderingTests: XCTestCase {
         app.apiKey = "second-\(UUID().uuidString)"
 
         XCTAssertFalse(app.pollTimer.isRunning,
-                     "the old account's timer must not poll under the new account's key")
-    }
-
-    /// A superseded attempt must not clear the window a newer one opened — the same shape
-    /// as the deferred-handle clobber, relocated to the flag.
-    func testASupersededFirstFetchDoesNotClearALiveWait() {
-        let app = makeApp()
-        app.apiKey = "superseded-\(UUID().uuidString)"
-        app.awaitingFirstKeyInfo = true
-        let stale = app.firstFetchGeneration
-
-        app.firstFetchGeneration &+= 1   // a newer attempt takes ownership
-
-        XCTAssertNotEqual(stale, app.firstFetchGeneration,
-                          "the generation is what lets the stale task recognise itself")
-        XCTAssertTrue(app.awaitingFirstKeyInfo)
+                       "the old account's timer must not poll under the new account's key")
     }
 
     // MARK: - The wait always ends
 
-    /// Cleared before the cancellation check, so a first fetch cancelled by an account
-    /// change still unblocks the timer. Otherwise polling stops for the whole session.
-    func testAnAccountChangeClearsTheWait() {
-        let app = makeApp()
-        app.apiKey = "ordering-\(UUID().uuidString)"
-        app.awaitingFirstKeyInfo = true
+    /// A first fetch cancelled by an account change must still unblock polling for the new
+    /// key, or polling stops for the whole session; and the old key must never poll.
+    func testAnAccountChangeDuringTheWaitStillLetsTheNewKeyPoll() async throws {
+        let session = FirstPollRoutingSession(holdKeyInfo: true)
+        let app = makeApp(session)
+        defer { session.releaseKeyInfo(); app.stopPolling() }
+        let oldKey = "old-\(UUID().uuidString)"
+        let newKey = "new-\(UUID().uuidString)"
+        app.apiKey = oldKey
+        app.startPolling()
+        let waiting = await eventually { session.requestedPaths() == ["/v2/key/info"] }
+        XCTAssertTrue(waiting)
 
-        app.resetAccountScopedState()
+        app.apiKey = newKey
+        app.startPolling()
+        session.releaseKeyInfo()
 
-        XCTAssertFalse(app.awaitingFirstKeyInfo)
-        XCTAssertNil(app.firstFetchTask)
+        let polled = await eventually { session.userPolls() >= 1 }
+        XCTAssertTrue(polled, "the new key must be polled even though the old wait was cancelled")
+        await settle()
+        for url in session.requestedURLs() where url.path == "/user" {
+            XCTAssertTrue(url.query?.contains("key=\(newKey)") == true, "the old key must not poll: \(url)")
+        }
     }
 
-    func testAKeyAlreadyKnownThisSessionDoesNotWait() {
-        let app = makeApp()
+    func testAKeyAlreadyKnownThisSessionDoesNotWait() async {
+        let session = FirstPollRoutingSession(holdKeyInfo: false)
+        let app = makeApp(session)
+        defer { app.stopPolling() }
         app.apiKey = "ordering-\(UUID().uuidString)"
         app.requester.testKeyInfo = TornKeyInfo.testFixture()
 
         app.startPolling()
 
-        XCTAssertFalse(app.awaitingFirstKeyInfo,
+        let polled = await eventually { session.userPolls() >= 1 }
+        XCTAssertTrue(polled)
+        XCTAssertEqual(session.requestedPaths().filter { $0 == "/v2/key/info" }.count, 0,
                        "a validated key costs no round-trip on a later startPolling")
-        XCTAssertTrue(app.pollTimer.isRunning)
-        app.stopPolling()
     }
 }
 
 private final class FirstPollRoutingSession: NetworkSession, @unchecked Sendable {
     private let lock = NSLock()
-    private var paths: [String] = []
+    private var urls: [URL] = []
+    private var held: [CheckedContinuation<Void, Never>] = []
+    private var holding: Bool
 
-    func requestedPaths() -> [String] { lock.withLock { paths } }
+    /// With `holdKeyInfo`, `/key/info` stays unanswered until `releaseKeyInfo()`.
+    init(holdKeyInfo: Bool) { holding = holdKeyInfo }
+
+    func requestedURLs() -> [URL] { lock.withLock { urls } }
+    func requestedPaths() -> [String] { requestedURLs().map(\.path) }
+    /// Fast user polls only: the fan-out also sends row-based `/user` calls without `bars`.
+    func userPolls() -> Int {
+        requestedURLs().filter { $0.path == "/user" && ($0.query ?? "").contains("bars") }.count
+    }
+
+    func releaseKeyInfo() {
+        let pending = lock.withLock { () -> [CheckedContinuation<Void, Never>] in
+            holding = false
+            defer { held = [] }
+            return held
+        }
+        pending.forEach { $0.resume() }
+    }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
         let url = request.url ?? URL(string: "https://api.torn.com")!
-        lock.withLock { paths.append(url.path) }
+        lock.withLock { urls.append(url) }
+        if url.path == "/v2/key/info" {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let resumeNow = lock.withLock { () -> Bool in
+                    if holding { held.append(continuation); return false }
+                    return true
+                }
+                if resumeNow { continuation.resume() }
+            }
+        }
         let json: [String: Any]
         if url.path == "/v2/key/info" {
             json = [

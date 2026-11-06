@@ -196,22 +196,6 @@ final class TornEndpointGate {
         pausedUntil[endpointID] = (deadline, reason)
     }
 
-    func isPaused(_ endpointID: String) -> Bool {
-        guard let entry = pausedUntil[endpointID] else { return false }
-        if time.now >= entry.deadline {
-            pausedUntil[endpointID] = nil
-            return false
-        }
-        return true
-    }
-
-    /// Live cool-offs, for the Diagnostics readout. Expired entries are pruned first.
-    func activePauses() -> [String: Date] {
-        let now = time.now
-        pausedUntil = pausedUntil.filter { $0.value.deadline > now }
-        return pausedUntil.mapValues(\.deadline)
-    }
-
     /// Forgets every cool-off. Called when the account changes — the new key deserves a
     /// clean slate, and a pause earned by the previous key says nothing about this one.
     func reset() {
