@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class AccountSessionStoreTests: XCTestCase {
     func testFailedCredentialWriteDoesNotResetVisibleData() {
-        let defaults = makeDefaults()
+        let defaults = UserDefaults.createMockDefaults()
         let store = AccountSessionStore(defaults: defaults, credentialStore: RefusingAPIKeyStore())
         let app = AppState(session: MockNetworkSession(), defaults: defaults, accountSession: store)
         app.player.moneyData = MoneyData(cash: 123)
@@ -15,7 +15,7 @@ final class AccountSessionStoreTests: XCTestCase {
     }
 
     func testFailedDeletionKeepsStoredAccount() {
-        let store = AccountSessionStore(defaults: makeDefaults(), credentialStore: RefusingAPIKeyStore())
+        let store = AccountSessionStore(defaults: UserDefaults.createMockDefaults(), credentialStore: RefusingAPIKeyStore())
         let identity = store.identity
         XCTAssertFalse(store.updateAPIKey(""))
         XCTAssertEqual(store.identity, identity)
@@ -23,7 +23,7 @@ final class AccountSessionStoreTests: XCTestCase {
     }
 
     func testSavingCurrentKeyFinishesPendingMigration() {
-        let defaults = makeDefaults()
+        let defaults = UserDefaults.createMockDefaults()
         let credentials = MemoryAPIKeyStore("saved-key")
         let store = AccountSessionStore(defaults: defaults, credentialStore: credentials)
         defaults.set("legacy-key", forKey: "apiKey")
@@ -34,7 +34,7 @@ final class AccountSessionStoreTests: XCTestCase {
 
     func testFailedCredentialWriteKeepsCurrentAccountAndGeneration() {
         let credentials = RefusingAPIKeyStore()
-        let store = AccountSessionStore(defaults: makeDefaults(), credentialStore: credentials)
+        let store = AccountSessionStore(defaults: UserDefaults.createMockDefaults(), credentialStore: credentials)
         let identity = store.identity
         store.isHalted = true
 
@@ -45,7 +45,7 @@ final class AccountSessionStoreTests: XCTestCase {
     }
 
     func testFailedMigrationPreservesLegacyCopyAndExistingCredential() {
-        let defaults = makeDefaults()
+        let defaults = UserDefaults.createMockDefaults()
         defaults.set("legacy-key", forKey: "apiKey")
         let store = AccountSessionStore(defaults: defaults, credentialStore: RefusingAPIKeyStore())
 
@@ -54,7 +54,7 @@ final class AccountSessionStoreTests: XCTestCase {
     }
 
     func testExplicitlySavingHaltedKeyStartsANewSession() {
-        let store = AccountSessionStore(defaults: makeDefaults(), credentialStore: MemoryAPIKeyStore("saved-key"))
+        let store = AccountSessionStore(defaults: UserDefaults.createMockDefaults(), credentialStore: MemoryAPIKeyStore("saved-key"))
         let oldIdentity = store.identity
         store.isHalted = true
 
@@ -64,7 +64,7 @@ final class AccountSessionStoreTests: XCTestCase {
     }
 
     func testMigratesLegacyKeyAndRemovesUserDefaultsCopy() {
-        let defaults = makeDefaults()
+        let defaults = UserDefaults.createMockDefaults()
         defaults.set("legacy-key", forKey: "apiKey")
         let credentials = MemoryAPIKeyStore()
 
@@ -81,7 +81,7 @@ final class AccountSessionStoreTests: XCTestCase {
     func testChangingKeyAdvancesGenerationAndRejectsOldIdentity() {
         let credentials = MemoryAPIKeyStore("old-key")
         let store = AccountSessionStore(
-            defaults: makeDefaults(),
+            defaults: UserDefaults.createMockDefaults(),
             credentialStore: credentials
         )
         let oldIdentity = store.identity
@@ -99,7 +99,7 @@ final class AccountSessionStoreTests: XCTestCase {
 
     func testChangingKeyCancelsRegisteredAccountTask() async {
         let store = AccountSessionStore(
-            defaults: makeDefaults(),
+            defaults: UserDefaults.createMockDefaults(),
             credentialStore: MemoryAPIKeyStore("old-key")
         )
         let cancelled = expectation(description: "account task cancelled")
@@ -160,13 +160,6 @@ final class AccountSessionStoreTests: XCTestCase {
             source.contains("kSecAttrSynchronizable as String:"),
             "KeychainStore must not set the synchronizable attribute — the API key must never sync to iCloud Keychain"
         )
-    }
-
-    private func makeDefaults() -> UserDefaults {
-        let suiteName = "AccountSessionStoreTests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
-        return defaults
     }
 }
 

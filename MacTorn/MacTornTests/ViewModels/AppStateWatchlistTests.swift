@@ -28,27 +28,6 @@ final class AppStateWatchlistTests: XCTestCase {
 
     // MARK: - Add Item Tests
 
-    func testAddToWatchlist_addsItem() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
-
-        appState.addToWatchlist(itemId: 123, name: "Xanax")
-
-        XCTAssertEqual(appState.watchlistItems.count, 1)
-        XCTAssertEqual(appState.watchlistItems.first?.id, 123)
-        XCTAssertEqual(appState.watchlistItems.first?.name, "Xanax")
-    }
-
-    func testAddToWatchlist_preventsDuplicate() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
-
-        appState.addToWatchlist(itemId: 123, name: "Xanax")
-        appState.addToWatchlist(itemId: 123, name: "Xanax") // Duplicate
-
-        XCTAssertEqual(appState.watchlistItems.count, 1) // Should still be 1
-    }
-
     func testAddToWatchlist_fetchesPriceImmediately() async throws {
         appState.apiKey = "valid_key"
         try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
@@ -62,85 +41,7 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertTrue(mockSession.requestedURLs.contains { $0.absoluteString.contains("123") })
     }
 
-    func testAddToWatchlist_multipleItems() async throws {
-        appState.apiKey = "valid_key"
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
-
-        appState.addToWatchlist(itemId: 123, name: "Xanax")
-        appState.addToWatchlist(itemId: 456, name: "Donator Pack")
-        appState.addToWatchlist(itemId: 789, name: "Vicodin")
-
-        XCTAssertEqual(appState.watchlistItems.count, 3)
-    }
-
     // MARK: - Remove Item Tests
-
-    func testRemoveFromWatchlist_removesItem() {
-        appState.watchlistItems = [
-            WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1000, lowestPriceQuantity: 5, secondLowestPrice: 1100, lastUpdated: Date(), error: nil),
-            WatchlistItem(id: 456, name: "Donator Pack", lowestPrice: 9000000, lowestPriceQuantity: 3, secondLowestPrice: 9500000, lastUpdated: Date(), error: nil)
-        ]
-
-        appState.watchlist.remove(itemID: 123)
-
-        XCTAssertEqual(appState.watchlistItems.count, 1)
-        XCTAssertNil(appState.watchlistItems.first(where: { $0.id == 123 }))
-        XCTAssertNotNil(appState.watchlistItems.first(where: { $0.id == 456 }))
-    }
-
-    func testRemoveFromWatchlist_nonExistentItem() {
-        appState.watchlistItems = [
-            WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1000, lowestPriceQuantity: 5, secondLowestPrice: 1100, lastUpdated: Date(), error: nil)
-        ]
-
-        appState.watchlist.remove(itemID: 999) // Non-existent
-
-        XCTAssertEqual(appState.watchlistItems.count, 1) // Should still have 1 item
-    }
-
-    func testRestoreWatchlistItem_restoresFullModelAtOriginalIndexAndPersists() {
-        let removed = WatchlistItem(
-            id: 456,
-            name: "Donator Pack",
-            lowestPrice: 9_000_000,
-            lowestPriceQuantity: 3,
-            secondLowestPrice: 9_500_000,
-            lastUpdated: Date(timeIntervalSince1970: 1_234),
-            error: "Previous error",
-            priceThreshold: 8_500_000,
-            lastAlertedPrice: 8_400_000
-        )
-        appState.watchlistItems = [
-            WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1_000, lowestPriceQuantity: 5, secondLowestPrice: 1_100, lastUpdated: nil, error: nil),
-            WatchlistItem(id: 789, name: "Vicodin", lowestPrice: 800, lowestPriceQuantity: 2, secondLowestPrice: 850, lastUpdated: nil, error: nil)
-        ]
-
-        XCTAssertTrue(appState.watchlist.restore(removed, at: 1))
-
-        XCTAssertEqual(appState.watchlistItems.map(\.id), [123, 456, 789])
-        let restored = appState.watchlistItems[1]
-        XCTAssertEqual(restored.name, removed.name)
-        XCTAssertEqual(restored.lowestPrice, removed.lowestPrice)
-        XCTAssertEqual(restored.lowestPriceQuantity, removed.lowestPriceQuantity)
-        XCTAssertEqual(restored.secondLowestPrice, removed.secondLowestPrice)
-        XCTAssertEqual(restored.lastUpdated, removed.lastUpdated)
-        XCTAssertEqual(restored.error, removed.error)
-        XCTAssertEqual(restored.priceThreshold, removed.priceThreshold)
-        XCTAssertEqual(restored.lastAlertedPrice, removed.lastAlertedPrice)
-
-        let reloaded = AppState(session: mockSession, defaults: testDefaults)
-        XCTAssertEqual(reloaded.watchlistItems.map(\.id), [123, 456, 789])
-        XCTAssertEqual(reloaded.watchlistItems[1].priceThreshold, removed.priceThreshold)
-        XCTAssertEqual(reloaded.watchlistItems[1].lastAlertedPrice, removed.lastAlertedPrice)
-    }
-
-    func testRestoreWatchlistItem_doesNotDuplicateExistingItem() {
-        let item = WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1_000, lowestPriceQuantity: 5, secondLowestPrice: 1_100, lastUpdated: nil, error: nil)
-        appState.watchlistItems = [item]
-
-        XCTAssertFalse(appState.watchlist.restore(item, at: 0))
-        XCTAssertEqual(appState.watchlistItems.map(\.id), [123])
-    }
 
     func testPositiveIntegerInput_acceptsOnlyPositiveInts() {
         XCTAssertEqual(PositiveIntegerInput.value(from: " 42 "), 42)
@@ -157,31 +58,6 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertEqual(PositiveIntegerInput.errorMessage(for: "-5"), "Price must be greater than zero.")
         XCTAssertEqual(PositiveIntegerInput.errorMessage(for: "1.5"), "Enter a whole number.")
         XCTAssertNil(PositiveIntegerInput.errorMessage(for: "2500"))
-    }
-
-    // MARK: - Persistence Tests
-
-    func testSaveWatchlist_persists() {
-        appState.watchlistItems = [
-            WatchlistItem(id: 123, name: "Xanax", lowestPrice: 1000, lowestPriceQuantity: 5, secondLowestPrice: 1100, lastUpdated: Date(), error: nil)
-        ]
-
-        appState.watchlist.save()
-
-        // Create new instance and load
-        let newAppState = AppState(session: mockSession, defaults: testDefaults)
-        newAppState.watchlist.load()
-
-        XCTAssertEqual(newAppState.watchlistItems.count, 1)
-        XCTAssertEqual(newAppState.watchlistItems.first?.id, 123)
-    }
-
-    func testLoadWatchlist_emptyWhenNothingSaved() {
-        testDefaults.removeObject(forKey: "watchlist")
-
-        appState.watchlist.load()
-
-        XCTAssertTrue(appState.watchlistItems.isEmpty)
     }
 
     // MARK: - Price Refresh Tests
@@ -418,96 +294,6 @@ final class AppStateWatchlistTests: XCTestCase {
         XCTAssertTrue(mockSession.requestedURLs.isEmpty)
     }
 
-    // MARK: - Price Alert Tests
-
-    func testPriceAlert_triggeredWhenBelowThreshold() async throws {
-        appState.apiKey = "valid_key"
-        // marketItemSuccess fixture returns a lowest price of 950
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
-
-        // Add item with threshold of 1000 — fixture price 950 is below threshold
-        appState.watchlistItems = [
-            WatchlistItem(
-                id: 123,
-                name: "Xanax",
-                lowestPrice: 0,
-                lowestPriceQuantity: 0,
-                secondLowestPrice: 0,
-                lastUpdated: nil,
-                error: nil,
-                priceThreshold: 1000,
-                lastAlertedPrice: nil
-            )
-        ]
-
-        appState.refreshWatchlistPrices()
-
-        // Wait for price fetch to complete
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        let item = appState.watchlistItems.first
-        XCTAssertNotNil(item)
-        XCTAssertEqual(item?.lowestPrice, 950)
-        // lastAlertedPrice should be set because price (950) < threshold (1000)
-        XCTAssertEqual(item?.lastAlertedPrice, 950)
-    }
-
-    func testPriceAlert_notTriggeredWhenAboveThreshold() async throws {
-        appState.apiKey = "valid_key"
-        // marketItemSuccess fixture returns lowest price of 950
-        try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
-
-        // Add item with threshold of 100 — fixture price 950 is above threshold
-        appState.watchlistItems = [
-            WatchlistItem(
-                id: 123,
-                name: "Xanax",
-                lowestPrice: 0,
-                lowestPriceQuantity: 0,
-                secondLowestPrice: 0,
-                lastUpdated: nil,
-                error: nil,
-                priceThreshold: 100,
-                lastAlertedPrice: nil
-            )
-        ]
-
-        appState.refreshWatchlistPrices()
-
-        // Wait for price fetch to complete
-        try await Task.sleep(nanoseconds: 1_000_000_000)
-
-        let item = appState.watchlistItems.first
-        XCTAssertNotNil(item)
-        XCTAssertEqual(item?.lowestPrice, 950)
-        // lastAlertedPrice should remain nil because price (950) > threshold (100)
-        XCTAssertNil(item?.lastAlertedPrice)
-    }
-
-    func testPriceThreshold_persistedWithWatchlist() throws {
-        let original = WatchlistItem(
-            id: 789,
-            name: "Speed",
-            lowestPrice: 500,
-            lowestPriceQuantity: 2,
-            secondLowestPrice: 550,
-            lastUpdated: nil,
-            error: nil,
-            priceThreshold: 600,
-            lastAlertedPrice: 520
-        )
-        appState.watchlistItems = [original]
-        appState.watchlist.save()
-
-        let newAppState = AppState(session: mockSession, defaults: testDefaults)
-        newAppState.watchlist.load()
-
-        let loaded = newAppState.watchlistItems.first
-        XCTAssertNotNil(loaded)
-        XCTAssertEqual(loaded?.priceThreshold, 600)
-        XCTAssertEqual(loaded?.lastAlertedPrice, 520)
-    }
-
     // MARK: - Input Validation (F-07)
 
     func testAddToWatchlist_rejectsZeroAndNegativeIds() {
@@ -536,33 +322,6 @@ final class AppStateWatchlistTests: XCTestCase {
     }
 
     // MARK: - Item ID Field (GitHub #49)
-    //
-    // These target a testable string-input entry point that mirrors
-    // ForumWatchView's `parseThreadInput` / `addWatchedThread(input:)` pair
-    // (AppState+MarketForum.swift ~194-205). Nothing named `parseItemIdInput`
-    // or `addToWatchlist(input:)` exists on AppState yet — the numeric-grid
-    // add path only takes an already-parsed `itemId: Int`. This file will
-    // not compile until the implementer adds those two entry points.
-
-    func testParseItemIdInput_acceptsPositiveNumericString() {
-        XCTAssertEqual(PositiveIntegerInput.value(from: "206"), 206)
-    }
-
-    func testParseItemIdInput_rejectsNonNumericString() {
-        XCTAssertNil(PositiveIntegerInput.value(from: "abc"))
-    }
-
-    func testParseItemIdInput_rejectsEmptyString() {
-        XCTAssertNil(PositiveIntegerInput.value(from: ""))
-    }
-
-    func testParseItemIdInput_rejectsZero() {
-        XCTAssertNil(PositiveIntegerInput.value(from: "0"))
-    }
-
-    func testParseItemIdInput_rejectsNegative() {
-        XCTAssertNil(PositiveIntegerInput.value(from: "-5"))
-    }
 
     func testAddToWatchlistByInput_validNumericIdIsAcceptedAndAdded() {
         XCTAssertEqual(appState.addToWatchlist(input: "206"), .added(itemId: 206))
@@ -619,17 +378,6 @@ final class AppStateWatchlistTests: XCTestCase {
     }
 
     // MARK: - Price-Alert Threshold Clear Undo (GitHub #54)
-    //
-    // Removing a watchlist item already has a full Undo primitive at the
-    // AppState layer (`restoreWatchlistItem(_:at:)` in WatchlistView.swift,
-    // covered above). Clearing a price-alert threshold has no equivalent —
-    // `onSetThreshold(nil)` (WatchlistView.swift ~331-334) writes straight
-    // through with nothing captured to undo. These tests target a
-    // `restoreWatchlistThreshold(itemId:threshold:lastAlertedPrice:)`
-    // function that does not exist yet, mirroring `restoreWatchlistItem`'s
-    // shape so the View's six-second Undo banner can reuse the same
-    // mechanism for both flows as the issue requires. This file will not
-    // compile until the implementer adds it.
 
     func testRestoreWatchlistThreshold_restoresPreviousThresholdAndAlertPrice() {
         appState.watchlistItems = [

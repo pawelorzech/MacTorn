@@ -22,9 +22,8 @@ final class MarketWatchServiceTests: XCTestCase {
     }
 
     func testRestorePreservesFullItemAtOriginalIndex() {
-        let service = MarketWatchService(
-            defaults: .createMockDefaults()
-        )
+        let defaults = UserDefaults.createMockDefaults()
+        let service = MarketWatchService(defaults: defaults)
         service.items = [
             item(id: 1, name: "One"),
             item(id: 3, name: "Three")
@@ -45,6 +44,24 @@ final class MarketWatchServiceTests: XCTestCase {
         XCTAssertEqual(service.items.map(\.id), [1, 2, 3])
         XCTAssertEqual(service.items[1].priceThreshold, 80)
         XCTAssertFalse(service.restore(restored, at: 0))
+
+        // A restore is persisted, including the alert settings the undo exists to bring back.
+        let reloaded = MarketWatchService(defaults: defaults)
+        reloaded.load()
+        XCTAssertEqual(reloaded.items.map(\.id), [1, 2, 3])
+        XCTAssertEqual(reloaded.items[1].priceThreshold, 80)
+        XCTAssertEqual(reloaded.items[1].lastAlertedPrice, 75)
+    }
+
+    func testRemoveDropsOnlyTheNamedItem() {
+        let service = MarketWatchService(defaults: .createMockDefaults())
+        service.items = [item(id: 123, name: "Xanax"), item(id: 456, name: "Donator Pack")]
+
+        service.remove(itemID: 999)
+        XCTAssertEqual(service.items.map(\.id), [123, 456])
+
+        service.remove(itemID: 123)
+        XCTAssertEqual(service.items.map(\.id), [456])
     }
 
     func testApplyingPriceUpdatesStateAndReturnsThresholdAlertOnce() {

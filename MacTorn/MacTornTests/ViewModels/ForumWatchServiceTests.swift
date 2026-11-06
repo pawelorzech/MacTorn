@@ -15,6 +15,10 @@ final class ForumWatchServiceTests: XCTestCase {
             16_532_308
         )
         XCTAssertNil(service.parseThreadInput("invalid"))
+        XCTAssertEqual(service.parseThreadInput("https://www.torn.com/forums.php?t=12345"), 12345)
+        for rejected in ["abc", "", "https://www.torn.com/forums.php", "0", "-42", "https://www.torn.com/forums.php?t=0"] {
+            XCTAssertNil(service.parseThreadInput(rejected), rejected)
+        }
         XCTAssertEqual(service.add(input: "12345"), 12345)
         XCTAssertNil(service.add(input: "12345"))
         service.config.pollingIntervalSeconds = 300
@@ -44,9 +48,8 @@ final class ForumWatchServiceTests: XCTestCase {
     }
 
     func testRestoreToggleAndMarkReadMutateOwnedState() {
-        let service = ForumWatchService(
-            defaults: .createMockDefaults()
-        )
+        let defaults = UserDefaults.createMockDefaults()
+        let service = ForumWatchService(defaults: defaults)
         service.threads = [
             WatchedThread(id: 1, title: "One"),
             WatchedThread(id: 3, title: "Three")
@@ -67,6 +70,22 @@ final class ForumWatchServiceTests: XCTestCase {
         XCTAssertFalse(service.threads[1].notificationsEnabled)
         XCTAssertNil(service.threads[1].error)
         XCTAssertFalse(service.restore(restored, at: 0))
+
+        // A restore is persisted without an explicit save.
+        let reloaded = ForumWatchService(defaults: defaults)
+        reloaded.load()
+        XCTAssertEqual(reloaded.threads.map(\.id), [1, 2, 3])
+    }
+
+    func testRemoveDropsOnlyTheNamedThread() {
+        let service = ForumWatchService(defaults: .createMockDefaults())
+        service.threads = [WatchedThread(id: 111, title: "A"), WatchedThread(id: 222, title: "B")]
+
+        service.remove(threadID: 999)
+        XCTAssertEqual(service.threads.map(\.id), [111, 222])
+
+        service.remove(threadID: 111)
+        XCTAssertEqual(service.threads.map(\.id), [222])
     }
 
     func testApplyUpdatesThreadAndReturnsOnlyEnabledPostIncrease() {
@@ -198,19 +217,6 @@ final class ForumWatchResilienceTests: XCTestCase {
         let alert = service.apply(ForumThreadSnapshot(title: "Thread", postCount: 345),
                                   to: 12345)
         XCTAssertEqual(alert?.count, 5, "a genuine increase must still alert")
-    }
-
-    func testZeroPostCountWouldDestroyTheBaseline() {
-        // Pins why the parser must reject a missing post count: if a 0 ever reaches
-        // `apply`, the next real reading is silently swallowed.
-        let service = makeService(.createMockDefaults())
-        _ = service.add(input: "12345")
-        _ = service.apply(ForumThreadSnapshot(title: "Thread", postCount: 340), to: 12345)
-        _ = service.apply(ForumThreadSnapshot(title: "Unknown", postCount: 0), to: 12345)
-
-        XCTAssertNil(service.apply(ForumThreadSnapshot(title: "Thread", postCount: 345),
-                                   to: 12345),
-                     "documents the damage a 0 does — the parser must never produce one")
     }
 }
 
