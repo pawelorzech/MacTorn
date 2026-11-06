@@ -21,7 +21,6 @@ struct CreditsView: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // Header
             VStack(spacing: 8) {
                 Image(systemName: "heart.fill")
                     .font(.largeTitle)
@@ -41,10 +40,8 @@ struct CreditsView: View {
 
             ScrollView {
                 VStack(spacing: 14) {
-                    // Developer Section
                     developerSection
 
-                    // Special Thanks Section
                     contributorSection(
                         title: "Special Thanks",
                         icon: "star.fill",
@@ -52,13 +49,11 @@ struct CreditsView: View {
                         contributors: specialThanks
                     )
 
-                    // Faction Section
                     factionSection
                 }
                 .padding(.horizontal)
             }
 
-            // Back Button
             Button {
                 showCredits = false
             } label: {

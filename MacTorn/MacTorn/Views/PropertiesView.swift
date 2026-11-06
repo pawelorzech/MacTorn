@@ -12,7 +12,6 @@ struct PropertiesView: View {
                     onRetry: appState.refreshNow
                 )
 
-                // Property Info
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "house.fill")
@@ -40,7 +39,6 @@ struct PropertiesView: View {
                     }
                 }
                 
-                // Actions
                 HStack(spacing: 8) {
                     TileButton(title: "Properties", icon: "house.fill", color: .brown) {
                         openTorn(TornLink.page("properties.php"))

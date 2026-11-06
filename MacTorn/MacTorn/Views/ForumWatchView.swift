@@ -20,7 +20,6 @@ struct ForumWatchView: View {
                     }
                 }
 
-                // Header
                 HStack {
                     Image(systemName: "bubble.left.and.bubble.right.fill")
                         .foregroundColor(.blue)
@@ -54,7 +53,6 @@ struct ForumWatchView: View {
                     .accessibilityLabel(showAddThread ? "Close add thread form" : "Add watched thread")
                 }
 
-                // Add Thread Section
                 if showAddThread {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Thread URL or ID:")
@@ -93,7 +91,6 @@ struct ForumWatchView: View {
                     .cornerRadius(6)
                 }
 
-                // Faction Forum Hint
                 if appState.factionData != nil {
                     HStack(spacing: 4) {
                         Image(systemName: "info.circle")
@@ -105,7 +102,6 @@ struct ForumWatchView: View {
                     }
                 }
 
-                // Thread List
                 if appState.watchedThreads.isEmpty && !showAddThread {
                     EmptyStateView(icon: "bubble.left.and.exclamationmark.bubble.right",
                                    title: "No threads watched",
@@ -134,7 +130,6 @@ struct ForumWatchView: View {
 
                 Divider()
 
-                // Quick Links
                 HStack(spacing: 8) {
                     TileButton(title: "Forums", icon: "bubble.left.fill", color: .blue) {
                         openTorn(TornLink.forums)
@@ -212,7 +207,6 @@ struct ForumThreadRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
-            // Faction badge
             if thread.isFactionThread {
                 Image(systemName: "person.3.fill")
                     .font(.caption2)
@@ -220,7 +214,6 @@ struct ForumThreadRow: View {
                     .accessibilityLabel("Faction thread")
             }
 
-            // Thread title (clickable)
             VStack(alignment: .leading, spacing: 2) {
                 Button {
                     onOpen()
@@ -243,7 +236,6 @@ struct ForumThreadRow: View {
 
             Spacer()
 
-            // Error indicator
             if let error = thread.error {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption2)
@@ -252,7 +244,6 @@ struct ForumThreadRow: View {
                     .accessibilityLabel("Error: \(error)")
             }
 
-            // Last checked indicator
             if thread.lastChecked != nil && thread.error == nil {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.caption2)
@@ -261,7 +252,6 @@ struct ForumThreadRow: View {
                     .accessibilityLabel("Last checked successfully")
             }
 
-            // Notification toggle
             Button {
                 onToggleNotifications()
             } label: {
@@ -277,7 +267,6 @@ struct ForumThreadRow: View {
                                 ? "Notifications on for \(thread.title). Disable notifications"
                                 : "Notifications off for \(thread.title). Enable notifications")
 
-            // Remove button
             Button {
                 onRemove()
             } label: {

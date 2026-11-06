@@ -19,7 +19,6 @@ struct FactionView: View {
                     onRetry: appState.refreshNow
                 )
 
-                // Faction Info
                 VStack(alignment: .leading, spacing: 8) {
                     if let faction = appState.factionData {
                         HStack {
@@ -37,7 +36,6 @@ struct FactionView: View {
                             ChainView(chain: chain, serverClock: appState.player.serverClock)
                         }
                         
-                        // Respect
                         HStack {
                             Text("Respect:")
                                 .font(.caption)
@@ -86,7 +84,6 @@ struct FactionView: View {
                     RankedWarView(war: war, myFactionId: appState.factionData?.factionId)
                 }
 
-                // Faction news feed
                 if !appState.factionNews.isEmpty {
                     FactionNewsView(news: appState.factionNews)
                 }
@@ -94,7 +91,6 @@ struct FactionView: View {
                 RecruitingPanel()
                 WarfarePanel()
 
-                // Armory Quick Actions
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "shield.fill")
@@ -122,7 +118,6 @@ struct FactionView: View {
                 .cornerRadius(8)
                 .disabled(appState.factionData == nil)
 
-                // Actions
                 HStack(spacing: 8) {
                     TileButton(title: "Faction", icon: "person.3.fill", color: .blue) {
                         openTorn(TornLink.faction)

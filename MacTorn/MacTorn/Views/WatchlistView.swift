@@ -22,7 +22,6 @@ struct WatchlistView: View {
 
                 ShopPricesPanel()
 
-                // Watchlist Header
                 HStack {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                         .foregroundColor(.green)
@@ -31,7 +30,6 @@ struct WatchlistView: View {
                     
                     Spacer()
                     
-                    // Refresh button
                     Button {
                         appState.refreshWatchlistPrices()
                     } label: {
@@ -57,7 +55,6 @@ struct WatchlistView: View {
                     .accessibilityLabel(showAddItem ? "Close add item panel" : "Add watched item")
                 }
                 
-                // Add Item Section (inline)
                 if showAddItem {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Add item:")
@@ -93,14 +90,9 @@ struct WatchlistView: View {
                         }
 
                         // Search results when there are any, a "no match" line when a typed
-                        // name finds nothing, and otherwise the shortlist.
-                        //
-                        // The shortlist is the fallback for every remaining state, not just
-                        // an unloaded catalog. In 1.11.1 those six items were the *entire*
-                        // add mechanism — there was no text field — and 1.12.0 delivered the
-                        // search field and gated the grid off in the same change. Opening the
-                        // panel cold then gave a blank field where six clickable items used
-                        // to be.
+                        // name finds nothing, and otherwise the shortlist. The shortlist is
+                        // the fallback for every remaining state, not just an unloaded
+                        // catalog, so opening the panel cold never shows a blank field.
                         if !searchResults.isEmpty {
                             VStack(spacing: 2) {
                                 ForEach(searchResults) { item in
@@ -108,9 +100,6 @@ struct WatchlistView: View {
                                 }
                             }
                         } else if isSearchingByName {
-                            // A name with no match used to render nothing at all: no
-                            // suggestions, no fallback grid, just a bare field and an Add
-                            // button that answers with "Enter a positive item ID."
                             Text("No item matches \u{201C}\(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}.")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
@@ -140,7 +129,6 @@ struct WatchlistView: View {
                     .cornerRadius(6)
                 }
 
-                // Watchlist Items with Prices
                 if appState.watchlistItems.isEmpty && !showAddItem {
                     EmptyStateView(icon: "tag",
                                    title: "No items watched",
@@ -163,7 +151,6 @@ struct WatchlistView: View {
                 
                 Divider()
                 
-                // Quick Market Links
                 HStack(spacing: 8) {
                     TileButton(title: "Item Market", icon: "bag.fill", color: .blue) {
                         openTorn(TornLink.itemMarket)
@@ -191,12 +178,7 @@ struct WatchlistView: View {
         return !typed.isEmpty && Int(typed) == nil && !appState.itemCatalog.isEmpty
     }
 
-    /// Commits whatever is in the field.
-    ///
-    /// The field accepts a name or an id, and Return has to honour both. It used to go
-    /// straight to the id parser, so typing "Xanax" and pressing Return was answered with
-    /// "Enter a positive item ID." while the matching row sat rendered directly below —
-    /// which left the whole name-search feature reachable by mouse only.
+    /// Commits whatever is in the field. It accepts a name or an id, and Return honours both.
     private func commitTypedEntry() {
         if isSearchingByName {
             guard let best = searchResults.first else {
@@ -312,9 +294,8 @@ struct WatchlistView: View {
         }
     }
 
-    /// Clearing a price-alert threshold reuses the exact same Undo banner and
-    /// six-second timer as item removal (GitHub #54) — only setting a threshold
-    /// (a non-nil value) skips Undo, since that isn't a destructive action.
+    /// Clearing a price-alert threshold offers Undo like item removal; setting one
+    /// (a non-nil value) skips it, since that isn't destructive.
     private func setThreshold(_ threshold: Int?, for item: WatchlistItem) {
         guard let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) else {
             return
@@ -353,8 +334,7 @@ struct WatchlistView: View {
     }
 }
 
-/// The two destructive watchlist actions that can be undone via the shared
-/// six-second Undo banner (GitHub #49 item removal, GitHub #54 threshold clear).
+/// The two destructive watchlist actions that can be undone.
 private enum PendingWatchlistUndo {
     case itemRemoved(item: WatchlistItem, index: Int)
     case thresholdCleared(itemId: Int, name: String, threshold: Int?, lastAlertedPrice: Int?)
@@ -388,7 +368,6 @@ struct WatchlistPriceRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                // Item name & open button
                 Button(action: onOpen) {
                     HStack(spacing: 4) {
                         Image(systemName: "magnifyingglass")
@@ -403,7 +382,6 @@ struct WatchlistPriceRow: View {
 
                 Spacer()
 
-                // Price info
                 if item.isLoading && item.error == nil {
                     ProgressView()
                         .scaleEffect(0.6)
@@ -433,7 +411,6 @@ struct WatchlistPriceRow: View {
                     }
                 }
 
-                // Bell button for price threshold
                 Button {
                     thresholdText = item.priceThreshold.map { String($0) } ?? ""
                     thresholdError = nil
@@ -491,7 +468,6 @@ struct WatchlistPriceRow: View {
                     .padding(12)
                 }
 
-                // Remove button
                 Button(action: onRemove) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.secondary)
@@ -517,7 +493,6 @@ struct WatchlistPriceRow: View {
                     .foregroundStyle(.secondary)
             }
 
-            // Threshold indicator
             if let threshold = item.priceThreshold {
                 HStack(spacing: 4) {
                     Image(systemName: "bell.fill")

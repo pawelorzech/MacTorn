@@ -35,10 +35,8 @@ struct ProgressBarView: View {
                     .fontWeight(isFull ? .bold : .regular)
             }
             
-            // Progress bar with visible styling
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    // Background track
                     RoundedRectangle(cornerRadius: 4)
                         .fill(Color.secondary.opacity(reduceTransparency ? 0.5 : 0.3))
                         .overlay(
@@ -46,7 +44,6 @@ struct ProgressBarView: View {
                                 .stroke(color.opacity(reduceTransparency ? 0.5 : 0.3), lineWidth: 1)
                         )
                     
-                    // Filled progress
                     if progress > 0 {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(

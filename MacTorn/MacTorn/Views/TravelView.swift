@@ -15,9 +15,6 @@ struct FlyingStatusView: View {
     }
 
     private var progress: Double {
-        // The progress math lives on `Travel.flightProgress`; this view only holds the
-        // live remaining-seconds value, so recompute from the same model formula rather
-        // than a second copy (audit D-8).
         Travel.flightProgress(arrival: timestamp, departure: departed, remainingSeconds: secondsRemaining)
     }
 
@@ -48,7 +45,6 @@ struct FlyingStatusView: View {
                         .foregroundColor(.blue)
                 }
 
-                // Progress bar
                 GeometryReader { geometry in
                     ZStack(alignment: .leading) {
                         RoundedRectangle(cornerRadius: 4)
@@ -95,7 +91,6 @@ struct TravelView: View {
                     onRetry: appState.refreshNow
                 )
 
-                // Travel Status Section
                 travelStatusSection
 
                 Divider()
@@ -108,10 +103,8 @@ struct TravelView: View {
 
                 ShopPricesPanel()
 
-                // Pre-Arrival Alerts Section
                 preArrivalAlertsSection
 
-                // Quick Actions
                 quickActionsSection
             }
             .padding()
@@ -130,10 +123,8 @@ struct TravelView: View {
                     departed: travel.departed ?? 0
                 )
             } else if travel.isAbroad {
-                // Abroad state
                 abroadStatusView(travel)
             } else {
-                // In Torn City
                 inTornStatusView
             }
         } else {
@@ -236,7 +227,6 @@ struct TravelView: View {
             }
 
             if isAbroad {
-                // Show only return button when abroad
                 Button {
                     openTorn(TornLink.travelAgency)
                 } label: {
@@ -252,7 +242,6 @@ struct TravelView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                // Show all destinations grid
                 LazyVGrid(columns: [
                     GridItem(.flexible()),
                     GridItem(.flexible())

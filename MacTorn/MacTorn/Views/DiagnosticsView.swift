@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// Local, read-only diagnostics (Etap F). Shows environment, network/permission state,
+/// Local, read-only diagnostics. Shows environment, network/permission state,
 /// the API budget and per-endpoint health, and copies a PII-safe report to the clipboard.
 struct DiagnosticsView: View {
     let appState: AppState

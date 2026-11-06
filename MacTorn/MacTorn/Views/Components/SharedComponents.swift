@@ -1,11 +1,5 @@
 import SwiftUI
 
-// MARK: - Shared view primitives
-//
-// Small, repeated shapes that every tab used to re-declare (audit D-7/D-8): the tinted
-// rounded card, the empty-state placeholder, and the icon+title tile button. View-local
-// copies remain where they differ; these are the ones that were byte-identical.
-
 /// "Nothing here yet" placeholder: icon + title + optional subtitle, centred.
 struct EmptyStateView: View {
     let icon: String

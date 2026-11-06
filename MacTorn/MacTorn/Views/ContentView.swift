@@ -49,7 +49,6 @@ struct ContentView: View {
                             _ = navigation.dismissSettings(hasConfiguredAccount: !appState.apiKey.isEmpty)
                         }
                     } else {
-                        // Header with last updated
                         headerView
 
                         // Two-level navigation: three stable groups and only the active
@@ -87,7 +86,6 @@ struct ContentView: View {
             .accessibilityHidden(isShowingModalPrompt)
             .disabled(isShowingModalPrompt)
             
-            // Loading Overlay
             if isBlockingInitialLoad && !navigation.isShowingSettings {
                 ModalScrim(dimming: 0.4)
                     .allowsHitTesting(false)
@@ -111,7 +109,6 @@ struct ContentView: View {
                     .accessibilityAddTraits(.isModal)
             }
 
-            // Sentry Opt-In Prompt Overlay
             if showSentryOptIn {
                 ModalScrim()
 
@@ -242,7 +239,7 @@ struct ContentView: View {
     private var tabContent: some View {
         tabContentBody
             // A single element whose identifier tracks the active tab, so a UI test can
-            // assert navigation actually switched content (Etap G).
+            // assert navigation actually switched content.
             .uiTestID("uitest.tabContent.\(currentTab.rawValue)")
     }
 

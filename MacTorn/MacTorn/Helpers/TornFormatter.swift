@@ -28,8 +28,7 @@ enum TornFormatter {
         currencyFormatter.string(from: NSNumber(value: amount)) ?? "$\(amount)"
     }
 
-    /// Currency for an optional amount: `nil` renders as "Unavailable". Every money
-    /// surface in the app used to reimplement this guard (audit D-2).
+    /// Currency for an optional amount: `nil` renders as "Unavailable".
     static func formatMoney(_ amount: Int?) -> String {
         guard let amount else { return "Unavailable" }
         return formatMoney(amount)
@@ -48,8 +47,7 @@ enum TornFormatter {
 
     // MARK: - Durations
 
-    /// `H:MM:SS` above an hour, else `M:SS`. Negative input clamps to zero. This is the
-    /// one countdown format; it used to be copy-pasted into ten views (audit D-1).
+    /// `H:MM:SS` above an hour, else `M:SS`. Negative input clamps to zero.
     static func clock(_ seconds: Int) -> String {
         let s = max(0, seconds)
         let hours = s / 3600
@@ -117,8 +115,8 @@ enum TornFormatter {
         return formatter
     }()
 
-    /// "2 min ago" / "in 3 hours". `abbreviated` gives "2m ago". Cached — these used to be
-    /// allocated per call inside view bodies (audit D-8).
+    /// "2 min ago" / "in 3 hours". `abbreviated` gives "2m ago". The formatters are cached
+    /// because this runs inside view bodies.
     static func relativeDate(_ date: Date, relativeTo now: Date = Date(), abbreviated: Bool = false) -> String {
         let formatter = abbreviated ? abbreviatedRelativeFormatter : shortRelativeFormatter
         return formatter.localizedString(for: date, relativeTo: now)
@@ -126,8 +124,7 @@ enum TornFormatter {
 }
 
 extension View {
-    /// Opens a Torn web URL in the user's preferred browser. Every tab used to carry its
-    /// own `openURL(_:)` private helper (audit D-3); this is the one copy.
+    /// Opens a Torn web URL in the user's preferred browser.
     /// `BrowserManager.open` rejects non-web schemes.
     func openTorn(_ url: URL) {
         BrowserManager.shared.open(url)

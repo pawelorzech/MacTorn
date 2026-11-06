@@ -3,8 +3,6 @@ import Foundation
 extension AppState {
     func makeWidgetSnapshot() -> WidgetSnapshot? {
         guard let data = player.data else { return nil }
-        // Server→local conversion lives on `ServerClock`; this used to re-derive it by hand
-        // (audit D-8).
         func localDate(_ timestamp: Int) -> Date {
             player.serverClock.localDate(forServerTimestamp: timestamp)
         }

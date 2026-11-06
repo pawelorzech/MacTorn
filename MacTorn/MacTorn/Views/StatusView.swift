@@ -9,7 +9,6 @@ struct StatusView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                // Header
                 headerSection
 
                 ModuleStateView(
@@ -18,34 +17,28 @@ struct StatusView: View {
                     detail: appState.errorMsg
                 )
 
-                // Next Action timeline (Etap J) — the single most useful glance.
                 if appState.player.data != nil {
                     NextActionView()
                 }
 
                 CompetitionPanel()
 
-                // Status badges (Hospital/Jail)
                 if let status = appState.player.data?.status {
                     StatusBadgesView(status: status, serverClock: appState.player.serverClock)
                 }
                 
-                // Chain status
                 if let chain = appState.liveChain {
                     ChainView(chain: chain, serverClock: appState.player.serverClock)
                 }
                 
-                // Travel status
                 if let travel = appState.player.data?.travel, travel.isTraveling || travel.isAbroad {
                     travelSection(travel)
                 }
                 
-                // Bars
                 if let bars = appState.player.data?.bars {
                     barsSection(bars)
                 }
                 
-                // Cooldowns
                 if let cooldowns = appState.player.data?.cooldowns {
                     cooldownsSection(cooldowns)
                 }
@@ -68,12 +61,10 @@ struct StatusView: View {
                     notificationBadges
                 }
 
-                // Events
                 if !appState.player.activityEvents.isEmpty {
                     EventsView(events: appState.player.activityEvents, serverClock: appState.player.serverClock)
                 }
                 
-                // Quick Links
                 quickLinksSection
             }
             .padding(12)
@@ -313,7 +304,6 @@ struct StatusView: View {
                     .buttonStyle(.plain)
                 }
 
-                // TRI Hub link
                 Button {
                     if let url = URL(string: "https://hub.tri.ovh") {
                         BrowserManager.shared.open(url)

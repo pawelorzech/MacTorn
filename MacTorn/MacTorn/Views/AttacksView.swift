@@ -12,7 +12,6 @@ struct AttacksView: View {
                     onRetry: appState.refreshNow
                 )
 
-                // Battle Stats
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "figure.martial.arts")
@@ -59,7 +58,6 @@ struct AttacksView: View {
                 .background(Color.red.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
 
-                // Recent Attacks
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "bolt.shield.fill")
@@ -136,7 +134,6 @@ struct AttacksView: View {
                 .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
                 .cornerRadius(8)
 
-                // Actions
                 HStack(spacing: 8) {
                     TileButton(title: "Attack", icon: "bolt.fill", color: .red) {
                         openTorn(TornLink.page("loader.php?sid=attack&user2ID="))
