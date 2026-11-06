@@ -320,10 +320,10 @@ extension AppState {
     func backfillWatchlistNames() {
         guard !itemCatalog.isEmpty else { return }
         var changed = false
-        for index in watchlistItems.indices {
-            let item = watchlistItems[index]
+        for index in watchlist.items.indices {
+            let item = watchlist.items[index]
             guard item.name == Self.placeholderItemName(for: item.id), let real = itemCatalog[item.id] else { continue }
-            watchlistItems[index] = item.renamed(to: real)
+            watchlist.items[index] = item.renamed(to: real)
             changed = true
         }
         if changed {

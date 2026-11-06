@@ -24,7 +24,11 @@ struct ForumCategoryThread: Equatable, Identifiable, Sendable {
 @Observable
 final class ForumWatchService {
     var threads: [WatchedThread] = []
-    var config = ForumWatchConfig()
+    var config = ForumWatchConfig() {
+        didSet { onConfigChanged() }
+    }
+    /// AppState re-times the forum poll through this when the cadence changes.
+    @ObservationIgnored var onConfigChanged: () -> Void = {}
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -53,6 +57,28 @@ final class ForumWatchService {
 
     private func allowPersistenceAfterUserEdit() {
         storedThreads.userEdited()
+    }
+
+    func setPollingInterval(_ seconds: Int) {
+        config.pollingIntervalSeconds = seconds
+        save()
+    }
+
+    /// Turning the watch off forgets which threads it had seen, so switching it back on
+    /// seeds again rather than announcing everything posted meanwhile.
+    func setCategoryMonitoring(_ enabled: Bool) {
+        config.factionForumAutoMonitor = enabled
+        if !enabled { config.forgetSeenThreads() }
+        save()
+    }
+
+    /// A different category is a different set of threads; the old seen-ids would mark
+    /// every thread in the new one as already known.
+    func setCategory(_ categoryID: Int?) {
+        guard categoryID != config.factionForumCategoryId else { return }
+        config.factionForumCategoryId = categoryID
+        config.forgetSeenThreads()
+        save()
     }
 
     func parseThreadInput(_ input: String) -> Int? {

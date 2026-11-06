@@ -5,16 +5,16 @@ import XCTest
 final class AppStateForumWatchTests: XCTestCase {
     func testForumPollHTTPFailurePreservesLastGoodDataAndShowsError() async throws {
         appState.apiKey = "valid_key"
-        appState.watchedThreads = [WatchedThread(id: 111, title: "Known thread", lastKnownPostCount: 42)]
+        appState.forumWatch.threads = [WatchedThread(id: 111, title: "Known thread", lastKnownPostCount: 42)]
         mockSession.setHTTPError(statusCode: 503)
         appState.refreshForumWatch()
         let deadline = Date().addingTimeInterval(2)
-        while appState.watchedThreads.first?.error == nil, Date() < deadline {
+        while appState.forumWatch.threads.first?.error == nil, Date() < deadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        XCTAssertNotNil(appState.watchedThreads.first?.error)
-        XCTAssertEqual(appState.watchedThreads.first?.title, "Known thread")
-        XCTAssertEqual(appState.watchedThreads.first?.lastKnownPostCount, 42)
+        XCTAssertNotNil(appState.forumWatch.threads.first?.error)
+        XCTAssertEqual(appState.forumWatch.threads.first?.title, "Known thread")
+        XCTAssertEqual(appState.forumWatch.threads.first?.lastKnownPostCount, 42)
     }
 
     func testMalformedNewThreadLeavesLoadingStateAndCanRecover() async throws {
@@ -22,20 +22,20 @@ final class AppStateForumWatchTests: XCTestCase {
         try mockSession.setSuccessResponse(json: [:])
         XCTAssertTrue(appState.addWatchedThread(input: "111"))
         let deadline = Date().addingTimeInterval(2)
-        while appState.watchedThreads.first?.error == nil, Date() < deadline {
+        while appState.forumWatch.threads.first?.error == nil, Date() < deadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        XCTAssertNotNil(appState.watchedThreads.first?.error)
-        XCTAssertEqual(appState.watchedThreads.first?.title, "Thread #111")
+        XCTAssertNotNil(appState.forumWatch.threads.first?.error)
+        XCTAssertEqual(appState.forumWatch.threads.first?.title, "Thread #111")
         try mockSession.setSuccessResponse(json: ["thread": ["title": "Recovered thread", "posts": 42]])
         appState.refreshForumWatch()
         let retryDeadline = Date().addingTimeInterval(2)
-        while appState.watchedThreads.first?.error != nil, Date() < retryDeadline {
+        while appState.forumWatch.threads.first?.error != nil, Date() < retryDeadline {
             try await Task.sleep(nanoseconds: 10_000_000)
         }
-        XCTAssertNil(appState.watchedThreads.first?.error)
-        XCTAssertEqual(appState.watchedThreads.first?.title, "Recovered thread")
-        XCTAssertEqual(appState.watchedThreads.first?.lastKnownPostCount, 42)
+        XCTAssertNil(appState.forumWatch.threads.first?.error)
+        XCTAssertEqual(appState.forumWatch.threads.first?.title, "Recovered thread")
+        XCTAssertEqual(appState.forumWatch.threads.first?.lastKnownPostCount, 42)
     }
 
     var mockSession: MockNetworkSession!
@@ -49,8 +49,8 @@ final class AppStateForumWatchTests: XCTestCase {
         appState = AppState(session: mockSession, defaults: testDefaults)
         testDefaults.removeObject(forKey: "forumWatchedThreads")
         testDefaults.removeObject(forKey: "forumWatchConfig")
-        appState.watchedThreads = []
-        appState.forumWatchConfig = ForumWatchConfig()
+        appState.forumWatch.threads = []
+        appState.forumWatch.config = ForumWatchConfig()
     }
 
     override func tearDown() async throws {
@@ -69,9 +69,9 @@ final class AppStateForumWatchTests: XCTestCase {
         appState.apiKey = "valid_key"
         XCTAssertTrue(appState.addWatchedThread(input: "12345"))
 
-        XCTAssertEqual(appState.watchedThreads.count, 1)
-        XCTAssertEqual(appState.watchedThreads.first?.id, 12345)
-        XCTAssertEqual(appState.watchedThreads.first?.title, "Loading...")
+        XCTAssertEqual(appState.forumWatch.threads.count, 1)
+        XCTAssertEqual(appState.forumWatch.threads.first?.id, 12345)
+        XCTAssertEqual(appState.forumWatch.threads.first?.title, "Loading...")
     }
 
     // MARK: - v2 Error Envelope Contract (forum endpoint)
@@ -87,7 +87,7 @@ final class AppStateForumWatchTests: XCTestCase {
         appState.addWatchedThread(input: "12345")
         try await Task.sleep(nanoseconds: 800_000_000)
 
-        let thread = appState.watchedThreads.first
+        let thread = appState.forumWatch.threads.first
         XCTAssertEqual(thread?.error, "Too many requests — backing off.",
                        "v2 forum error envelope must be surfaced, not parsed as an 'Unknown' thread")
         XCTAssertNotEqual(thread?.title, "Unknown",
@@ -109,7 +109,7 @@ final class ForumWatchKeyHaltTests: XCTestCase {
                        connectivity: ControllableConnectivity(),
                        defaults: .createMockDefaults())
         app.apiKey = "forum-halt-\(UUID().uuidString)"
-        app.watchedThreads = [WatchedThread(id: 111, title: "Thread A")]
+        app.forumWatch.threads = [WatchedThread(id: 111, title: "Thread A")]
         try mockSession.setSuccessResponse(json: TornAPIFixtures.forumThreadSuccess)
     }
 

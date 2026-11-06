@@ -231,7 +231,7 @@ struct ShopPricesPanel: View {
                         Text("\(shop.country) · \(shop.shop) · Buy \(shop.buyPrice.map { "$\($0.formatted())" } ?? "—")")
                             .font(.caption2)
                     }
-                    if let watched = app.watchlistItems.first(where: { $0.id == item.id }), watched.lowestPrice > 0 {
+                    if let watched = app.watchlist.items.first(where: { $0.id == item.id }), watched.lowestPrice > 0 {
                         Text("Last known market price: $\(watched.lowestPrice.formatted())").font(.caption2)
                     } else {
                         Text("Catalog market value: $\(item.value.marketPrice.formatted())").font(.caption2)

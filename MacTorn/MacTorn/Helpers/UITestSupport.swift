@@ -174,7 +174,7 @@ enum UITestConfiguration {
         }
 
         if scenario == .watchAccessibility {
-            appState.watchlistItems = [
+            appState.watchlist.items = [
                 WatchlistItem(
                     id: 206,
                     name: "Accessibility Item",
@@ -185,7 +185,7 @@ enum UITestConfiguration {
                     error: nil
                 )
             ]
-            appState.watchedThreads = [
+            appState.forumWatch.threads = [
                 WatchedThread(
                     id: 101,
                     title: "Unavailable forum thread",

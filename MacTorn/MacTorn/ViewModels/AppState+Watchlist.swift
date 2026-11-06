@@ -26,7 +26,7 @@ extension AppState {
             logger.warning("addToWatchlist rejected invalid or duplicate item \(itemId)")
             return false
         }
-        Task { await fetchPrices(for: watchlistItems.filter { $0.id == itemId }) }
+        Task { await fetchPrices(for: watchlist.items.filter { $0.id == itemId }) }
         return true
     }
 
@@ -37,7 +37,7 @@ extension AppState {
         guard itemId < MarketWatchService.maximumItemID else {
             return .outOfRange(maximum: MarketWatchService.maximumItemID)
         }
-        guard !watchlistItems.contains(where: { $0.id == itemId }) else {
+        guard !watchlist.items.contains(where: { $0.id == itemId }) else {
             return .alreadyWatched
         }
         guard addToWatchlist(itemId: itemId, name: itemName(for: itemId)) else { return .notANumber }
@@ -46,7 +46,7 @@ extension AppState {
 
     func refreshWatchlistPrices() {
         accountSession.startTask(.watchlist) {
-            await self.fetchPrices(for: self.watchlistItems)
+            await self.fetchPrices(for: self.watchlist.items)
         }
     }
 
@@ -104,18 +104,18 @@ extension AppState {
 
     /// Sets or clears an item's alert threshold. A new threshold re-arms the alert.
     func setWatchlistThreshold(_ threshold: Int?, for itemId: Int) {
-        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else { return }
-        watchlistItems[index].priceThreshold = threshold
-        watchlistItems[index].lastAlertedPrice = nil
+        guard let index = watchlist.items.firstIndex(where: { $0.id == itemId }) else { return }
+        watchlist.items[index].priceThreshold = threshold
+        watchlist.items[index].lastAlertedPrice = nil
         watchlist.save()
     }
 
     /// Puts back a cleared threshold exactly as it was, for the Undo banner.
     @discardableResult
     func restoreWatchlistThreshold(itemId: Int, threshold: Int?, lastAlertedPrice: Int?) -> Bool {
-        guard let index = watchlistItems.firstIndex(where: { $0.id == itemId }) else { return false }
-        watchlistItems[index].priceThreshold = threshold
-        watchlistItems[index].lastAlertedPrice = lastAlertedPrice
+        guard let index = watchlist.items.firstIndex(where: { $0.id == itemId }) else { return false }
+        watchlist.items[index].priceThreshold = threshold
+        watchlist.items[index].lastAlertedPrice = lastAlertedPrice
         watchlist.save()
         return true
     }
@@ -127,7 +127,7 @@ extension AppState {
     static let priceAlertPollInterval: TimeInterval = 300
 
     var hasPriceThresholds: Bool {
-        watchlistItems.contains { $0.priceThreshold != nil }
+        watchlist.items.contains { $0.priceThreshold != nil }
     }
 
     /// The price-alert timer runs only while user polling does and at least one item has a
@@ -150,7 +150,7 @@ extension AppState {
     func refreshPriceAlerts() {
         guard !keyHalted, hasPriceThresholds else { return }
         accountSession.startTask(.priceAlerts) {
-            await self.fetchPrices(for: self.watchlistItems.filter { $0.priceThreshold != nil })
+            await self.fetchPrices(for: self.watchlist.items.filter { $0.priceThreshold != nil })
         }
     }
 }

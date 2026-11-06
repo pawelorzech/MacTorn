@@ -19,7 +19,7 @@ extension AppState {
         guard !keyHalted else { return }
         if forumTimer.isRunning,
            let last = lastForumFetchAt,
-           time.now.timeIntervalSince(last) < Double(forumWatchConfig.pollingIntervalSeconds) / 2 {
+           time.now.timeIntervalSince(last) < Double(forumWatch.config.pollingIntervalSeconds) / 2 {
             return
         }
         forumTimer.stop()
@@ -29,7 +29,7 @@ extension AppState {
     }
 
     func installForumTimer() {
-        forumTimer.start(every: Double(forumWatchConfig.pollingIntervalSeconds)) { [weak self] in
+        forumTimer.start(every: Double(forumWatch.config.pollingIntervalSeconds)) { [weak self] in
             self?.refreshForumWatch()
         }
     }
@@ -47,12 +47,12 @@ extension AppState {
     private func fetchForumUpdates() async {
         guard connectivity.isConnected, !apiKey.isEmpty, !keyHalted else { return }
         // Nothing to watch: no request, and no re-encoding two unchanged blobs every poll.
-        guard !watchedThreads.isEmpty || forumWatchConfig.factionForumAutoMonitor else {
+        guard !forumWatch.threads.isEmpty || forumWatch.config.factionForumAutoMonitor else {
             lastForumFetchAt = time.now
             return
         }
         let identity = accountSession.identity
-        await BoundedTaskQueue.run(watchedThreads.map(\.id), limit: 4) { [weak self] threadID in
+        await BoundedTaskQueue.run(forumWatch.threads.map(\.id), limit: 4) { [weak self] threadID in
             await self?.checkThread(threadID)
         }
         await checkFactionForumForNewThreads()
@@ -63,8 +63,8 @@ extension AppState {
 
     /// Announces threads that appeared in the watched category since the last listing.
     private func checkFactionForumForNewThreads() async {
-        guard forumWatchConfig.factionForumAutoMonitor,
-              let categoryID = forumWatchConfig.factionForumCategoryId, categoryID > 0,
+        guard forumWatch.config.factionForumAutoMonitor,
+              let categoryID = forumWatch.config.factionForumCategoryId, categoryID > 0,
               let threads = await requester.fetch("forum.threads", parameter: categoryID,
                                                   decode: ForumWatchService.decodeCategoryThreads).value
         else { return }

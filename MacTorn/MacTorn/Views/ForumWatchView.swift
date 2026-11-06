@@ -14,7 +14,7 @@ struct ForumWatchView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // With nothing watched there is nothing to fetch; the list's own empty
                 // state explains that, so a "No data yet · Retry" strip would contradict it.
-                if !appState.watchedThreads.isEmpty {
+                if !appState.forumWatch.threads.isEmpty {
                     ModuleStateView(state: moduleState) {
                         appState.refreshForumWatch()
                     }
@@ -102,12 +102,12 @@ struct ForumWatchView: View {
                     }
                 }
 
-                if appState.watchedThreads.isEmpty && !showAddThread {
+                if appState.forumWatch.threads.isEmpty && !showAddThread {
                     EmptyStateView(icon: "bubble.left.and.exclamationmark.bubble.right",
                                    title: "No threads watched",
                                    subtitle: "Add forum threads to track new posts")
-                } else if !appState.watchedThreads.isEmpty {
-                    ForEach(appState.watchedThreads) { thread in
+                } else if !appState.forumWatch.threads.isEmpty {
+                    ForEach(appState.forumWatch.threads) { thread in
                         ForumThreadRow(
                             thread: thread,
                             onOpen: {
@@ -175,10 +175,10 @@ struct ForumWatchView: View {
 
 
     private func removeWithUndo(_ thread: WatchedThread) {
-        guard let index = appState.watchedThreads.firstIndex(where: { $0.id == thread.id }) else {
+        guard let index = appState.forumWatch.threads.firstIndex(where: { $0.id == thread.id }) else {
             return
         }
-        let removedThread = appState.watchedThreads[index]
+        let removedThread = appState.forumWatch.threads[index]
 
         undo.schedule(RemovedWatchedThread(thread: removedThread, index: index), reduceMotion: reduceMotion) {
             appState.forumWatch.remove(threadID: thread.id)

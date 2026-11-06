@@ -132,7 +132,7 @@ final class ItemCatalogTests: XCTestCase {
         XCTAssertTrue(state.addToWatchlist(itemId: 206, name: "Item #206"))
         state.itemCatalog = [206: "Xanax"]
         state.backfillWatchlistNames()
-        XCTAssertEqual(state.watchlistItems.first?.name, "Xanax")
+        XCTAssertEqual(state.watchlist.items.first?.name, "Xanax")
     }
 
     /// A name the user typed is theirs. The catalog arriving is not a reason to overwrite
@@ -142,20 +142,20 @@ final class ItemCatalogTests: XCTestCase {
         XCTAssertTrue(state.addToWatchlist(itemId: 206, name: "My Xanax Stash"))
         state.itemCatalog = [206: "Xanax"]
         state.backfillWatchlistNames()
-        XCTAssertEqual(state.watchlistItems.first?.name, "My Xanax Stash")
+        XCTAssertEqual(state.watchlist.items.first?.name, "My Xanax Stash")
     }
 
     func testBackfillPreservesPriceStateAndThresholds() {
         let state = makeState()
         XCTAssertTrue(state.addToWatchlist(itemId: 206, name: "Item #206"))
-        state.watchlistItems[0].lowestPrice = 830_000
-        state.watchlistItems[0].priceThreshold = 800_000
-        state.watchlistItems[0].lastAlertedPrice = 795_000
+        state.watchlist.items[0].lowestPrice = 830_000
+        state.watchlist.items[0].priceThreshold = 800_000
+        state.watchlist.items[0].lastAlertedPrice = 795_000
 
         state.itemCatalog = [206: "Xanax"]
         state.backfillWatchlistNames()
 
-        let item = state.watchlistItems[0]
+        let item = state.watchlist.items[0]
         XCTAssertEqual(item.name, "Xanax")
         XCTAssertEqual(item.id, 206, "the id is the identity; a rename must not move it")
         XCTAssertEqual(item.lowestPrice, 830_000)
@@ -167,7 +167,7 @@ final class ItemCatalogTests: XCTestCase {
         let state = makeState()
         XCTAssertTrue(state.addToWatchlist(itemId: 206, name: "Item #206"))
         state.backfillWatchlistNames()
-        XCTAssertEqual(state.watchlistItems.first?.name, "Item #206")
+        XCTAssertEqual(state.watchlist.items.first?.name, "Item #206")
     }
 
     // MARK: - Adding
@@ -176,12 +176,12 @@ final class ItemCatalogTests: XCTestCase {
         let state = makeState()
         state.itemCatalog = [206: "Xanax"]
         XCTAssertEqual(state.addToWatchlist(input: "206"), .added(itemId: 206))
-        XCTAssertEqual(state.watchlistItems.first?.name, "Xanax")
+        XCTAssertEqual(state.watchlist.items.first?.name, "Xanax")
     }
 
     func testAddingByIdStillWorksWithoutACatalog() {
         let state = makeState()
         XCTAssertEqual(state.addToWatchlist(input: "206"), .added(itemId: 206))
-        XCTAssertEqual(state.watchlistItems.first?.name, "Item #206")
+        XCTAssertEqual(state.watchlist.items.first?.name, "Item #206")
     }
 }

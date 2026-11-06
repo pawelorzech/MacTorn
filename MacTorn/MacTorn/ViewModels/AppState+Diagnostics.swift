@@ -125,8 +125,8 @@ extension AppState {
 
     var watchlistPresentationState: ModulePresentationState {
         presentationState(endpointIDs: ["market.item"],
-                          hasContent: watchlistItems.contains { $0.lastUpdated != nil }, staleAfter: 360,
-                          rowHealth: watchlistItems.map {
+                          hasContent: watchlist.items.contains { $0.lastUpdated != nil }, staleAfter: 360,
+                          rowHealth: watchlist.items.map {
             EndpointHealth(endpointID: "market.item", outcome: $0.error != nil ? .error : $0.lastUpdated == nil ? .pending : .ok,
                            latencyMs: 0, responseBytes: 0, at: $0.lastUpdated ?? time.now,
                            errorClass: nil, lastSuccessfulAt: $0.lastUpdated)
@@ -135,9 +135,9 @@ extension AppState {
 
     var forumPresentationState: ModulePresentationState {
         presentationState(endpointIDs: ["forum.thread"],
-                          hasContent: watchedThreads.contains { $0.lastChecked != nil },
-                          staleAfter: TimeInterval(max(forumWatchConfig.pollingIntervalSeconds, ForumWatchConfig.defaultPollingInterval)) + 30,
-                          rowHealth: watchedThreads.map {
+                          hasContent: forumWatch.threads.contains { $0.lastChecked != nil },
+                          staleAfter: TimeInterval(max(forumWatch.config.pollingIntervalSeconds, ForumWatchConfig.defaultPollingInterval)) + 30,
+                          rowHealth: forumWatch.threads.map {
             EndpointHealth(endpointID: "forum.thread", outcome: $0.error != nil ? .error : $0.lastChecked == nil ? .pending : .ok,
                            latencyMs: 0, responseBytes: 0, at: $0.lastChecked ?? time.now,
                            errorClass: nil, lastSuccessfulAt: $0.lastChecked)

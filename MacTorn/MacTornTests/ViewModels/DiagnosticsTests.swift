@@ -8,17 +8,17 @@ final class DiagnosticsTests: XCTestCase {
         let clock = MutableTimeSource()
         let app = AppState(session: MockNetworkSession(), connectivity: ControllableConnectivity(),
                            defaults: .createMockDefaults(), time: clock)
-        app.watchlistItems = [makeWatchlistItem(lastUpdated: nil)]
-        app.watchedThreads = [WatchedThread(id: 1, title: "Thread #1")]
+        app.watchlist.items = [makeWatchlistItem(lastUpdated: nil)]
+        app.forumWatch.threads = [WatchedThread(id: 1, title: "Thread #1")]
         XCTAssertNotEqual(app.watchlistPresentationState.kind, .fresh)
         XCTAssertNotEqual(app.forumPresentationState.kind, .fresh)
 
-        app.watchlistItems[0].lastUpdated = clock.now
-        app.watchedThreads[0].lastChecked = clock.now
+        app.watchlist.items[0].lastUpdated = clock.now
+        app.forumWatch.threads[0].lastChecked = clock.now
         XCTAssertEqual(app.watchlistPresentationState.kind, .fresh)
         XCTAssertEqual(app.forumPresentationState.kind, .fresh)
-        app.watchlistItems[0].error = "Could not connect"
-        app.watchedThreads[0].error = "Could not connect"
+        app.watchlist.items[0].error = "Could not connect"
+        app.forumWatch.threads[0].error = "Could not connect"
         XCTAssertEqual(app.watchlistPresentationState.kind, .stale)
         XCTAssertEqual(app.forumPresentationState.kind, .stale)
         XCTAssertEqual(app.watchlistPresentationState.updatedAt, clock.now)

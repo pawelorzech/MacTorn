@@ -184,14 +184,14 @@ final class FactionServiceTests: XCTestCase {
         service.news = []
 
         XCTAssertEqual(state.factionData?.name, "Faction A")
-        XCTAssertEqual(state.rankedWars.count, service.wars.count)
-        XCTAssertEqual(state.factionNews.count, service.news.count)
+        XCTAssertEqual(state.faction.wars.count, service.wars.count)
+        XCTAssertEqual(state.faction.news.count, service.news.count)
 
         state.apiKey = "account-b"
 
         XCTAssertNil(state.factionData)
-        XCTAssertTrue(state.rankedWars.isEmpty)
-        XCTAssertTrue(state.factionNews.isEmpty)
+        XCTAssertTrue(state.faction.wars.isEmpty)
+        XCTAssertTrue(state.faction.news.isEmpty)
     }
 
     private func makeService() -> (FactionStore, MockNetworkSession) {

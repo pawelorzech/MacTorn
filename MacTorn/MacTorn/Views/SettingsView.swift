@@ -381,7 +381,7 @@ struct SettingsView: View {
             Toggle("Alert on new threads in a forum category", isOn: forumCategoryMonitorBinding)
                 .font(.caption)
 
-            if appState.forumWatchConfig.factionForumAutoMonitor {
+            if appState.forumWatch.config.factionForumAutoMonitor {
                 HStack {
                     Text("Category ID")
                         .font(.caption2)
@@ -394,7 +394,7 @@ struct SettingsView: View {
                 }
                 // Without a category id the watch fetches nothing and reports nothing, so
                 // the switch reads as armed while being permanently inert. Say so.
-                if appState.forumWatchConfig.factionForumCategoryId == nil {
+                if appState.forumWatch.config.factionForumCategoryId == nil {
                     Label("Enter a category ID — nothing is being watched yet.",
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.caption2)
@@ -564,41 +564,27 @@ struct SettingsView: View {
 
     private var forumPollingBinding: Binding<Int> {
         Binding(
-            get: { appState.forumWatchConfig.pollingIntervalSeconds },
+            get: { appState.forumWatch.config.pollingIntervalSeconds },
             set: { newValue in
-                appState.forumWatchConfig.pollingIntervalSeconds = newValue
-                appState.forumWatch.save()
-                appState.startForumPolling()
+                appState.forumWatch.setPollingInterval(newValue)
             }
         )
     }
 
     private var forumCategoryMonitorBinding: Binding<Bool> {
         Binding(
-            get: { appState.forumWatchConfig.factionForumAutoMonitor },
+            get: { appState.forumWatch.config.factionForumAutoMonitor },
             set: { newValue in
-                appState.forumWatchConfig.factionForumAutoMonitor = newValue
-                // Turning the watch off forgets which threads it had seen, so switching it
-                // back on seeds again rather than announcing everything posted meanwhile.
-                if !newValue {
-                    appState.forumWatchConfig.forgetSeenThreads()
-                }
-                appState.forumWatch.save()
+                appState.forumWatch.setCategoryMonitoring(newValue)
             }
         )
     }
 
     private var forumCategoryIDBinding: Binding<String> {
         Binding(
-            get: { appState.forumWatchConfig.factionForumCategoryId.map(String.init) ?? "" },
+            get: { appState.forumWatch.config.factionForumCategoryId.map(String.init) ?? "" },
             set: { newValue in
-                let parsed = PositiveIntegerInput.value(from: newValue)
-                guard parsed != appState.forumWatchConfig.factionForumCategoryId else { return }
-                appState.forumWatchConfig.factionForumCategoryId = parsed
-                // A different category is a different set of threads; the seen-ids from the
-                // old one would mark every thread in the new one as already known.
-                appState.forumWatchConfig.forgetSeenThreads()
-                appState.forumWatch.save()
+                appState.forumWatch.setCategory(PositiveIntegerInput.value(from: newValue))
             }
         )
     }

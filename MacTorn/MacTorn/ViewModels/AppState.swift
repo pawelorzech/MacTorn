@@ -148,39 +148,6 @@ class AppState {
     /// Lowercased mirror of `itemCatalog`, used by `searchItems`. Rebuilt only when the catalogue
     /// changes, not on every keystroke.
     @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
-    var watchlistItems: [WatchlistItem] {
-        get { watchlist.items }
-        set {
-            watchlist.items = newValue
-            // The Watchlist tab sets and clears thresholds through this setter; the
-            // background price-alert timer exists only while one is set.
-            syncPriceAlertPolling()
-        }
-    }
-    // MARK: - API v2 user state (organized crime, refills, education, bounties)
-    // MARK: - Faction v2 state (ranked wars, news)
-    var rankedWars: [RankedWar] {
-        faction.wars
-    }
-    var factionNews: [FactionNews] {
-        faction.news
-    }
-    var watchedThreads: [WatchedThread] {
-        get { forumWatch.threads }
-        set { forumWatch.threads = newValue }
-    }
-    var forumWatchConfig: ForumWatchConfig {
-        get { forumWatch.config }
-        set {
-            forumWatch.config = newValue
-            // Same as `refreshInterval`: `startForumPolling` returns early while a timer
-            // runs, so a new cadence has to reinstall the running timer itself.
-            if forumTimer.isRunning,
-               forumTimer.interval != Double(forumWatch.config.pollingIntervalSeconds) {
-                installForumTimer()
-            }
-        }
-    }
 
     // MARK: - Update State
     var updateAvailable: GitHubRelease?
@@ -355,6 +322,12 @@ class AppState {
         }
         requester.onAccountError = { [weak self] error, endpointID in
             self?.handleAccountError(error, for: endpointID)
+        }
+        watchlist.onItemsChanged = { [weak self] in self?.syncPriceAlertPolling() }
+        forumWatch.onConfigChanged = { [weak self] in
+            guard let self, self.forumTimer.isRunning,
+                  self.forumTimer.interval != Double(self.forumWatch.config.pollingIntervalSeconds) else { return }
+            self.installForumTimer()
         }
     }
 

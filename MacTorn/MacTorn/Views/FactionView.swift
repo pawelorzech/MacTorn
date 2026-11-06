@@ -13,8 +13,8 @@ struct FactionView: View {
                         hasContent: appState.factionData != nil
                             || appState.player.organizedCrime != nil
                             || appState.player.organizedCrimeUnavailableReason != nil
-                            || !appState.rankedWars.isEmpty
-                            || !appState.factionNews.isEmpty
+                            || !appState.faction.wars.isEmpty
+                            || !appState.faction.news.isEmpty
                     ),
                     onRetry: appState.refreshNow
                 )
@@ -80,12 +80,12 @@ struct FactionView: View {
                 }
 
                 // Active ranked war (score vs target)
-                if let war = appState.rankedWars.first(where: { $0.isActive }) {
+                if let war = appState.faction.wars.first(where: { $0.isActive }) {
                     RankedWarView(war: war, myFactionId: appState.factionData?.factionId)
                 }
 
-                if !appState.factionNews.isEmpty {
-                    FactionNewsView(news: appState.factionNews)
+                if !appState.faction.news.isEmpty {
+                    FactionNewsView(news: appState.faction.news)
                 }
 
                 RecruitingPanel()

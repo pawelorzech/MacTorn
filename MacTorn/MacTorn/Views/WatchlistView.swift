@@ -14,7 +14,7 @@ struct WatchlistView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // With nothing watched there is nothing to fetch; the list's own empty
                 // state explains that, so a "No data yet · Retry" strip would contradict it.
-                if !appState.watchlistItems.isEmpty {
+                if !appState.watchlist.items.isEmpty {
                     ModuleStateView(state: moduleState) {
                         appState.refreshWatchlistPrices()
                     }
@@ -129,12 +129,12 @@ struct WatchlistView: View {
                     .cornerRadius(6)
                 }
 
-                if appState.watchlistItems.isEmpty && !showAddItem {
+                if appState.watchlist.items.isEmpty && !showAddItem {
                     EmptyStateView(icon: "tag",
                                    title: "No items watched",
                                    subtitle: "Track Item Market prices")
-                } else if !appState.watchlistItems.isEmpty {
-                    ForEach(appState.watchlistItems) { item in
+                } else if !appState.watchlist.items.isEmpty {
+                    ForEach(appState.watchlist.items) { item in
                         WatchlistPriceRow(item: item) {
                             openTorn(TornLink.itemMarket(itemID: item.id))
                         } onRemove: {
@@ -284,10 +284,10 @@ struct WatchlistView: View {
     }
 
     private func removeWithUndo(_ item: WatchlistItem) {
-        guard let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) else {
+        guard let index = appState.watchlist.items.firstIndex(where: { $0.id == item.id }) else {
             return
         }
-        let removedItem = appState.watchlistItems[index]
+        let removedItem = appState.watchlist.items[index]
 
         scheduleUndo(.itemRemoved(item: removedItem, index: index)) {
             appState.watchlist.remove(itemID: item.id)
@@ -297,7 +297,7 @@ struct WatchlistView: View {
     /// Clearing a price-alert threshold offers Undo like item removal; setting one
     /// (a non-nil value) skips it, since that isn't destructive.
     private func setThreshold(_ threshold: Int?, for item: WatchlistItem) {
-        guard let index = appState.watchlistItems.firstIndex(where: { $0.id == item.id }) else {
+        guard let index = appState.watchlist.items.firstIndex(where: { $0.id == item.id }) else {
             return
         }
 
@@ -306,8 +306,8 @@ struct WatchlistView: View {
             return
         }
 
-        let previousThreshold = appState.watchlistItems[index].priceThreshold
-        let previousAlertedPrice = appState.watchlistItems[index].lastAlertedPrice
+        let previousThreshold = appState.watchlist.items[index].priceThreshold
+        let previousAlertedPrice = appState.watchlist.items[index].lastAlertedPrice
         scheduleUndo(.thresholdCleared(
             itemId: item.id,
             name: item.name,

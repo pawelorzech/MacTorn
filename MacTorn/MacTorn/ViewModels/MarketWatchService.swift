@@ -47,7 +47,11 @@ struct MarketPriceAlert: Equatable {
 @MainActor
 @Observable
 final class MarketWatchService {
-    var items: [WatchlistItem] = []
+    var items: [WatchlistItem] = [] {
+        didSet { onItemsChanged() }
+    }
+    /// AppState keeps the price-alert timer in step with the thresholds through this.
+    @ObservationIgnored var onItemsChanged: () -> Void = {}
 
     @ObservationIgnored private let defaults: UserDefaults
 

@@ -384,7 +384,7 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(countAtCap, 1)
         XCTAssertEqual(mock.requestedURLs.count, 1,
                        "market refresh must not bypass the shared per-minute cap")
-        XCTAssertEqual(app.watchlistItems.first?.error, TornEndpointDenial.perMinuteCapReached.userExplanation)
+        XCTAssertEqual(app.watchlist.items.first?.error, TornEndpointDenial.perMinuteCapReached.userExplanation)
     }
 
     func testInvalidPersistedRefreshIntervalFallsBackToSafeDefault() {
@@ -655,7 +655,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertTrue(appState.rankedWars.contains { $0.isActive },
+        XCTAssertTrue(appState.faction.wars.contains { $0.isActive },
                       "the active ranked war should be parsed from the v2 faction call")
     }
 
@@ -1855,13 +1855,13 @@ final class PollingCadenceChangeTests: XCTestCase {
 
     func testChangingForumIntervalReinstallsTheRunningForumTimer() {
         let app = makeApp()
-        app.forumWatchConfig.pollingIntervalSeconds = 180
+        app.forumWatch.config.pollingIntervalSeconds = 180
         app.startForumPolling()
         XCTAssertEqual(app.forumTimer.interval, 180)
         // A forum poll just landed — the state in which `startForumPolling` returns early.
         app.lastForumFetchAt = Date()
 
-        app.forumWatchConfig.pollingIntervalSeconds = 300
+        app.forumWatch.config.pollingIntervalSeconds = 300
         app.startForumPolling()
 
         XCTAssertEqual(app.forumTimer.interval, 300)
