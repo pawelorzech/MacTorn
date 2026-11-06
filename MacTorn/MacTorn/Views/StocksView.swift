@@ -8,12 +8,7 @@ struct StocksView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast"],
-                        hasContent: !appState.player.stocksData.isEmpty,
-                        staleAfter: 120,
-                        requiredUserSelections: ["stocks"]
-                    ),
+                    state: appState.presentationState(for: .stocks, hasContent: !appState.player.stocksData.isEmpty),
                     onRetry: appState.refreshNow
                 )
 

@@ -8,12 +8,7 @@ struct MoneyView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast"],
-                        hasContent: appState.player.moneyData != nil,
-                        staleAfter: 120,
-                        requiredUserSelections: ["money"]
-                    ),
+                    state: appState.presentationState(for: .money, hasContent: appState.player.moneyData != nil),
                     onRetry: appState.refreshNow
                 )
 

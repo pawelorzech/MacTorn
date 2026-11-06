@@ -8,11 +8,7 @@ struct AttacksView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast", "user.activity"],
-                        hasContent: appState.player.battleStats != nil || appState.player.recentAttacks != nil,
-                        staleAfter: 360
-                    ),
+                    state: appState.presentationState(for: .attacks, hasContent: appState.player.battleStats != nil || appState.player.recentAttacks != nil),
                     onRetry: appState.refreshNow
                 )
 
@@ -83,9 +79,10 @@ struct AttacksView: View {
                             let direction = userWasAttacker
                                 ? "outgoing attack against"
                                 : "incoming attack from"
-                            let timeDescription = attack.timeAgo(at: appState.serverNow).isEmpty
-                                ? ""
-                                : ", \(attack.timeAgo(at: appState.serverNow)) ago"
+                            let timeAgo = attack.timeAgo(at: appState.serverNow)
+                            let timeDescription = timeAgo.isEmpty ? ""
+                                : timeAgo == "now" ? ", just now"
+                                : ", \(timeAgo) ago"
 
                             Button {
                                 if let opponentId = attack.opponentId(forUserId: userId) {

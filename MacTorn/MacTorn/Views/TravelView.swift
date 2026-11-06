@@ -91,11 +91,7 @@ struct TravelView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast"],
-                        hasContent: appState.player.data?.travel != nil,
-                        staleAfter: 120
-                    ),
+                    state: appState.presentationState(for: .travel, hasContent: appState.player.data?.travel != nil),
                     onRetry: appState.refreshNow
                 )
 

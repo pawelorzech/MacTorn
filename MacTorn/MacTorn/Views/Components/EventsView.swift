@@ -47,16 +47,6 @@ struct EventsView: View {
     }
     
     private func timeAgo(_ timestamp: Int) -> String {
-        let now = serverClock.serverUnix(Date())
-        guard let diff = NumericSafety.elapsed(since: timestamp, now: now) else { return "Unknown" }
-        
-        if diff < 60 {
-            return "now"
-        } else if diff < 3600 {
-            return "\(diff / 60)m"
-        } else if diff < 86400 {
-            return "\(diff / 3600)h"
-        }
-        return "\(diff / 86400)d"
+        TornFormatter.timeAgo(since: timestamp, now: serverClock.serverUnix(Date())) ?? "Unknown"
     }
 }

@@ -13,11 +13,7 @@ struct StatusView: View {
                 headerSection
 
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast", "user.v2", "user.activity"],
-                        hasContent: appState.player.data != nil,
-                        staleAfter: 120
-                    ),
+                    state: appState.presentationState(for: .status, hasContent: appState.player.data != nil),
                     onRetry: appState.refreshNow,
                     detail: appState.errorMsg
                 )

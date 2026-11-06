@@ -8,12 +8,7 @@ struct PropertiesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 ModuleStateView(
-                    state: appState.presentationState(
-                        endpointIDs: ["user.fast"],
-                        hasContent: appState.player.propertiesData != nil,
-                        staleAfter: 120,
-                        requiredUserSelections: ["properties"]
-                    ),
+                    state: appState.presentationState(for: .properties, hasContent: appState.player.propertiesData != nil),
                     onRetry: appState.refreshNow
                 )
 

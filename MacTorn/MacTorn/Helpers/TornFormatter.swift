@@ -93,6 +93,16 @@ enum TornFormatter {
         return String(format: "%dd %dh", s / 86_400, (s % 86_400) / 3600)
     }
 
+    /// "now" under a minute, then "5m" / "3h" / "2d". `nil` for a timestamp that cannot be
+    /// trusted (see `NumericSafety.elapsed`), so each caller picks its own placeholder.
+    static func timeAgo(since timestamp: Int, now: Int) -> String? {
+        guard let diff = NumericSafety.elapsed(since: timestamp, now: now) else { return nil }
+        if diff < 60 { return "now" }
+        if diff < 3600 { return "\(diff / 60)m" }
+        if diff < 86400 { return "\(diff / 3600)h" }
+        return "\(diff / 86400)d"
+    }
+
     // MARK: - Relative dates
 
     private static let shortRelativeFormatter: RelativeDateTimeFormatter = {

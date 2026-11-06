@@ -9,13 +9,12 @@ struct FactionView: View {
             VStack(alignment: .leading, spacing: 12) {
                 ModuleStateView(
                     state: appState.presentationState(
-                        endpointIDs: ["faction.basic", "faction.rankedwars", "faction.news", "user.v2"],
+                        for: .faction,
                         hasContent: appState.factionData != nil
                             || appState.player.organizedCrime != nil
                             || appState.player.organizedCrimeUnavailableReason != nil
                             || !appState.rankedWars.isEmpty
-                            || !appState.factionNews.isEmpty,
-                        staleAfter: 360
+                            || !appState.factionNews.isEmpty
                     ),
                     onRetry: appState.refreshNow
                 )

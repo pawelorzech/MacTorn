@@ -144,3 +144,45 @@ extension AppState {
         })
     }
 }
+
+/// Which endpoints feed each tab, how old their data may get before the tab reads as
+/// stale, and which key selections the tab needs. Activity/faction endpoints poll more
+/// slowly than the live bars, hence the longer windows.
+private struct ModuleFacts {
+    let endpointIDs: [String]
+    let staleAfter: TimeInterval
+    var requiredUserSelections: [String] = []
+
+    static let status = ModuleFacts(endpointIDs: ["user.fast", "user.v2", "user.activity"], staleAfter: 120)
+    static let travel = ModuleFacts(endpointIDs: ["user.fast"], staleAfter: 120)
+    static let money = ModuleFacts(endpointIDs: ["user.fast"], staleAfter: 120, requiredUserSelections: ["money"])
+    static let properties = ModuleFacts(endpointIDs: ["user.fast"], staleAfter: 120, requiredUserSelections: ["properties"])
+    static let stocks = ModuleFacts(endpointIDs: ["user.fast"], staleAfter: 120, requiredUserSelections: ["stocks"])
+    static let attacks = ModuleFacts(endpointIDs: ["user.fast", "user.activity"], staleAfter: 360)
+    static let faction = ModuleFacts(
+        endpointIDs: ["faction.basic", "faction.rankedwars", "faction.news", "user.v2"], staleAfter: 360)
+}
+
+extension AppState {
+    /// Presentation state for a tab whose facts are fixed. The Watchlist and Forums tabs
+    /// derive theirs from per-row health instead (`watchlistPresentationState`,
+    /// `forumPresentationState`) and ignore `hasContent`.
+    func presentationState(for tab: AppTab, hasContent: Bool) -> ModulePresentationState {
+        let facts: ModuleFacts
+        switch tab {
+        case .status: facts = .status
+        case .travel: facts = .travel
+        case .money: facts = .money
+        case .properties: facts = .properties
+        case .stocks: facts = .stocks
+        case .attacks: facts = .attacks
+        case .faction: facts = .faction
+        case .watchlist: return watchlistPresentationState
+        case .forums: return forumPresentationState
+        }
+        return presentationState(endpointIDs: facts.endpointIDs,
+                                 hasContent: hasContent,
+                                 staleAfter: facts.staleAfter,
+                                 requiredUserSelections: facts.requiredUserSelections)
+    }
+}
