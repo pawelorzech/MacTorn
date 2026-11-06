@@ -5,6 +5,34 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.4] - 2026-11-07 - Under the hood
+
+### Changed
+- Optional modules (watchlist, forum, companion) report problems in their own row instead of the
+  main error bar, and use the same wording for the same problem.
+- A tab reads as stale only after at least two poll intervals, so the 2-minute cadence no longer
+  flags data that is merely about to refresh.
+- Reduce Transparency also applies in the Settings window.
+- Attacks that just ended show "now" instead of "0m"; the widget's Happy bar is yellow.
+
+### Fixed
+- Removing or restoring a watchlist item keeps the background price-alert check in step; it could
+  keep polling with no threshold left, or stop while one was still set.
+- Testing a new API key in Settings works while the saved key is rejected by Torn.
+- Validating the saved key stops polling when Torn rejects it.
+- The feedback email button opens the mail client.
+- The Launch at Login toggle shows the new state right after it changes.
+- QuickLinks no longer writes the default list back into preferences.
+- Diagnostics records market and forum calls, counts "nothing to serve" (codes 32/33) as healthy,
+  and no longer lists the shop catalog twice.
+
+### Notes
+- Internal restructuring: one request pipeline for every Torn call, account data in one place,
+  stores that keep their own timers in step. Saved settings, the Keychain entry and notification
+  history carry over unchanged.
+- Unit tests and coverage gate passed locally (752 tests; tests that could not fail were removed).
+  UI automation tests were not run.
+
 ## [1.16.3] - 2026-10-30 - Friendlier first run
 
 ### Added

@@ -278,9 +278,11 @@ Developer ID workflow.
 ```text
 MacTornApp / ContentView
 └── AppState (@MainActor facade)
+    ├── TornRequester             The one request pipeline: gate, budget, health, throttle
+    ├── PlayerState               Torn data for the signed-in account
     ├── AccountSessionStore       Keychain-backed account boundary
     ├── UserSnapshotService       Core user snapshots and validation
-    ├── FactionService            Faction, chain, wars, and news
+    ├── FactionStore              Faction, chain, wars, and news
     ├── MarketWatchService        Item prices and price alerts
     ├── ForumWatchService         Watched threads and update detection
     ├── PollingCoordinator        Request and row budgets
