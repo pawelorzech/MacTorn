@@ -69,7 +69,7 @@ struct RecruitingPanel: View {
                         }
                     }
                 }
-                Link("Open organized crimes", destination: URL(string: "https://www.torn.com/factions.php?step=your#/tab=crimes")!)
+                Link("Open organized crimes", destination: TornLink.factionCrimes)
                     .font(.caption)
             }
         }.companionCard()
@@ -107,7 +107,7 @@ struct StockBonusPanel: View {
                     }
                     Divider()
                 }
-                Link("Collect in Torn", destination: URL(string: "https://www.torn.com/page.php?sid=stocks")!).font(.caption)
+                Link("Collect in Torn", destination: TornLink.stocks).font(.caption)
             }
         }.companionCard()
     }
@@ -192,7 +192,7 @@ struct TradesPanel: View {
                                 Text(item.summary).font(.caption2)
                             }
                         }
-                        Link("Review trade in Torn", destination: URL(string: "https://www.torn.com/trade.php#step=view&ID=\(trade.id)")!)
+                        Link("Review trade in Torn", destination: TornLink.trade(trade.id))
                             .font(.caption)
                     }
                 }

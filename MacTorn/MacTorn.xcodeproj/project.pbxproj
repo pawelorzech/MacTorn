@@ -134,6 +134,7 @@
 		BBB00038 /* ServerClockOffsetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBB10038 /* ServerClockOffsetTests.swift */; };
 		CCC00001 /* MacTornUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCC10001 /* MacTornUITests.swift */; };
 		DBDA6DE7BC372C1466FE0C67 /* MacTornWidgets.appex in Embed Widget Extension */ = {isa = PBXBuildFile; fileRef = 55E88984582EA230E4769059 /* MacTornWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		DEDBFE72753DFA68DB34CD09 /* TornLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DFC2E20B21708BAB66AEA40 /* TornLink.swift */; };
 		EA33BF04B61541811AD31716 /* Faction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5859564BE771738DDF5DDCFE /* Faction.swift */; };
 		F2AE96DBDC7C03A0EE0BE4E1 /* WidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD85E9523C992FBE1C69B85 /* WidgetSnapshotTests.swift */; };
 		F50FB58B86CA8320878570F6 /* MacTornWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5EFB34F21576D67E5BADBB3 /* MacTornWidgets.swift */; };
@@ -185,6 +186,7 @@
 		3E283D57DB7C7CFC1906B751 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/Cocoa.framework; sourceTree = DEVELOPER_DIR; };
 		55E88984582EA230E4769059 /* MacTornWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MacTornWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5859564BE771738DDF5DDCFE /* Faction.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Faction.swift; sourceTree = "<group>"; };
+		5DFC2E20B21708BAB66AEA40 /* TornLink.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TornLink.swift; sourceTree = "<group>"; };
 		60FF0E1DBB72B88C9FE868C3 /* MenuBarDisplay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MenuBarDisplay.swift; sourceTree = "<group>"; };
 		676563671F15BABF889F2167 /* TornAPIClient.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TornAPIClient.swift; sourceTree = "<group>"; };
 		6B617259087CA076C0EB4A2F /* Travel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Travel.swift; sourceTree = "<group>"; };
@@ -515,6 +517,7 @@
 				AAA10025 /* TransparencyEnvironment.swift */,
 				AAA10033 /* TimeSource.swift */,
 				AAA10039 /* UITestSupport.swift */,
+				5DFC2E20B21708BAB66AEA40 /* TornLink.swift */,
 			);
 			path = Helpers;
 			sourceTree = "<group>";
@@ -877,6 +880,7 @@
 				6E73A09EA78C101A0E3513C2 /* WatchlistItem.swift in Sources */,
 				43D86313A086EEAD6F2F898E /* TornAPIClient.swift in Sources */,
 				4E90EF48FEED9E9D38BDF3CC /* UpdateManager.swift in Sources */,
+				DEDBFE72753DFA68DB34CD09 /* TornLink.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

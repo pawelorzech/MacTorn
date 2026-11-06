@@ -242,9 +242,7 @@ extension AppState {
         saveFeedbackState()
         // Guard prevents tests from spamming the user's browser/mail client.
         guard !Self.isRunningUnderXCTest else { return }
-        if let url = URL(string: "https://www.torn.com/forums.php#/p=threads&f=67&t=16532308") {
-            BrowserManager.shared.open(url)
-        }
+        BrowserManager.shared.open(TornLink.page("forums.php#/p=threads&f=67&t=16532308"))
     }
 
     func feedbackRespondedNegative() {

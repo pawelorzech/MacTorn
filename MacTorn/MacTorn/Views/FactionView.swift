@@ -118,15 +118,15 @@ struct FactionView: View {
                     
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                         ArmoryButton(title: "Xanax", icon: "pills.fill", color: .blue) {
-                            openTorn("https://www.torn.com/factions.php?step=your#/tab=armoury&start=0&sub=donate")
+                            openTorn(TornLink.page("factions.php?step=your#/tab=armoury&start=0&sub=donate"))
                         }
                         
                         ArmoryButton(title: "Refill", icon: "drop.fill", color: .cyan) {
-                            openTorn("https://www.torn.com/factions.php?step=your#/tab=armoury")
+                            openTorn(TornLink.factionArmoury)
                         }
                         
                         ArmoryButton(title: "SED", icon: "syringe.fill", color: .green) {
-                            openTorn("https://www.torn.com/factions.php?step=your#/tab=armoury")
+                            openTorn(TornLink.factionArmoury)
                         }
                     }
                 }
@@ -138,15 +138,15 @@ struct FactionView: View {
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Faction", icon: "person.3.fill", color: .blue) {
-                        openTorn("https://www.torn.com/factions.php?step=your")
+                        openTorn(TornLink.faction)
                     }
                     
                     ActionButton(title: "Wars", icon: "flame.fill", color: .red) {
-                        openTorn("https://www.torn.com/factions.php?step=your#/tab=wars")
+                        openTorn(TornLink.factionWars)
                     }
                     
                     ActionButton(title: "OC", icon: "briefcase.fill", color: .orange) {
-                        openTorn("https://www.torn.com/factions.php?step=your#/tab=crimes")
+                        openTorn(TornLink.factionCrimes)
                     }
                 }
             }

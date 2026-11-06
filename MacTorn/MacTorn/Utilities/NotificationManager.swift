@@ -27,33 +27,33 @@ enum NotificationType: String {
     var url: URL {
         switch self {
         case .drugReady, .medicalReady, .boosterReady:
-            return URL(string: "https://www.torn.com/item.php")!
+            return TornLink.items
         case .landed, .travelApproaching:
-            return URL(string: "https://www.torn.com/page.php?sid=ItemMarket")!
+            return TornLink.itemMarket
         case .chainExpiring:
-            return URL(string: "https://www.torn.com/factions.php?step=your#/tab=wars")!
+            return TornLink.factionWars
         case .released:
-            return URL(string: "https://www.torn.com/")!
+            return TornLink.home
         case .energy, .happy:
-            return URL(string: "https://www.torn.com/gym.php")!
+            return TornLink.gym
         case .nerve:
-            return URL(string: "https://www.torn.com/crimes.php")!
+            return TornLink.crimes
         case .life:
-            return URL(string: "https://www.torn.com/hospitalview.php")!
+            return TornLink.hospital
         case .priceAlert:
-            return URL(string: "https://www.torn.com/page.php?sid=ItemMarket")!
+            return TornLink.itemMarket
         case .stockBonus:
-            return URL(string: "https://www.torn.com/page.php?sid=stocks")!
+            return TornLink.stocks
         case .tradeChanged:
-            return URL(string: "https://www.torn.com/trade.php")!
+            return TornLink.trades
         case .ocReady, .ocOpportunity:
-            return URL(string: "https://www.torn.com/factions.php?step=your#/tab=crimes")!
+            return TornLink.factionCrimes
         case .bountyOnMe:
-            return URL(string: "https://www.torn.com/bounties.php")!
+            return TornLink.bounties
         case .forumNewPosts, .factionNewThread:
-            return URL(string: "https://www.torn.com/forums.php")!
+            return TornLink.forums
         case .virusReady:
-            return URL(string: "https://www.torn.com/crimes.php")!
+            return TornLink.crimes
         }
     }
 }

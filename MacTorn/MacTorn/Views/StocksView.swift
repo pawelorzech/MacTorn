@@ -87,7 +87,7 @@ struct StocksView: View {
                     icon: "chart.line.uptrend.xyaxis",
                     color: .blue
                 ) {
-                    openTorn("https://www.torn.com/page.php?sid=stocks")
+                    openTorn(TornLink.stocks)
                 }
             }
             .padding()

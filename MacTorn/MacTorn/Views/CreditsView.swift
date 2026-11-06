@@ -219,17 +219,11 @@ struct CreditsView: View {
 
     // MARK: - URL Helpers
     private func openTornProfile(_ tornID: Int) {
-        let urlString = "https://www.torn.com/profiles.php?XID=\(tornID)"
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
+        BrowserManager.shared.open(TornLink.profile(tornID))
     }
 
     private func openFaction(_ factionID: Int) {
-        let urlString = "https://www.torn.com/factions.php?step=profile&ID=\(factionID)"
-        if let url = URL(string: urlString) {
-            BrowserManager.shared.open(url)
-        }
+        BrowserManager.shared.open(TornLink.factionProfile(factionID))
     }
 
 }

@@ -119,8 +119,7 @@ extension View {
     /// Opens a Torn web URL in the user's preferred browser. Every tab used to carry its
     /// own `openURL(_:)` private helper (audit D-3); this is the one copy.
     /// `BrowserManager.open` rejects non-web schemes.
-    func openTorn(_ urlString: String) {
-        guard let url = URL(string: urlString) else { return }
+    func openTorn(_ url: URL) {
         BrowserManager.shared.open(url)
     }
 }

@@ -297,14 +297,14 @@ struct KeyboardShortcut: Identifiable, Codable, Equatable {
     var modifiers: [String]
     
     static let defaults: [KeyboardShortcut] = [
-        KeyboardShortcut(id: "home", name: "Home", url: "https://www.torn.com/", keyEquivalent: "h", modifiers: ["command", "shift"]),
-        KeyboardShortcut(id: "items", name: "Items", url: "https://www.torn.com/item.php", keyEquivalent: "i", modifiers: ["command", "shift"]),
-        KeyboardShortcut(id: "gym", name: "Gym", url: "https://www.torn.com/gym.php", keyEquivalent: "g", modifiers: ["command", "shift"]),
-        KeyboardShortcut(id: "crimes", name: "Crimes", url: "https://www.torn.com/crimes.php", keyEquivalent: "c", modifiers: ["command", "shift"]),
-        KeyboardShortcut(id: "mission", name: "Missions", url: "https://www.torn.com/missions.php", keyEquivalent: "m", modifiers: ["command", "shift"]),
-        KeyboardShortcut(id: "travel", name: "Travel", url: "https://www.torn.com/travelagency.php", keyEquivalent: "t", modifiers: ["command", "shift"]),
-        KeyboardShortcut(id: "hospital", name: "Hospital", url: "https://www.torn.com/hospitalview.php", keyEquivalent: "o", modifiers: ["command", "shift"]),
-        KeyboardShortcut(id: "faction", name: "Faction", url: "https://www.torn.com/factions.php", keyEquivalent: "f", modifiers: ["command", "shift"])
+        KeyboardShortcut(id: "home", name: "Home", url: TornLink.home.absoluteString, keyEquivalent: "h", modifiers: ["command", "shift"]),
+        KeyboardShortcut(id: "items", name: "Items", url: TornLink.items.absoluteString, keyEquivalent: "i", modifiers: ["command", "shift"]),
+        KeyboardShortcut(id: "gym", name: "Gym", url: TornLink.gym.absoluteString, keyEquivalent: "g", modifiers: ["command", "shift"]),
+        KeyboardShortcut(id: "crimes", name: "Crimes", url: TornLink.crimes.absoluteString, keyEquivalent: "c", modifiers: ["command", "shift"]),
+        KeyboardShortcut(id: "mission", name: "Missions", url: TornLink.page("missions.php").absoluteString, keyEquivalent: "m", modifiers: ["command", "shift"]),
+        KeyboardShortcut(id: "travel", name: "Travel", url: TornLink.travelAgency.absoluteString, keyEquivalent: "t", modifiers: ["command", "shift"]),
+        KeyboardShortcut(id: "hospital", name: "Hospital", url: TornLink.hospital.absoluteString, keyEquivalent: "o", modifiers: ["command", "shift"]),
+        KeyboardShortcut(id: "faction", name: "Faction", url: TornLink.page("factions.php").absoluteString, keyEquivalent: "f", modifiers: ["command", "shift"])
     ]
 }
 

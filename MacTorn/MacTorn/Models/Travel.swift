@@ -150,10 +150,6 @@ enum TornDestination: String, CaseIterable, Identifiable {
         return "\(minutes)m"
     }
 
-    var travelAgencyURL: URL {
-        URL(string: "https://www.torn.com/travelagency.php")!
-    }
-
     /// Look up flag emoji for a destination string, including non-enum values like "Torn"
     static func flag(for destination: String) -> String {
         if let known = TornDestination(rawValue: destination) {

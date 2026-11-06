@@ -149,7 +149,7 @@ struct WatchlistView: View {
                 } else if !appState.watchlistItems.isEmpty {
                     ForEach(appState.watchlistItems) { item in
                         WatchlistPriceRow(item: item) {
-                            openTorn("https://www.torn.com/page.php?sid=ItemMarket#/market/view=item&itemID=\(item.id)")
+                            openTorn(TornLink.itemMarket(itemID: item.id))
                         } onRemove: {
                             removeWithUndo(item)
                         } onSetThreshold: { threshold in
@@ -172,11 +172,11 @@ struct WatchlistView: View {
                 // Quick Market Links
                 HStack(spacing: 8) {
                     ActionButton(title: "Item Market", icon: "bag.fill", color: .blue) {
-                        openTorn("https://www.torn.com/page.php?sid=ItemMarket")
+                        openTorn(TornLink.itemMarket)
                     }
                     
                     ActionButton(title: "Points", icon: "star.fill", color: .orange) {
-                        openTorn("https://www.torn.com/pmarket.php")
+                        openTorn(TornLink.page("pmarket.php"))
                     }
                 }
             }

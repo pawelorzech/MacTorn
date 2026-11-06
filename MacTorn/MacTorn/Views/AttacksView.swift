@@ -88,9 +88,8 @@ struct AttacksView: View {
                                 : ", \(attack.timeAgo(at: appState.serverNow)) ago"
 
                             Button {
-                                if let opponentId = attack.opponentId(forUserId: userId),
-                                   let url = URL(string: "https://www.torn.com/profiles.php?XID=\(opponentId)") {
-                                    BrowserManager.shared.open(url)
+                                if let opponentId = attack.opponentId(forUserId: userId) {
+                                    BrowserManager.shared.open(TornLink.profile(opponentId))
                                 }
                             } label: {
                                 HStack(spacing: 6) {
@@ -143,15 +142,15 @@ struct AttacksView: View {
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Attack", icon: "bolt.fill", color: .red) {
-                        openTorn("https://www.torn.com/loader.php?sid=attack&user2ID=")
+                        openTorn(TornLink.page("loader.php?sid=attack&user2ID="))
                     }
                     
                     ActionButton(title: "Hospital", icon: "cross.case.fill", color: .pink) {
-                        openTorn("https://www.torn.com/hospitalview.php")
+                        openTorn(TornLink.hospital)
                     }
                     
                     ActionButton(title: "Bounties", icon: "target", color: .purple) {
-                        openTorn("https://www.torn.com/bounties.php")
+                        openTorn(TornLink.bounties)
                     }
                 }
             }

@@ -146,15 +146,15 @@ struct MoneyView: View {
                 // MARK: - Action Buttons
                 HStack(spacing: 8) {
                     ActionButton(title: "Send Money", icon: "paperplane.fill", color: .blue) {
-                        openTorn("https://www.torn.com/sendcash.php")
+                        openTorn(TornLink.page("sendcash.php"))
                     }
 
                     ActionButton(title: "Bazaar", icon: "cart.fill", color: .orange) {
-                        openTorn("https://www.torn.com/bazaar.php")
+                        openTorn(TornLink.page("bazaar.php"))
                     }
 
                     ActionButton(title: "Bank", icon: "building.columns.fill", color: .purple) {
-                        openTorn("https://www.torn.com/bank.php")
+                        openTorn(TornLink.page("bank.php"))
                     }
                 }
             }

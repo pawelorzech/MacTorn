@@ -336,7 +336,7 @@ struct SettingsView: View {
             // Button + BrowserManager rather than `Link`, so the Preferred Browser setting
             // is honoured.
             Button("Get API Key from Torn") {
-                BrowserManager.shared.open(URL(string: "https://www.torn.com/preferences.php#tab=api")!)
+                BrowserManager.shared.open(TornLink.apiKeyPreferences)
             }
             .buttonStyle(.link)
             .font(.caption)
@@ -737,7 +737,7 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button("View Torn API Terms of Service") {
-                    BrowserManager.shared.open(URL(string: "https://www.torn.com/api.html")!)
+                    BrowserManager.shared.open(TornLink.page("api.html"))
                 }
                 .buttonStyle(.link)
                 .font(.caption)
@@ -763,9 +763,6 @@ struct SettingsView: View {
     }
 
     private func openTornProfile() {
-        let url = "https://www.torn.com/profiles.php?XID=\(developerID)"
-        if let url = URL(string: url) {
-            BrowserManager.shared.open(url)
-        }
+        BrowserManager.shared.open(TornLink.profile(developerID))
     }
 }

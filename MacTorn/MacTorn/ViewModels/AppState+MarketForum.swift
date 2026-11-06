@@ -363,7 +363,7 @@ extension AppState {
                         title: "New forum thread",
                         body: thread.title,
                         type: .factionNewThread,
-                        customURL: URL(string: "https://www.torn.com/forums.php#/p=threads&t=\(thread.id)")
+                        customURL: TornLink.forumThread(thread.id)
                     )
                 }
                 recordHealth("forum.threads", outcome: .ok, since: startTime, bytes: responseBytes)
@@ -411,9 +411,7 @@ extension AppState {
             switch result {
             case .success(let snapshot, _):
                 if let update = forumWatchService.apply(snapshot, to: threadId) {
-                    let threadURL = URL(
-                        string: "https://www.torn.com/forums.php#/p=threads&t=\(threadId)"
-                    )
+                    let threadURL = TornLink.forumThread(threadId)
                     NotificationManager.shared.send(
                         title: "Forum: \(update.title)",
                         body: "\(update.count) new post\(update.count == 1 ? "" : "s")",

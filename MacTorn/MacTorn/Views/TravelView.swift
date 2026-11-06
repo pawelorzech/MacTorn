@@ -177,7 +177,7 @@ struct TravelView: View {
             }
 
             Button {
-                openTorn("https://www.torn.com/travelagency.php")
+                openTorn(TornLink.travelAgency)
             } label: {
                 HStack {
                     Image(systemName: "airplane.departure")
@@ -242,7 +242,7 @@ struct TravelView: View {
             if isAbroad {
                 // Show only return button when abroad
                 Button {
-                    openTorn("https://www.torn.com/travelagency.php")
+                    openTorn(TornLink.travelAgency)
                 } label: {
                     HStack {
                         Text("Torn")
@@ -287,7 +287,7 @@ struct TravelView: View {
 
     private func destinationButton(_ destination: TornDestination) -> some View {
         Button {
-            BrowserManager.shared.open(destination.travelAgencyURL)
+            BrowserManager.shared.open(TornLink.travelAgency)
         } label: {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
@@ -361,7 +361,7 @@ struct TravelView: View {
 
             HStack(spacing: 8) {
                 Button {
-                    openTorn("https://www.torn.com/travelagency.php")
+                    openTorn(TornLink.travelAgency)
                 } label: {
                     HStack {
                         Image(systemName: "airplane.departure")
@@ -376,7 +376,7 @@ struct TravelView: View {
                 .buttonStyle(.plain)
 
                 Button {
-                    openTorn("https://www.torn.com/page.php?sid=ItemMarket")
+                    openTorn(TornLink.itemMarket)
                 } label: {
                     HStack {
                         Image(systemName: "storefront")

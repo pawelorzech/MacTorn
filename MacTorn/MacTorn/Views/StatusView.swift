@@ -146,28 +146,28 @@ struct StatusView: View {
                       noun: "message",
                       systemImage: "envelope.fill",
                       tint: .blue,
-                      destination: "https://www.torn.com/messages.php")
+                      destination: TornLink.page("messages.php"))
             }
             if let events = counts?.events, events > 0 {
                 badge(count: events,
                       noun: "event",
                       systemImage: "bell.fill",
                       tint: .orange,
-                      destination: "https://www.torn.com/events.php")
+                      destination: TornLink.page("events.php"))
             }
             if let awards = counts?.awards, awards > 0 {
                 badge(count: awards,
                       noun: "award",
                       systemImage: "rosette",
                       tint: .yellow,
-                      destination: "https://www.torn.com/awards.php")
+                      destination: TornLink.page("awards.php"))
             }
             if let competition = counts?.competition, competition > 0 {
                 badge(count: competition,
                       noun: "competition",
                       systemImage: "flag.checkered",
                       tint: .green,
-                      destination: "https://www.torn.com/competition.php")
+                      destination: TornLink.page("competition.php"))
             }
             Spacer(minLength: 0)
         }
@@ -177,12 +177,10 @@ struct StatusView: View {
                        noun: String,
                        systemImage: String,
                        tint: Color,
-                       destination: String) -> some View {
+                       destination: URL) -> some View {
         let spoken = "\(count) \(noun)\(count == 1 ? "" : "s")"
         return Button {
-            if let url = URL(string: destination) {
-                BrowserManager.shared.open(url)
-            }
+            BrowserManager.shared.open(destination)
         } label: {
             HStack(spacing: 3) {
                 // The icon distinguishes the four badges; the tint only reinforces it, so
@@ -278,11 +276,11 @@ struct StatusView: View {
     
     // MARK: - Cooldowns
     private func cooldownsSection(_ cooldowns: Cooldowns) -> some View {
-        let drugURL = URL(string: "https://www.torn.com/item.php#drugs-items")
-        let medicalURL = URL(string: "https://www.torn.com/item.php#medical-items")
+        let drugURL = TornLink.page("item.php#drugs-items")
+        let medicalURL = TornLink.page("item.php#medical-items")
         let boosterURL = boosterCooldownTarget == "alcohol"
-            ? URL(string: "https://www.torn.com/item.php#alcohol-items")
-            : URL(string: "https://www.torn.com/item.php#boosters-items")
+            ? TornLink.page("item.php#alcohol-items")
+            : TornLink.page("item.php#boosters-items")
         let boosterLabel = boosterCooldownTarget == "alcohol" ? "Use Alcohol →" : "Use Booster →"
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -368,7 +366,7 @@ struct StatusView: View {
         let count = appState.bountiesOnMe.count
         let amount = total.map { TornFormatter.formatMoney($0) } ?? "Unavailable"
         return Button {
-            BrowserManager.shared.open(URL(string: "https://www.torn.com/bounties.php")!)
+            BrowserManager.shared.open(TornLink.bounties)
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "target")

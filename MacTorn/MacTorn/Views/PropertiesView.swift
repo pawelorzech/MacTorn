@@ -48,11 +48,11 @@ struct PropertiesView: View {
                 // Actions
                 HStack(spacing: 8) {
                     ActionButton(title: "Properties", icon: "house.fill", color: .brown) {
-                        openTorn("https://www.torn.com/properties.php")
+                        openTorn(TornLink.page("properties.php"))
                     }
                     
                     ActionButton(title: "Estate Agents", icon: "building.2.fill", color: .blue) {
-                        openTorn("https://www.torn.com/estateagents.php")
+                        openTorn(TornLink.page("estateagents.php"))
                     }
                 }
             }

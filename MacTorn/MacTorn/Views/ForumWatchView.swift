@@ -143,12 +143,12 @@ struct ForumWatchView: View {
                 // Quick Links
                 HStack(spacing: 8) {
                     ActionButton(title: "Forums", icon: "bubble.left.fill", color: .blue) {
-                        openTorn("https://www.torn.com/forums.php")
+                        openTorn(TornLink.forums)
                     }
 
                     if appState.factionData != nil {
                         ActionButton(title: "Faction Forum", icon: "person.3.fill", color: .orange) {
-                            openTorn("https://www.torn.com/forums.php#/p=forums&f=999&b=1&a=\(appState.factionData?.factionId ?? 0)")
+                            openTorn(TornLink.page("forums.php#/p=forums&f=999&b=1&a=\(appState.factionData?.factionId ?? 0)"))
                         }
                     }
                 }
@@ -182,7 +182,7 @@ struct ForumWatchView: View {
     }
 
     private func openThread(_ threadId: Int) {
-        openTorn("https://www.torn.com/forums.php#/p=threads&t=\(threadId)")
+        openTorn(TornLink.forumThread(threadId))
     }
 
 
