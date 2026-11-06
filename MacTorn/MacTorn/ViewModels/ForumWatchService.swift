@@ -32,24 +32,12 @@ final class ForumWatchService {
         self.defaults = defaults
     }
 
-    /// Set when a stored thread blob exists but could not be decoded. While true, `save()` will not
-    /// overwrite it: the forum poll saves on its own schedule, so otherwise the unreadable blob would be
-    /// replaced by the empty in-memory list within one polling interval and the watched threads lost for
-    /// good. A deliberate add/remove/restore clears the flag.
-    @ObservationIgnored private var threadsLoadFailed = false
+    @ObservationIgnored private var storedThreads = PersistedList<WatchedThread>(key: "forumWatchedThreads")
+    private static let configKey = "forumWatchConfig"
 
     func load() {
-        if let data = defaults.data(forKey: "forumWatchedThreads") {
-            if let decoded = try? JSONDecoder().decode([WatchedThread].self, from: data) {
-                threads = decoded
-                threadsLoadFailed = false
-            } else {
-                threadsLoadFailed = true
-                defaults.set(data, forKey: "forumWatchedThreads.unreadable")
-            }
-        }
-        if let data = defaults.data(forKey: "forumWatchConfig"),
-           let decoded = try? JSONDecoder().decode(ForumWatchConfig.self, from: data) {
+        if let saved = storedThreads.load(from: defaults) { threads = saved }
+        if let decoded = defaults.decoded(ForumWatchConfig.self, forKey: Self.configKey) {
             config = decoded
             if !ForumWatchConfig.pollingIntervals.contains(config.pollingIntervalSeconds) {
                 config.pollingIntervalSeconds = ForumWatchConfig.defaultPollingInterval
@@ -58,18 +46,13 @@ final class ForumWatchService {
     }
 
     func save() {
-        if !threadsLoadFailed, let data = try? JSONEncoder().encode(threads) {
-            defaults.set(data, forKey: "forumWatchedThreads")
-        }
-        // The config is a small, always-regenerable preference — no such guard needed.
-        if let data = try? JSONEncoder().encode(config) {
-            defaults.set(data, forKey: "forumWatchConfig")
-        }
+        storedThreads.save(threads, to: defaults)
+        // The config is a small, always-regenerable preference, so it needs no such guard.
+        defaults.setEncoded(config, forKey: Self.configKey)
     }
 
-    /// A deliberate user edit takes ownership of the list; persistence resumes.
     private func allowPersistenceAfterUserEdit() {
-        threadsLoadFailed = false
+        storedThreads.userEdited()
     }
 
     func parseThreadInput(_ input: String) -> Int? {
@@ -115,9 +98,7 @@ final class ForumWatchService {
     }
 
     func restore(_ thread: WatchedThread, at originalIndex: Int) -> Bool {
-        guard !threads.contains(where: { $0.id == thread.id }) else { return false }
-        let insertionIndex = min(max(originalIndex, 0), threads.count)
-        threads.insert(thread, at: insertionIndex)
+        guard threads.reinsert(thread, at: originalIndex) else { return false }
         allowPersistenceAfterUserEdit()
         save()
         return true
@@ -228,7 +209,7 @@ final class ForumWatchService {
     /// A forum title, trimmed and length-capped, or nil when there is nothing usable.
     ///
     /// Titles are server text encoded into the persisted `forumWatchedThreads` blob. Without a cap a
-    /// hostile or MITM'd response could write unbounded text there, and because `threadsLoadFailed`
+    /// hostile or MITM'd response could write unbounded text there, and because the unreadable-blob guard in `PersistedList`
     /// stops an undecodable blob from being overwritten, the bloat would stick. Same rule as the item
     /// catalog and typed watchlist names.
     nonisolated static func boundedTitle(_ raw: Any?) -> String? {

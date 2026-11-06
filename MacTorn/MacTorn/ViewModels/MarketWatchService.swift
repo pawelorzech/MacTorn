@@ -55,40 +55,18 @@ final class MarketWatchService {
         self.defaults = defaults
     }
 
-    /// Set when a stored blob exists but could not be decoded. While true, `save()` refuses to write;
-    /// otherwise the first background price refresh would overwrite a recoverable blob with the empty
-    /// in-memory list and destroy the user's watchlist. Any deliberate user edit clears the flag.
-    @ObservationIgnored private var loadFailed = false
-
-    private static let storageKey = "watchlist"
+    @ObservationIgnored private var stored = PersistedList<WatchlistItem>(key: "watchlist")
 
     func load() {
-        guard let data = defaults.data(forKey: Self.storageKey) else {
-            // No key at all — a legitimate first run, not a failure.
-            loadFailed = false
-            return
-        }
-        guard let decoded = try? JSONDecoder().decode([WatchlistItem].self, from: data) else {
-            // The blob is there but unreadable (corruption, or a model change in a
-            // newer build). Keep it: a later app version may still be able to read it.
-            loadFailed = true
-            defaults.set(data, forKey: "\(Self.storageKey).unreadable")
-            return
-        }
-        loadFailed = false
-        items = decoded
+        if let saved = stored.load(from: defaults) { items = saved }
     }
 
     func save() {
-        guard !loadFailed else { return }
-        guard let data = try? JSONEncoder().encode(items) else { return }
-        defaults.set(data, forKey: Self.storageKey)
+        stored.save(items, to: defaults)
     }
 
-    /// A deliberate user edit takes ownership of the list, so persistence resumes even
-    /// if the previous blob was unreadable.
     private func allowPersistenceAfterUserEdit() {
-        loadFailed = false
+        stored.userEdited()
     }
 
     /// Upper bound for Torn item ids. Exposed so the UI can tell the user *why* an id
@@ -128,9 +106,7 @@ final class MarketWatchService {
     }
 
     func restore(_ item: WatchlistItem, at originalIndex: Int) -> Bool {
-        guard !items.contains(where: { $0.id == item.id }) else { return false }
-        let insertionIndex = min(max(originalIndex, 0), items.count)
-        items.insert(item, at: insertionIndex)
+        guard items.reinsert(item, at: originalIndex) else { return false }
         allowPersistenceAfterUserEdit()
         save()
         return true

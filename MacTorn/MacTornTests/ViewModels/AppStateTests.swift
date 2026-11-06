@@ -1059,16 +1059,6 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(appState.notificationRules.first?.id, "test_rule")
     }
 
-    func testUpdateRule() {
-        appState.notificationRules = NotificationRule.defaults
-
-        var rule = appState.notificationRules.first!
-        rule.enabled = false
-        appState.updateRule(rule)
-
-        XCTAssertFalse(appState.notificationRules.first!.enabled)
-    }
-
     // MARK: - Refresh Now Tests
 
     func testRefreshNow_triggersFetch() async throws {

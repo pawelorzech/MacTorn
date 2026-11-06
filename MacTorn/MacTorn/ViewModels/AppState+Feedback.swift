@@ -13,9 +13,10 @@ extension AppState {
 
     // MARK: - Feedback Prompt
 
+    private static var feedbackStateKey: String { "appFeedbackState" }
+
     func loadFeedbackState() {
-        if let data = defaults.data(forKey: "appFeedbackState"),
-           let state = try? JSONDecoder().decode(AppFeedbackState.self, from: data) {
+        if let state = defaults.decoded(AppFeedbackState.self, forKey: Self.feedbackStateKey) {
             feedbackState = state
         } else {
             feedbackState = AppFeedbackState(
@@ -29,9 +30,8 @@ extension AppState {
     }
 
     func saveFeedbackState() {
-        guard let state = feedbackState,
-              let data = try? JSONEncoder().encode(state) else { return }
-        defaults.set(data, forKey: "appFeedbackState")
+        guard let state = feedbackState else { return }
+        defaults.setEncoded(state, forKey: Self.feedbackStateKey)
     }
 
     func checkFeedbackPrompt() {

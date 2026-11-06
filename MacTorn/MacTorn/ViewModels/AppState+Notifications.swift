@@ -158,9 +158,11 @@ extension AppState {
 }
 
 extension AppState {
+    private static var notificationRulesKey: String { "notificationRules" }
+    private static var travelSettingsKey: String { "travelNotificationSettings" }
+
     func loadNotificationRules() {
-        if let data = defaults.data(forKey: "notificationRules"),
-           let rules = try? JSONDecoder().decode([NotificationRule].self, from: data) {
+        if let rules = defaults.decoded([NotificationRule].self, forKey: Self.notificationRulesKey) {
             notificationRules = rules
         } else {
             notificationRules = NotificationRule.defaults
@@ -169,21 +171,11 @@ extension AppState {
     }
 
     func saveNotificationRules() {
-        if let data = try? JSONEncoder().encode(notificationRules) {
-            defaults.set(data, forKey: "notificationRules")
-        }
-    }
-
-    func updateRule(_ rule: NotificationRule) {
-        if let index = notificationRules.firstIndex(where: { $0.id == rule.id }) {
-            notificationRules[index] = rule
-            saveNotificationRules()
-        }
+        defaults.setEncoded(notificationRules, forKey: Self.notificationRulesKey)
     }
 
     func loadTravelNotificationSettings() {
-        if let data = defaults.data(forKey: "travelNotificationSettings"),
-           let settings = try? JSONDecoder().decode([TravelNotificationSetting].self, from: data) {
+        if let settings = defaults.decoded([TravelNotificationSetting].self, forKey: Self.travelSettingsKey) {
             travelNotificationSettings = settings
         } else {
             travelNotificationSettings = TravelNotificationSetting.defaults
@@ -192,9 +184,7 @@ extension AppState {
     }
 
     func saveTravelNotificationSettings() {
-        if let data = try? JSONEncoder().encode(travelNotificationSettings) {
-            defaults.set(data, forKey: "travelNotificationSettings")
-        }
+        defaults.setEncoded(travelNotificationSettings, forKey: Self.travelSettingsKey)
     }
 
     func updateTravelNotificationSetting(_ setting: TravelNotificationSetting) {
