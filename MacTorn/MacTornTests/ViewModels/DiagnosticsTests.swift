@@ -27,7 +27,7 @@ final class DiagnosticsTests: XCTestCase {
 
     func testOfflineStateTakesPrecedenceOverPendingInitialLoad() {
         let state = ModulePresentationState.resolve(health: [], hasContent: false, isLoading: true,
-                                                    fallbackError: "No internet connection", staleAfter: 120)
+                                                    isOffline: true, fallbackError: nil, staleAfter: 120)
         XCTAssertEqual(state.kind, .offline)
         XCTAssertEqual(state.recovery, .retry)
     }

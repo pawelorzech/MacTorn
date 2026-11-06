@@ -34,20 +34,8 @@ struct FactionView: View {
                                 .foregroundColor(.secondary)
                         }
                         
-                        // Chain Status — `faction.chain.timeout` is an absolute Unix
-                        // timestamp by the time it is published (Torn sends seconds
-                        // remaining; `fetchFactionData` resolves it against the server
-                        // clock). `ChainView` owns the countdown, colour and deadline
-                        // probe; FactionView used to re-render the same card inline
-                        // (audit D-5).
-                        if faction.chain.current > 0 {
-                            ChainView(
-                                chain: Chain(current: faction.chain.current,
-                                             maximum: faction.chain.max,
-                                             timeout: faction.chain.timeout,
-                                             cooldown: faction.chain.cooldown),
-                                serverClock: appState.player.serverClock
-                            )
+                        if let chain = appState.liveChain, faction.chain.current > 0 {
+                            ChainView(chain: chain, serverClock: appState.player.serverClock)
                         }
                         
                         // Respect

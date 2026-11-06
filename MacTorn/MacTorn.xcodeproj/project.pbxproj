@@ -42,7 +42,6 @@
 		AAA00008 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10008 /* ProgressBarView.swift */; };
 		AAA00009 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10009 /* NotificationManager.swift */; };
 		AAA00010 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10011 /* LaunchAtLoginManager.swift */; };
-		AAA00011 /* ShortcutsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10012 /* ShortcutsManager.swift */; };
 		AAA00012 /* ChainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10013 /* ChainView.swift */; };
 		AAA00013 /* StatusBadgesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10014 /* StatusBadgesView.swift */; };
 		AAA00014 /* EventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10015 /* EventsView.swift */; };
@@ -221,7 +220,6 @@
 		AAA10009 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		AAA10010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AAA10011 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
-		AAA10012 /* ShortcutsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsManager.swift; sourceTree = "<group>"; };
 		AAA10013 /* ChainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainView.swift; sourceTree = "<group>"; };
 		AAA10014 /* StatusBadgesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgesView.swift; sourceTree = "<group>"; };
 		AAA10015 /* EventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsView.swift; sourceTree = "<group>"; };
@@ -505,7 +503,6 @@
 				AAA10009 /* NotificationManager.swift */,
 				AAA10027 /* BrowserManager.swift */,
 				AAA10011 /* LaunchAtLoginManager.swift */,
-				AAA10012 /* ShortcutsManager.swift */,
 				AAA10028 /* NetworkMonitor.swift */,
 				AAA10032 /* NotificationCoordinator.swift */,
 				AAA10034 /* PollingCoordinator.swift */,
@@ -855,7 +852,6 @@
 				AAA00008 /* ProgressBarView.swift in Sources */,
 				AAA00009 /* NotificationManager.swift in Sources */,
 				AAA00010 /* LaunchAtLoginManager.swift in Sources */,
-				AAA00011 /* ShortcutsManager.swift in Sources */,
 				AAA00012 /* ChainView.swift in Sources */,
 				AAA00013 /* StatusBadgesView.swift in Sources */,
 				AAA00014 /* EventsView.swift in Sources */,

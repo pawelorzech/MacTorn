@@ -61,6 +61,7 @@ struct SettingsView: View {
     @AppStorage(StoredPreference.boosterCooldownTarget) private var boosterCooldownTarget: BoosterCooldownTarget = .boosters
     @AppStorage(StoredPreference.privateIsland) private var privateIsland: Bool = false
     @AppStorage(SentryManager.enabledKey) private var sentryEnabled: Bool = false
+    @StateObject private var launchAtLogin = LaunchAtLoginManager()
     @State private var inputKey: String = ""
     @State private var showCredits = false
     @State private var showDiagnostics = false
@@ -126,14 +127,14 @@ struct SettingsView: View {
                 }
         }
         .alert("Launch at Login Error", isPresented: Binding(
-            get: { appState.launchAtLogin.errorMessage != nil },
-            set: { if !$0 { appState.launchAtLogin.errorMessage = nil } }
+            get: { launchAtLogin.errorMessage != nil },
+            set: { if !$0 { launchAtLogin.errorMessage = nil } }
         )) {
             Button("OK") {
-                appState.launchAtLogin.errorMessage = nil
+                launchAtLogin.errorMessage = nil
             }
         } message: {
-            Text(appState.launchAtLogin.errorMessage ?? "An unknown error occurred.")
+            Text(launchAtLogin.errorMessage ?? "An unknown error occurred.")
         }
     }
 
@@ -430,8 +431,8 @@ struct SettingsView: View {
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Toggle("Launch at Login", isOn: Binding(
-                get: { appState.launchAtLogin.isEnabled },
-                set: { _ in appState.launchAtLogin.toggle() }
+                get: { launchAtLogin.isEnabled },
+                set: { _ in launchAtLogin.toggle() }
             ))
             .toggleStyle(.switch)
 

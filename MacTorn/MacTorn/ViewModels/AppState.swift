@@ -228,8 +228,6 @@ class AppState {
     @ObservationIgnored var liveTimerCancellable: AnyCancellable?
 
     // MARK: - Managers
-    @ObservationIgnored let launchAtLogin = LaunchAtLoginManager()
-    @ObservationIgnored let shortcutsManager = ShortcutsManager()
     @ObservationIgnored let updateManager: UpdateManager
     /// Handle for the in-flight (if any) update-check `Task` started by
     /// `checkForAppUpdates()`. Cancelled alongside polling teardown (issue #56) so an

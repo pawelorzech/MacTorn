@@ -116,7 +116,8 @@ extension AppState {
             health: health,
             hasContent: hasContent,
             isLoading: isLoading || awaitingFirstKeyInfo,
-            fallbackError: connectivity.isConnected ? errorMsg : "No internet connection",
+            isOffline: !connectivity.isConnected,
+            fallbackError: errorMsg,
             now: time.now,
             staleAfter: staleAfter
         )

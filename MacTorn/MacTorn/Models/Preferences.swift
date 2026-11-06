@@ -318,6 +318,18 @@ struct ForumWatchConfig: Codable {
 }
 
 // MARK: - Keyboard Shortcuts
+/// The Torn quick links on the Status tab. Users of the old shortcut editor may still
+/// have a customised list stored; everyone else gets the current defaults.
+enum QuickLinks {
+    static func load(from defaults: UserDefaults = .standard) -> [KeyboardShortcut] {
+        guard let data = defaults.data(forKey: "customShortcuts"),
+              let saved = try? JSONDecoder().decode([KeyboardShortcut].self, from: data) else {
+            return KeyboardShortcut.defaults
+        }
+        return saved
+    }
+}
+
 struct KeyboardShortcut: Identifiable, Codable, Equatable {
     let id: String
     var name: String

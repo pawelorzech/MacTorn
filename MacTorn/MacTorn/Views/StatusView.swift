@@ -4,6 +4,7 @@ struct StatusView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.reduceTransparency) private var reduceTransparency
     @AppStorage(StoredPreference.boosterCooldownTarget) private var boosterCooldownTarget: BoosterCooldownTarget = .boosters
+    @State private var quickLinks = QuickLinks.load()
 
     var body: some View {
         ScrollView {
@@ -317,9 +318,9 @@ struct StatusView: View {
                 GridItem(.flexible()),
                 GridItem(.flexible())
             ], spacing: 8) {
-                ForEach(appState.shortcutsManager.shortcuts) { shortcut in
+                ForEach(quickLinks) { shortcut in
                     Button {
-                        appState.shortcutsManager.openURL(shortcut.url)
+                        if let url = URL(string: shortcut.url) { BrowserManager.shared.open(url) }
                     } label: {
                         Text(shortcut.name)
                             .font(.caption2)

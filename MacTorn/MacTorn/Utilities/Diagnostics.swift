@@ -114,10 +114,11 @@ struct ModulePresentationState: Equatable, Sendable {
     static func resolve(health: [EndpointHealth],
                         hasContent: Bool,
                         isLoading: Bool,
+                        isOffline: Bool = false,
                         fallbackError: String?,
                         now: Date = Date(),
                         staleAfter: TimeInterval) -> ModulePresentationState {
-        if fallbackError == "No internet connection" {
+        if isOffline {
             return ModulePresentationState(kind: .offline, hasContent: hasContent,
                                            updatedAt: newestDate(in: health), recovery: .retry)
         }
@@ -130,7 +131,7 @@ struct ModulePresentationState: Equatable, Sendable {
         let errorClasses = Set(health.compactMap(\.errorClass))
         let outcomes = Set(health.map(\.outcome))
 
-        if outcomes.contains(.offline) || fallbackError == "No internet connection" {
+        if outcomes.contains(.offline) {
             return ModulePresentationState(kind: .offline, hasContent: hasContent,
                                            updatedAt: updatedAt, recovery: .retry)
         }
