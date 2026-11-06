@@ -21,8 +21,7 @@ final class PropertyInfoTests: XCTestCase {
             "rented": NSNull()
         ]
 
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let property = try JSONDecoder().decode(PropertyInfo.self, from: data)
+        let property = try XCTUnwrap(UserSnapshotService.parseProperties(["properties": ["1": json]])?.first)
 
         XCTAssertEqual(property.id, 5678137)
         XCTAssertEqual(property.propertyType, "Private Island")
@@ -48,8 +47,7 @@ final class PropertyInfoTests: XCTestCase {
             ]
         ]
 
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let property = try JSONDecoder().decode(PropertyInfo.self, from: data)
+        let property = try XCTUnwrap(UserSnapshotService.parseProperties(["properties": ["1": json]])?.first)
 
         XCTAssertTrue(property.rented)
         XCTAssertEqual(property.rentDaysLeft, 14)
@@ -61,8 +59,7 @@ final class PropertyInfoTests: XCTestCase {
             "property": "House"
         ]
 
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let property = try JSONDecoder().decode(PropertyInfo.self, from: data)
+        let property = try XCTUnwrap(UserSnapshotService.parseProperties(["properties": ["1": json]])?.first)
 
         XCTAssertEqual(property.cost, 0)
         XCTAssertEqual(property.marketprice, 0)

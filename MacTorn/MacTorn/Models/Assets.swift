@@ -1,35 +1,18 @@
 import Foundation
 
-struct MoneyData: Codable {
+struct MoneyData {
     let cash: Int
     let vault: Int
     let points: Int
     let tokens: Int
     let cayman: Int
-    
-    enum CodingKeys: String, CodingKey {
-        case cash = "money_onhand"
-        case vault = "vault_amount"
-        case points
-        case tokens = "donator"
-        case cayman = "cayman_bank"
-    }
-    
+
     init(cash: Int = 0, vault: Int = 0, points: Int = 0, tokens: Int = 0, cayman: Int = 0) {
         self.cash = cash
         self.vault = vault
         self.points = points
         self.tokens = tokens
         self.cayman = cayman
-    }
-    
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        cash = (try? container.decode(Int.self, forKey: .cash)) ?? 0
-        vault = (try? container.decode(Int.self, forKey: .vault)) ?? 0
-        points = (try? container.decode(Int.self, forKey: .points)) ?? 0
-        tokens = (try? container.decode(Int.self, forKey: .tokens)) ?? 0
-        cayman = (try? container.decode(Int.self, forKey: .cayman)) ?? 0
     }
 }
 
@@ -42,7 +25,7 @@ struct MoneyData: Codable {
 //   the property. We deliberately do NOT show these — labeling them is too easy to mistake
 //   for current debt or unconditional cost.
 // - `rented`: object|null in API. Non-null means RENTED OUT to another player.
-struct PropertyInfo: Codable, Identifiable {
+struct PropertyInfo: Identifiable {
     let id: Int
     let propertyType: String
     let status: String
@@ -51,21 +34,6 @@ struct PropertyInfo: Codable, Identifiable {
     let happy: Int
     let rented: Bool
     let rentDaysLeft: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case id = "property_id"
-        case propertyType = "property"
-        case status
-        case cost
-        case marketprice
-        case happy
-        case rented
-    }
-
-    private struct RentedInfo: Codable {
-        let daysLeft: Int?
-        enum CodingKeys: String, CodingKey { case daysLeft = "days_left" }
-    }
 
     init(id: Int = 0, propertyType: String = "", status: String = "", cost: Int = 0, marketprice: Int = 0, happy: Int = 0, rented: Bool = false, rentDaysLeft: Int? = nil) {
         self.id = id
@@ -76,23 +44,6 @@ struct PropertyInfo: Codable, Identifiable {
         self.happy = happy
         self.rented = rented
         self.rentDaysLeft = rentDaysLeft
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = (try? container.decode(Int.self, forKey: .id)) ?? 0
-        propertyType = (try? container.decode(String.self, forKey: .propertyType)) ?? ""
-        status = (try? container.decode(String.self, forKey: .status)) ?? ""
-        cost = (try? container.decode(Int.self, forKey: .cost)) ?? 0
-        marketprice = (try? container.decode(Int.self, forKey: .marketprice)) ?? 0
-        happy = (try? container.decode(Int.self, forKey: .happy)) ?? 0
-        if let rentedInfo = try? container.decode(RentedInfo.self, forKey: .rented) {
-            rented = true
-            rentDaysLeft = rentedInfo.daysLeft
-        } else {
-            rented = false
-            rentDaysLeft = nil
-        }
     }
 }
 

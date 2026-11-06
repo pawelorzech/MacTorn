@@ -21,16 +21,9 @@ final class HostileNumericTests: XCTestCase {
         }
     }
 
-    func testBattleStatsDecoderFallbackAndExplicitTotal() throws {
-        for total in [nil, "invalid"] as [String?] {
-            var json: [String: Any] = ["strength": Int.max, "defense": 1]
-            if let total { json["total"] = total }
-            let data = try JSONSerialization.data(withJSONObject: json)
-            XCTAssertNil(try JSONDecoder().decode(BattleStats.self, from: data).total)
-        }
-        let valid = Data(#"{"strength":40,"defense":2,"total":100}"#.utf8)
-        XCTAssertEqual(try JSONDecoder().decode(BattleStats.self, from: valid).total, 100)
-        XCTAssertEqual(BattleStats(strength: 40, defense: 2).total, 42)
+    func testBattleStatsTotalIsNilWhenTheSumOverflows() {
+        XCTAssertNil(UserSnapshotService.parseBattleStats(["strength": Int.max, "defense": 1]).total)
+        XCTAssertEqual(UserSnapshotService.parseBattleStats(["strength": 40, "defense": 2]).total, 42)
     }
 
     func testOverflowingDurationsAndOrdinaryDeadline() throws {
@@ -133,8 +126,8 @@ final class HostileNumericTests: XCTestCase {
         XCTAssertEqual(NumericSafety.remaining(until: now - 1, now: now), 0)
         XCTAssertEqual(NumericSafety.elapsed(since: now - 60, now: now), 60)
         XCTAssertEqual(NumericSafety.elapsed(since: now + 60, now: now), 0)
-        let attack = try JSONDecoder().decode(AttackResult.self, from: JSONSerialization.data(withJSONObject: [
-            "code": "fixture", "timestamp_ended": Int.min]))
+        let attack = try XCTUnwrap(UserSnapshotService.parseAttacks(
+            ["attacks": ["1": ["code": "fixture", "timestamp_ended": Int.min]]])?.first)
         XCTAssertEqual(attack.timeAgo(at: Date(timeIntervalSince1970: Double(now))), "")
     }
 

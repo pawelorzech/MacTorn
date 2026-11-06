@@ -1,14 +1,10 @@
 import XCTest
 @testable import MacTorn
 
+/// Money as the user snapshot parser reads it from the v1 `money` selection.
 final class MoneyDataTests: XCTestCase {
-
-    // MARK: - Decoding Tests
-
-    func testDecoding_fullData() throws {
-        let data = try TornAPIFixtures.toData(TornAPIFixtures.moneyData)
-        let money = try JSONDecoder().decode(MoneyData.self, from: data)
-
+    func testReadsEveryBalance() {
+        let money = UserSnapshotService.parseMoney(TornAPIFixtures.moneyData)
         XCTAssertEqual(money.cash, 1000000)
         XCTAssertEqual(money.vault, 50000000)
         XCTAssertEqual(money.points, 5000)
@@ -16,66 +12,33 @@ final class MoneyDataTests: XCTestCase {
         XCTAssertEqual(money.cayman, 100000000)
     }
 
-    func testDecoding_withDefaults() throws {
-        // When fields are missing, should use defaults (0)
-        let json: [String: Any] = [
-            "money_onhand": 500000
-            // Other fields missing
-        ]
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let money = try JSONDecoder().decode(MoneyData.self, from: data)
-
+    func testMissingBalancesReadAsZero() {
+        let money = UserSnapshotService.parseMoney(["money_onhand": 500000])
         XCTAssertEqual(money.cash, 500000)
-        XCTAssertEqual(money.vault, 0) // Default
-        XCTAssertEqual(money.points, 0) // Default
-        XCTAssertEqual(money.tokens, 0) // Default
-        XCTAssertEqual(money.cayman, 0) // Default
-    }
-
-    func testDecoding_allMissing() throws {
-        let json: [String: Any] = [:]
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let money = try JSONDecoder().decode(MoneyData.self, from: data)
-
-        XCTAssertEqual(money.cash, 0)
         XCTAssertEqual(money.vault, 0)
         XCTAssertEqual(money.points, 0)
         XCTAssertEqual(money.tokens, 0)
         XCTAssertEqual(money.cayman, 0)
     }
 
-    // MARK: - Large Numbers Tests
+    func testVaultFallsBackToPropertyVaultThenNestedMoneyVault() {
+        XCTAssertEqual(UserSnapshotService.parseMoney(["property_vault": 7]).vault, 7)
+        XCTAssertEqual(UserSnapshotService.parseMoney(["money": ["vault": 9]]).vault, 9)
+        XCTAssertEqual(UserSnapshotService.parseMoney(["vault_amount": 3, "property_vault": 7]).vault, 3)
+    }
 
-    func testLargeNumbers() throws {
-        let json: [String: Any] = [
+    func testLargeNumbers() {
+        let money = UserSnapshotService.parseMoney([
             "money_onhand": 999999999999,
             "vault_amount": 9999999999999,
             "points": 100000,
             "donator": 50000,
-            "cayman_bank": 99999999999999
-        ]
-        let data = try JSONSerialization.data(withJSONObject: json)
-        let money = try JSONDecoder().decode(MoneyData.self, from: data)
-
+            "cayman_bank": 99999999999999,
+        ])
         XCTAssertEqual(money.cash, 999999999999)
         XCTAssertEqual(money.vault, 9999999999999)
         XCTAssertEqual(money.points, 100000)
         XCTAssertEqual(money.tokens, 50000)
         XCTAssertEqual(money.cayman, 99999999999999)
-    }
-
-    // MARK: - Encoding Tests
-
-    func testEncodingRoundTrip() throws {
-        let original = MoneyData(cash: 1000, vault: 2000, points: 100, tokens: 50, cayman: 5000)
-
-        let data = try JSONEncoder().encode(original)
-        let decoded = try JSONDecoder().decode(MoneyData.self, from: data)
-
-        XCTAssertEqual(original.cash, decoded.cash)
-        XCTAssertEqual(original.vault, decoded.vault)
-        XCTAssertEqual(original.points, decoded.points)
-        XCTAssertEqual(original.tokens, decoded.tokens)
-        XCTAssertEqual(original.cayman, decoded.cayman)
     }
 }

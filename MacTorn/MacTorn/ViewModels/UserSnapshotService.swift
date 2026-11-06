@@ -178,7 +178,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         return .some(virus)
     }
 
-    private static func parseMoney(_ json: [String: Any]) -> MoneyData {
+    static func parseMoney(_ json: [String: Any]) -> MoneyData {
         let cash = json["money_onhand"] as? Int ?? 0
         let vault: Int
         if let value = json["vault_amount"] as? Int {
@@ -199,7 +199,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         )
     }
 
-    private static func parseBattleStats(_ json: [String: Any]) -> BattleStats {
+    static func parseBattleStats(_ json: [String: Any]) -> BattleStats {
         BattleStats(
             strength: json["strength"] as? Int ?? 0,
             defense: json["defense"] as? Int ?? 0,
@@ -208,7 +208,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         )
     }
 
-    private static func parseAttacks(_ json: [String: Any]) -> [AttackResult]? {
+    static func parseAttacks(_ json: [String: Any]) -> [AttackResult]? {
         guard let attacks = json["attacks"] as? [String: [String: Any]] else { return nil }
         return attacks.values.compactMap { attack in
             guard let code = attack["code"] as? String else { return nil }
@@ -226,7 +226,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         }.sorted { ($0.timestampEnded ?? 0) > ($1.timestampEnded ?? 0) }
     }
 
-    private static func parseProperties(_ json: [String: Any]) -> [PropertyInfo]? {
+    static func parseProperties(_ json: [String: Any]) -> [PropertyInfo]? {
         guard let properties = json["properties"] as? [String: [String: Any]] else {
             return nil
         }
