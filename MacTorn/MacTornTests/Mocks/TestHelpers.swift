@@ -165,3 +165,8 @@ func userV2Selections(_ url: URL) -> Set<String> {
         .map { Set($0.split(separator: ",").map(String.init)) }
         ?? Set(TornEndpointRegistry.endpoint(id: "user.v2")?.selections ?? [])
 }
+
+/// A response body as the top-level JSON object the parsers receive; `[:]` when it is not one.
+func jsonObject(_ data: Data) -> [String: Any] {
+    (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
+}

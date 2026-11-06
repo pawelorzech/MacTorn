@@ -82,22 +82,9 @@ func tornRedactedURL(_ url: URL) -> String {
 /// instead of the real failure. This helper detects either shape.
 ///
 /// Returns the human-readable message, or nil if `json` is not an error envelope.
-func tornAPIErrorMessage(in json: [String: Any]) -> String? {
-    // v1 envelope: `error` is a nested object carrying the message.
-    if let nested = json["error"] as? [String: Any], let message = nested["error"] as? String {
-        return message
-    }
-    // v2 envelope: `code` + `error` are sibling top-level keys, `error` a String.
-    if json["code"] != nil, let message = json["error"] as? String {
-        return message
-    }
-    return nil
-}
-
-/// Like `tornAPIErrorMessage`, but returns the *classified* error (Etap B) so callers can
-/// react to its kind — halt on a permanent key/permission error (codes 2/16/18), pause a
-/// category on the daily-row-limit (14), back off on transient ones. Returns nil when the
-/// payload is not an error envelope. Recognises both v1 and v2 shapes.
+/// The classified Torn error in a response, or nil when the payload is not an error
+/// envelope. Torn reports errors as HTTP 200 in two shapes: v1 nests `{code, error}` under
+/// `error`, v2 puts them at the top level.
 func tornAPIError(in json: [String: Any]) -> TornAPIError? {
     // v1 envelope: { "error": { "code": Int, "error": String } }
     if let nested = json["error"] as? [String: Any] {

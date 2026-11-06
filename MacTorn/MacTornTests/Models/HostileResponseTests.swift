@@ -77,7 +77,7 @@ final class HostileResponseTests: XCTestCase {
         let hostile = String(repeating: "A", count: 10_000)
         let data = try! JSONSerialization.data(withJSONObject: ["items": [["id": 1, "name": hostile]]])
 
-        let parsed = AppState.parseItemCatalog(from: data, logger: logger)
+        let parsed = AppState.parseItemCatalog(json: jsonObject(data), logger: logger).mapValues(\.name)
         XCTAssertEqual(parsed[1]?.count, WatchlistItem.maximumNameLength)
     }
 
@@ -86,7 +86,7 @@ final class HostileResponseTests: XCTestCase {
         let flood = (1...(AppState.itemCatalogMaxEntries + 500)).map { ["id": $0, "name": "Item \($0)"] }
         let data = try! JSONSerialization.data(withJSONObject: ["items": flood])
 
-        XCTAssertEqual(AppState.parseItemCatalog(from: data, logger: logger).count,
+        XCTAssertEqual(AppState.parseItemCatalog(json: jsonObject(data), logger: logger).mapValues(\.name).count,
                        AppState.itemCatalogMaxEntries)
     }
 

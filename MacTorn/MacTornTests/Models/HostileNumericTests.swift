@@ -48,11 +48,11 @@ final class HostileNumericTests: XCTestCase {
     func testStockPriceRepresentationsAreRejected() throws {
         for price: Any in ["NaN", "inf", "-inf", "1e300", 1e300, -1, Double(Int.max)] {
             let data = try JSONSerialization.data(withJSONObject: ["stocks": ["1": ["current_price": price]]])
-            XCTAssertTrue(AppState.parseStocksMetadata(from: data, logger: logger).isEmpty)
+            XCTAssertTrue(AppState.parseStocksMetadata(json: jsonObject(data), logger: logger).isEmpty)
         }
         for price: Any in ["123.5", 123.5, 123] {
             let data = try JSONSerialization.data(withJSONObject: ["stocks": ["1": ["current_price": price]]])
-            XCTAssertNotNil(AppState.parseStocksMetadata(from: data, logger: logger)[1])
+            XCTAssertNotNil(AppState.parseStocksMetadata(json: jsonObject(data), logger: logger)[1])
         }
     }
 

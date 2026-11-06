@@ -312,7 +312,7 @@ final class CompanionStore {
     }
 
     func loadWarfare(_ category: WarfareCategory, app: AppState, more: Bool = false) async {
-        let id = "faction.\(category.rawValue)"
+        let id = category.endpointID
         let cursor = more ? nextWarPage[category] : nil
         if more && cursor == nil { return }
         guard let page: WarfarePage = await load(id, app: app, to: cursor, parse: { _, json in

@@ -34,7 +34,7 @@ final class StockMetadataTests: XCTestCase {
         ]
         let data = try JSONSerialization.data(withJSONObject: json)
 
-        let result = AppState.parseStocksMetadata(from: data, logger: logger)
+        let result = AppState.parseStocksMetadata(json: jsonObject(data), logger: logger)
 
         XCTAssertEqual(result.count, 2)
         XCTAssertEqual(result[1]?.acronym, "TCSE")
@@ -50,7 +50,7 @@ final class StockMetadataTests: XCTestCase {
         ]
         let data = try JSONSerialization.data(withJSONObject: json)
 
-        let result = AppState.parseStocksMetadata(from: data, logger: logger)
+        let result = AppState.parseStocksMetadata(json: jsonObject(data), logger: logger)
 
         XCTAssertTrue(result.isEmpty)
     }
@@ -63,7 +63,7 @@ final class StockMetadataTests: XCTestCase {
         ]
         let data = try JSONSerialization.data(withJSONObject: json)
 
-        let result = AppState.parseStocksMetadata(from: data, logger: logger)
+        let result = AppState.parseStocksMetadata(json: jsonObject(data), logger: logger)
 
         XCTAssertEqual(result[5]?.currentPrice ?? 0, 100, accuracy: 0.001)
     }

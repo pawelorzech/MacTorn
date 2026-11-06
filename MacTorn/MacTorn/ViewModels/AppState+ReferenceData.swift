@@ -22,13 +22,13 @@ struct TornItemSummary: Codable, Equatable, Sendable, Identifiable {
     let name: String
 }
 
-private struct CachedCatalogItem: Codable, Sendable {
+struct CachedCatalogItem: Codable, Sendable {
     let name: String
     let marketPrice: Int
     let shops: [CachedCatalogShop]
 }
 
-private struct CachedCatalogShop: Codable, Sendable {
+struct CachedCatalogShop: Codable, Sendable {
     let country: String
     let shop: String
     let buyPrice: Int?
@@ -101,19 +101,7 @@ extension AppState {
     nonisolated private static let appReferenceLogger =
         Logger(subsystem: TornConstants.logSubsystem, category: "ReferenceData")
 
-    nonisolated static func parseStocksMetadata(from data: Data, logger: Logger) -> [Int: StockMetadata] {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            logger.error("Stocks metadata: failed to parse JSON")
-            return [:]
-        }
-        return parseStocksMetadata(json: json, logger: logger)
-    }
-
-    nonisolated private static func parseStocksMetadata(json: [String: Any], logger: Logger) -> [Int: StockMetadata] {
-        if tornAPIErrorMessage(in: json) != nil {
-            logger.error("Stocks metadata API returned an error envelope")
-            return [:]
-        }
+    nonisolated static func parseStocksMetadata(json: [String: Any], logger: Logger) -> [Int: StockMetadata] {
         guard let stocksDict = json["stocks"] as? [String: [String: Any]] else {
             logger.warning("Stocks metadata: no 'stocks' key in response")
             return [:]
@@ -185,7 +173,7 @@ extension AppState {
     func fetchItemCatalog() async -> Bool {
         let previousFetchedAt = itemCatalogFetchedAt
         await fetchReferenceData("torn.items", cacheKey: Self.itemCatalogCacheKey,
-                                 parse: { Self.parseExpandedItemCatalog(json: $0, logger: $1) },
+                                 parse: { Self.parseItemCatalog(json: $0, logger: $1) },
                                  onFailure: { itemCatalogBackoff.fail(at: time.now) }) { parsed in
             itemCatalog = parsed.mapValues(\.name)
             let now = time.now
@@ -252,19 +240,7 @@ extension AppState {
     /// Names are trimmed and capped at the same length a user-typed watchlist name is.
     /// These strings end up in the user's persisted watchlist via `backfillWatchlistNames`,
     /// so they get the discipline that path already applied to typed input.
-    nonisolated static func parseItemCatalog(from data: Data, logger: Logger) -> [Int: String] {
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            logger.error("Item catalog: failed to parse JSON")
-            return [:]
-        }
-        return parseExpandedItemCatalog(json: json, logger: logger).mapValues(\.name)
-    }
-
-    nonisolated private static func parseExpandedItemCatalog(json: [String: Any], logger: Logger) -> [Int: CachedCatalogItem] {
-        if tornAPIErrorMessage(in: json) != nil {
-            logger.error("Item catalog API returned an error envelope")
-            return [:]
-        }
+    nonisolated static func parseItemCatalog(json: [String: Any], logger: Logger) -> [Int: CachedCatalogItem] {
         guard let items = json["items"] as? [[String: Any]] else {
             logger.warning("Item catalog: no 'items' array in response")
             return [:]

@@ -20,8 +20,7 @@ struct Chain: Codable, Equatable {
     /// Seconds until the chain lapses. `timeout` is an absolute **server** timestamp, so
     /// `now` must be Torn's now (`AppState.serverNow`).
     func timeoutRemaining(at now: Date) -> Int {
-        guard let timeout = timeout else { return 0 }
-        return max(0, timeout - Int(now.timeIntervalSince1970))
+        NumericSafety.secondsRemaining(until: timeout, at: now)
     }
 }
 

@@ -179,7 +179,7 @@ struct VirusProgramming: Codable, Equatable, Sendable {
     /// Never negative — a finished virus reads as zero, not as a countdown running
     /// backwards.
     func secondsRemaining(at serverNow: Date) -> Int {
-        max(0, until - Int(serverNow.timeIntervalSince1970))
+        NumericSafety.secondsRemaining(until: until, at: serverNow)
     }
 
     func isReady(at serverNow: Date) -> Bool { Int(serverNow.timeIntervalSince1970) >= until }

@@ -251,7 +251,6 @@ final class TornEndpointTests: XCTestCase {
         let trades = try XCTUnwrap(TornEndpointRegistry.endpoint(id: "user.trades"))
         XCTAssertEqual(trades.dataShape, .pointInTime)
         XCTAssertNil(trades.recordLimit)
-        XCTAssertFalse(trades.sendsLimitQuery)
         let coordinator = PollingCoordinator()
         for _ in 0..<1_000 { coordinator.record(trades) }
         XCTAssertEqual(coordinator.recordsInLastDay(.activity), 0)

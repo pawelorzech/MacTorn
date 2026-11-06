@@ -23,21 +23,19 @@ extension TornEndpointRegistry {
         companionEndpoint("torn.shops", path: "torn/items", capability: "items", level: .publicOnly,
                           title: "Travel shop catalog", purpose: "Country shop prices and catalog market values; no live stock guarantee.", seconds: 604800, budget: .metadata),
     ] + WarfareCategory.allCases.map { category in
-        companionEndpoint("faction.\(category.rawValue)", path: "faction/\(category.rawValue)", capability: category.rawValue,
-                          level: .publicOnly, title: category.title, purpose: "Conflict history, loaded on demand with bounded pages.", seconds: 300,
-                          query: category == .chains ? ["cat": "complete", "sort": "DESC"] : (category == .bombs ? [:] : ["sort": "DESC"]),
-                          rows: category == .bombs ? nil : 20, budget: .faction)
+        companionEndpoint(category.endpointID, path: "faction/\(category.rawValue)", capability: category.rawValue,
+                          level: .publicOnly, title: category.title, purpose: "Conflict history, loaded on demand with bounded pages.",
+                          seconds: nil, query: category.query, rows: category.pageSize, budget: .faction)
     }
 
     private static func companionEndpoint(_ id: String, path: String, capability: String,
-        level: TornKeyAccessLevel, title: String, purpose: String, seconds: TimeInterval,
+        level: TornKeyAccessLevel, title: String, purpose: String, seconds: TimeInterval?,
         query: [String: String] = [:], rows: Int? = nil, budget: TornBudgetCategory = .core,
         faction: Bool = false) -> TornEndpoint {
         TornEndpoint(id: id, name: title, version: .v2, path: "https://api.torn.com/v2/\(path)",
-                     selections: [], extraQuery: query, minimumAccessLevel: level, purpose: purpose,
-                     cadence: id.hasPrefix("faction.") ? "On demand" : "Opt-in; at least \(Int(seconds))s between background reads",
-                     dataShape: rows == nil ? .pointInTime : .rowBased, recordLimit: rows,
-                     sendsLimitQuery: rows != nil, budget: budget,
+                     extraQuery: query, minimumAccessLevel: level, purpose: purpose,
+                     cadence: seconds.map { "Opt-in; at least \(Int($0))s between background reads" } ?? "On demand",
+                     recordLimit: rows, budget: budget,
                      critical: false, requiredCapabilities: [capability], requiresFaction: faction,
                      minimumInterval: seconds)
     }

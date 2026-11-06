@@ -122,6 +122,20 @@ enum WarfareCategory: String, CaseIterable, Identifiable {
         case .bombs: return "Dirty bombs"
         }
     }
+
+    var endpointID: String { "faction.\(rawValue)" }
+
+    /// Newest first; chains are limited to completed ones. Dirty bombs take neither and
+    /// come back as one unpaged list.
+    var query: [String: String] {
+        switch self {
+        case .chains: return ["cat": "complete", "sort": "DESC"]
+        case .bombs: return [:]
+        default: return ["sort": "DESC"]
+        }
+    }
+
+    var pageSize: Int? { self == .bombs ? nil : 20 }
 }
 struct WarfareEntry: Identifiable, Equatable {
     let id: Int

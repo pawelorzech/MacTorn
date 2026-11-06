@@ -19,6 +19,11 @@ final class ItemCatalogTests: XCTestCase {
         try! JSONSerialization.data(withJSONObject: object)
     }
 
+    private func parseCatalog(_ data: Data) -> [Int: String] {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return AppState.parseItemCatalog(json: json, logger: logger).mapValues(\.name)
+    }
+
     // MARK: - Parsing
 
     func testParsesTheSpecShapeDownToIdAndName() {
@@ -26,7 +31,7 @@ final class ItemCatalogTests: XCTestCase {
             ["id": 206, "name": "Xanax", "type": "Drug", "circulation": 500_000],
             ["id": 180, "name": "Erotic DVD", "type": "Special"],
         ]])
-        let parsed = AppState.parseItemCatalog(from: data, logger: logger)
+        let parsed = parseCatalog(data)
         XCTAssertEqual(parsed, [206: "Xanax", 180: "Erotic DVD"])
     }
 
@@ -38,18 +43,18 @@ final class ItemCatalogTests: XCTestCase {
             ["id": 500, "name": "   "],
             ["id": 261, "name": "Energy Drink"],
         ]])
-        let parsed = AppState.parseItemCatalog(from: data, logger: logger)
+        let parsed = parseCatalog(data)
         XCTAssertEqual(parsed, [206: "Xanax", 261: "Energy Drink"],
                        "one malformed row must not cost the other 1,400")
     }
 
     func testAnErrorEnvelopeYieldsNothingRatherThanAPartialCatalog() {
         let data = json(["error": ["code": 2, "error": "Incorrect key"]])
-        XCTAssertTrue(AppState.parseItemCatalog(from: data, logger: logger).isEmpty)
+        XCTAssertTrue(parseCatalog(data).isEmpty)
     }
 
     func testNonJSONYieldsNothing() {
-        XCTAssertTrue(AppState.parseItemCatalog(from: Data("not json".utf8), logger: logger).isEmpty)
+        XCTAssertTrue(parseCatalog(Data("not json".utf8)).isEmpty)
     }
 
     func testFetchPropagatesTypedRateLimitAccountWide() async throws {
@@ -68,7 +73,7 @@ final class ItemCatalogTests: XCTestCase {
 
     func testNamesAreTrimmed() {
         let data = json(["items": [["id": 1, "name": "  Padded Name  "]]])
-        XCTAssertEqual(AppState.parseItemCatalog(from: data, logger: logger)[1], "Padded Name")
+        XCTAssertEqual(parseCatalog(data)[1], "Padded Name")
     }
 
     // MARK: - Lookup

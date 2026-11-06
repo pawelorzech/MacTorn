@@ -8,27 +8,6 @@ import os.log
 /// `measure { }` so future regressions surface as CI failures vs. the recorded baseline.
 final class AppStatePerformanceTests: XCTestCase {
 
-    // MARK: - JSON decode microbenchmarks
-
-    func testDecodeFullResponsePerformance() throws {
-        let data = try TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
-        measure {
-            for _ in 0..<50 {
-                _ = try? JSONDecoder().decode(TornResponse.self, from: data)
-            }
-        }
-    }
-
-    func testParseStocksMetadataPerformance() throws {
-        let data = try TornAPIFixtures.toData(TornAPIFixtures.stocksData)
-        let logger = Logger(subsystem: "com.mactorn.app.tests.perf", category: "perf")
-        measure {
-            for _ in 0..<50 {
-                _ = AppState.parseStocksMetadata(from: data, logger: logger)
-            }
-        }
-    }
-
     // MARK: - Backoff ladder regression
 
     @MainActor

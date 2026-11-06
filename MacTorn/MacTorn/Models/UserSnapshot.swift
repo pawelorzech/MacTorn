@@ -161,9 +161,7 @@ struct CooldownEnds: Equatable {
     /// `endsAt` is an absolute **server** timestamp, so `now` must be Torn's now
     /// (`AppState.serverNow`). The `Date()` default is for pure-model callers only.
     func remainingSeconds(_ kind: CooldownKind, at now: Date = Date()) -> Int {
-        let target = endsAt(kind)
-        guard target > 0 else { return 0 }
-        return max(0, target - Int(now.timeIntervalSince1970))
+        NumericSafety.secondsRemaining(until: endsAt(kind), at: now)
     }
 
     func soonestActive(at now: Date = Date()) -> (kind: CooldownKind, seconds: Int)? {
@@ -225,8 +223,7 @@ struct Status: Codable, Equatable {
     /// Seconds until release. `until` is an absolute **server** timestamp, so `now` must
     /// be Torn's now (`AppState.serverNow`).
     func timeRemaining(at now: Date) -> Int {
-        guard let until = until else { return 0 }
-        return max(0, until - Int(now.timeIntervalSince1970))
+        NumericSafety.secondsRemaining(until: until, at: now)
     }
 }
 

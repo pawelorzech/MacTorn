@@ -48,6 +48,12 @@ enum NumericSafety {
         return overflow ? nil : max(0, difference)
     }
 
+    /// Whole seconds from `now` until an absolute Torn timestamp; zero once it has passed
+    /// or when the timestamp is absent or absurd.
+    static func secondsRemaining(until deadline: Int?, at now: Date) -> Int {
+        remaining(until: deadline, now: Int(now.timeIntervalSince1970)) ?? 0
+    }
+
     static func elapsed(since timestamp: Int, now: Int) -> Int? {
         guard timestamp > 0, now >= 0 else { return nil }
         let (difference, overflow) = now.subtractingReportingOverflow(timestamp)
