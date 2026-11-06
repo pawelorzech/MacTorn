@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Chain
 struct Chain: Codable, Equatable {
     let current: Int?
     let maximum: Int?
@@ -24,10 +23,8 @@ struct Chain: Codable, Equatable {
     }
 }
 
-/// How alarming the remaining chain time is. The thresholds (60 s / 180 s) and the
-/// red/orange/green mapping used to be reimplemented in `ChainView` and again in
-/// `FactionView` (audit D-4); this is the one definition, shared by colour and the
-/// VoiceOver description.
+/// How alarming the remaining chain time is. The thresholds (60 s / 180 s) and the red/orange/green
+/// mapping live here once, shared by colour and the VoiceOver description.
 enum ChainUrgency {
     case critical
     case warning
@@ -52,7 +49,6 @@ enum ChainUrgency {
     }
 }
 
-// MARK: - Faction Data
 struct FactionData: Codable {
     let name: String
     let factionId: Int
@@ -92,13 +88,11 @@ struct FactionData: Codable {
 /// The `chain` object of v1 `faction/?selections=chain`.
 ///
 /// **Wire semantics (verified live 2026-09-01):** Torn sends `timeout` as the number of
-/// **seconds remaining** when the response was built, and `end` as the absolute Unix
-/// expiry — `{"current":1,"timeout":146,"start":1788292282,"end":1788292582}` next to a
-/// `server_time` of 1788292436. Every consumer in the app (`Chain`, `ChainView`,
-/// `FactionView`, the chain-expiring alert, Next Action) compares `timeout` against the
-/// server clock as an absolute timestamp, so a raw payload must go through
-/// `resolvingExpiry(fetchedAt:clock:)` before it is published. `AppState.fetchFactionData`
-/// does that; after it, `timeout == end`.
+/// **seconds remaining** when the response was built, and `end` as the absolute Unix expiry —
+/// `{"current":1,"timeout":146,"start":1788292282,"end":1788292582}` next to a `server_time` of
+/// 1788292436. Every consumer compares `timeout` against the server clock as an absolute timestamp,
+/// so a raw payload must go through `resolvingExpiry(fetchedAt:clock:)` before it is published;
+/// after that `timeout == end`.
 struct FactionChain: Codable {
     let current: Int
     let max: Int

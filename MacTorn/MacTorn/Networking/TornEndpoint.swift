@@ -1,22 +1,9 @@
 import Foundation
 
-// MARK: - Torn API Registry (Etap A)
-//
-// A single, typed catalog of every Torn API endpoint and selection MacTorn calls.
-// This is the source of truth the rest of the app derives from instead of keeping
-// several hand-maintained lists:
-//
-//   1. Request building        — `TornEndpoint.url(key:parameter:granted:)`, reached
-//                                 through `AppState.endpointURL(_:parameter:key:)`
-//   2. Request gating           — `TornEndpointGate` (what this key may ask for)
-//   3. "API Data Usage" screen  — the metadata fields below (Diagnostics, Etap F)
-//   4. README documentation     — `TornEndpointRegistry.markdownTable()`, which a test
-//                                 asserts is byte-identical to README's table
-//
-// AppState builds every request through the registry (ISA backlog A-02, done). The
-// legacy `TornAPI` builders in the test target are no longer a production code path; they stay
-// as the independent second implementation that `TornEndpointTests` compares each
-// registry URL against, so a change to one and not the other fails the build.
+// A single typed catalog of every Torn API endpoint and selection MacTorn calls. Request building
+// (`TornEndpoint.url(key:parameter:granted:)`), request gating (`TornEndpointGate`), the "API Data
+// Usage" screen and the README table (`TornEndpointRegistry.markdownTable()`, which a test asserts
+// is byte-identical to README's) all derive from it instead of hand-maintained lists.
 
 /// Torn API major version. v1 is frozen but not sunset: Torn's own OpenAPI document
 /// states that a v2 selection "will default to the API v1 version" where it has not been
@@ -39,9 +26,8 @@ enum TornDataShape: String, Equatable, Sendable {
     case rowBased
 }
 
-/// Groups endpoints for request/record accounting (PollingCoordinator, Etap D) and
-/// the Diagnostics screen (Etap F). Row-based budgets are tracked per category
-/// because the 50k/day cap is itself per-category.
+/// Groups endpoints for request accounting and the Diagnostics screen. Row-based budgets are
+/// tracked per category because the 50k/day cap is itself per-category.
 enum TornBudgetCategory: String, Equatable, Sendable, CaseIterable {
     case core       // user fast poll + combined v2 user
     case activity   // events / messages / attacks (row-based)
@@ -51,14 +37,10 @@ enum TornBudgetCategory: String, Equatable, Sendable, CaseIterable {
     case metadata   // slow-changing global lookups (stock names)
 }
 
-/// Torn API key access tiers. A key is issued at one of these levels and each
-/// selection requires a minimum tier.
-///
-/// NOTE: the authoritative per-selection requirement is only knowable at runtime
-/// from the `key/?selections=info` endpoint, which is wired in Etap C (key
-/// validation + onboarding). The `minimumAccessLevel` declared on each endpoint below
-/// is also used to gate dedicated endpoints whose access is not represented by a
-/// `selections` query parameter.
+/// Torn API key access tiers. A key is issued at one of these levels and each selection requires a
+/// minimum tier. The authoritative per-selection requirement is only knowable at runtime from
+/// `/key/info`; the declared `minimumAccessLevel` also gates dedicated endpoints whose access is not
+/// represented by a `selections` query parameter.
 enum TornKeyAccessLevel: Int, Comparable, CaseIterable, Sendable {
     case publicOnly = 1
     case minimal = 2
@@ -149,9 +131,8 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
         return selections.filter { granted.contains($0) }
     }
 
-    /// Builds the request URL with the same percent-encoding + sorted query items as
-    /// the legacy `TornAPI` builders. `parameter` fills a `{param}` placeholder and is
-    /// required for parameterized endpoints (returns nil if missing).
+    /// Builds the request URL with percent-encoding and sorted query items. `parameter` fills a
+    /// `{param}` placeholder and is required for parameterized endpoints (returns nil if missing).
     ///
     /// Returns nil when `granted` rules out every selection the endpoint needs — there is
     /// no request left to make, and the caller should skip rather than send an empty one.
@@ -355,9 +336,7 @@ enum TornEndpointRegistry {
         endpointsByID[id]
     }
 
-    /// O(1) lookup over the registry. `endpoint(id:)` used to scan `all` linearly, and it
-    /// sits on the request hot path — twice per `reserveRequest`, ~6× per poll
-    /// (audit W-8).
+    /// O(1) lookup over the registry; it sits on the request hot path.
     private static let endpointsByID: [String: TornEndpoint] =
         Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
@@ -380,9 +359,8 @@ enum TornEndpointRegistry {
         all.map(\.minimumAccessLevel).max() ?? .publicOnly
     }
 
-    /// A GitHub/README-ready markdown table generated from the registry. Kept in the
-    /// codebase so README's "API Data Usage" section can be regenerated (and a test
-    /// asserts the README row count matches `all.count`).
+    /// A GitHub/README-ready markdown table generated from the registry. A test asserts README's
+    /// table matches it.
     static func markdownTable() -> String {
         var rows = ["| Endpoint | API | Selections | Data | Cadence | Rows/call | Budget | Critical | Purpose |",
                     "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]

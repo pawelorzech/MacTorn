@@ -1,21 +1,11 @@
 import SwiftUI
 import AppKit
 
-// Environment key for reduce transparency setting
 private struct ReduceTransparencyKey: EnvironmentKey {
     static let defaultValue: Bool = false
 }
 
-/// How the app's own toggle combines with the system accessibility setting.
-///
-/// README has always promised: "Reduce Transparency: when enabled in System Settings →
-/// Accessibility → Display, the app uses solid backgrounds". It never did — the value
-/// came from an `@AppStorage` toggle defaulting to `false`, and nothing in the tree ever
-/// read `NSWorkspace.accessibilityDisplayShouldReduceTransparency`. A user who had set
-/// the system preference still got full translucency until they found the app's own
-/// switch, buried under the "Startup" section. (Audit finding A-01.)
-///
-/// The system setting now wins as a floor; the in-app toggle can only add to it.
+/// The system Reduce Transparency setting is a floor; the in-app toggle can only add to it.
 enum TransparencyPolicy {
     static func effective(system: Bool, userOverride: Bool) -> Bool {
         system || userOverride

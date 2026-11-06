@@ -1,14 +1,10 @@
 import Foundation
 
-// MARK: - Menu Bar Display
-
 /// What the menu bar label should render at any given moment.
 /// Priority: traveling > hospital > jail > soonest cooldown > fallback icon.
 ///
-/// The cases carry **meaning** (destination name, cooldown kind), not presentation.
-/// The flag/emoji glyphs are derived at render time. Storing only the glyph — as this
-/// enum used to — made the state unspeakable: VoiceOver read "airplane, flag of United
-/// Kingdom, 2 colon 35" because there was no name left in the model to say instead.
+/// The cases carry meaning (destination name, cooldown kind), not presentation; the flag/emoji
+/// glyphs are derived at render time so VoiceOver can speak the name instead of the glyphs.
 enum MenuBarDisplay: Equatable {
     case traveling(destination: String?, seconds: Int)
     case hospitalAbroad(destination: String?, seconds: Int)
@@ -18,7 +14,6 @@ enum MenuBarDisplay: Equatable {
     case fallbackIcon
 
     /// Spoken description for the menu-bar label — the app's only always-visible surface.
-    /// Pure function of the case, so it is unit-testable without a running menu bar.
     var accessibilityDescription: String {
         switch self {
         case .traveling(let destination, let seconds):

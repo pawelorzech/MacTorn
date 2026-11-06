@@ -30,11 +30,10 @@ final class PlayerState {
     /// The virus currently being written, if any. Read rarely — see `fetchVirusIfNeeded`.
     var virus: VirusProgramming?
     var lastFetchTime: Date = Date()
-    /// Mac↔Torn clock skew, re-derived from `server_time` on every successful snapshot
-    /// (issue #46). Every countdown in the app — travel, hospital, jail, chain, OC,
-    /// cooldowns, bars — is measured through this, so the whole window agrees on one
-    /// clock. Absent or implausible anchors leave it `.synchronized`, i.e. the plain
-    /// local clock.
+    /// Mac↔Torn clock skew, re-derived from `server_time` on every successful snapshot. Every countdown
+    /// in the app (travel, hospital, jail, chain, OC, cooldowns, bars) is measured through this, so the
+    /// whole window agrees on one clock. Absent or implausible anchors leave it `.synchronized`, i.e. the
+    /// plain local clock.
     var serverClock: ServerClock = .synchronized
     /// Absolute end-timestamps for active cooldowns, derived at fetch time from
     /// the server's response timestamp. The single source of truth that keeps

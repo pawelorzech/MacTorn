@@ -1,25 +1,16 @@
 import Foundation
 
 extension AppState {
-    // MARK: - Notifications
-
-    /// Evaluates every per-poll alert against the *persistent* latches in
-    /// `notificationCoordinator` rather than against in-memory `previous*` snapshots.
-    ///
-    /// The in-memory version dropped every alert whose edge fell across a restart: the
-    /// `previous*` fields start `nil` on each launch, so the first poll was always
-    /// skipped and the second poll compared two already-satisfied states. A cooldown that
-    /// ended, a bar that filled or a hospital stay that expired while MacTorn was closed
-    /// simply never announced itself — the product's main job, silently unperformed
-    /// (#47). The persistent latches also remember the *cleared* state, which is what
-    /// lets the first observation of a key seed silently instead of producing a banner
-    /// storm on a fresh install — and they remember *when* they were written, so a
-    /// pre-quit state older than the coordinator's staleness window seeds too. Quitting
-    /// in hospital with three cooldowns running and coming back from a holiday is a
-    /// first sight, not six banners.
+    /// Evaluates every per-poll alert against the *persistent* latches in `notificationCoordinator`
+    /// rather than in-memory `previous*` snapshots. Those start `nil` on each launch, so an edge that
+    /// fell across a restart (a cooldown ending, a bar filling or a hospital stay expiring while
+    /// MacTorn was closed) would never announce. The persistent latches also remember the *cleared*
+    /// state, so the first observation of a key seeds silently instead of producing a banner storm on a
+    /// fresh install, and they remember *when* they were written, so a pre-quit state older than the
+    /// coordinator's staleness window seeds too.
     func checkNotifications(newData: TornResponse) {
-        // ~9 latch predicates are evaluated below; the batch collapses their persistence
-        // into one UserDefaults write instead of one per predicate (audit W-6).
+        // ~9 latch predicates are evaluated below; the batch collapses their persistence into one
+        // UserDefaults write instead of one per predicate.
         notificationCoordinator.batched {
             evaluateNotifications(newData: newData)
         }
@@ -46,12 +37,10 @@ extension AppState {
         }
 
         if let prevTravel = player.previousTravel, let currentTravel = newData.travel {
-            // Just landed
             if prevTravel.isTraveling && !currentTravel.isTraveling {
                 notifier.send(title: "Landed!", body: "You have arrived in \(currentTravel.destination ?? "destination")", type: .landed)
                 cancelLandingAlerts()
             }
-            // Just started traveling
             if !prevTravel.isTraveling && currentTravel.isTraveling {
                 scheduleTravelNotifications(for: currentTravel)
             }
@@ -60,20 +49,18 @@ extension AppState {
             scheduleTravelNotifications(for: currentTravel)
         }
 
-        // The chain check does NOT live here: chain data arrives on the faction
-        // endpoint, not in this user snapshot. It fires from `checkChainNotification()`
-        // at the point the faction payload lands. See audit finding C-01.
+        // The chain check does NOT live here: chain data arrives on the faction endpoint, not in this
+        // user snapshot. It fires from `checkChainNotification()` when the faction payload lands.
 
         if shouldFireReleased(newData.status) {
             notifier.send(title: "Released! 🎉", body: "You are now free", type: .released)
         }
     }
 
-    // MARK: - Persistent alert predicates (#47)
+    // MARK: - Persistent alert predicates
     //
-    // Each is a pure function of (persisted latch, this poll's value). They are the
-    // headlessly-provable seam for notification behaviour, since
-    // `NotificationManager.shared.send` is not injectable.
+    // Each is a pure function of (persisted latch, this poll's value), which keeps notification
+    // behaviour provable without delivering anything.
 
     /// Whether the "<kind> Ready!" alert should fire for a cooldown now at `seconds`.
     /// Rising edge on running→ready, re-armed when the cooldown restarts. The first ever
@@ -116,17 +103,8 @@ extension AppState {
         )
     }
 
-    /// Decides whether the "Chain Expiring!" alert should fire on this poll.
-    ///
-    /// The alert must fire exactly once when the chain enters the danger window
-    /// (0 < timeout < `chainWarningThreshold`), NOT on every poll while it stays there
-    /// (the previous bug). It re-arms once the chain leaves the window — a member hits
-    /// (timeout jumps back up), the chain ends, or the chain drops — so a fresh danger
-    /// window alerts again. The latch is persisted, so a relaunch mid-window is silent.
-    /// `internal` for `@testable` regression coverage.
-    /// Fires the chain-expiring alert. Called from the faction fetch, immediately after
-    /// a fresh chain payload is published — chain data enters the system there, so that
-    /// is where the edge must be evaluated. Safe to call on every faction poll: the
+    /// Fires the chain-expiring alert. Called from the faction fetch right after a fresh chain payload
+    /// is published, since chain data enters the system there. Safe to call on every faction poll: the
     /// persistent edge latch inside `chainExpiringShouldFire` collapses repeats.
     func checkChainNotification() {
         guard let chain = liveChain, chainExpiringShouldFire(chain) else { return }
@@ -137,9 +115,11 @@ extension AppState {
         )
     }
 
-    /// `FactionChain.timeout` is an absolute server timestamp, so the danger window is
-    /// measured on Torn's clock (issue #46) — on a slow Mac the local reading overstated
-    /// the time left and armed the alert late.
+    /// Decides whether the "Chain Expiring!" alert should fire on this poll. It fires exactly once when
+    /// the chain enters the danger window (0 < timeout < `chainWarningThreshold`) and re-arms once the
+    /// chain leaves it (a hit raises the timeout, or the chain ends or drops), so a fresh window alerts
+    /// again. The latch is persisted, so a relaunch mid-window is silent. `timeout` is an absolute
+    /// server timestamp, so the window is measured on Torn's clock. `internal` for `@testable` coverage.
     func chainExpiringShouldFire(_ chain: Chain?) -> Bool {
         let remaining = chain?.timeoutRemaining(at: serverNow) ?? 0
         let inDanger = (chain?.isActive == true)
@@ -178,8 +158,6 @@ extension AppState {
 }
 
 extension AppState {
-    // MARK: - Notification Rules
-
     func loadNotificationRules() {
         if let data = defaults.data(forKey: "notificationRules"),
            let rules = try? JSONDecoder().decode([NotificationRule].self, from: data) {
@@ -202,8 +180,6 @@ extension AppState {
             saveNotificationRules()
         }
     }
-
-    // MARK: - Travel Notification Settings
 
     func loadTravelNotificationSettings() {
         if let data = defaults.data(forKey: "travelNotificationSettings"),
@@ -238,9 +214,8 @@ extension AppState {
     func scheduleTravelNotifications(for travel: Travel) {
         cancelLandingAlerts()
 
-        // `travel.timestamp` is an absolute *server* timestamp, but a scheduled local
-        // notification fires on the *Mac's* clock — so convert back through the skew
-        // (issue #46), or a 90 s-slow Mac fires every landing alert 90 s early.
+        // `travel.timestamp` is an absolute *server* timestamp, but a scheduled local notification fires
+        // on the *Mac's* clock, so convert back through the skew.
         guard travel.isTraveling, let arrival = travel.timestamp, arrival > 0 else { return }
         let arrivalDate = player.serverClock.localDate(forServerTimestamp: arrival)
 

@@ -8,8 +8,6 @@ final class PriceAlertBatch {
 }
 
 extension AppState {
-    // MARK: - Watchlist
-
     /// Why an Item ID typed into the watchlist panel was rejected.
     enum WatchlistAddOutcome: Equatable {
         case added(itemId: Int)

@@ -2,8 +2,6 @@ import Foundation
 import Combine
 
 extension AppState {
-    // MARK: - Forum Watch
-
     @discardableResult
     func addWatchedThread(input: String) -> Bool {
         guard let threadId = forumWatch.add(input: input) else { return false }

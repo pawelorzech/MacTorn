@@ -3,16 +3,10 @@ import os.log
 
 // MARK: - Item catalog (v2 /torn/items)
 //
-// Torn publishes the name of every item in the game. MacTorn never asked, so adding a
-// watchlist entry meant knowing the numeric id *and* typing the name — and an item added
-// by id was stored as "Item #206" and displayed that way forever. The panel papered over
-// it with a hard-coded list of nine "popular" items, which is a guess at what a player
-// trades and goes stale the moment Torn adds anything.
-//
-// The catalog is slow-changing reference data, so it follows exactly the shape
-// `stocksMetadata` already established: fetch once, cache in UserDefaults, back off on
-// failure, and never block anything on having it. Everything below degrades to the old
-// "Item #id" behaviour when the catalog is absent.
+// Torn publishes the name of every item in the game. The catalog is slow-changing reference data, so
+// it follows the shape `stocksMetadata` established: fetch once, cache in UserDefaults, back off on
+// failure, and never block anything on having it. Everything below degrades to the `Item #id`
+// placeholder when the catalog is absent.
 
 /// One catalogue entry. Deliberately just the two fields the app uses: the payload for
 /// every item in Torn runs to hundreds of kilobytes, and none of the rest of it earns a
@@ -140,8 +134,8 @@ extension AppState {
             itemCatalog = cached.mapValues(\.name)
             itemCatalogCacheExpanded = true
         } else if let legacy = try? JSONDecoder().decode([Int: String].self, from: data) {
-            // Pre-shop cache migration: keep names immediately and refresh once to add
-            // the public shop fields from the same `/torn/items` response.
+            // A cache written before the shop fields existed: keep its names immediately and refresh once to
+            // add the public shop fields from the same `/torn/items` response.
             itemCatalog = legacy
             itemCatalogCacheExpanded = false
         }
@@ -149,10 +143,8 @@ extension AppState {
         itemCatalogFetchedAt = fetchedAt > 0 ? Date(timeIntervalSince1970: fetchedAt) : nil
     }
 
-    /// True when the catalogue is missing or old enough to be worth re-reading.
-    ///
-    /// Reads only in-memory state. The previous version decoded the whole persisted blob
-    /// from `UserDefaults` here, and this runs ~2× per poll (audit W-1).
+    /// True when the catalogue is missing or old enough to be worth re-reading. Reads only in-memory
+    /// state: this runs ~2× per poll, so it must not decode the persisted blob.
     private var itemCatalogIsStale: Bool {
         guard !itemCatalog.isEmpty, itemCatalogCacheExpanded,
               let fetchedAt = itemCatalogFetchedAt else { return true }
@@ -232,7 +224,7 @@ extension AppState {
     /// every start and only clears on the next *successful* fetch.
     nonisolated static let itemCatalogMaxEntries = 5_000
 
-    /// Decodes `TornItemsResponse` down to id → name.
+    /// Decodes the `/v2/torn/items` response down to id → name.
     ///
     /// `nonisolated` and `static` so it can run off the main actor on a payload with well
     /// over a thousand entries, matching `parseStocksMetadata`.
@@ -280,15 +272,13 @@ extension AppState {
 
     // MARK: Lookup
 
-    /// The catalogue name for an item, falling back to the numbered placeholder the app
-    /// used before the catalogue existed.
+    /// The catalogue name for an item, falling back to the numbered placeholder.
     func itemName(for itemID: Int) -> String {
         itemCatalog[itemID] ?? Self.placeholderItemName(for: itemID)
     }
 
-    /// The fallback label for an item MacTorn has no catalogue entry for. One definition,
-    /// used by both the lookup and the backfill's "is this still a placeholder?" guard
-    /// (audit D-8).
+    /// The fallback label for an item MacTorn has no catalogue entry for. One definition, used by both
+    /// the lookup and the backfill's "is this still a placeholder?" guard.
     static func placeholderItemName(for itemID: Int) -> String {
         "Item #\(itemID)"
     }

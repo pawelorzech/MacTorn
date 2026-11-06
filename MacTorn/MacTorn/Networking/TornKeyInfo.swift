@@ -1,9 +1,7 @@
 import Foundation
 
-// MARK: - Key info (Etap C / ISC-16)
-//
-// Decodes the official Torn v2 `/key/info` endpoint — the ONLY authoritative source of
-// what a key can actually access. Shape verified against the live OpenAPI spec
+// Decodes the official Torn v2 `/key/info` endpoint, the only authoritative source of what a key
+// can actually access. Shape verified against the live OpenAPI spec
 // (`https://www.torn.com/swagger/openapi.json`, `KeyInfoResponse`) on 2026-07-15:
 //
 //   { "info": {
@@ -57,7 +55,6 @@ struct TornKeyInfo: Decodable, Equatable, Sendable {
         let key: [String]
         let company: [String]
 
-        /// The available selection names for a given key-info category.
         func names(for category: TornKeyInfo.Category) -> [String] {
             switch category {
             case .user: return user
@@ -90,8 +87,6 @@ struct TornKeyInfo: Decodable, Equatable, Sendable {
         Set(selections.names(for: endpoint.keyCategory))
     }
 }
-
-// MARK: - Validation result
 
 /// Whether one registered endpoint is reachable with the validated key, and if not, why.
 struct EndpointAvailability: Equatable, Sendable, Identifiable {
@@ -132,8 +127,6 @@ enum KeyValidationState: Equatable, Sendable {
     case failure(String)
 }
 
-// MARK: - KeyValidator
-
 /// Pure mapping from a decoded `TornKeyInfo` to per-endpoint availability, using the
 /// endpoint registry as the source of truth for what each feature needs.
 enum KeyValidator {
@@ -168,7 +161,6 @@ enum KeyValidator {
                                     missingSelections: missing)
     }
 
-    /// Full validation result across every registered endpoint.
     static func validate(_ info: TornKeyInfo,
                          endpoints: [TornEndpoint] = TornEndpointRegistry.all) -> KeyValidationResult {
         KeyValidationResult(

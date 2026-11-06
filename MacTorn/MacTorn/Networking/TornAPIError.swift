@@ -1,40 +1,17 @@
 import Foundation
 
-// MARK: - Torn API Error Taxonomy (Etap B)
+// Torn returns application errors with HTTP 200 and a code/message envelope. This type classifies
+// both those codes and transport-level failures into a small set so callers can react correctly;
+// each case documents its handling. Two cross-cutting rules:
 //
-// Torn returns application errors with HTTP 200 and a code/message envelope. This
-// type classifies both those Torn codes and transport-level failures into a small,
-// actionable set so callers can react correctly instead of treating every failure
-// the same:
-//
-//   • permanentKey → STOP every request until the user edits their key. Only the
-//     three codes where that is literally true (1 empty, 2 incorrect, 18 paused by
-//     the owner). Retrying those forever is pointless and looks like a hang.
-//   • temporaryKey → the key is fine but Torn is refusing it *for now* (owner in
-//     federal jail, key-change cooldown, read error, temporarily disabled). These
-//     clear on their own, so polling pauses and resumes automatically instead of
-//     sending the user off to regenerate a perfectly good key.
-//   • insufficientPermissions → the key's access level cannot serve this selection.
-//     Refresh `/key/info`, narrow the request and retry once; never invalidate the key.
-//   • endpointUnavailable → the request as constructed can never succeed (wrong API
-//     version, wrong category, a deleted thread/item id, an unmigrated crime
-//     selection). Disable that one endpoint; retrying is a guaranteed 100% failure.
-//   • ipBlocked → Torn blocked this IP for abuse. A normal poll-cadence retry makes
-//     it worse, so this gets its own long cool-off.
-//   • dailyRowLimit → pause ONLY the row-based category that tripped it (error 14),
-//     while bars/cooldowns/countdowns keep running.
-//   • rateLimit → a one-minute account-wide pause, because Torn applies code 5 per user
-//     across every key and endpoint.
-//   • temporaryBackend / offline / transport → surfaced to the UI; the normal poll
-//     cadence is the retry, avoiding a second traffic-amplifying retry layer.
-//   • notAvailable → the endpoint is healthy but has nothing to serve right now (32 closed
-//     until the next attacking period, 33 no competition running). Not a fault: no pause,
-//     no error bar, no health error; the caller shows a neutral "nothing here" state.
-//   • malformed / cancelled → non-retryable, not the server's fault.
+// - rateLimit is an account-wide pause, because Torn applies code 5 per user across every key and
+//   endpoint, and ipBlocked gets a long cool-off because a poll-cadence retry would worsen the block.
+// - temporaryBackend / offline / transport are surfaced to the UI; the normal poll cadence is the
+//   retry, which avoids a second traffic-amplifying retry layer.
 //
 // Codes are the 0-33 set published in Torn's OpenAPI document
-// (https://www.torn.com/swagger/openapi.json — `components.schemas.Error*`), verified
-// against spec version 6.13.8 on 2026-10-20.
+// (https://www.torn.com/swagger/openapi.json, `components.schemas.Error*`), verified against spec
+// version 6.13.8 on 2026-10-20.
 
 /// Coarse classification used for UI copy and retry decisions.
 enum TornErrorClass: String, Equatable, Sendable {
@@ -184,19 +161,14 @@ enum TornAPIError: Error, Equatable, Sendable {
         }
     }
 
-    /// Short, PII-safe message for the UI. The underlying Torn message is a fixed
-    /// server string, but it is still sanitized (control chars stripped, length
-    /// capped) so a MITM'd/compromised response cannot inject multi-line UI.
+    /// Short, PII-safe message for the UI. The underlying Torn message is a fixed server string, but it
+    /// is sanitized (control chars stripped, length capped) so a compromised response cannot inject
+    /// multi-line UI.
     ///
-    /// NOTE on "sanitized": `sanitizedForDisplay()` only means *string-hygiene* — no
-    /// control characters, capped at 120 chars — as a defence against UI spoofing.
-    /// It says nothing about the *content* of the string: for `.permanentKey`,
-    /// `.insufficientPermissions` and `.temporaryBackend` this can still be the raw
-    /// Torn server message verbatim (hygiene-cleaned, not classification-only). That
-    /// is a different, stricter guarantee from `DiagnosticsReport`'s use of
-    /// "sanitized" (see `Diagnostics.swift`), which means "built only from fields
-    /// that are safe by construction" — free-text `userMessage` values are exactly
-    /// what `DiagnosticsReport.lastErrorSummary` must NOT carry (issue #58).
+    /// "Sanitized" here is string hygiene only: for `.permanentKey`, `.insufficientPermissions` and
+    /// `.temporaryBackend` the result can still be the raw Torn message verbatim. `DiagnosticsReport`
+    /// uses a stricter meaning (built only from fields safe by construction), so its
+    /// `lastErrorSummary` must never carry this text.
     var userMessage: String {
         switch self {
         case let .permanentKey(_, message):
@@ -239,10 +211,6 @@ enum TornAPIError: Error, Equatable, Sendable {
         "Torn API is temporarily unavailable (HTTP \(status)) — retrying."
     }
 
-    // MARK: - Classification
-
-    /// Maps a Torn application error code + message to a typed error.
-    ///
     /// Every code below is named in Torn's own OpenAPI document; an unknown/new code
     /// falls through to `.temporaryBackend` so a future Torn addition degrades into
     /// "retry later" rather than into a hard stop.
@@ -281,7 +249,6 @@ enum TornAPIError: Error, Equatable, Sendable {
         }
     }
 
-    /// Maps a URLSession transport error to a typed error.
     static func from(urlError: URLError) -> TornAPIError {
         switch urlError.code {
         case .cancelled:

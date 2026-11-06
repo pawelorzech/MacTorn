@@ -1,8 +1,6 @@
 import Foundation
 
 extension AppState {
-    // MARK: - Updates
-
     func checkForAppUpdates() {
         updateCheckTask = Task {
             if let release = await updateManager.checkForUpdates(currentVersion: BuildInfo.appVersion) {

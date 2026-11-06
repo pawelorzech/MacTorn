@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Battle Stats
 struct BattleStats: Codable {
     let strength: Int
     let defense: Int
@@ -34,7 +33,6 @@ struct BattleStats: Codable {
     }
 }
 
-// MARK: - Attack Result
 struct AttackResult: Codable, Identifiable {
     let code: String?
     let timestampStarted: Int?

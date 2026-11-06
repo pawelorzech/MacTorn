@@ -1,50 +1,34 @@
 import Foundation
 
-// MARK: - Notification De-duplication (Etap E)
+// Alert de-duplication: an alert fires exactly once per distinct occurrence of an event. State is
+// persisted so it survives a restart (relaunching mid-danger-window must not re-alert), yet it
+// re-arms once the situation clears so a genuinely new event alerts again. Two primitives:
 //
-// Fixes the chain-expiring bug: the previous code fired "Chain Expiring!" on *every*
-// poll while the chain timeout was under 60s — a burst of identical banners every
-// refresh interval. This coordinator makes an alert fire exactly once per distinct
-// occurrence of an event. The dedup state is persisted, so it survives an app
-// restart (relaunching mid-danger-window must not re-alert), yet it re-arms once the
-// situation clears so a genuinely new event alerts again.
+//  - `shouldFireOnEdge(_:active:seedOnFirstSight:)`: a rising-edge latch. True the first time
+//    `active` becomes true, then false until `active` returns to false. Used for the chain danger
+//    window, bar thresholds, cooldown-ready alerts and hospital/jail release.
 //
-// Two primitives cover the Etap E categories:
+//    `seedOnFirstSight` makes those survive a relaunch. The latch persists its cleared state, so
+//    "never observed" and "observed, inactive" are distinguishable: the first ever observation of a
+//    key records the state and stays silent, whatever it is, while every later observation is a real
+//    edge, even when the transition happened while the app was closed. Without seeding, a fresh
+//    install showing three ready cooldowns would open with three banners; without persistence, a
+//    cooldown that expires between launches is silently swallowed.
 //
-//  • `shouldFireOnEdge(_:active:seedOnFirstSight:)` — a rising-edge latch. Returns true
-//    the first time `active` becomes true, then false until `active` returns to false
-//    (re-arm). Used for the chain danger window (active = 0 < timeout < 60s), the bar
-//    thresholds, the cooldown-ready alerts and hospital/jail release.
+//    Every latch also records when it was observed, and an observation older than `stalenessWindow`
+//    counts as a first sight. Otherwise the latch cannot tell an edge from thirty seconds ago from
+//    one from three weeks ago, and the first poll after a holiday produces a banner storm. The
+//    window is generous so an edge that fell across a restart or a lunch break is still news.
 //
-//    `seedOnFirstSight` is what makes those survive a relaunch. Because the latch is
-//    persisted *including its cleared state*, "never observed" and "observed, inactive"
-//    are distinguishable: the first ever observation of a key records the state and stays
-//    silent, whatever it is, while every later observation is a real edge — even when the
-//    transition happened while the app was closed. Without the seeding half, a fresh
-//    install showing three ready cooldowns would open with three banners; without the
-//    persistence half, a cooldown that expires between launches is silently swallowed,
-//    which is the bug in #47.
+//  - `shouldFireOnce(_:epoch:)`: fires once per distinct `epoch` value for a key. Used for
+//    per-instance events keyed by a stable identity: OC ready (OC id), landing (destination +
+//    arrival time), forum new posts (last post id), price alert (item id + crossed threshold),
+//    bounty (bounty id).
 //
-//    Every latch also records *when* it was observed, and an observation older than
-//    `stalenessWindow` counts as a first sight. Without the timestamp the latch cannot
-//    tell an edge from thirty seconds ago from one from three weeks ago and fires either
-//    way: quit while in hospital with cooldowns running, come back from holiday, and the
-//    first poll produces the exact banner storm seeding exists to prevent — displaced
-//    from first-install to first-launch-after-a-gap. The window is deliberately generous
-//    (see `stalenessWindow`) so #47's intent survives: an edge that fell across a restart
-//    or a lunch break is still news, one that fell across a holiday is not.
-//
-//  • `shouldFireOnce(_:epoch:)` — fires once per distinct `epoch` value for a key.
-//    Used for per-instance events keyed by a stable identity: OC ready (OC id),
-//    landing (destination + arrival time), forum new posts (last post id),
-//    price alert (item id + crossed threshold), bounty (bounty id).
-//
-// Both stores are bounded. Their keys embed unbounded identities (bounty ids, market
-// item ids, per-rule thresholds) and nothing ever deletes a stale one, so an uncapped
-// store grows for the lifetime of the install. Eviction is least-recently-*touched*:
-// every call for a key refreshes its recency, including a call whose answer is "already
-// alerted". An entry that is still being re-checked on each poll can therefore never age
-// out from under a live dedup and re-notify. (#47 / #53)
+// Both stores are bounded: their keys embed unbounded identities and nothing deletes a stale one.
+// Eviction is least-recently-touched, and every call for a key refreshes its recency (even one
+// answering "already alerted"), so an entry still re-checked on each poll can never age out from
+// under a live dedup and re-notify.
 @MainActor
 final class NotificationCoordinator {
     /// Rows kept per persisted dedup store. Far above any plausible working set (a
@@ -52,23 +36,21 @@ final class NotificationCoordinator {
     /// below anything that would make the store a memory or disk concern.
     static let maxTrackedKeys = 256
 
-    /// Floor for `stalenessWindow`. An hour comfortably covers the gaps #47 is about — a
-    /// relaunch, a reboot, a lunch break — while being far short of "I was away".
+    /// Floor for `stalenessWindow`. An hour comfortably covers a relaunch, a reboot or a lunch break
+    /// while being far short of "I was away".
     static let minimumStalenessWindow: TimeInterval = 60 * 60
 
-    /// Window for `cooldown.ready.*` edges. Running→ready is one-way and stays true, so
-    /// it is still worth announcing after a workday-sized quit: drug and booster
-    /// cooldowns routinely run 3-5 h, and the one-hour floor swallowed exactly the
-    /// ordinary "quit at noon, back at two" case (#90). A day still keeps a holiday quiet.
+    /// Window for `cooldown.ready.*` edges. Running→ready is one-way and stays true, so it is still worth
+    /// announcing after a workday-sized quit: drug and booster cooldowns routinely run 3-5 h, which the
+    /// one-hour floor would swallow. A day still keeps a holiday quiet.
     static let cooldownStalenessWindow: TimeInterval = 24 * 60 * 60
 
     private let defaults: UserDefaults
     private let time: TimeSource
     private static let latchesStoreID = "notifications.latched.v2"
     private static let epochsStoreID = "notifications.epochs.v2"
-    /// v1 held an uncapped string array / dictionary in a different encoding. Dropped on
-    /// the first launch of this version; worst case is one alert suppressed or repeated
-    /// on the upgrade poll.
+    /// Legacy uncapped stores in a different encoding; dropped on first launch. Worst case is one alert
+    /// suppressed or repeated on the upgrade poll.
     private static let retiredStoreIDs = ["notifications.latched.v1", "notifications.epochs.v1"]
 
     private static let latchedValue = "1"
@@ -78,11 +60,9 @@ final class NotificationCoordinator {
     /// `stalenessWindow`; nothing here schedules anything.
     var refreshInterval: TimeInterval = 30
 
-    /// How old a recorded observation may be and still count as "the previous state"
-    /// rather than "no state at all". `max(1 h, 4 × refreshInterval)`: the floor keeps
-    /// restart- and break-sized gaps alerting, and the multiple keeps the window at least
-    /// a few polls wide should the cadence ever be slowed to something coarse, so a
-    /// merely-slow poller never mistakes its own last poll for ancient history.
+    /// How old a recorded observation may be and still count as "the previous state" rather than "no
+    /// state at all". `max(1 h, 4 × refreshInterval)`: the floor keeps restart- and break-sized gaps
+    /// alerting, and the multiple keeps the window a few polls wide if the cadence is ever slowed.
     var stalenessWindow: TimeInterval {
         max(Self.minimumStalenessWindow, 4 * refreshInterval)
     }
@@ -102,15 +82,13 @@ final class NotificationCoordinator {
     /// Last epoch value alerted for each key.
     private var epochs: BoundedRecencyStore
 
-    /// Persistence batching. `checkNotifications` evaluates ~9 predicates per poll, each of
-    /// which would otherwise encode and write the whole store; the batch defers the writes
-    /// and flushes once at the end. Direct predicate calls (including every test) persist
-    /// eagerly, so the observable per-call contract is unchanged (audit W-6).
+    /// Persistence batching. `checkNotifications` evaluates ~9 predicates per poll, each of which would
+    /// otherwise encode and write the whole store; the batch defers the writes and flushes once. Direct
+    /// predicate calls persist eagerly.
     private var batchDepth = 0
     private var latchesDirty = false
     private var epochsDirty = false
 
-    /// Coalesce the persistence of the predicates evaluated inside `body` into one write.
     func batched<T>(_ body: () -> T) -> T {
         batchDepth += 1
         defer {
@@ -227,11 +205,9 @@ final class NotificationCoordinator {
 /// builds. Rows written by a build from before the timestamp existed still parse — they
 /// simply carry no instant, which callers read as "age unknown".
 ///
-/// The instant is refreshed on *every* observation, not only when the value changes: it
-/// answers "how long ago did we last look at this key", so a value that has legitimately
-/// held steady for days while the app polls must not read as ancient. That is also why
-/// `record` no longer reports "nothing changed" — the instant always changes, so every
-/// observation is worth persisting.
+/// The instant is refreshed on *every* observation, not only when the value changes: it answers "how
+/// long ago did we last look at this key", so a value that has held steady for days while the app
+/// polls must not read as ancient. Every observation is therefore worth persisting.
 private struct BoundedRecencyStore {
     private static let separator: Character = "\u{1F}"
 

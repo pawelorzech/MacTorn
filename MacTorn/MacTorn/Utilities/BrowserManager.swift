@@ -104,14 +104,10 @@ final class BrowserManager {
         return true
     }
 
-    /// Opens a web URL, honouring the user's preferred browser.
-    ///
-    /// Only `http`/`https` is ever handed to the system. The previous version fell
-    /// through to `NSWorkspace.shared.open(url)` for every *other* scheme, which turned
-    /// this into a general-purpose "open anything the system has a handler for" —
-    /// reachable with a remotely-supplied string via the GitHub release check
-    /// (`GitHubRelease.htmlUrl` → SettingsView "Download Update"). A non-web scheme is
-    /// never something this app legitimately needs to open, so it is dropped.
+    /// Opens a web URL, honouring the user's preferred browser. Only `http`/`https` is handed to the
+    /// system: the URL can originate from a remote string (the GitHub release check's
+    /// `GitHubRelease.htmlUrl`), and opening other schemes would make this a general "open anything"
+    /// primitive.
     func open(_ url: URL) {
         guard Self.isWebURL(url) else { return }
 

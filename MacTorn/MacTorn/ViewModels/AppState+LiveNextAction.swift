@@ -4,8 +4,6 @@ import Combine
 extension AppState {
     private static var hiddenNextActionKey: String { "hiddenNextActionCategories" }
 
-    // MARK: - Live Timer
-
     func manageLiveTimer() {
         tick()
         if shouldRunLiveTimer {
@@ -49,10 +47,9 @@ extension AppState {
         }
     }
 
-    // Every countdown below reads `serverNow` / `serverFetchTime` — Torn's clock, not the
-    // Mac's (issue #46). All of `travel.timestamp`, `status.until` and `CooldownEnds.endsAt`
-    // are absolute server timestamps, so comparing them against a local `Date()` leaked the
-    // machine's skew straight into the menu bar.
+    // Every countdown below reads `serverNow` / `serverFetchTime` (Torn's clock, not the Mac's):
+    // `travel.timestamp`, `status.until` and `CooldownEnds.endsAt` are absolute server timestamps, so
+    // comparing them against a local `Date()` would leak the machine's skew into the menu bar.
     private func updateTravelSecondsRemaining() {
         let next: Int
         if let travel = player.data?.travel, travel.isTraveling {
@@ -94,8 +91,6 @@ extension AppState {
         return .fallbackIcon
     }
 
-    // MARK: - Next Action
-
     func loadHiddenNextActionCategories() {
         guard let raw = defaults.stringArray(forKey: Self.hiddenNextActionKey) else { return }
         hiddenNextActionCategories = Set(raw.compactMap(NextActionCategory.init(rawValue:)))
@@ -106,9 +101,9 @@ extension AppState {
         publishWidgets()
     }
 
-    /// Builds the timeline input. `now` is a *local* instant (the shared clock's); it is
-    /// converted to Torn's clock here, and every timestamp in the snapshot is likewise
-    /// server-absolute — so the whole timeline is one consistent clock (issue #46).
+    /// Builds the timeline input. `now` is a *local* instant (the shared clock's); it is converted to
+    /// Torn's clock here, and every timestamp in the snapshot is likewise server-absolute, so the whole
+    /// timeline runs on one clock.
     func makeNextActionSnapshot(now: Date = Date()) -> NextActionSnapshot {
         let nowUnix = player.serverClock.serverUnix(now)
         var snapshot = NextActionSnapshot(now: nowUnix)

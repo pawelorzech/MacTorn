@@ -13,8 +13,6 @@ extension UITestConfiguration {
     static var isIsolated: Bool { isActive || isUnitTesting }
 }
 
-// MARK: - UI-test accessibility identifiers (always compiled? no — DEBUG only)
-
 extension View {
     /// Applies an accessibility identifier used solely by the UI-test harness. Compiled
     /// out of Release, so no automation identifiers ship in the production binary while the
@@ -28,26 +26,14 @@ extension View {
     }
 }
 
-// MARK: - UI-test harness (Etap G / ISC-20)
+// MARK: - UI-test harness
 //
-// A deterministic, hermetic harness for XCUITest runs. The production app never
-// exercises any of this: it only activates when the process is launched with the
-// `--uitesting` argument, which only the UI-test runner passes.
-//
-// Everything that fabricates data or bypasses real I/O is compiled **only in DEBUG**,
-// so no fixture/test surface ships in a Release build. A tiny always-compiled shim
-// (`#else` branch at the bottom) keeps `UITestConfiguration.isActive` referenceable
-// from Release code paths, where it is a constant `false`.
-//
-// When active it wires an `AppState` from fully controllable doubles:
-//   • `FixtureNetworkSession` — serves canned JSON per endpoint, never hits the network.
-//   • an isolated, ephemeral `UserDefaults` suite — a blank slate every run.
-//   • an in-memory Keychain (see `KeychainStore` in AccountSessionStore.swift) — the real Torn
-//     key on the developer's machine is never read or overwritten by a UI test.
-//   • `UITestConnectivity` — connectivity the test can flip by hand.
-//
-// This is the "first brick" the audit ISA called out: it makes the MenuBarExtra UI
-// drivable and reproducible so real UI tests can gate merges.
+// Active only when the process is launched with `--uitesting`. Everything that fabricates data or
+// bypasses real I/O is compiled only in DEBUG so no fixture surface ships in Release; the
+// always-compiled shim at the bottom keeps `UITestConfiguration.isActive` referenceable (constant
+// `false`). When active, `AppState` is wired from doubles: a canned-JSON `FixtureNetworkSession`,
+// an ephemeral `UserDefaults` suite, an in-memory Keychain (so the developer's real Torn key is
+// never read or overwritten) and a connectivity the test can flip by hand.
 
 #if DEBUG
 
@@ -114,11 +100,8 @@ enum UITestConfiguration {
         return CGFloat(min(max(requested, 360), 1_000))
     }
 
-    /// Builds the fully-injected `AppState` for a UI-test run. Must run on the main actor
-    /// because `AppState` is `@MainActor`.
     @MainActor
     static func makeAppState() -> AppState {
-        // Isolated, ephemeral defaults so each run starts from a known blank slate.
         let suiteName = "com.mactorn.uitests"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
@@ -163,11 +146,8 @@ enum UITestConfiguration {
                 )
             ]
 
-            // Properties: the fast-user fixture JSON deliberately omits the
-            // "properties" key (parseProperties(_:) then returns nil), so this
-            // assignment is never clobbered by the real (mocked) poll pipeline —
-            // same trick as recentAttacks above. Used by the a11y UI tests to
-            // pin PropertyCard's combined VoiceOver label (issue #45).
+            // The fast-user fixture JSON omits the "properties" key, so the mocked poll never overwrites this
+            // seed. Pins PropertyCard's combined VoiceOver label.
             appState.player.propertiesData = [
                 PropertyInfo(
                     id: 9101,
@@ -181,18 +161,10 @@ enum UITestConfiguration {
                 )
             ]
 
-            // Activity events: the activity-endpoint fixture JSON returns `[:]`
-            // for the `.accessibility` scenario (no "events" key), so this is
-            // never overwritten by fetchActivityData's `if let events = ...`
-            // guard — same non-clobbering trick as above. Used to pin
-            // EventsView's combined VoiceOver label (issue #45).
-            //
-            // This only holds because `UserSnapshotService.loadActivity` reports an
-            // *absent* "events" key as nil rather than as an empty array (issue #84).
-            // Before that fix the first poll wiped this seed and StatusView's
-            // `if !appState.player.activityEvents.isEmpty` dropped EventsView from the tree
-            // entirely. Never rely on this pattern for a field whose parser collapses
-            // "absent" to an empty collection.
+            // The `.accessibility` activity fixture has no "events" key, and `UserSnapshotService.decodeActivity`
+            // reports an absent key as nil rather than an empty array, so the poll never overwrites this seed.
+            // Do not use this pattern for a field whose parser collapses "absent" to an empty collection.
+            // Pins EventsView's combined VoiceOver label.
             let fixtureEventJSON = Data("""
             {"timestamp": \(now - 90), "event": "You were mugged by <a href=\\"#\\">Fixture Mugger</a> for $500."}
             """.utf8)
@@ -237,11 +209,7 @@ enum UITestConfiguration {
     }
 }
 
-// MARK: - Fixture network session
-
-/// A `NetworkSession` that serves canned JSON per endpoint and never touches the
-/// network. Routing is by URL so the fast user call, faction, and the v2 endpoints
-/// each get an appropriate, decodable body.
+/// Serves canned JSON by URL and never touches the network.
 final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
     static let accountAKey = "fixture-account-a"
     static let accountBKey = "fixture-account-b"
@@ -375,12 +343,9 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
                 "name": "Fixture Faction",
                 "ID": 6_789,
                 "respect": 1_000,
-                // Active chain, timeout ~150s out: lands in ChainView's "orange /
-                // warning" bucket (60..<180s remaining) so the a11y UI test can
-                // pin the combined chain-card VoiceOver label (issue #45) without
-                // racing the "red / critical" (<60s) edge as the test runs.
-                // Real wire shape: `timeout` is seconds remaining, `end` the absolute
-                // expiry (2026-09-01) — the app resolves the two at the fetch boundary.
+                // Active chain, timeout ~150s out: lands in ChainView's orange bucket (60..<180s remaining), so the
+                // a11y test can pin the chain-card label without racing the red (<60s) edge. Wire shape: `timeout`
+                // is seconds remaining, `end` the absolute expiry; the app resolves the two at the fetch boundary.
                 "chain": ["current": 5, "max": 10, "timeout": 150, "cooldown": 0,
                           "start": now - 150, "end": now + 150],
             ]
@@ -402,14 +367,12 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
         return components.queryItems?.first(where: { $0.name == "key" })?.value
     }
 
-    /// A full-access `/key/info` response granting every selection MacTorn requests, so
-    /// Test Connection reports all features available and the endpoint gate lets every
-    /// request through. Shape matches the verified `KeyInfoResponse` schema.
+    /// A full-access `/key/info` response granting every selection MacTorn requests, so Test Connection
+    /// reports all features available and the endpoint gate lets every request through.
     ///
-    /// The granted selections are **derived from the endpoint registry**, not listed by
-    /// hand. A hand-written list silently goes stale the moment an endpoint gains a
-    /// selection: the gate then refuses that endpoint for the whole UI-test run, and the
-    /// failure surfaces as an unrelated empty panel rather than as "the fixture is wrong".
+    /// The granted selections are derived from the endpoint registry, not listed by hand: a stale list
+    /// makes the gate refuse a new selection for the whole UI-test run, and the failure surfaces as an
+    /// unrelated empty panel.
     static func keyInfoResponse() -> [String: Any] {
         var granted: [String: [String]] = [:]
         for category in TornKeyInfo.Category.allCases {
@@ -470,10 +433,8 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             ? ["description": "In hospital", "details": "Hospitalized by Fixture Attacker",
                "state": "Hospital", "until": now + 125]
             : ["description": "Okay", "details": "", "state": "Okay", "until": 0],
-        // NOTE: no "chain" key here on purpose. Torn's v1 `user` endpoint does not
-        // return one, and this fixture used to invent it — which is exactly what hid
-        // audit finding C-01 (the chain alert read the user snapshot and was therefore
-        // dead in production). Chain lives on the faction fixture, like the real API.
+        // No "chain" key on purpose: Torn's v1 `user` endpoint does not return one. Chain lives on the
+        // faction fixture, like the real API.
         "money_onhand": 1_000_000,
         "points": 10,
         // Deliberately long: compact-window UI tests use this list to prove the
@@ -568,8 +529,6 @@ private struct UITestWindowConfigurator: NSViewRepresentable {
 
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
-
-// MARK: - Controllable connectivity
 
 /// Connectivity a UI test can flip by hand (mirrors `ControllableConnectivity` in the
 /// unit test target, but lives in the app target so the launched app process can use it).

@@ -16,7 +16,6 @@ enum SentryManager {
     /// Public DSN — safe to embed in client builds (Sentry ingest endpoint, not a secret).
     private static let dsn = "https://2626521b9d106444bdc5b1d1e4b3b87b@o4511309952712704.ingest.de.sentry.io/4511309955792976"
 
-    /// Tracks whether the SDK has been started in this process.
     private static var isStarted = false
 
     static var isEnabled: Bool {
@@ -113,12 +112,10 @@ enum SentryManager {
                 req.url = tornRedactedURL(url)
             }
             req.queryString = nil
-            // The key travels in `Authorization` on API v2, so scrubbing the URL and the
-            // query string is no longer the whole job. Nothing should attach request
-            // headers today (network tracking, breadcrumbs and failed-request capture are
-            // all disabled above, and sentry-cocoa drops `Authorization` in its own header
-            // sanitizer), but both of those are somebody else's decision. Dropping headers
-            // here makes "the key never reaches Sentry" an invariant MacTorn owns.
+            // The key travels in `Authorization` on API v2. Nothing should attach request headers today
+            // (network tracking, breadcrumbs and failed-request capture are disabled above, and sentry-cocoa
+            // drops `Authorization` in its own sanitizer), but both are somebody else's decision; dropping
+            // headers here makes "the key never reaches Sentry" an invariant MacTorn owns.
             req.headers = nil
             event.request = req
         }

@@ -1,31 +1,17 @@
 import Foundation
 
-// MARK: - Shared testable clock (Etap D / foundation for Etap J)
-//
-// A single, injectable source of "now" so time-dependent logic — the polling budget
-// windows here, and the upcoming "Next Action" timeline — can be tested deterministically
-// without sleeping real seconds, and so every feature reads the same clock.
-
 protocol TimeSource: AnyObject {
     var now: Date { get }
 }
 
-/// Production clock: wall time.
 final class SystemTimeSource: TimeSource {
     var now: Date { Date() }
 }
 
-// MARK: - Server clock (issue #46)
-//
-// Torn stamps every response with `server_time`. Cooldowns already used it, but travel,
-// hospital, jail, chain and OC each measured against a bare `Date()`, so a Mac whose
-// clock ran 90 s behind Torn's showed two contradictory clocks in one window: the
-// cooldown pill was right while the menu bar claimed the plane was still 90 s out.
-//
-// `ServerClock` is the single conversion between the two clocks. Derive it once per
-// snapshot, then read *every* countdown through it — never patch a call site by hand.
-
 /// The Mac↔Torn clock skew for one snapshot, in whole seconds.
+///
+/// Torn stamps every response with `server_time`. Derive a `ServerClock` once per snapshot and read
+/// every countdown through it, so a Mac whose clock is off never shows two contradictory clocks.
 struct ServerClock: Equatable, Sendable {
     /// Seconds to add to the local clock to land on Torn's. Positive = the Mac is behind.
     let offset: Int
@@ -62,35 +48,21 @@ struct ServerClock: Equatable, Sendable {
         self.offset = abs(delta) <= Self.maxPlausibleSkewSeconds ? delta : 0
     }
 
-    /// Stabilises per-poll jitter in the derived offset — the offset's exact analogue of
-    /// `CooldownEnds.merged`, and for the same reason.
-    ///
-    /// `offset = server_time - Int(receiptTime)` is not a stable quantity even when
-    /// neither clock has moved: `server_time` is whole seconds, the local receipt is
-    /// truncated to whole seconds, and the gap between the two absorbs that poll's
-    /// network latency. So it wobbles by a second or three between polls. Since *every*
-    /// countdown is now measured as `deadline - serverNow`, an offset that wobbles makes
-    /// every countdown in the app — the menu bar included — tick backwards at each poll
-    /// boundary. That is precisely the visible jump `CooldownEnds.merged` exists to
-    /// prevent, so pinning `endsAt` while leaving `now` jittery would achieve nothing.
-    ///
-    /// Keep the pinned offset while the fresh derivation is within `toleranceSeconds`;
-    /// adopt anything beyond it, which is a genuine correction (the Mac's clock being
-    /// re-synced, or an anchor discarded as implausible collapsing us to `.synchronized`).
-    /// Because each poll compares against the *pinned* value rather than the previous
-    /// derivation, slow one-directional drift still crosses the window and is adopted —
-    /// the error is bounded by the tolerance, and nothing latches.
+    /// Keeps the pinned offset while the fresh derivation is within `toleranceSeconds`; adopts anything
+    /// beyond it as a genuine correction. `server_time` is whole seconds and the local receipt is
+    /// truncated, so the derived offset wobbles by a second or three between polls even when neither
+    /// clock moved; unpinned, every countdown would tick backwards at each poll boundary. Comparing
+    /// against the pinned value (not the previous derivation) lets slow one-directional drift cross
+    /// the window and be adopted.
     func merged(with fresh: ServerClock,
                 toleranceSeconds: Int = ServerClock.jitterToleranceSeconds) -> ServerClock {
         abs(fresh.offset - offset) <= toleranceSeconds ? self : fresh
     }
 
-    /// Torn's "now" for a given local instant.
     func serverNow(_ localNow: Date) -> Date {
         localNow.addingTimeInterval(TimeInterval(offset))
     }
 
-    /// Torn's "now" as Unix seconds for a given local instant.
     func serverUnix(_ localNow: Date) -> Int {
         Int(localNow.timeIntervalSince1970) + offset
     }
@@ -103,9 +75,8 @@ struct ServerClock: Equatable, Sendable {
         return overflow || timestamp <= 0 ? nil : timestamp
     }
 
-    /// The local instant at which a server timestamp occurs. Needed whenever something
-    /// outside the app holds the deadline — a scheduled local notification fires on the
-    /// Mac's clock, so a server-absolute arrival time has to be converted back.
+    /// The local instant at which a server timestamp occurs. A scheduled local notification fires on
+    /// the Mac's clock, so a server-absolute arrival time has to be converted back.
     func localDate(forServerTimestamp timestamp: Int) -> Date {
         Date(timeIntervalSince1970: TimeInterval(timestamp) - TimeInterval(offset))
     }

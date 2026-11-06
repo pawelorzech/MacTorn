@@ -26,7 +26,6 @@ enum BoosterCooldownTarget: String, CaseIterable {
     var itemsURL: URL { TornLink.page("item.php#\(rawValue)-items") }
 }
 
-// MARK: - Travel Notification Settings
 struct TravelNotificationSetting: Codable, Identifiable, Equatable {
     let id: String
     let secondsBefore: Int
@@ -67,7 +66,6 @@ extension TravelNotificationSetting {
     }
 }
 
-// MARK: - Notification Settings
 struct NotificationRule: Codable, Identifiable, Equatable {
     let id: String
     var barType: BarType
@@ -117,7 +115,6 @@ extension NotificationRule {
     }
 }
 
-// MARK: - Sound Options
 enum NotificationSound: String, CaseIterable {
     case `default` = "default"
     case ping = "Ping"
@@ -140,7 +137,6 @@ enum NotificationSound: String, CaseIterable {
     }
 }
 
-// MARK: - App Feedback State
 struct AppFeedbackState: Codable {
     var firstLaunchDate: Date
     var hasResponded: Bool
@@ -148,7 +144,6 @@ struct AppFeedbackState: Codable {
     var lastDismissedDate: Date?
 }
 
-// MARK: - Forum Watch
 struct WatchedThread: Codable, Identifiable {
     let id: Int
     var title: String
@@ -172,21 +167,11 @@ struct WatchedThread: Codable, Identifiable {
 
 // MARK: - Tolerant decoding for persisted preferences
 //
-// Swift's synthesized `init(from:)` calls `decode(_:forKey:)` for every non-optional
-// property and throws on a missing key — it does **not** fall back to the defaults in a
-// memberwise initialiser. So adding one field to a persisted type throws on every
-// existing user's stored blob.
-//
-// That is only a nuisance where the load path is guarded. For these four it is data loss:
-// `loadNotificationRules`, `loadTravelNotificationSettings` and `loadShortcuts` answer a
-// decode failure by installing the defaults and saving them in the same statement, and
-// `WatchedThread` latches `threadsLoadFailed` and leaves the Forum Watch tab empty for
-// good. `WatchlistItem` and `ForumWatchConfig` already decode this way; these four are
-// the rest of the set.
-//
-// Each lives in an extension so the *synthesized memberwise* initialiser survives — an
-// explicit `init` in the struct body would suppress it and break every `defaults` entry.
-// `encode(to:)` is still synthesized, which keeps `CodingKeys` available here.
+// Swift's synthesized `init(from:)` throws on a missing key instead of falling back to a default,
+// so adding a field to a persisted type would make every existing user's stored blob fail to
+// decode. These types therefore decode field by field in extensions, which also keeps the
+// synthesized memberwise initialiser (an explicit `init` in the struct body would suppress it).
+// `encode(to:)` stays synthesized.
 
 extension WatchedThread {
     init(from decoder: Decoder) throws {
@@ -196,9 +181,8 @@ extension WatchedThread {
         title = try container.decodeIfPresent(String.self, forKey: .title) ?? "Unknown"
         notificationsEnabled =
             try container.decodeIfPresent(Bool.self, forKey: .notificationsEnabled) ?? true
-        // Zero is the honest answer for a row that never stored a count, and `apply`'s
-        // `previousCount > 0` guard then re-baselines silently on the next poll: one
-        // missed alert, never a false one. Same reasoning as audit finding D-02.
+        // Zero is the honest answer for a row that never stored a count: `apply`'s `previousCount > 0`
+        // guard then re-baselines silently on the next poll, costing one missed alert, never a false one.
         lastKnownPostCount =
             try container.decodeIfPresent(Int.self, forKey: .lastKnownPostCount) ?? 0
         lastChecked = try container.decodeIfPresent(Date.self, forKey: .lastChecked)
@@ -214,31 +198,25 @@ struct ForumWatchConfig: Codable {
     var pollingIntervalSeconds: Int
     /// Thread ids already seen in the watched category, most recently seen first.
     ///
-    /// Ordered and cumulative, not a snapshot of the last page. The listing is capped at
-    /// `TornAPI.forumCategoryRowLimit` rows, so replacing this with each page turned it
-    /// into a sliding window: in any category busier than one page, a thread that scrolled
-    /// off was forgotten, and the next reply that bumped it back to the top was announced
-    /// as new. Under activity-ordered listings that is the steady state, not an edge case.
+    /// Ordered and cumulative, not a snapshot of the last page. The listing is capped at one page of
+    /// rows, so replacing this with each page would forget threads that scrolled off, and the next
+    /// reply that bumped one back to the top would be announced as new.
     var seenFactionThreadIds: [Int]
     /// The category `seenFactionThreadIds` was gathered from.
     ///
-    /// Without it, a listing already in flight when the user edits the Category ID lands
-    /// afterwards and writes the *old* category's ids under the *new* category's id, with
-    /// `hasSeededFactionThreads` set. The next poll then finds nothing familiar and
-    /// announces a page of months-old threads: exactly the storm seeding exists to prevent.
+    /// Without it, a listing in flight when the user edits the Category ID would write the old
+    /// category's ids under the new category's id and announce a page of months-old threads.
     var seededCategoryId: Int?
     /// Whether the category has been read at least once.
     ///
-    /// Kept separately from the id list because an empty list is ambiguous: it means both
-    /// "never looked" and "looked, and the category was empty". Conflating them costs the
-    /// announcement of the very first thread posted to a quiet category, the one most
-    /// worth hearing about.
+    /// Separate from the id list because an empty list is ambiguous: "never looked" and "looked, and the
+    /// category was empty" differ, and conflating them would swallow the first thread posted to a quiet
+    /// category.
     var hasSeededFactionThreads: Bool
 
-    /// Ceiling on remembered ids. A category holds far fewer threads than this in
-    /// practice, so eviction should never fire; it is here so an unbounded preference
-    /// cannot grow forever, and it drops the least recently seen first because those are
-    /// the least likely to be bumped back to the top.
+    /// Ceiling on remembered ids. A category holds far fewer threads in practice; the cap only keeps the
+    /// preference from growing forever, and evicts the least recently seen first because those are the
+    /// least likely to be bumped back to the top.
     static let maximumSeenThreadIds = 500
 
     init(factionForumAutoMonitor: Bool = false,
@@ -280,9 +258,8 @@ struct ForumWatchConfig: Codable {
         hasSeededFactionThreads = false
     }
 
-    /// Decoded field by field so a config written by an older build — which has no
-    /// `hasSeededFactionThreads` key — still loads. Synthesized `Codable` would throw on
-    /// the missing key and silently reset every forum preference the user had set.
+    /// Decoded field by field so a config written by an older build, which has no
+    /// `hasSeededFactionThreads` key, still loads instead of resetting every forum preference.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         factionForumAutoMonitor =
@@ -292,10 +269,9 @@ struct ForumWatchConfig: Codable {
         pollingIntervalSeconds =
             try container.decodeIfPresent(Int.self, forKey: .pollingIntervalSeconds) ?? 180
 
-        // `knownFactionThreadIds` was an unordered Set written by 1.12.0 and 1.12.1.
-        // Decoding it here keeps those installs from re-announcing their whole category
-        // after the upgrade. Order is unrecoverable from a Set, which costs nothing: the
-        // ids are all equally "already seen", and the next listing re-establishes order.
+        // `knownFactionThreadIds` was an unordered Set written by 1.12.0 and 1.12.1. Decoding it keeps
+        // those installs from re-announcing their whole category; order is unrecoverable from a Set, but
+        // the ids are all equally "already seen" and the next listing re-establishes it.
         if let ordered = try container.decodeIfPresent([Int].self, forKey: .seenFactionThreadIds) {
             seenFactionThreadIds = ordered
         } else {
@@ -306,18 +282,15 @@ struct ForumWatchConfig: Codable {
         let seeded = try container.decodeIfPresent(Bool.self, forKey: .hasSeededFactionThreads)
             ?? !seenFactionThreadIds.isEmpty
         hasSeededFactionThreads = seeded
-        // Derived from the flag, not from list emptiness. A 1.12.1 install that had seeded
-        // an *empty* category carried `hasSeededFactionThreads: true` with no ids, so
-        // inferring from the list left `seededCategoryId` nil, `applyCategory` recomputed
-        // `wasSeeded` as false, and it re-seeded silently — swallowing the first thread
-        // posted to a quiet category, which is the exact case the flag was added for.
+        // Derived from the flag, not from list emptiness: a 1.12.1 install that seeded an empty category
+        // has `hasSeededFactionThreads: true` with no ids, and inferring from the list would re-seed it
+        // silently and swallow the first thread posted to that quiet category.
         seededCategoryId =
             try container.decodeIfPresent(Int.self, forKey: .seededCategoryId)
             ?? (seeded ? factionForumCategoryId : nil)
     }
 }
 
-// MARK: - Keyboard Shortcuts
 /// The Torn quick links on the Status tab. Users of the old shortcut editor may still
 /// have a customised list stored; everyone else gets the current defaults.
 enum QuickLinks {
@@ -351,9 +324,8 @@ struct KeyboardShortcut: Identifiable, Codable, Equatable {
 
 /// See "Tolerant decoding for persisted preferences" above `WatchedThread`.
 ///
-/// These are hand-authored names, URLs and hotkeys with no other copy anywhere, and
-/// `loadShortcuts` replaces them with the defaults and saves in the same statement on a
-/// decode failure — the most expensive of the four to get wrong.
+/// These are hand-authored names, URLs and hotkeys with no other copy anywhere, so a decode
+/// failure must not be allowed to discard them.
 extension KeyboardShortcut {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)

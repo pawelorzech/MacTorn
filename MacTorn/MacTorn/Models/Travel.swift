@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Travel
 struct Travel: Codable, Equatable {
     let destination: String?
     let timestamp: Int?
@@ -31,25 +30,21 @@ struct Travel: Codable, Equatable {
 
     /// Remaining seconds of flight.
     ///
-    /// `timestamp` is an absolute **server** timestamp and `time_left` is measured from
-    /// the instant the *server* generated the response, so both `fetchTime` and `now`
-    /// must be expressed on Torn's clock (`AppState.serverFetchTime` / `AppState.serverNow`)
-    /// — mixing the two clocks is exactly the bug in issue #46. The `Date()` default is
-    /// for pure-model callers that have no skew to correct.
+    /// `timestamp` is an absolute **server** timestamp and `time_left` is measured from the instant the
+    /// *server* generated the response, so both `fetchTime` and `now` must be on Torn's clock
+    /// (`AppState.serverFetchTime` / `AppState.serverNow`). The `Date()` default is for pure-model
+    /// callers that have no skew to correct.
     func remainingSeconds(from fetchTime: Date, now: Date = Date()) -> Int {
-        // Primary: Use timestamp directly if available (more accurate)
         if let timestamp = timestamp, timestamp > 0 {
             guard let nowUnix = NumericSafety.integerAmount(now.timeIntervalSince1970) else { return 0 }
             return NumericSafety.remaining(until: timestamp, now: nowUnix) ?? 0
         }
 
-        // Fallback: Use timeLeft with fetchTime offset (backward compatibility)
         guard let timeLeft = timeLeft, timeLeft > 0 else { return 0 }
         guard let elapsed = NumericSafety.integerAmount(max(0, now.timeIntervalSince(fetchTime))) else { return 0 }
         return max(0, timeLeft - elapsed)
     }
 
-    /// Calculate flight progress (0.0 to 1.0) based on fetch time
     func flightProgress(from fetchTime: Date, now: Date = Date()) -> Double {
         guard let departed = departed, let timestamp = timestamp else { return 0 }
         let remaining = remainingSeconds(from: fetchTime, now: now)
@@ -66,7 +61,6 @@ struct Travel: Codable, Equatable {
     }
 }
 
-// MARK: - Travel Destinations
 enum TornDestination: String, CaseIterable, Identifiable {
     case mexico = "Mexico"
     case caymanIslands = "Cayman Islands"
@@ -106,13 +100,10 @@ enum TornDestination: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Current one-way base duration published by Torn.
-    ///
-    /// Patch #438 (2026-06-23) reduced every travel method by 5.26%. These values
-    /// intentionally mirror the official table instead of deriving one method from
-    /// another, because Torn rounds each displayed duration independently.
-    /// Live flights never use this estimate: their countdown comes from the API's
-    /// `travel.timestamp`, `departed`, and `time_left` fields.
+    /// Current one-way base duration published by Torn. Values mirror the official table instead of
+    /// deriving one method from another, because Torn rounds each displayed duration independently.
+    /// Live flights never use this estimate: their countdown comes from the API's `travel.timestamp`,
+    /// `departed`, and `time_left` fields.
     func flightTimeMinutes(method: FlightMethod = .standard) -> Int {
         switch (self, method) {
         case (.mexico, .standard): return 24

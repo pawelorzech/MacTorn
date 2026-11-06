@@ -75,19 +75,12 @@ enum TornEndpointDenial: Equatable, Sendable {
     }
 }
 
-/// Decides, per endpoint, whether MacTorn is allowed to spend a request right now.
+/// Decides, per endpoint, whether MacTorn may spend a request right now.
 ///
-/// This exists because the app already *knew* the answer and asked anyway. `/key/info`
-/// reports exactly which selections a key can read and whether its owner is in a faction,
-/// and `PollingCoordinator` already measures the row budget — but before this type, every
-/// fetch fired regardless, so a Public-Only key or a factionless player spent a request on
-/// `faction/basic` every thirty seconds, forever, purely to be told "no". The failures were
-/// invisible too: each one logged a warning and moved on.
-///
-/// The gate is deliberately conservative in one direction only. It refuses a call solely
-/// on a fact it has (a validated key that lacks the selection, a live cool-off, an
-/// exhausted budget) and always allows a call it cannot rule out — an unvalidated key
-/// never blocks anything.
+/// It refuses a call only on a fact it has (a validated key that lacks the selection, a live
+/// cool-off, an exhausted budget) and always allows one it cannot rule out; an unvalidated key
+/// never blocks anything. Without it a Public-Only key or a factionless player would spend a
+/// request on `faction/basic` every poll just to be told no.
 @MainActor
 final class TornEndpointGate {
     private let time: TimeSource
@@ -100,8 +93,6 @@ final class TornEndpointGate {
     init(time: TimeSource = SystemTimeSource()) {
         self.time = time
     }
-
-    // MARK: - Asking
 
     /// The reason `endpointID` may not be called now, or `nil` when it may.
     ///
@@ -150,10 +141,8 @@ final class TornEndpointGate {
             }
         }
 
-        // The row budget is a client-side guard rail set well below Torn's 50,000/day
-        // cap. Checking it here is what makes it a limit rather than a readout — it used
-        // to be measured and then never consulted, so the only thing that actually
-        // stopped a runaway row source was Torn answering with error 14.
+        // The row budget is a client-side guard rail set well below Torn's 50,000/day cap; checking it
+        // here is what makes it a limit rather than a readout.
         if endpoint.recordsPerCall > 0, !coordinator.isWithinRecordBudget(endpoint.budget) {
             return .rowBudgetExhausted(endpoint.budget)
         }
@@ -164,8 +153,6 @@ final class TornEndpointGate {
 
         return nil
     }
-
-    // MARK: - Telling
 
     /// Records a failure so the affected endpoint backs off for as long as that class of
     /// failure warrants. Errors with no `pauseDuration` (transport blips, backend hiccups)
@@ -181,10 +168,9 @@ final class TornEndpointGate {
 
     /// Applies a cool-off to *every* registered endpoint.
     ///
-    /// Some failures are properties of the key or the network, not of the endpoint that
-    /// happened to hit them: an IP block and a suspended key refuse everything equally.
-    /// Pausing only the endpoint that noticed would leave the other eight to keep firing
-    /// into the same wall — and, for an IP block, to keep earning it.
+    /// Some failures are properties of the key or the network, not of the endpoint that happened to
+    /// hit them: an IP block and a suspended key refuse everything equally, and pausing only one
+    /// endpoint would let the rest keep firing into the same wall (and, for an IP block, keep earning it).
     func noteAccountWideFailure(_ error: TornAPIError) {
         guard let pause = error.pauseDuration else { return }
         for endpoint in TornEndpointRegistry.all {
@@ -210,7 +196,6 @@ final class TornEndpointGate {
         pausedUntil[endpointID] = (deadline, reason)
     }
 
-    /// Whether `endpointID` is currently in a cool-off.
     func isPaused(_ endpointID: String) -> Bool {
         guard let entry = pausedUntil[endpointID] else { return false }
         if time.now >= entry.deadline {

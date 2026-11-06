@@ -3,11 +3,9 @@ import Foundation
 // MARK: - Organized Crime 2.0 (player's own OC via v2 /user?selections=organizedcrime)
 //
 // Torn migrated every faction to Organized Crimes 2.0 (~Feb 2025). The old v1
-// `faction/?selections=crimes` selection now only returns frozen OC-1.0 *history*
-// (completed pre-migration crimes, 0 active) and its `initiated` field flipped from
-// Bool to Int — so the previous parser silently dropped every crime. We instead read
-// the player's OWN current OC from the v2 endpoint: the live, useful signal for a
-// menu-bar monitor. Shape verified against a live API response 2026-07-03.
+// `faction/?selections=crimes` selection now only returns frozen OC-1.0 history (0 active) and its
+// `initiated` field flipped from Bool to Int, so the player's own current OC is read from the v2
+// endpoint instead. Shape verified against a live API response 2026-07-03.
 struct OrganizedCrime2: Codable, Equatable, Identifiable {
     let id: Int
     let name: String
@@ -112,13 +110,10 @@ struct Refills: Codable, Equatable {
 
 /// The four counters Torn's own header badges are built from.
 ///
-/// This is the cheap way to know there is something waiting. MacTorn used to learn its
-/// unread-message count from the row-based `messages` selection, which spends rows against
-/// the 50,000-a-day-per-category cap just to produce one integer — so it could only afford
-/// to ask every five minutes. `notifications` is point-in-time, costs no rows, needs only a
-/// Minimal-access key, and rides the poll MacTorn already makes. It also carries two
-/// signals the app previously had no way to see at all: pending awards, and an active
-/// competition.
+/// The cheap way to know something is waiting: point-in-time, costs no rows, needs only a
+/// Minimal-access key and rides the poll MacTorn already makes. The row-based `messages` selection
+/// spends rows against the 50,000-a-day-per-category cap for the same single integer. Also carries
+/// pending awards and an active competition.
 struct TornNotifications: Codable, Equatable, Sendable {
     let messages: Int
     let events: Int
@@ -174,10 +169,8 @@ struct VirusProgramming: Codable, Equatable, Sendable {
         try container.encode(until, forKey: .until)
     }
 
-    /// Seconds left, measured against the Torn-side clock the caller supplies (issue #46:
-    /// every countdown in the app reads through `ServerClock`, never a bare `Date()`).
-    /// Never negative — a finished virus reads as zero, not as a countdown running
-    /// backwards.
+    /// Seconds left, measured against the Torn-side clock the caller supplies. Never negative: a
+    /// finished virus reads as zero.
     func secondsRemaining(at serverNow: Date) -> Int {
         NumericSafety.secondsRemaining(until: until, at: serverNow)
     }

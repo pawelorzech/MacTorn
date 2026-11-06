@@ -1,22 +1,16 @@
 import Foundation
 
-// MARK: - Polling budget accounting (Etap D)
+// Measures and caps MacTorn's Torn API usage so it stays well under Torn's limits. Two independent
+// budgets, both keyed off the typed `TornEndpoint` registry:
 //
-// Measures and caps MacTorn's Torn API usage so it stays well under Torn's limits and
-// never silently drifts over (the class of bug that caused error 14 in v1.9.2). It
-// tracks two independent budgets, both keyed off the typed `TornEndpoint` registry:
+//   - Requests: a rolling per-minute and per-day count. Torn allows 100 req/min; we cap at a
+//     conservative `hardCapPerMinute` and treat `softTargetPerMinute` as the "healthy" line for
+//     diagnostics. `canMakeRequest()` is the gate no code path may bypass.
+//   - Records: row-based categories (events, attacks, news, forum) count against Torn's
+//     50,000-rows/day-per-category cap. Rows/day are tracked per `TornBudgetCategory` and flagged
+//     near `recordBudgetPerDayPerCategory`.
 //
-//   • Requests — a rolling per-minute and per-day count. Torn allows 100 req/min; we
-//     cap at a conservative `hardCapPerMinute` (60) and treat `softTargetPerMinute` (15)
-//     as the "healthy" line for diagnostics. `canMakeRequest()` is the gate no code path
-//     may bypass.
-//   • Records — row-based categories (events, attacks, news, forum) count against Torn's
-//     50,000-rows/day-per-category cap. We track rows/day per `TornBudgetCategory` and
-//     flag anything approaching `recordBudgetPerDayPerCategory` (15,000, a safe target).
-//
-// Time comes from an injected `TimeSource`, so the rolling windows are testable without
-// waiting real minutes. Ownership of the actual poll *schedule* (moving the Combine
-// timer out of AppState) is a later step — see ISA backlog D-02.
+// Time comes from an injected `TimeSource`, so the rolling windows are testable without waiting.
 @MainActor
 final class PollingCoordinator {
     private let time: TimeSource
@@ -31,12 +25,8 @@ final class PollingCoordinator {
     private static let minuteWindow: TimeInterval = 60
     private static let dayWindow: TimeInterval = 24 * 60 * 60
 
-    /// One counter per window. The old implementation kept every timestamp in an array and
-    /// scanned the whole thing on each gate check (`prune()` on every record, and again on
-    /// every `canMakeRequest`), which grew to tens of thousands of entries over a day and
-    /// ran several O(n) scans per request on the main actor (audit W-2). Each counter now
-    /// buckets events by whole second and drops expired buckets from the front, so both
-    /// recording and reading are O(1) amortised.
+    /// One counter per window. Events are bucketed by whole second and expired buckets are dropped from
+    /// the front, so both recording and reading are O(1) amortised.
     private var requestsInMinute = SlidingWindowCounter(windowSeconds: Int(minuteWindow))
     private var requestsInDay = SlidingWindowCounter(windowSeconds: Int(dayWindow))
     private var recordsByCategory: [TornBudgetCategory: SlidingWindowCounter] = [:]
@@ -75,7 +65,7 @@ final class PollingCoordinator {
         }
     }
 
-    // MARK: Readouts (for Diagnostics, Etap F)
+    // MARK: Readouts
 
     var requestsInLastMinute: Int { requestsInMinute.count(nowSecond: currentSecond) }
     var requestsInLastDay: Int { requestsInDay.count(nowSecond: currentSecond) }

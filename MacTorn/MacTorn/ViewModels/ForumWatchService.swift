@@ -32,11 +32,10 @@ final class ForumWatchService {
         self.defaults = defaults
     }
 
-    /// Set when a stored thread blob exists but could not be decoded. While true,
-    /// `save()` will not overwrite it — the forum poll calls `save()` on its own
-    /// schedule, so without this an unreadable blob was replaced by the empty in-memory
-    /// list within one polling interval and the user's watched threads were gone for
-    /// good (audit finding D-01). A deliberate add/remove/restore clears the flag.
+    /// Set when a stored thread blob exists but could not be decoded. While true, `save()` will not
+    /// overwrite it: the forum poll saves on its own schedule, so otherwise the unreadable blob would be
+    /// replaced by the empty in-memory list within one polling interval and the watched threads lost for
+    /// good. A deliberate add/remove/restore clears the flag.
     @ObservationIgnored private var threadsLoadFailed = false
 
     func load() {
@@ -207,14 +206,10 @@ final class ForumWatchService {
         guard let rows = json["threads"] as? [[String: Any]] else {
             return nil
         }
-        // A row without an id cannot be tracked, and one without a title cannot be
-        // announced. Skip those rather than failing the whole listing over one bad row.
-        // `limit=20` is a request parameter, and what a remote server honours is not a
-        // guarantee. Left uncapped, a listing longer than `maximumSeenThreadIds` turns the
-        // page and the eviction cap into a loop: each poll writes the page to the front,
-        // evicts the tail, and re-announces that tail on the next one, permanently. The
-        // eviction policy is sound but assumes page size is far below the cap, and nothing
-        // else enforces that.
+        // A row without an id cannot be tracked, and one without a title cannot be announced; skip those
+        // rather than failing the whole listing over one bad row. The rows read are capped too: `limit=20`
+        // is only a request parameter a remote server need not honour, and a listing longer than
+        // `maximumSeenThreadIds` would make every poll evict the tail and re-announce it on the next.
         let threads: [ForumCategoryThread] = rows.prefix(ForumWatchService.maximumThreadsPerListing).compactMap { row in
             guard let id = row["id"] as? Int else { return nil }
             return ForumCategoryThread(id: id,
@@ -232,12 +227,10 @@ final class ForumWatchService {
 
     /// A forum title, trimmed and length-capped, or nil when there is nothing usable.
     ///
-    /// Thread titles are server text that lands in `WatchedThread.title` and is encoded
-    /// into the persisted `forumWatchedThreads` blob. Without a cap a hostile or MITM'd
-    /// response writes unbounded text into the user's own data — and because that blob is
-    /// protected by `threadsLoadFailed`, a blob too large to decode is deliberately never
-    /// overwritten, so the bloat sticks instead of healing. Same rule the item catalog and
-    /// typed watchlist names already follow.
+    /// Titles are server text encoded into the persisted `forumWatchedThreads` blob. Without a cap a
+    /// hostile or MITM'd response could write unbounded text there, and because `threadsLoadFailed`
+    /// stops an undecodable blob from being overwritten, the bloat would stick. Same rule as the item
+    /// catalog and typed watchlist names.
     nonisolated static func boundedTitle(_ raw: Any?) -> String? {
         guard let text = raw as? String else { return nil }
         let cleaned = String(
@@ -249,11 +242,9 @@ final class ForumWatchService {
 
     nonisolated static func decodeThread(_ data: Data, _ json: [String: Any]) -> ForumThreadSnapshot? {
         let thread = json["thread"] as? [String: Any] ?? json
-        // The post count is the whole point of this call, so a response without a
-        // usable one is malformed — not a success with `postCount: 0`. Accepting the
-        // zero wrote it into `lastKnownPostCount`, and the `previousCount > 0` guard in
-        // `apply` then swallowed the next real increase: the "new posts" alert was lost
-        // for good and the counter silently jumped (audit finding D-02).
+        // The post count is the whole point of this call, so a response without a usable one is malformed,
+        // not a success with `postCount: 0`: a stored zero would make `apply`'s `previousCount > 0` guard
+        // swallow the next real increase.
         let postCount: Int
         if let count = thread["posts"] as? Int {
             postCount = count

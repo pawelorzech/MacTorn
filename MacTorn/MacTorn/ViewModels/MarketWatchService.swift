@@ -55,10 +55,9 @@ final class MarketWatchService {
         self.defaults = defaults
     }
 
-    /// Set when a stored blob exists but could not be decoded. While true, `save()`
-    /// refuses to write — otherwise the first background price refresh would overwrite
-    /// a recoverable blob with the empty in-memory list and destroy the user's watchlist
-    /// permanently (audit finding D-01). Any deliberate user edit clears the flag.
+    /// Set when a stored blob exists but could not be decoded. While true, `save()` refuses to write;
+    /// otherwise the first background price refresh would overwrite a recoverable blob with the empty
+    /// in-memory list and destroy the user's watchlist. Any deliberate user edit clears the flag.
     @ObservationIgnored private var loadFailed = false
 
     private static let storageKey = "watchlist"

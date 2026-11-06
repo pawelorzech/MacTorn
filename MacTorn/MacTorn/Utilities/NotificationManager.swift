@@ -154,8 +154,6 @@ final class NotificationManager: NSObject, Notifying, UNUserNotificationCenterDe
         return content
     }
 
-    // MARK: - UNUserNotificationCenterDelegate
-
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,

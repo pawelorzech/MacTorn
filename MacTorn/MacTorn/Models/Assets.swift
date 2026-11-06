@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Money
 struct MoneyData: Codable {
     let cash: Int
     let vault: Int
@@ -34,8 +33,6 @@ struct MoneyData: Codable {
     }
 }
 
-// MARK: - Property Info
-//
 // Field semantics (verified against real Torn API on 2026-04-18):
 // - `cost`: purchase price you paid
 // - `marketprice`: current resale value (use for net worth)
@@ -99,7 +96,6 @@ struct PropertyInfo: Codable, Identifiable {
     }
 }
 
-// MARK: - Stock Holdings
 struct StockHolding: Codable, Identifiable {
     let stockId: Int
     let totalShares: Int
@@ -191,9 +187,8 @@ struct StockMetadata: Codable, Identifiable, Equatable {
     }
 }
 
-// Note: parsing of `torn/?selections=stocks` is done via JSONSerialization in
-// `AppState.parseStocksMetadata(from:logger:)` to be resilient to extra/changing
-// fields in the live API response.
+// `torn/?selections=stocks` is parsed with JSONSerialization (`AppState.parseStocksMetadata(json:logger:)`)
+// to stay resilient to extra or changing fields in the live response.
 
 struct StockTransaction: Codable {
     let shares: Int

@@ -103,8 +103,6 @@ final class TornRequester {
         inFlight.removeAll()
     }
 
-    // MARK: - Asking
-
     func url(_ endpointID: String, parameter: Int? = nil, key: String? = nil) -> URL? {
         guard let endpoint = TornEndpointRegistry.endpoint(id: endpointID) else { return nil }
         let resolvedKey = key ?? account.apiKey
@@ -116,7 +114,6 @@ final class TornRequester {
         gate.denial(for: endpointID, keyInfo: keyInfo, coordinator: budget)
     }
 
-    /// Whether the endpoint's minimum interval has passed since it was last sent.
     func isDue(_ endpointID: String, every interval: TimeInterval? = nil) -> Bool {
         guard let interval = interval ?? TornEndpointRegistry.endpoint(id: endpointID)?.minimumInterval,
               let last = lastAttempt[endpointID] else { return true }
@@ -128,8 +125,6 @@ final class TornRequester {
     }
 
     func isInFlight(_ endpointID: String) -> Bool { inFlight[endpointID] != nil }
-
-    // MARK: - Sending
 
     /// Builds the URL and charges the budget now, on the caller's turn, so a request the
     /// caller has accepted is already counted before its transport runs.

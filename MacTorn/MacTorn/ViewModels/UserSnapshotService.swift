@@ -142,9 +142,9 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     }
 
     static func decodeActivity(_ data: Data, _ json: [String: Any]) -> UserActivityPayload? {
-        // `TornResponse.recentEvents` collapses a *missing* key to `[]`. The payload keeps
-        // absent apart from empty, the way `parseAttacks(_:)` does, so a 200 body that omits
-        // `events` leaves the user's event list alone instead of emptying it (issue #84).
+        // `TornResponse.recentEvents` collapses a *missing* key to `[]`. The payload keeps absent apart from
+        // empty, the way `parseAttacks(_:)` does, so a 200 body that omits `events` leaves the user's event
+        // list alone instead of emptying it.
         let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
         return UserActivityPayload(
             events: isPresent(json["events"]) ? decoded?.recentEvents : nil,

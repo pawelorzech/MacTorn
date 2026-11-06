@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Watchlist Item
 struct WatchlistItem: Codable, Identifiable {
     let id: Int
     let name: String
@@ -15,7 +14,6 @@ struct WatchlistItem: Codable, Identifiable {
     var priceThreshold: Int?
     var lastAlertedPrice: Int?
 
-    // Explicit memberwise initializer
     init(id: Int, name: String, lowestPrice: Int, lowestPriceQuantity: Int, secondLowestPrice: Int, lastUpdated: Date?, error: String?, priceThreshold: Int? = nil, lastAlertedPrice: Int? = nil, lastFetchedAt: Date? = nil, dataTimestamp: Date? = nil, cacheDelay: TimeInterval? = nil) {
         self.id = id
         self.name = name
@@ -48,17 +46,15 @@ struct WatchlistItem: Codable, Identifiable {
         lastAlertedPrice = try container.decodeIfPresent(Int.self, forKey: .lastAlertedPrice)
     }
 
-    /// Longest display name a watchlist entry may carry. `MarketWatchService.add`
-    /// enforced this on names the user typed; `renamed(to:)` now enforces it on names
-    /// that arrive from Torn's item catalog, so there is one rule rather than two.
+    /// Longest display name a watchlist entry may carry, whether typed or arriving from Torn's item
+    /// catalog.
     static let maximumNameLength = 64
 
     /// A copy under a different display name. `id` is the identity: renaming an entry
     /// keeps its prices, its threshold and its alert history intact.
     ///
-    /// The new name is trimmed and capped exactly as a typed one is. Without that, a
-    /// hostile or MITM'd `/v2/torn/items` response could write unbounded server text into
-    /// the user's own persisted watchlist through the catalog backfill.
+    /// The new name is trimmed and capped as a typed one is, so a hostile or MITM'd `/v2/torn/items`
+    /// response cannot write unbounded server text into the persisted watchlist.
     func renamed(to newName: String) -> WatchlistItem {
         let cleaned = String(
             newName.trimmingCharacters(in: .whitespacesAndNewlines)

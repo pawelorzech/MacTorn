@@ -3,7 +3,6 @@ import os.log
 
 private let logger = Logger(subsystem: TornConstants.logSubsystem, category: "UpdateManager")
 
-// MARK: - Update Manager
 struct GitHubRelease: Codable {
     let tagName: String
     let htmlUrl: String
@@ -17,14 +16,11 @@ struct GitHubRelease: Codable {
 }
 
 class UpdateManager {
-    // Configure your repository here
     private let githubOwner = "pawelorzech"
     private let githubRepo = "MacTorn"
 
-    /// GitHub's API, not Torn's — bypassing the Torn budget-gated `session` on
-    /// `AppState` is correct here. The bug was that this was hard-coded to
-    /// `URLSession.shared`, so the type had 0% test coverage; injecting it lets tests
-    /// substitute a `MockNetworkSession` (issue #56).
+    /// GitHub's API, not Torn's, so bypassing the Torn budget-gated `session` on `AppState` is correct
+    /// here. Injectable so tests can substitute a `MockNetworkSession`.
     private let session: NetworkSession
 
     init(session: NetworkSession = URLSession.shared) {
@@ -62,10 +58,8 @@ class UpdateManager {
 
             let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
 
-            // Compare versions. Strip only a LEADING "v" prefix — release tags can
-            // legitimately contain other "v" characters (e.g. "v1.2.3-victory"), and
-            // `replacingOccurrences(of: "v", with: "")` used to strip every one of
-            // them, mangling the version string past the parseable components.
+            // Strip only a LEADING "v": release tags can legitimately contain other "v" characters
+            // (e.g. "v1.2.3-victory").
             let versionString = release.tagName.hasPrefix("v")
                 ? String(release.tagName.dropFirst())
                 : release.tagName

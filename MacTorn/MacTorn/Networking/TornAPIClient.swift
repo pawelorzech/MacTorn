@@ -1,20 +1,13 @@
 import Foundation
 
-// MARK: - Request construction
-
 /// The one place MacTorn turns a built Torn API URL into the request it actually sends.
 ///
-/// Two things happen here that every call site needs and none of them should re-implement:
-///
-///  1. **The key leaves the URL on API v2.** Torn's OpenAPI document declares an
-///     `Authorization: ApiKey <key>` header and states the `key` query parameter "is not
-///     required … when passing the API key via the Authorization header". A key in a
-///     query string is a key in every URL that gets logged, cached, or attached to a
-///     crash report; a key in a header is not. v1 has no documented header form, so v1
-///     URLs keep `key=` — `tornRedactedURL` remains the guard there.
-///  2. **The URL cache is bypassed.** Torn may itself serve a response up to ~30 s old;
-///     letting `URLCache` stack a second layer on top of that is how a countdown ends up
-///     minutes stale.
+/// 1. On API v2 the key leaves the URL. Torn's OpenAPI document declares an
+///    `Authorization: ApiKey <key>` header, and a key in a query string ends up in every logged,
+///    cached or crash-reported URL. v1 has no documented header form, so v1 URLs keep `key=` and
+///    `tornRedactedURL` remains the guard there.
+/// 2. The URL cache is bypassed. Torn may already serve a response up to ~30 s old; stacking
+///    `URLCache` on top of that leaves countdowns minutes stale.
 enum TornAPIClient {
     /// Sent as `comment` on every request. Torn surfaces it in the key owner's key log
     /// (`/v2/key/log`), which is how a user tells MacTorn's calls apart from those of
@@ -68,31 +61,16 @@ func tornRedactedURL(_ url: URL) -> String {
     return "\(scheme)://\(host)\(path)?[\(keys)]"
 }
 
-/// Extracts a Torn API error message from a parsed top-level JSON object, accepting
-/// BOTH error envelopes Torn uses. Torn always returns HTTP 200 even on API errors,
-/// so the envelope — not the status code — is the source of truth.
-///
-///   • v1 (legacy `/user`, `/faction`, `/torn`):  `{"error": {"code": Int, "error": String}}`
-///   • v2 (`/v2/...` market, forum):              `{"code": Int, "error": String}`
-///
-/// The v2 form (per the Torn OpenAPI spec: ErrorTooManyRequests, ErrorIncorrectKey, …)
-/// carries `code` and `error` as sibling top-level keys with `error` as a *string*.
-/// Parsing only the v1 shape silently swallows every v2 error (rate-limit, bad key,
-/// access level), so v2 call sites surfaced garbage ("No listings", "Unknown" thread)
-/// instead of the real failure. This helper detects either shape.
-///
-/// Returns the human-readable message, or nil if `json` is not an error envelope.
-/// The classified Torn error in a response, or nil when the payload is not an error
-/// envelope. Torn reports errors as HTTP 200 in two shapes: v1 nests `{code, error}` under
-/// `error`, v2 puts them at the top level.
+/// The classified Torn error in a response, or nil when the payload is not an error envelope.
+/// Torn reports errors as HTTP 200 in two shapes, so the envelope, not the status code, is the
+/// source of truth: v1 nests `{"error": {"code": Int, "error": String}}`, v2 puts `{"code": Int,
+/// "error": String}` at the top level. Parsing only the v1 shape would swallow every v2 error.
 func tornAPIError(in json: [String: Any]) -> TornAPIError? {
-    // v1 envelope: { "error": { "code": Int, "error": String } }
     if let nested = json["error"] as? [String: Any] {
         let code = nested["code"] as? Int ?? 0
         let message = nested["error"] as? String ?? ""
         return TornAPIError.classify(code: code, message: message)
     }
-    // v2 envelope: { "code": Int, "error": String }
     if let code = json["code"] as? Int, let message = json["error"] as? String {
         return TornAPIError.classify(code: code, message: message)
     }

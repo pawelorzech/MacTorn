@@ -1,6 +1,5 @@
 import Foundation
 
-// MARK: - Root Response
 struct TornResponse: Codable {
     let name: String?
     let playerId: Int?
@@ -12,15 +11,13 @@ struct TornResponse: Codable {
     let travel: Travel?
     let status: Status?
     let events: [String: TornEvent]?
-    /// Server-side Unix epoch at which this response was generated. Used as the
-    /// anchor when converting relative durations (e.g. cooldowns) into absolute
-    /// end-timestamps so countdowns match torn.com regardless of Mac↔server clock skew.
+    /// Server-side Unix epoch at which this response was generated; the anchor for converting relative
+    /// durations (e.g. cooldowns) into absolute end-timestamps, so countdowns match torn.com regardless
+    /// of Mac↔server clock skew.
     ///
-    /// The live v1 `user` root returns this under `server_time` — NOT `timestamp`
-    /// (which is only present when the `timestamp` selection is requested, which we
-    /// don't). `legacyTimestamp` keeps the old `timestamp` key working as a fallback
-    /// so a response carrying either key still anchors correctly. Verified against a
-    /// live API response 2026-07-03.
+    /// The live v1 `user` root returns it as `server_time`, NOT `timestamp` (only present when the
+    /// `timestamp` selection is requested, which we don't). `legacyTimestamp` keeps the old key working
+    /// as a fallback. Verified against a live API response 2026-07-03.
     let serverTimestamp: Int?
     let legacyTimestamp: Int?
 
@@ -38,7 +35,6 @@ struct TornResponse: Codable {
         case legacyTimestamp = "timestamp"
     }
     
-    // Convenience computed property
     var bars: Bars? {
         guard let energy = energy,
               let nerve = nerve,
@@ -48,7 +44,6 @@ struct TornResponse: Codable {
     }
     
     
-    // Recent events sorted
     var recentEvents: [TornEvent] {
         guard let events = events else { return [] }
         return events
@@ -57,7 +52,6 @@ struct TornResponse: Codable {
     }
 }
 
-// MARK: - Bars
 struct Bar: Codable, Equatable {
     let current: Int
     let maximum: Int
@@ -88,7 +82,6 @@ struct Bars: Equatable {
     let happy: Bar
 }
 
-// MARK: - Cooldowns
 struct Cooldowns: Codable, Equatable {
     let drug: Int
     let medical: Int
@@ -117,11 +110,9 @@ enum CooldownKind: CaseIterable {
     }
 }
 
-/// Absolute end-timestamps for each cooldown, computed once at fetch time from
-/// the server's response timestamp + the relative cooldown duration. Storing the
-/// end-time (not the duration) is what keeps every countdown drift-free against
-/// torn.com — see `Plans/wszystkie-czasy-kt-re-s-dazzling-bumblebee.md`. A value
-/// of `0` means the cooldown is not active.
+/// Absolute end-timestamps for each cooldown, computed once at fetch time from the server's response
+/// timestamp plus the relative cooldown duration. Storing the end-time (not the duration) keeps every
+/// countdown drift-free against torn.com. A value of `0` means the cooldown is not active.
 struct CooldownEnds: Equatable {
     let drugEndsAt: Int
     let boosterEndsAt: Int
@@ -139,11 +130,8 @@ struct CooldownEnds: Equatable {
     /// sentinel — when the cooldown is inactive or the API's numbers cannot produce a
     /// usable one.
     ///
-    /// `anchor` and `duration` are both raw `Int`s decoded straight from Torn, so nothing
-    /// bounds their sum. A response carrying a duration near `Int.max` overflowed the
-    /// addition and trapped the process (SIGTRAP, exit 133). Degrading that cooldown to
-    /// "unknown" keeps a display-only menu bar app running, which is strictly better than
-    /// crashing it over a number it only meant to display.
+    /// `anchor` and `duration` are raw `Int`s decoded straight from Torn, so nothing bounds their sum;
+    /// an overflowing addition would trap the process, so that cooldown degrades to "unknown" instead.
     private static func endTimestamp(anchor: Int, duration: Int) -> Int {
         guard duration > 0 else { return 0 }
         let (endsAt, overflowed) = anchor.addingReportingOverflow(duration)
@@ -172,21 +160,17 @@ struct CooldownEnds: Equatable {
     }
 
     /// Stabilises per-poll jitter in cooldown end-timestamps. Each poll re-derives
-    /// `endsAt = serverTimestamp + cooldowns.{kind}`, but both the API timestamp and
-    /// the duration are integer-seconds and are subject to network-latency variance,
-    /// so the freshly-computed `endsAt` typically wobbles by ±1–3 s between polls
-    /// even though the cooldown's true expiry is fixed. Without smoothing, every
-    /// poll causes a visible jump in the menu bar countdown.
+    /// `endsAt = serverTimestamp + cooldowns.{kind}`, but both inputs are integer seconds subject to
+    /// network-latency variance, so the result wobbles by ±1–3 s between polls even though the true
+    /// expiry is fixed; unsmoothed, every poll would visibly jump the menu bar countdown.
     ///
-    /// Per kind: keep the previously-pinned `endsAt` whenever the new one is within
-    /// `toleranceSeconds`. A larger gap means the cooldown was reset (new booster
-    /// taken, drug applied, medical after hospitalisation) — we adopt the new value.
-    /// A `0` on either side (cooldown inactive on one side) is taken from `other`
-    /// so transitions in/out of active are immediate.
+    /// Per kind: keep the previously-pinned `endsAt` whenever the new one is within `toleranceSeconds`.
+    /// A larger gap means the cooldown was reset (new booster, drug, medical after hospitalisation), so
+    /// the new value is adopted. A `0` on either side (inactive) is taken from `other` so transitions
+    /// in/out of active are immediate.
     ///
-    /// The tolerance is shared with `ServerClock.merged`, which damps the *other* half
-    /// of the same subtraction (issue #46): pinning `endsAt` while `now` still wobbles
-    /// poll to poll would give the jump back.
+    /// The tolerance is shared with `ServerClock.merged`, which damps the other half of the same
+    /// subtraction: pinning `endsAt` while `now` still wobbles would give the jump back.
     func merged(with other: CooldownEnds,
                 toleranceSeconds: Int = ServerClock.jitterToleranceSeconds) -> CooldownEnds {
         func pick(_ old: Int, _ new: Int) -> Int {
@@ -201,7 +185,6 @@ struct CooldownEnds: Equatable {
     }
 }
 
-// MARK: - Status (Hospital/Jail)
 struct Status: Codable, Equatable {
     let description: String?
     let details: String?
@@ -227,7 +210,6 @@ struct Status: Codable, Equatable {
     }
 }
 
-// MARK: - Events
 struct TornEvent: Codable, Identifiable {
     let timestamp: Int
     let event: String
@@ -252,12 +234,9 @@ struct TornEvent: Codable, Identifiable {
         Date(timeIntervalSince1970: TimeInterval(timestamp))
     }
     
-    /// Event text with HTML tags removed, then run through the shared display sanitiser.
-    ///
-    /// Event bodies carry names and messages supplied by other players, so stripping tags
-    /// alone left control characters and bidi overrides intact on a string that reaches both
-    /// Text and the VoiceOver label. Tags come off first so the length cap applies to what
-    /// the user actually sees rather than to markup.
+    /// Event text with HTML tags removed, then run through the shared display sanitiser. Bodies carry
+    /// names and messages supplied by other players, so control characters and bidi overrides must go
+    /// too. Tags come off first so the length cap applies to what the user sees, not to markup.
     var cleanEvent: String {
         event
             .strippedHTMLAndDecodedEntities

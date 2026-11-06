@@ -1,13 +1,11 @@
 import Foundation
 import Network
 
-/// Protocol for network connectivity checks, enabling dependency injection for testing
 @MainActor
 protocol NetworkConnectivity: AnyObject {
     var isConnected: Bool { get }
-    /// Invoked when connectivity transitions from down to up, so the app can trigger a
-    /// safe refresh (Etap D: "offline → online powoduje bezpieczny refresh"). Set by the
-    /// owner; may be nil.
+    /// Invoked when connectivity transitions from down to up, so the app can trigger a safe refresh.
+    /// Set by the owner; may be nil.
     var onConnectivityRestored: (() -> Void)? { get set }
 }
 

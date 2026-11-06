@@ -126,8 +126,6 @@ final class AccountSessionStore {
     }
 }
 
-// MARK: - Keychain
-
 /// Generic-password Keychain access for the single Torn API key.
 enum KeychainStore {
     static let account = "apiKey"

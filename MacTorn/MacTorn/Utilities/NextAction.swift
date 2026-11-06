@@ -1,12 +1,9 @@
 import Foundation
 
-// MARK: - Next Action (Etap J)
-//
-// One unified timeline of "what happens next" in Torn — bars filling, cooldowns ending,
-// travel landing, hospital/jail release, education finishing, OC becoming ready, the
-// chain timing out, and refills waiting to be claimed. The engine is pure and reads a
-// decoupled snapshot of absolute Unix timestamps, so it is fully testable with the
-// shared clock and independent of AppState's many models.
+// One unified timeline of "what happens next" in Torn: bars filling, cooldowns ending, travel
+// landing, hospital/jail release, education finishing, OC becoming ready, the chain timing out and
+// refills waiting to be claimed. The engine is pure and reads a decoupled snapshot of absolute Unix
+// timestamps, so it is testable with the shared clock and independent of AppState's models.
 
 enum NextActionCategory: String, CaseIterable, Codable, Sendable {
     case energy, nerve, happy, life
@@ -55,8 +52,7 @@ enum NextActionCategory: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// Stable ordering for tie-breaks when two events share a fire time. Precomputed so
-    /// the per-event comparator is O(1) instead of scanning `allCases` on every compare.
+    /// Stable ordering for tie-breaks when two events share a fire time.
     var order: Int { Self.orderIndex[self] ?? 0 }
 
     private static let orderIndex: [NextActionCategory: Int] = Dictionary(

@@ -58,12 +58,10 @@ class AppState {
         set {
             guard accountSession.updateAPIKey(newValue) else { return }
             resetAccountScopedState()
-            // Dedup latches are per-account facts (this chain already alerted, this OC
-            // was already announced, this bounty was already reported). Switching
-            // accounts must forget them. This is done here rather than in
-            // `resetAccountScopedState()` on purpose: that method is also called on a
-            // transient permanent-key error, where clearing the latches would re-fire
-            // alerts the user has already seen. (Audit finding C-03.)
+            // Dedup latches are per-account facts (this chain already alerted, this OC was announced, this
+            // bounty was reported), so switching accounts must forget them. Done here rather than in
+            // `resetAccountScopedState()` on purpose: that method also runs on a transient permanent-key
+            // error, where clearing the latches would re-fire alerts the user has already seen.
             notificationCoordinator.reset()
             if newValue.isEmpty {
                 stopPolling()
@@ -81,7 +79,7 @@ class AppState {
         set { accountSession.isHalted = newValue }
     }
 
-    // MARK: - Key validation (Etap C, ISC-16)
+    // MARK: - Key validation
     /// Onboarding "Test Connection" state. Drives the SettingsView result panel.
     var keyValidation: KeyValidationState = .idle {
         didSet {
@@ -91,9 +89,8 @@ class AppState {
     }
     @ObservationIgnored var keyValidationGeneration: UInt = 0
 
-    // Was @AppStorage; replaced with stored property + didSet write-through to
-    // UserDefaults so @Observable change tracking sees it. Initial value is
-    // populated from UserDefaults in init().
+    // A stored property with a `didSet` write-through to UserDefaults (not `@AppStorage`), so
+    // `@Observable` change tracking sees it. The initial value is loaded in `init()`.
     var refreshInterval: Int = 30 {
         didSet {
             guard refreshInterval != oldValue else { return }
@@ -105,9 +102,8 @@ class AppState {
             // The notification dedup measures "how stale is the previous observation" in
             // multiples of the poll cadence, so it has to hear about a cadence change.
             notificationCoordinator.refreshInterval = TimeInterval(refreshInterval)
-            // A running timer keeps the cadence it was installed with, and `startPolling`
-            // returns early while one runs — so without this the change waited for a
-            // relaunch.
+            // A running timer keeps the cadence it was installed with and `startPolling` returns early while
+            // one runs, so the change has to reinstall it.
             if timerCancellable != nil { installPollingTimer() }
         }
     }
@@ -122,25 +118,17 @@ class AppState {
     var travelNotificationSettings: [TravelNotificationSetting] = []
 
     // MARK: - New Data Sources
-    // Row-based, display-only data pulled on a slow cadence (see fetchActivityData).
-    // Kept as dedicated properties (not on `data`) so the fast poll — which no longer
-    // requests events/messages — never clobbers them.
+    // Row-based, display-only data pulled on a slow cadence (see fetchActivityData). Kept off `data`
+    // so the fast poll, which does not request events/messages, never clobbers it.
     var factionData: FactionData? {
         faction.basic
     }
 
-    /// The live chain — sourced from the **faction** endpoint, which is the only place
-    /// Torn actually returns it.
+    /// The live chain, sourced from the **faction** endpoint, the only place Torn returns it: the v1
+    /// `user` endpoint has no `chain` selection, so `data?.chain` is never populated in production.
     ///
-    /// The chain alert, the Next Action entry and the Status card all used to read
-    /// `data?.chain` (the *user* snapshot). Torn's v1 `user` endpoint has no `chain`
-    /// selection and `user.fast` never requested one, so that field was permanently
-    /// `nil` in production and all three surfaces were dead. Only the DEBUG UI-test
-    /// fixture ever populated it, which is why the tests stayed green. See audit
-    /// finding C-01 (2026-08-01).
-    ///
-    /// Both `Chain.timeout` and `FactionChain.timeout` are absolute Unix timestamps,
-    /// so the mapping is a straight field copy — no unit conversion.
+    /// Both `Chain.timeout` and `FactionChain.timeout` are absolute Unix timestamps, so the mapping is a
+    /// straight field copy.
     var liveChain: Chain? {
         guard let chain = faction.basic?.chain else { return nil }
         return Chain(current: chain.current,
@@ -157,9 +145,8 @@ class AppState {
             rebuildItemSearchIndex()
         }
     }
-    /// Lowercased mirror of `itemCatalog`, used by `searchItems`. Rebuilt only when the
-    /// catalogue changes rather than on every keystroke, which previously lowercased the
-    /// whole ~1,500-item catalog in the search field's body (audit F15).
+    /// Lowercased mirror of `itemCatalog`, used by `searchItems`. Rebuilt only when the catalogue
+    /// changes, not on every keystroke.
     @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
     var watchlistItems: [WatchlistItem] {
         get { watchlist.items }
@@ -215,7 +202,7 @@ class AppState {
     var serverFetchTime: Date { player.serverClock.serverNow(player.lastFetchTime) }
 
 
-    // MARK: - Next Action (Etap J)
+    // MARK: - Next Action
     /// Categories the user has hidden from the Next Action timeline. Persisted.
     var hiddenNextActionCategories: Set<NextActionCategory> = [] {
         didSet {
@@ -229,12 +216,12 @@ class AppState {
 
     // MARK: - Managers
     @ObservationIgnored let updateManager: UpdateManager
-    /// Handle for the in-flight (if any) update-check `Task` started by
-    /// `checkForAppUpdates()`. Cancelled alongside polling teardown (issue #56) so an
-    /// in-flight GitHub request doesn't outlive the `AppState` that started it.
+    /// Handle for the in-flight (if any) update-check `Task` started by `checkForAppUpdates()`.
+    /// Cancelled alongside polling teardown so an in-flight GitHub request doesn't outlive the `AppState`
+    /// that started it.
     @ObservationIgnored var updateCheckTask: Task<Void, Never>?
 
-    // MARK: - Networking (Dependency Injection for Testing)
+    // MARK: - Networking
     @ObservationIgnored let requester: TornRequester
     @ObservationIgnored let notifier: Notifying
     @ObservationIgnored let connectivity: NetworkConnectivity
@@ -244,7 +231,6 @@ class AppState {
     @ObservationIgnored let watchlist: MarketWatchService
     @ObservationIgnored let forumWatch: ForumWatchService
 
-    // MARK: - State Comparison
     // MARK: - Timer
     @ObservationIgnored var timerCancellable: AnyCancellable?
     @ObservationIgnored var forumTimerCancellable: AnyCancellable?
@@ -269,24 +255,22 @@ class AppState {
 
     @ObservationIgnored var stocksBackoff = RetryBackoff()
     @ObservationIgnored var itemCatalogBackoff = RetryBackoff()
-    /// In-memory staleness anchor, seeded from `UserDefaults` once at launch and refreshed
-    /// on every successful fetch. `itemCatalogIsStale` used to re-decode the entire cached
-    /// blob from `UserDefaults` on every poll — twice per tick, on the main actor. The
-    /// predicate now reads only these fields (audit W-1).
+    /// In-memory staleness anchor, seeded from `UserDefaults` once at launch and refreshed on every
+    /// successful fetch, so `itemCatalogIsStale` reads only these fields instead of decoding the cached
+    /// blob on every poll.
     @ObservationIgnored var itemCatalogFetchedAt: Date?
-    /// True once an *expanded* (`[Int: CachedCatalogItem]`) cache was decoded. A legacy
-    /// name-only cache leaves this false so the catalogue is refreshed into the expanded
-    /// shape, preserving the old migration behaviour.
+    ///
+    /// True once an *expanded* (`[Int: CachedCatalogItem]`) cache was decoded. A legacy name-only cache
+    /// leaves this false so the catalogue is refreshed into the expanded shape.
     @ObservationIgnored var itemCatalogCacheExpanded = false
 
-    /// Non-secret persistence store. Injected so tests get an isolated
-    /// `UserDefaults` suite instead of the process-wide `.standard`, which under
-    /// parallel testing races across test classes on shared keys (e.g. "watchlist").
-    /// Production always passes `.standard`. See audit finding G-01.
+    /// Non-secret persistence store. Injected so tests get an isolated `UserDefaults` suite instead of
+    /// the process-wide `.standard`, which under parallel testing races across test classes on shared
+    /// keys (e.g. "watchlist"). Production always passes `.standard`.
     @ObservationIgnored let defaults: UserDefaults
 
-    /// Persistent notification de-duplication (Etap E). Built from the same injected
-    /// `defaults`, so tests get isolated dedup state alongside isolated persistence.
+    /// Persistent notification de-duplication. Built from the same injected `defaults`, so tests get
+    /// isolated dedup state alongside isolated persistence.
     @ObservationIgnored let notificationCoordinator: NotificationCoordinator
 
     /// Shared clock (injected). Used for the daily-row-limit pause windows below.
@@ -349,9 +333,8 @@ class AppState {
         self.requester = TornRequester(session: session, time: time, account: self.accountSession,
                                        budget: pollingCoordinator)
 
-        // Was provided by @AppStorage; now manual seed from UserDefaults so the
-        // values survive across launches. Note: didSet does NOT fire on init,
-        // so this assignment doesn't loop-write back into UserDefaults.
+        // Seeded by hand from UserDefaults; `didSet` does not fire during `init`, so these assignments do
+        // not write back.
         if let stored = defaults.object(forKey: "refreshInterval") as? Int,
            Self.allowedRefreshIntervals.contains(stored) {
             self.refreshInterval = stored
@@ -369,17 +352,15 @@ class AppState {
         loadItemCatalogFromCache()
         loadHiddenNextActionCategories()
 
-        // Etap D: when the network comes back after an outage, refresh once immediately
-        // instead of waiting up to a full refresh interval. `refreshNow` routes through
-        // the same throttled + budget-gated path, so this can't stampede requests. The
-        // callback is only ever invoked on the main actor (NetworkMonitor hops to it).
+        // When the network comes back after an outage, refresh once immediately instead of waiting up to a
+        // full refresh interval. `refreshNow` routes through the same throttled, budget-gated path, so this
+        // cannot stampede requests. The callback is only invoked on the main actor (NetworkMonitor hops to it).
         self.connectivity.onConnectivityRestored = { [weak self] in
             self?.refreshNow()
         }
         requester.onAccountError = { [weak self] error, endpointID in
             self?.handleAccountError(error, for: endpointID)
         }
-        // Polling and permissions moved to onAppear in UI
     }
 
     private static let allowedRefreshIntervals: Set<Int> = [15, 30, 60, 120]
@@ -397,22 +378,19 @@ class AppState {
         // Landing alerts were scheduled for the old account's flight. Left pending, they
         // fire later for an account that is not travelling (or a key that no longer works).
         cancelLandingAlerts()
-        // Bounty dedup is deliberately NOT cleared here, for the reason the apiKey setter
-        // documents: it is a dedup latch, and a transient permanent-key error routes through
-        // this method. Wiping it there re-announced every bounty the user had already been
-        // told about the moment polling recovered. It now lives in `notificationCoordinator`
-        // (persisted, so it also survives a relaunch — issue #53), and the setter clears it
-        // via `notificationCoordinator.reset()` on a real account change.
+        // Bounty dedup is deliberately NOT cleared here, for the reason the apiKey setter documents: it is a
+        // dedup latch, and a transient permanent-key error routes through this method. It lives in
+        // `notificationCoordinator` (persisted), and the setter clears it via
+        // `notificationCoordinator.reset()` on a real account change.
         requester.reset()
         keyInfoTask?.cancel()
         keyInfoTask = nil
         firstFetchTask?.cancel()
         firstFetchTask = nil
         awaitingFirstKeyInfo = false
-        // The old account's timer must not keep polling under the new account's key. It
-        // also fed `startPolling`'s early-return guard, which reads `timerCancellable` and
-        // `lastFetchTime` — neither of which an account change touched — so a switch within
-        // half a refresh interval returned early and never established the ordering.
+        // The old account's timer must not keep polling under the new account's key. Cancelling it is also
+        // what lets `startPolling` run again: its early-return guard reads `timerCancellable` and
+        // `lastFetchTime`, which an account change would otherwise leave untouched.
         timerCancellable?.cancel()
         timerCancellable = nil
         pollingTimerInterval = nil

@@ -343,9 +343,8 @@ extension AppState {
                 }
             }
 
-            // Issue #46: the Mac↔Torn offset is `server_time - receivedAt`, so receipt is
-            // stamped the instant the transport returns, before the off-actor decode —
-            // decode time would otherwise be booked as clock skew.
+            // The Mac↔Torn offset is `server_time - receivedAt`, so receipt is stamped the instant the
+            // transport returns, before the off-actor decode; decode time would otherwise be booked as clock skew.
             var receivedAt = self.time.now
             let requested = TornEndpointRegistry.endpoint(id: "user.fast")?.selections ?? []
             let granted = self.requester.keyInfo?.selections.user
@@ -409,10 +408,9 @@ extension AppState {
     private func publishSnapshot(_ payload: UserSnapshotPayload, receivedAt: Date) {
         let decoded = payload.snapshot
 
-        // Issue #46: the skew is re-derived from this snapshot (so it cannot accumulate or
-        // latch across a Mac clock correction) and damped against the pinned value, the
-        // way `CooldownEnds.merged` damps `endsAt` — the raw value wobbles by a second or
-        // three per poll and would walk every countdown backwards.
+        // The skew is re-derived from this snapshot (so it cannot accumulate or latch across a Mac clock
+        // correction) and damped against the pinned value, as `CooldownEnds.merged` does for `endsAt`: the
+        // raw value wobbles by a second or three per poll and would walk every countdown backwards.
         let derivedClock = ServerClock(anchor: decoded.anchorTimestamp, localNow: receivedAt)
         player.serverClock = player.serverClock.merged(with: derivedClock)
 
