@@ -63,7 +63,10 @@ struct WidgetSnapshot: Codable, Equatable {
     let arrival: Date?
     let events: [Event]
 
-    func isStale(at now: Date) -> Bool { now.timeIntervalSince(updatedAt) > 300 }
+    /// After this long without a fresh snapshot the widget says its data is old.
+    static let staleAfter: TimeInterval = 300
+
+    func isStale(at now: Date) -> Bool { now.timeIntervalSince(updatedAt) > Self.staleAfter }
     func upcoming(at now: Date) -> [Event] {
         events.filter { $0.date > now || $0.persistsPastDate }.sorted { $0.date < $1.date }
     }

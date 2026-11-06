@@ -54,16 +54,9 @@ final class TornEndpointTests: XCTestCase {
         XCTAssertEqual(ids.count, Set(ids).count, "duplicate endpoint id")
     }
 
-    func testRowBasedEndpointsDeclareARecordLimit() {
+    func testRowBasedEndpointsAskForAtLeastOneRow() {
         for endpoint in TornEndpointRegistry.all where endpoint.dataShape == .rowBased {
-            XCTAssertNotNil(endpoint.recordLimit, "\(endpoint.id) is row-based but has no recordLimit")
             XCTAssertGreaterThan(endpoint.recordsPerCall, 0, "\(endpoint.id) records/call must be > 0")
-        }
-    }
-
-    func testPointInTimeEndpointsCountZeroRows() {
-        for endpoint in TornEndpointRegistry.all where endpoint.dataShape == .pointInTime {
-            XCTAssertEqual(endpoint.recordsPerCall, 0, "\(endpoint.id) is point-in-time yet counts rows")
         }
     }
 

@@ -58,7 +58,7 @@ extension AppState {
     }
 
     func fetchStocksMetadata() async {
-        await fetchReferenceData("torn.stocks", cacheKey: Self.stocksMetadataCacheKey,
+        _ = await fetchReferenceData("torn.stocks", cacheKey: Self.stocksMetadataCacheKey,
                                  parse: { Self.parseStocksMetadata(json: $0, logger: $1) },
                                  onFailure: { stocksBackoff.fail(at: time.now) }) { parsed in
             stocksMetadata = parsed
@@ -74,8 +74,8 @@ extension AppState {
         parse: @escaping @Sendable ([String: Any], Logger) -> [Int: Value],
         onFailure: () -> Void,
         publish: ([Int: Value]) -> Void
-    ) async {
-        guard !requester.isInFlight(endpointID) else { return }
+    ) async -> Bool {
+        guard !requester.isInFlight(endpointID) else { return false }
         let result = await requester.fetch(endpointID) { _, json -> ([Int: Value], Data)? in
             let parsed = parse(json, Self.appReferenceLogger)
             guard !parsed.isEmpty, let encoded = try? JSONEncoder().encode(parsed) else { return nil }
@@ -85,10 +85,12 @@ extension AppState {
         case .loaded(let (parsed, encoded)):
             defaults.set(encoded, forKey: cacheKey)
             publish(parsed)
+            return true
         case .failed:
             onFailure()
+            return false
         case .nothingToServe, .skipped, .superseded:
-            break
+            return false
         }
     }
 
@@ -163,7 +165,6 @@ extension AppState {
 
     @discardableResult
     func fetchItemCatalog() async -> Bool {
-        let previousFetchedAt = itemCatalogFetchedAt
         await fetchReferenceData("torn.items", cacheKey: Self.itemCatalogCacheKey,
                                  parse: { Self.parseItemCatalog(json: $0, logger: $1) },
                                  onFailure: { itemCatalogBackoff.fail(at: time.now) }) { parsed in
@@ -175,7 +176,6 @@ extension AppState {
             itemCatalogBackoff.succeed()
             backfillWatchlistNames()
         }
-        return itemCatalogFetchedAt != previousFetchedAt
     }
 
     /// Supplies the optional shop module from the same public catalogue/cache used by

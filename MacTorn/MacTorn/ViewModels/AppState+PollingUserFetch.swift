@@ -217,7 +217,7 @@ extension AppState {
     /// flight joins it instead of returning past it.
     func loadKeyInfoIfNeeded(prepared: TornPreparedRequest? = nil,
                              expectedIdentity: AccountIdentity? = nil) async {
-        guard !apiKey.isEmpty, !keyHalted, connectivity.isConnected else { return }
+        guard canTalkToTorn else { return }
         if let expectedIdentity, !accountSession.isCurrent(expectedIdentity) { return }
         if let existing = keyInfoTask {
             await existing.value

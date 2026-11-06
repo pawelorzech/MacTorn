@@ -113,11 +113,6 @@ final class AccountSessionStore {
         tasks[kind] = Task { await operation() }
     }
 
-    func cancelTask(_ kind: AccountTaskKind) {
-        tasks[kind]?.cancel()
-        tasks[kind] = nil
-    }
-
     func cancelAllTasks() {
         for task in tasks.values {
             task.cancel()

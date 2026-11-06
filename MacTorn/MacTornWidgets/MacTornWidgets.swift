@@ -14,11 +14,11 @@ struct TornProvider: TimelineProvider {
         let now = Date()
         let snapshot = WidgetSnapshotStore.shared.read()
         // Scheduled entries update readiness and stale state without new API requests.
-        var dates = [now, now.addingTimeInterval(301)]
+        var dates = [now, now.addingTimeInterval(WidgetSnapshot.staleAfter + 1)]
         if let snapshot {
             if let arrival = snapshot.arrival, arrival > now { dates.append(arrival) }
             dates += snapshot.events.map(\.date).filter { $0 > now && $0 < now.addingTimeInterval(3600) }
-            dates.append(max(now.addingTimeInterval(1), snapshot.updatedAt.addingTimeInterval(301)))
+            dates.append(max(now.addingTimeInterval(1), snapshot.updatedAt.addingTimeInterval(WidgetSnapshot.staleAfter + 1)))
         }
         completion(Timeline(entries: Array(Set(dates)).sorted().map { .init(date: $0, snapshot: snapshot) },
                             policy: .after(now.addingTimeInterval(900))))

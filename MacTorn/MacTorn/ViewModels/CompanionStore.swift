@@ -111,8 +111,7 @@ final class CompanionStore {
     }
 
     func start(app: AppState) {
-        guard task == nil, !enabled.isEmpty, !app.apiKey.isEmpty, !app.keyHalted,
-              app.connectivity.isConnected else { return }
+        guard task == nil, !enabled.isEmpty, app.canTalkToTorn else { return }
         let token = generation
         isRefreshing = true
         task = Task { [weak self, weak app] in

@@ -79,6 +79,9 @@ class AppState {
         set { accountSession.isHalted = newValue }
     }
 
+    /// A key to spend, not halted, and online: the precondition for any Torn call.
+    var canTalkToTorn: Bool { !apiKey.isEmpty && !keyHalted && connectivity.isConnected }
+
     // MARK: - Key validation
     /// Onboarding "Test Connection" state. Drives the SettingsView result panel.
     var keyValidation: KeyValidationState = .idle {

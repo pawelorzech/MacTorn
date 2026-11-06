@@ -45,7 +45,7 @@ extension AppState {
     }
 
     private func fetchForumUpdates() async {
-        guard connectivity.isConnected, !apiKey.isEmpty, !keyHalted else { return }
+        guard canTalkToTorn else { return }
         // Nothing to watch: no request, and no re-encoding two unchanged blobs every poll.
         guard !forumWatch.threads.isEmpty || forumWatch.config.factionForumAutoMonitor else {
             lastForumFetchAt = time.now

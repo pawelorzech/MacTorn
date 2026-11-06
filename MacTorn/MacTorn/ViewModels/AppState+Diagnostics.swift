@@ -182,7 +182,7 @@ extension AppState {
         }
         return presentationState(endpointIDs: facts.endpointIDs,
                                  hasContent: hasContent,
-                                 staleAfter: facts.staleAfter,
+                                 staleAfter: max(facts.staleAfter, 2 * Double(refreshInterval)),
                                  requiredUserSelections: facts.requiredUserSelections)
     }
 }

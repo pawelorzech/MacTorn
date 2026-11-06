@@ -55,7 +55,7 @@ extension AppState {
     /// when a newer refresh superseded this one, because `apply` has already spent each
     /// alert's epoch. Only an account change voids them.
     private func fetchPrices(for items: [WatchlistItem]) async {
-        guard connectivity.isConnected, !keyHalted, !apiKey.isEmpty else { return }
+        guard canTalkToTorn else { return }
         let identity = accountSession.identity
         let now = time.now
         let due = items.filter { item in
