@@ -27,10 +27,6 @@ struct WidgetSnapshot: Codable, Equatable {
     func upcoming(at now: Date) -> [Event] {
         events.filter { $0.date > now || $0.id == "refills" }.sorted { $0.date < $1.date }
     }
-    func flightProgress(at now: Date) -> Double? {
-        guard let departure, let arrival, arrival > departure else { return nil }
-        return min(1, max(0, now.timeIntervalSince(departure) / arrival.timeIntervalSince(departure)))
-    }
     static let preview = WidgetSnapshot(updatedAt: Date(), meters: [
         .init(name: "Energy", current: 110, maximum: 150),
         .init(name: "Nerve", current: 32, maximum: 60),

@@ -1619,19 +1619,19 @@ private final class ControlledHTTPErrorUserSnapshotService: UserSnapshotServicin
         data: Data,
         requestedSelections: [String],
         grantedSelections: [String]?
-    ) async -> UserServiceResult<UserSnapshotPayload> {
+    ) async -> TornServiceResult<UserSnapshotPayload> {
         .malformed(responseBytes: data.count)
     }
 
-    func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload> {
+    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload> {
         .malformed(responseBytes: 0)
     }
 
-    func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
+    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload> {
         .malformed(responseBytes: 0)
     }
 
-    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
+    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?> {
         .success(nil, responseBytes: 0)
     }
 }
@@ -1911,7 +1911,7 @@ final class ChainSourceTests: XCTestCase {
         XCTAssertEqual(chain.maximum, 100)
         XCTAssertEqual(chain.timeout, timeout, "timeout is an absolute Unix timestamp on both models")
         XCTAssertTrue(chain.isActive)
-        XCTAssertGreaterThan(chain.timeoutRemaining, 0)
+        XCTAssertGreaterThan(chain.timeoutRemaining(at: Date()), 0)
     }
 
     func testChainAlertFiresFromFactionDataInsideDangerWindow() {

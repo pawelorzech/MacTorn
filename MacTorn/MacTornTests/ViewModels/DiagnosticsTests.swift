@@ -42,8 +42,8 @@ final class DiagnosticsTests: XCTestCase {
         XCTAssertEqual(app.presentationState(endpointIDs: ["user.fast"], hasContent: true,
                                              staleAfter: 120).kind, .stale)
         app.keyInfo = TornKeyInfo(
-            access: .init(level: 1, type: "Custom", faction: false, company: false),
-            user: .init(id: 42, factionId: nil, companyId: nil),
+            access: .init(level: 1, type: "Custom", faction: false),
+            user: .init(id: 42, factionId: nil),
             selections: .init(user: ["bars"], faction: [], market: [], property: [], torn: [],
                               racing: [], forum: [], key: ["info"], company: [])
         )

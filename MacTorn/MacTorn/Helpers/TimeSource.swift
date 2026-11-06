@@ -15,15 +15,6 @@ final class SystemTimeSource: TimeSource {
     var now: Date { Date() }
 }
 
-/// Test/preview clock: advance time by hand.
-final class MutableTimeSource: TimeSource {
-    private var current: Date
-    init(_ start: Date = Date(timeIntervalSince1970: 1_700_000_000)) { current = start }
-    var now: Date { current }
-    func advance(_ seconds: TimeInterval) { current = current.addingTimeInterval(seconds) }
-    func set(_ date: Date) { current = date }
-}
-
 // MARK: - Server clock (issue #46)
 //
 // Torn stamps every response with `server_time`. Cooldowns already used it, but travel,

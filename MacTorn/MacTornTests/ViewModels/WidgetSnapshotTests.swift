@@ -57,7 +57,6 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(snapshot.arrival, Date(timeIntervalSince1970: 1600))
         XCTAssertEqual(snapshot.departure, Date(timeIntervalSince1970: 700))
         XCTAssertEqual(snapshot.events.first?.date, snapshot.arrival)
-        XCTAssertEqual(snapshot.flightProgress(at: clock.now)!, 1.0/3, accuracy: 0.001)
     }
 
     func testRelativeArrivalUsesFetchAnchorRatherThanPublishTime() throws {
@@ -100,8 +99,6 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertFalse(sample.isStale(at: sample.updatedAt.addingTimeInterval(300)))
         XCTAssertTrue(sample.isStale(at: sample.updatedAt.addingTimeInterval(301)))
         XCTAssertTrue(sample.upcoming(at: sample.updatedAt.addingTimeInterval(10_000)).isEmpty)
-        XCTAssertEqual(sample.flightProgress(at: .distantPast), 0)
-        XCTAssertEqual(sample.flightProgress(at: .distantFuture), 1)
         XCTAssertEqual(WidgetSnapshot.Meter(name: "Energy", current: 200, maximum: 150).fraction, 1)
         XCTAssertEqual(WidgetSnapshot.Meter(name: "Energy", current: -1, maximum: 0).fraction, 0)
     }

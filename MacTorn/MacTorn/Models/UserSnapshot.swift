@@ -11,10 +11,8 @@ struct TornResponse: Codable {
     let cooldowns: Cooldowns?
     let travel: Travel?
     let status: Status?
-    let chain: Chain?
     let events: [String: TornEvent]?
     let messages: [String: TornMessage]?
-    let error: TornError?
     /// Server-side Unix epoch at which this response was generated. Used as the
     /// anchor when converting relative durations (e.g. cooldowns) into absolute
     /// end-timestamps so countdowns match torn.com regardless of Mac↔server clock skew.
@@ -35,8 +33,8 @@ struct TornResponse: Codable {
         case name
         case playerId = "player_id"
         case energy, nerve, life, happy
-        case cooldowns, travel, status, chain
-        case events, messages, error
+        case cooldowns, travel, status
+        case events, messages
         case serverTimestamp = "server_time"
         case legacyTimestamp = "timestamp"
     }
@@ -235,8 +233,6 @@ struct Status: Codable, Equatable {
         guard let until = until else { return 0 }
         return max(0, until - Int(now.timeIntervalSince1970))
     }
-
-    var timeRemaining: Int { timeRemaining(at: Date()) }
 }
 
 // MARK: - Events

@@ -18,10 +18,8 @@ final class TornResponseTests: XCTestCase {
         XCTAssertNotNil(response.cooldowns)
         XCTAssertNotNil(response.travel)
         XCTAssertNotNil(response.status)
-        XCTAssertNotNil(response.chain)
         XCTAssertNotNil(response.events)
         XCTAssertNotNil(response.messages)
-        XCTAssertNil(response.error)
     }
 
     // MARK: - Bars Computed Property Tests
@@ -145,11 +143,10 @@ final class TornResponseTests: XCTestCase {
 
     func testDecoding_errorResponse() throws {
         let data = try TornAPIFixtures.toData(TornAPIFixtures.tornErrorInvalidKey)
-        let response = try JSONDecoder().decode(TornResponse.self, from: data)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertNotNil(response.error)
-        XCTAssertEqual(response.error?.code, 2)
-        XCTAssertEqual(response.error?.error, "Incorrect Key")
+        XCTAssertEqual(tornAPIError(in: json)?.tornCode, 2)
+        XCTAssertEqual(tornAPIErrorMessage(in: json), "Incorrect Key")
     }
 
     // MARK: - TornEvent Tests

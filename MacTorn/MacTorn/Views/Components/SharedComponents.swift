@@ -6,29 +6,6 @@ import SwiftUI
 // rounded card, the empty-state placeholder, and the icon+title tile button. View-local
 // copies remain where they differ; these are the ones that were byte-identical.
 
-/// A tinted, rounded card background matching the app's `reduceTransparency` handling.
-struct TornCardModifier: ViewModifier {
-    let tint: Color
-    let cornerRadius: CGFloat
-    let baseOpacity: Double
-    @Environment(\.reduceTransparency) private var reduceTransparency
-
-    func body(content: Content) -> some View {
-        content
-            .padding()
-            .background(tint.opacity(reduceTransparency ? baseOpacity + 0.2 : baseOpacity))
-            .cornerRadius(cornerRadius)
-    }
-}
-
-extension View {
-    /// The app's standard card: padding, a tinted rounded background, and the
-    /// reduce-transparency bump.
-    func tornCard(_ tint: Color, cornerRadius: CGFloat = 8, opacity: Double = 0.05) -> some View {
-        modifier(TornCardModifier(tint: tint, cornerRadius: cornerRadius, baseOpacity: opacity))
-    }
-}
-
 /// "Nothing here yet" placeholder: icon + title + optional subtitle, centred.
 struct EmptyStateView: View {
     let icon: String

@@ -47,9 +47,4 @@ struct NextActionView: View {
         .accessibilityLabel("Next: \(event.title), \(event.isReady ? "ready now" : "in \(TornFormatter.compactETA(event.eta))")")
         .uiTestID("uitest.nextAction")
     }
-
-    /// Compact human countdown: "45s", "4:32", "2h 05m", "1d 3h".
-    static func formatETA(_ seconds: Int) -> String {
-        TornFormatter.compactETA(seconds)
-    }
 }

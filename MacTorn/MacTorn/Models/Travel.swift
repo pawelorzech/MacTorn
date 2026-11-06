@@ -140,11 +140,6 @@ enum TornDestination: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Compatibility accessor for callers that want the standard estimate.
-    var flightTimeMinutes: Int {
-        flightTimeMinutes()
-    }
-
     func flightTimeFormatted(method: FlightMethod = .standard) -> String {
         let duration = flightTimeMinutes(method: method)
         let hours = duration / 60
@@ -153,11 +148,6 @@ enum TornDestination: String, CaseIterable, Identifiable {
             return "\(hours)h \(minutes)m"
         }
         return "\(minutes)m"
-    }
-
-    /// Compatibility accessor for callers that want the standard estimate.
-    var flightTimeFormatted: String {
-        flightTimeFormatted()
     }
 
     var travelAgencyURL: URL {

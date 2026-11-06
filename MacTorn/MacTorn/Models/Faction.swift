@@ -23,8 +23,6 @@ struct Chain: Codable, Equatable {
         guard let timeout = timeout else { return 0 }
         return max(0, timeout - Int(now.timeIntervalSince1970))
     }
-
-    var timeoutRemaining: Int { timeoutRemaining(at: Date()) }
 }
 
 /// How alarming the remaining chain time is. The thresholds (60 s / 180 s) and the

@@ -290,10 +290,6 @@ final class TornEndpointTests: XCTestCase {
                        .minimal)
     }
 
-    func testUserFastPollIsTheOnlyCriticalEndpoint() {
-        XCTAssertEqual(TornEndpointRegistry.critical.map(\.id), ["user.fast"])
-    }
-
     func testRequiredAccessLevelIsLimited() {
         // The user/faction selections need Limited; no endpoint needs Full.
         XCTAssertEqual(TornEndpointRegistry.requiredAccessLevel, .limited)

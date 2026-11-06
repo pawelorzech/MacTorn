@@ -31,7 +31,6 @@ struct TornKeyInfo: Decodable, Equatable, Sendable {
         /// Raw Torn access-type label, shown verbatim to the user.
         let type: String
         let faction: Bool
-        let company: Bool
     }
 
     struct User: Decodable, Equatable, Sendable {
@@ -39,12 +38,10 @@ struct TornKeyInfo: Decodable, Equatable, Sendable {
         /// treated as PII — never logged, committed, or put in a diagnostics report.
         let id: Int
         let factionId: Int?
-        let companyId: Int?
 
         enum CodingKeys: String, CodingKey {
             case id
             case factionId = "faction_id"
-            case companyId = "company_id"
         }
     }
 

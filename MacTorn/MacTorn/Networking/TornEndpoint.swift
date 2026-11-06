@@ -403,8 +403,6 @@ enum TornEndpointRegistry {
     private static let endpointsByID: [String: TornEndpoint] =
         Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
-    static var critical: [TornEndpoint] { all.filter(\.critical) }
-
     /// Distinct selections across all endpoints, for onboarding disclosure.
     static var allSelections: [String] {
         var seen = Set<String>()

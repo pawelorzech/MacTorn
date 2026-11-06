@@ -523,7 +523,7 @@ private final class ClockBurningSnapshotService: UserSnapshotServicing, @uncheck
         data: Data,
         requestedSelections: [String],
         grantedSelections: [String]?
-    ) async -> UserServiceResult<UserSnapshotPayload> {
+    ) async -> TornServiceResult<UserSnapshotPayload> {
         let result = await wrapped.parseSnapshot(data: data,
                                                  requestedSelections: requestedSelections,
                                                  grantedSelections: grantedSelections)
@@ -533,15 +533,15 @@ private final class ClockBurningSnapshotService: UserSnapshotServicing, @uncheck
         return result
     }
 
-    func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload> {
+    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload> {
         try await wrapped.loadActivity(url)
     }
 
-    func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
+    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload> {
         try await wrapped.loadUserV2(url)
     }
 
-    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
+    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?> {
         .success(nil, responseBytes: 0)
     }
 }

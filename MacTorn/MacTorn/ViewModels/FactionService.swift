@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-typealias FactionServiceResult<Value> = TornServiceResult<Value>
+
 
 @MainActor
 protocol FactionServicing: AnyObject {
@@ -9,9 +9,9 @@ protocol FactionServicing: AnyObject {
     var wars: [RankedWar] { get }
     var news: [FactionNews] { get }
 
-    func loadBasic(from url: URL) async throws -> FactionServiceResult<FactionData>
-    func loadWars(from url: URL) async throws -> FactionServiceResult<[RankedWar]>
-    func loadNews(from url: URL) async throws -> FactionServiceResult<[FactionNews]>
+    func loadBasic(from url: URL) async throws -> TornServiceResult<FactionData>
+    func loadWars(from url: URL) async throws -> TornServiceResult<[RankedWar]>
+    func loadNews(from url: URL) async throws -> TornServiceResult<[FactionNews]>
 
     /// Called by the facade only after its account-generation check succeeds.
     func publishBasic(_ value: FactionData)
@@ -39,7 +39,7 @@ final class FactionService: FactionServicing {
         self.session = session
     }
 
-    func loadBasic(from url: URL) async throws -> FactionServiceResult<FactionData> {
+    func loadBasic(from url: URL) async throws -> TornServiceResult<FactionData> {
         try await TornAPIClient.loadJSON(from: url, session: session) { data, json in
             // FactionData's decoder is intentionally forgiving for UI compatibility.
             // The service boundary must be stricter so `{}` never publishes a plausible
@@ -59,11 +59,11 @@ final class FactionService: FactionServicing {
         }
     }
 
-    func loadWars(from url: URL) async throws -> FactionServiceResult<[RankedWar]> {
+    func loadWars(from url: URL) async throws -> TornServiceResult<[RankedWar]> {
         try await loadArray(from: url, key: "rankedwars")
     }
 
-    func loadNews(from url: URL) async throws -> FactionServiceResult<[FactionNews]> {
+    func loadNews(from url: URL) async throws -> TornServiceResult<[FactionNews]> {
         try await loadArray(from: url, key: "news")
     }
 
@@ -88,7 +88,7 @@ final class FactionService: FactionServicing {
     private func loadArray<Value: Decodable>(
         from url: URL,
         key: String
-    ) async throws -> FactionServiceResult<[Value]> {
+    ) async throws -> TornServiceResult<[Value]> {
         try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
             guard let array = json[key] as? [Any],
                   let encoded = try? JSONSerialization.data(withJSONObject: array) else { return nil }

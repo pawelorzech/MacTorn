@@ -59,7 +59,6 @@ final class KeyValidationTests: XCTestCase {
         XCTAssertTrue(info.access.faction)
         XCTAssertEqual(info.user.id, 42)
         XCTAssertEqual(info.user.factionId, 100)
-        XCTAssertNil(info.user.companyId)
         XCTAssertTrue(info.selections.user.contains("battlestats"))
         XCTAssertEqual(info.selections.market, ["itemmarket", "bazaar"])
     }

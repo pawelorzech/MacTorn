@@ -197,3 +197,37 @@ struct StatItem: View {
         .uiTestID("uitest.battleStats.\(label)")
     }
 }
+
+extension AttackResult {
+    func resultIcon(forUserId userId: Int) -> String {
+        let userWasAttacker = wasAttacker(userId: userId)
+        switch result {
+        case "Attacked": return userWasAttacker ? "checkmark.circle.fill" : "xmark.circle.fill"
+        case "Mugged": return userWasAttacker ? "dollarsign.circle.fill" : "xmark.circle.fill"
+        case "Hospitalized": return userWasAttacker ? "cross.circle.fill" : "xmark.circle.fill"
+        case "Lost": return userWasAttacker ? "xmark.circle.fill" : "shield.checkered"
+        case "Stalemate": return "equal.circle.fill"
+        case "Escape": return userWasAttacker ? "figure.run" : "shield.checkered"
+        case "Assist": return "person.2.fill"
+        default: return "questionmark.circle"
+        }
+    }
+
+    func resultColor(forUserId userId: Int) -> Color {
+        let userWasAttacker = wasAttacker(userId: userId)
+        switch result {
+        case "Attacked", "Mugged", "Hospitalized":
+            return userWasAttacker ? .green : .red
+        case "Lost":
+            return userWasAttacker ? .red : .green
+        case "Stalemate":
+            return .orange
+        case "Escape":
+            return userWasAttacker ? .orange : .green
+        case "Assist":
+            return .blue
+        default:
+            return .gray
+        }
+    }
+}

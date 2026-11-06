@@ -1,12 +1,5 @@
 import Foundation
 
-// MARK: - Error
-struct TornError: Codable {
-    let code: Int
-    let error: String
-}
-
-
 // MARK: - Request construction
 
 /// The one place MacTorn turns a built Torn API URL into the request it actually sends.

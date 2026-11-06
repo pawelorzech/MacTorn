@@ -93,7 +93,7 @@ final class ChainTests: XCTestCase {
             "cooldown": 0
         ]
         let chain = try decode(Chain.self, from: json)
-        XCTAssertEqual(chain.timeoutRemaining, 0)
+        XCTAssertEqual(chain.timeoutRemaining(at: Date()), 0)
     }
 
     func testTimeoutRemaining_timeoutInPast() throws {
@@ -105,7 +105,7 @@ final class ChainTests: XCTestCase {
             "cooldown": 0
         ]
         let chain = try decode(Chain.self, from: json)
-        XCTAssertEqual(chain.timeoutRemaining, 0)
+        XCTAssertEqual(chain.timeoutRemaining(at: Date()), 0)
     }
 
     func testTimeoutRemaining_timeoutInFuture() throws {
@@ -119,8 +119,8 @@ final class ChainTests: XCTestCase {
         let chain = try decode(Chain.self, from: json)
 
         // Should be approximately 1000, allow some tolerance
-        XCTAssertGreaterThan(chain.timeoutRemaining, 900)
-        XCTAssertLessThanOrEqual(chain.timeoutRemaining, 1000)
+        XCTAssertGreaterThan(chain.timeoutRemaining(at: Date()), 900)
+        XCTAssertLessThanOrEqual(chain.timeoutRemaining(at: Date()), 1000)
     }
 
     // MARK: - Decoding Tests

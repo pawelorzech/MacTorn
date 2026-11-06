@@ -62,14 +62,14 @@ final class OrganizedCrimeTests: XCTestCase {
         let past = Int(Date().timeIntervalSince1970) - 100
         let data = try JSONSerialization.data(withJSONObject: liveOCJSON(readyAt: past))
         let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
-        XCTAssertTrue(oc.isReady)
+        XCTAssertTrue(oc.isReady(at: Date()))
     }
 
     func testOrganizedCrime2_notReady_whenReadyInFuture() throws {
         let future = Int(Date().timeIntervalSince1970) + 3600
         let data = try JSONSerialization.data(withJSONObject: liveOCJSON(readyAt: future))
         let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
-        XCTAssertFalse(oc.isReady)
+        XCTAssertFalse(oc.isReady(at: Date()))
     }
 
     func testOrganizedCrime2_notReady_whenAlreadyExecuted() throws {
@@ -78,6 +78,6 @@ final class OrganizedCrimeTests: XCTestCase {
             withJSONObject: liveOCJSON(readyAt: past, executedAt: past + 10)
         )
         let oc = try JSONDecoder().decode(OrganizedCrime2.self, from: data)
-        XCTAssertFalse(oc.isReady, "an executed OC is no longer 'ready to execute'")
+        XCTAssertFalse(oc.isReady(at: Date()), "an executed OC is no longer 'ready to execute'")
     }
 }

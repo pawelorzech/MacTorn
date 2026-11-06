@@ -74,7 +74,7 @@ final class StatusTests: XCTestCase {
             "state": "Okay"
         ]
         let status = try decode(Status.self, from: json)
-        XCTAssertEqual(status.timeRemaining, 0)
+        XCTAssertEqual(status.timeRemaining(at: Date()), 0)
     }
 
     func testTimeRemaining_untilInPast() throws {
@@ -85,7 +85,7 @@ final class StatusTests: XCTestCase {
             "until": pastTime
         ]
         let status = try decode(Status.self, from: json)
-        XCTAssertEqual(status.timeRemaining, 0)
+        XCTAssertEqual(status.timeRemaining(at: Date()), 0)
     }
 
     func testTimeRemaining_untilInFuture() throws {
@@ -98,8 +98,8 @@ final class StatusTests: XCTestCase {
         let status = try decode(Status.self, from: json)
 
         // Should be approximately 1000, allow some tolerance for test execution time
-        XCTAssertGreaterThan(status.timeRemaining, 900)
-        XCTAssertLessThanOrEqual(status.timeRemaining, 1000)
+        XCTAssertGreaterThan(status.timeRemaining(at: Date()), 900)
+        XCTAssertLessThanOrEqual(status.timeRemaining(at: Date()), 1000)
     }
 
     // MARK: - Decoding Tests

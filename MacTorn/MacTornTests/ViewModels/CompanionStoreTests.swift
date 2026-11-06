@@ -15,8 +15,8 @@ final class CompanionStoreTests: XCTestCase {
     func testOptionalModuleExplainsMissingPermissionsBeforeBuildingNarrowedURL() async {
         let app = makeApp(MockNetworkSession())
         app.keyInfo = TornKeyInfo(
-            access: .init(level: 1, type: "Custom", faction: false, company: false),
-            user: .init(id: 42, factionId: nil, companyId: nil),
+            access: .init(level: 1, type: "Custom", faction: false),
+            user: .init(id: 42, factionId: nil),
             selections: .init(user: ["bars"], faction: [], market: [], property: [], torn: [],
                               racing: [], forum: [], key: ["info"], company: [])
         )

@@ -11,7 +11,7 @@ struct UserHTTPResponse {
     let statusCode: Int
 }
 
-typealias UserServiceResult<Value> = TornServiceResult<Value>
+
 
 struct UserSnapshotPayload {
     let snapshot: TornResponse
@@ -61,10 +61,10 @@ protocol UserSnapshotServicing: Sendable {
         data: Data,
         requestedSelections: [String],
         grantedSelections: [String]?
-    ) async -> UserServiceResult<UserSnapshotPayload>
-    func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload>
-    func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload>
-    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?>
+    ) async -> TornServiceResult<UserSnapshotPayload>
+    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload>
+    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload>
+    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?>
 }
 
 /// Transport and decoding boundary for user-owned Torn endpoints. It does not know
@@ -89,7 +89,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         data: Data,
         requestedSelections: [String],
         grantedSelections: [String]?
-    ) async -> UserServiceResult<UserSnapshotPayload> {
+    ) async -> TornServiceResult<UserSnapshotPayload> {
         await Task.detached(priority: .userInitiated) {
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 return .malformed(responseBytes: data.count)
@@ -145,7 +145,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         }.value
     }
 
-    func loadActivity(_ url: URL) async throws -> UserServiceResult<UserActivityPayload> {
+    func loadActivity(_ url: URL) async throws -> TornServiceResult<UserActivityPayload> {
         try await TornAPIClient.loadJSON(from: url, session: session) { data, json in
             let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
             // `TornResponse.recentEvents` / `.unreadMessagesCount` are non-optional and
@@ -168,7 +168,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         return !(value is NSNull)
     }
 
-    func loadUserV2(_ url: URL) async throws -> UserServiceResult<UserV2Payload> {
+    func loadUserV2(_ url: URL) async throws -> TornServiceResult<UserV2Payload> {
         try await TornAPIClient.loadJSON(from: url, session: session) { data, _ in
             let selections = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?.first(where: { $0.name == "selections" })?.value
@@ -183,7 +183,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     /// Decodes `/v2/user/virus`. An explicit `null` is the normal "not programming"
     /// answer. Missing or malformed data is a contract failure and must preserve the
     /// previous value rather than falsely announcing that a virus finished.
-    func loadVirus(_ url: URL) async throws -> UserServiceResult<VirusProgramming?> {
+    func loadVirus(_ url: URL) async throws -> TornServiceResult<VirusProgramming?> {
         try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
             guard json.keys.contains("virus") else {
                 return nil

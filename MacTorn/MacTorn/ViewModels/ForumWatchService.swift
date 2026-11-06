@@ -6,7 +6,7 @@ struct ForumThreadSnapshot: Equatable {
     let postCount: Int
 }
 
-typealias ForumThreadResult = TornServiceResult<ForumThreadSnapshot>
+
 
 struct ForumNewPosts: Equatable {
     let threadID: Int
@@ -20,7 +20,7 @@ struct ForumCategoryThread: Equatable, Identifiable, Sendable {
     let title: String
 }
 
-typealias ForumCategoryResult = TornServiceResult<[ForumCategoryThread]>
+
 
 @MainActor
 protocol ForumWatchServicing: AnyObject {
@@ -37,8 +37,8 @@ protocol ForumWatchServicing: AnyObject {
     func markAsRead(threadID: Int)
     func apply(_ snapshot: ForumThreadSnapshot, to threadID: Int) -> ForumNewPosts?
     func setError(_ error: String, for threadID: Int)
-    func fetchThread(from url: URL) async throws -> ForumThreadResult
-    func fetchCategoryThreads(from url: URL) async throws -> ForumCategoryResult
+    func fetchThread(from url: URL) async throws -> TornServiceResult<ForumThreadSnapshot>
+    func fetchCategoryThreads(from url: URL) async throws -> TornServiceResult<[ForumCategoryThread]>
     func applyCategory(_ threads: [ForumCategoryThread], for categoryID: Int) -> [ForumCategoryThread]
 }
 
@@ -229,7 +229,7 @@ final class ForumWatchService: ForumWatchServicing {
         return fresh
     }
 
-    func fetchCategoryThreads(from url: URL) async throws -> ForumCategoryResult {
+    func fetchCategoryThreads(from url: URL) async throws -> TornServiceResult<[ForumCategoryThread]> {
         try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
             guard let rows = json["threads"] as? [[String: Any]] else {
                 return nil
@@ -275,7 +275,7 @@ final class ForumWatchService: ForumWatchServicing {
         return cleaned.isEmpty ? nil : cleaned
     }
 
-    func fetchThread(from url: URL) async throws -> ForumThreadResult {
+    func fetchThread(from url: URL) async throws -> TornServiceResult<ForumThreadSnapshot> {
         try await TornAPIClient.loadJSON(from: url, session: session) { _, json in
             let thread = json["thread"] as? [String: Any] ?? json
             // The post count is the whole point of this call, so a response without a

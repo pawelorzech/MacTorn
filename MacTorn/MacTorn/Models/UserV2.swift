@@ -43,8 +43,6 @@ struct OrganizedCrime2: Codable, Equatable, Identifiable {
         return readyAt <= Int(now.timeIntervalSince1970)
     }
 
-    var isReady: Bool { isReady(at: Date()) }
-
     var filledSlots: Int { slots?.filter { $0.user != nil }.count ?? 0 }
     var totalSlots: Int { slots?.count ?? 0 }
 

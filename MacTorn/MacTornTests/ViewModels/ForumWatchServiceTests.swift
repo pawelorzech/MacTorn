@@ -228,7 +228,7 @@ final class ForumWatchResilienceTests: XCTestCase {
 @MainActor
 final class ForumThreadParseTests: XCTestCase {
 
-    private func parse(_ json: [String: Any]) async throws -> ForumThreadResult {
+    private func parse(_ json: [String: Any]) async throws -> TornServiceResult<ForumThreadSnapshot> {
         let mock = MockNetworkSession()
         try mock.setSuccessResponse(json: json)
         let service = ForumWatchService(defaults: .createMockDefaults(), session: mock)
