@@ -103,6 +103,18 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(WidgetSnapshot.Meter(name: "Energy", current: -1, maximum: 0).fraction, 0)
     }
 
+    func testSnapshotFromOlderBuildStillDecodes() throws {
+        let json = """
+        {"updatedAt":1000,"meters":[{"name":"Happy","current":1,"maximum":2}],"status":"Torn",
+         "events":[{"id":"refills","title":"Refill","symbol":"drop.fill","date":900}]}
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let snapshot = try decoder.decode(WidgetSnapshot.self, from: Data(json.utf8))
+        XCTAssertEqual(snapshot.meters.first?.kind, .happy)
+        XCTAssertEqual(snapshot.events.first?.persistsPastDate, false)
+    }
+
     func testMissingContainerFailsExplicitly() {
         let store = WidgetSnapshotStore(directory: nil)
         XCTAssertThrowsError(try store.write(.preview))

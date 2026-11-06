@@ -237,38 +237,21 @@ struct StatusView: View {
     // MARK: - Bars
     private func barsSection(_ bars: Bars) -> some View {
         VStack(spacing: 10) {
-            ProgressBarView(
-                label: "Energy",
-                current: bars.energy.current,
-                maximum: bars.energy.maximum,
-                color: .green,
-                icon: "bolt.fill"
-            )
-            
-            ProgressBarView(
-                label: "Nerve",
-                current: bars.nerve.current,
-                maximum: bars.nerve.maximum,
-                color: .red,
-                icon: "flame.fill"
-            )
-            
-            ProgressBarView(
-                label: "Happy",
-                current: bars.happy.current,
-                maximum: bars.happy.maximum,
-                color: .yellow,
-                icon: "face.smiling.fill"
-            )
-            
-            ProgressBarView(
-                label: "Life",
-                current: bars.life.current,
-                maximum: bars.life.maximum,
-                color: .blue,
-                icon: "heart.fill"
-            )
+            barView(.energy, bars.energy)
+            barView(.nerve, bars.nerve)
+            barView(.happy, bars.happy)
+            barView(.life, bars.life)
         }
+    }
+
+    private func barView(_ kind: WidgetSnapshot.Meter.Kind, _ bar: Bar) -> some View {
+        ProgressBarView(
+            label: kind.name,
+            current: bar.current,
+            maximum: bar.maximum,
+            color: kind.color,
+            icon: kind.icon
+        )
     }
     
     // MARK: - Cooldowns

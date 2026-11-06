@@ -9,12 +9,22 @@ extension AppState {
             player.serverClock.localDate(forServerTimestamp: timestamp)
         }
         let meters = data.bars.map { bars in
-            [("Energy", bars.energy), ("Nerve", bars.nerve), ("Happy", bars.happy), ("Life", bars.life)]
-                .map { WidgetSnapshot.Meter(name: $0.0, current: $0.1.current, maximum: $0.1.maximum) }
+            WidgetSnapshot.Meter.Kind.allCases.map { kind -> WidgetSnapshot.Meter in
+                let bar: Bar
+                switch kind {
+                case .energy: bar = bars.energy
+                case .nerve: bar = bars.nerve
+                case .happy: bar = bars.happy
+                case .life: bar = bars.life
+                }
+                return WidgetSnapshot.Meter(kind, current: bar.current, maximum: bar.maximum)
+            }
         } ?? []
         let next = makeNextActionSnapshot(now: time.now)
         let events = NextActionEngine().events(from: next, hidden: hiddenNextActionCategories.union([.chain]))
-            .map { WidgetSnapshot.Event(id: $0.id, title: $0.title, symbol: $0.systemImage, date: localDate($0.fireAt)) }
+            .map { WidgetSnapshot.Event(id: $0.id, title: $0.title, symbol: $0.systemImage,
+                                        date: localDate($0.fireAt),
+                                        persistsPastDate: $0.category == .refills) }
         let status: String
         if data.status?.isInHospital == true { status = "Hospital" }
         else if data.status?.isInJail == true { status = "Jail" }
