@@ -198,6 +198,28 @@ final class KeyValidationTests: XCTestCase {
         XCTAssertNil(state.requester.keyInfo, "a failed validation must not leave stale key info")
     }
 
+    /// A halt belongs to the saved key. Testing a different key in Settings must still reach
+    /// Torn, or a user locked out by a bad key could never check its replacement.
+    @MainActor
+    func testAHaltedAccountCanStillValidateANewKey() async throws {
+        let mock = MockNetworkSession()
+        try mock.setTornAPIErrorV2(code: 2, message: "Incorrect key")
+        let state = makeState(mock)
+        state.apiKey = "revoked-key"
+        await state.validateKey()
+        XCTAssertTrue(state.keyHalted, "precondition: the saved key is halted")
+
+        try mock.setSuccessResponse(json: keyInfoJSON(level: 4, type: "Full Access",
+                                                      userSelections: fullUserSelections))
+        let before = mock.requestedURLs.count
+        await state.validateKey("replacement-key")
+
+        guard case .success = state.keyValidation else {
+            return XCTFail("expected the new key to validate, got \(state.keyValidation)")
+        }
+        XCTAssertEqual(mock.requestedURLs.count, before + 1)
+    }
+
     @MainActor
     func testValidateKeyWithEmptyKeyFailsWithoutNetwork() async {
         let mock = MockNetworkSession()

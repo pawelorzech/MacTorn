@@ -257,7 +257,8 @@ extension AppState {
         }
         keyValidation = .validating
         guard let request = requester.prepare("key.info", key: trimmed) else {
-            keyValidation = .failure("Request limit reached. Please try again shortly.")
+            keyValidation = .failure(requester.denial("key.info")?.userExplanation
+                ?? "Request limit reached. Please try again shortly.")
             return
         }
         logger.info("Validating key via key-info: \(tornRedactedURL(request.url))")

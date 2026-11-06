@@ -141,10 +141,11 @@ final class TornRequester {
     /// caller has accepted is already counted before its transport runs.
     func prepare(_ endpointID: String, parameter: Int? = nil, query: [URLQueryItem] = [],
                  key: String? = nil) -> TornPreparedRequest? {
-        // A halted account spends nothing, whichever feature is asking.
-        guard !account.isHalted else { return nil }
         let identity = account.identity
         let key = key ?? identity.apiKey
+        // A halted account spends nothing on its own key, whichever feature is asking. A
+        // different key (Settings testing a new one) is not halted.
+        guard !(account.isHalted && key == identity.apiKey) else { return nil }
         guard var url = url(endpointID, parameter: parameter, key: key) else { return nil }
         if !query.isEmpty, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) {
             components.queryItems = (components.queryItems ?? []) + query
