@@ -97,7 +97,7 @@ final class NextActionTests: XCTestCase {
         let appState = AppState(session: mockSession)
         
         let fetchTime = Date(timeIntervalSince1970: 1_700_000_000)
-        appState.lastFetchTime = fetchTime
+        appState.player.lastFetchTime = fetchTime
         let dict: [String: Any] = [
             "energy": ["current": 100, "maximum": 150, "fulltime": 600],
             "nerve": ["current": 50, "maximum": 50, "fulltime": 0],
@@ -105,7 +105,7 @@ final class NextActionTests: XCTestCase {
             "happy": ["current": 500, "maximum": 500, "fulltime": 0]
         ]
         let jsonData = try JSONSerialization.data(withJSONObject: dict)
-        appState.data = try JSONDecoder().decode(TornResponse.self, from: jsonData)
+        appState.player.data = try JSONDecoder().decode(TornResponse.self, from: jsonData)
 
         // At fetch time (t = 0), energy full ETA is 600s
         let eventsAtT0 = appState.nextEvents(now: fetchTime)
@@ -132,7 +132,7 @@ final class NextActionTests: XCTestCase {
         let appState = AppState(session: mockSession)
 
         let fetchTime = Date(timeIntervalSince1970: 1_700_000_000)
-        appState.lastFetchTime = fetchTime
+        appState.player.lastFetchTime = fetchTime
         let dict: [String: Any] = [
             "travel": [
                 "destination": "Mexico",
@@ -142,7 +142,7 @@ final class NextActionTests: XCTestCase {
             ]
         ]
         let jsonData = try JSONSerialization.data(withJSONObject: dict)
-        appState.data = try JSONDecoder().decode(TornResponse.self, from: jsonData)
+        appState.player.data = try JSONDecoder().decode(TornResponse.self, from: jsonData)
 
         let eventsAtT0 = appState.nextEvents(now: fetchTime)
         XCTAssertEqual(eventsAtT0.first?.category, .travel)

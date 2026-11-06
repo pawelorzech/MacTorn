@@ -228,11 +228,11 @@ final class UserSnapshotServiceTests: XCTestCase {
         XCTAssertTrue(payload.malformedSelections.isEmpty)
 
         let state = AppState(session: mock, defaults: .createMockDefaults())
-        state.organizedCrime = OrganizedCrime2(id: 99, name: "Stale", readyAt: 1)
+        state.player.organizedCrime = OrganizedCrime2(id: 99, name: "Stale", readyAt: 1)
         state.applyUserV2Payload(payload)
-        XCTAssertNil(state.organizedCrime)
-        XCTAssertEqual(state.organizedCrimeUnavailableReason, message)
-        XCTAssertEqual(state.notificationCounts?.messages, 4)
+        XCTAssertNil(state.player.organizedCrime)
+        XCTAssertEqual(state.player.organizedCrimeUnavailableReason, message)
+        XCTAssertEqual(state.player.notificationCounts?.messages, 4)
     }
 
     func testUserV2ExplicitEmptyArrayClearsLastGoodArray() async throws {

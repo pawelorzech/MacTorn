@@ -9,22 +9,22 @@ final class WidgetSnapshotTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let app = AppState(defaults: .createMockDefaults())
         app.widgetStore = WidgetSnapshotStore(directory: directory)
-        app.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
+        app.player.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
         var reloads = 0
         app.reloadWidgetTimelines = { reloads += 1 }
         app.publishWidgets()
         app.publishWidgets()
-        app.lastFetchTime = Date(timeIntervalSince1970: 1000)
+        app.player.lastFetchTime = Date(timeIntervalSince1970: 1000)
         app.publishWidgets()
         await app.widgetPublicationTask?.value
         XCTAssertEqual(reloads, 1)
-        XCTAssertEqual(app.widgetStore?.read()?.updatedAt, app.lastFetchTime)
+        XCTAssertEqual(app.widgetStore?.read()?.updatedAt, app.player.lastFetchTime)
 
-        app.lastFetchTime = Date(timeIntervalSince1970: 1100)
+        app.player.lastFetchTime = Date(timeIntervalSince1970: 1100)
         app.publishWidgets()
         await app.widgetPublicationTask?.value
         XCTAssertEqual(reloads, 2, "Unchanged values must still publish a fresh fetch timestamp")
-        XCTAssertEqual(app.widgetStore?.read()?.updatedAt, app.lastFetchTime)
+        XCTAssertEqual(app.widgetStore?.read()?.updatedAt, app.player.lastFetchTime)
     }
 
     func testAccountResetCancelsQueuedWidgetWrite() async throws {
@@ -33,7 +33,7 @@ final class WidgetSnapshotTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
         let app = AppState(defaults: .createMockDefaults())
         app.widgetStore = WidgetSnapshotStore(directory: directory)
-        app.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
+        app.player.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
         var reloads = 0
         app.reloadWidgetTimelines = { reloads += 1 }
         app.publishWidgets()
@@ -48,9 +48,9 @@ final class WidgetSnapshotTests: XCTestCase {
     func testTimersConvertServerClockToLocalDates() throws {
         let clock = MutableTimeSource(Date(timeIntervalSince1970: 1000))
         let app = AppState(defaults: .createMockDefaults(), time: clock)
-        app.lastFetchTime = clock.now
-        app.serverClock = ServerClock(offset: 90)
-        app.data = try JSONDecoder().decode(TornResponse.self, from: Data("""
+        app.player.lastFetchTime = clock.now
+        app.player.serverClock = ServerClock(offset: 90)
+        app.player.data = try JSONDecoder().decode(TornResponse.self, from: Data("""
         {"travel":{"destination":"Japan","timestamp":1690,"departed":790,"time_left":600}}
         """.utf8))
         let snapshot = try XCTUnwrap(app.makeWidgetSnapshot())
@@ -62,9 +62,9 @@ final class WidgetSnapshotTests: XCTestCase {
     func testRelativeArrivalUsesFetchAnchorRatherThanPublishTime() throws {
         let clock = MutableTimeSource(Date(timeIntervalSince1970: 1000))
         let app = AppState(defaults: .createMockDefaults(), time: clock)
-        app.lastFetchTime = clock.now
-        app.serverClock = ServerClock(offset: -90)
-        app.data = try JSONDecoder().decode(TornResponse.self, from: Data("""
+        app.player.lastFetchTime = clock.now
+        app.player.serverClock = ServerClock(offset: -90)
+        app.player.data = try JSONDecoder().decode(TornResponse.self, from: Data("""
         {"travel":{"destination":"Torn","time_left":600}}
         """.utf8))
         clock.advance(100)

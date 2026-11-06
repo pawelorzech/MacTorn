@@ -10,7 +10,7 @@ struct MoneyView: View {
                 ModuleStateView(
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
-                        hasContent: appState.moneyData != nil,
+                        hasContent: appState.player.moneyData != nil,
                         staleAfter: 120,
                         requiredUserSelections: ["money"]
                     ),
@@ -29,7 +29,7 @@ struct MoneyView: View {
                             .font(.caption.bold())
                     }
 
-                    if let money = appState.moneyData {
+                    if let money = appState.player.moneyData {
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("On Hand")
@@ -117,9 +117,9 @@ struct MoneyView: View {
                 .cornerRadius(8)
 
                 // MARK: - Total Tracked
-                if let money = appState.moneyData {
-                    let propertyMarketTotal = NumericSafety.total((appState.propertiesData ?? []).map(\.marketprice))
-                    let stocksMarketTotal = NumericSafety.optionalTotal(appState.stocksData.map {
+                if let money = appState.player.moneyData {
+                    let propertyMarketTotal = NumericSafety.total((appState.player.propertiesData ?? []).map(\.marketprice))
+                    let stocksMarketTotal = NumericSafety.optionalTotal(appState.player.stocksData.map {
                         $0.marketValue(using: appState.stocksMetadata)
                     })
                     let totalTracked = NumericSafety.optionalTotal([money.cash, money.vault, money.cayman, propertyMarketTotal, stocksMarketTotal])

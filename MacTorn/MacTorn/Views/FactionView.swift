@@ -11,8 +11,8 @@ struct FactionView: View {
                     state: appState.presentationState(
                         endpointIDs: ["faction.basic", "faction.rankedwars", "faction.news", "user.v2"],
                         hasContent: appState.factionData != nil
-                            || appState.organizedCrime != nil
-                            || appState.organizedCrimeUnavailableReason != nil
+                            || appState.player.organizedCrime != nil
+                            || appState.player.organizedCrimeUnavailableReason != nil
                             || !appState.rankedWars.isEmpty
                             || !appState.factionNews.isEmpty,
                         staleAfter: 360
@@ -46,7 +46,7 @@ struct FactionView: View {
                                              maximum: faction.chain.max,
                                              timeout: faction.chain.timeout,
                                              cooldown: faction.chain.cooldown),
-                                serverClock: appState.serverClock
+                                serverClock: appState.player.serverClock
                             )
                         }
                         
@@ -82,9 +82,9 @@ struct FactionView: View {
                 .cornerRadius(8)
 
                 // Organized Crime 2.0 (your own current OC)
-                if let oc = appState.organizedCrime {
-                    OC2StatusView(oc: oc, playerId: appState.data?.playerId, serverClock: appState.serverClock)
-                } else if let reason = appState.organizedCrimeUnavailableReason {
+                if let oc = appState.player.organizedCrime {
+                    OC2StatusView(oc: oc, playerId: appState.player.data?.playerId, serverClock: appState.player.serverClock)
+                } else if let reason = appState.player.organizedCrimeUnavailableReason {
                     Label("OC 2.0 unavailable: \(reason)", systemImage: "briefcase.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)

@@ -16,14 +16,14 @@ extension AppState {
     }
 
     private var shouldRunLiveTimer: Bool {
-        guard let data = data else { return false }
+        guard let data = player.data else { return false }
         if let travel = data.travel, travel.isTraveling {
             return travel.remainingSeconds(from: serverFetchTime, now: serverNow) > 0
         }
         if let status = data.status, status.isInHospital || status.isInJail {
             return status.timeRemaining(at: serverNow) > 0
         }
-        if let ends = cooldownEnds, ends.soonestActive(at: serverNow) != nil { return true }
+        if let ends = player.cooldownEnds, ends.soonestActive(at: serverNow) != nil { return true }
         return false
     }
 
@@ -40,8 +40,8 @@ extension AppState {
     func tick() {
         updateTravelSecondsRemaining()
         let next = computeMenuBarDisplay()
-        if next != menuBarDisplay {
-            menuBarDisplay = next
+        if next != player.menuBarDisplay {
+            player.menuBarDisplay = next
         }
         if !shouldRunLiveTimer {
             liveTimerCancellable?.cancel()
@@ -55,18 +55,18 @@ extension AppState {
     // machine's skew straight into the menu bar.
     private func updateTravelSecondsRemaining() {
         let next: Int
-        if let travel = data?.travel, travel.isTraveling {
+        if let travel = player.data?.travel, travel.isTraveling {
             next = travel.remainingSeconds(from: serverFetchTime, now: serverNow)
         } else {
             next = 0
         }
-        if next != travelSecondsRemaining {
-            travelSecondsRemaining = next
+        if next != player.travelSecondsRemaining {
+            player.travelSecondsRemaining = next
         }
     }
 
     private func computeMenuBarDisplay() -> MenuBarDisplay {
-        guard let data = data else { return .fallbackIcon }
+        guard let data = player.data else { return .fallbackIcon }
         let now = serverNow
 
         if let travel = data.travel, travel.isTraveling {
@@ -86,7 +86,7 @@ extension AppState {
             return .jail(seconds: status.timeRemaining(at: now))
         }
 
-        if let ends = cooldownEnds,
+        if let ends = player.cooldownEnds,
            let soonest = ends.soonestActive(at: now) {
             return .cooldown(kind: soonest.kind, seconds: soonest.seconds)
         }
@@ -110,38 +110,38 @@ extension AppState {
     /// converted to Torn's clock here, and every timestamp in the snapshot is likewise
     /// server-absolute — so the whole timeline is one consistent clock (issue #46).
     func makeNextActionSnapshot(now: Date = Date()) -> NextActionSnapshot {
-        let nowUnix = serverClock.serverUnix(now)
+        let nowUnix = player.serverClock.serverUnix(now)
         var snapshot = NextActionSnapshot(now: nowUnix)
 
-        if let bars = data?.bars {
+        if let bars = player.data?.bars {
             snapshot.energyFullAt = barFullAt(bars.energy)
             snapshot.nerveFullAt = barFullAt(bars.nerve)
             snapshot.happyFullAt = barFullAt(bars.happy)
             snapshot.lifeFullAt = barFullAt(bars.life)
         }
-        if let cd = cooldownEnds {
+        if let cd = player.cooldownEnds {
             snapshot.drugReadyAt = cd.drugEndsAt > 0 ? cd.drugEndsAt : nil
             snapshot.medicalReadyAt = cd.medicalEndsAt > 0 ? cd.medicalEndsAt : nil
             snapshot.boosterReadyAt = cd.boosterEndsAt > 0 ? cd.boosterEndsAt : nil
         }
-        if let travel = data?.travel, travel.isTraveling {
+        if let travel = player.data?.travel, travel.isTraveling {
             if let timestamp = travel.timestamp, timestamp > 0 {
                 snapshot.travelArrivalAt = timestamp
             } else if let timeLeft = travel.timeLeft, timeLeft > 0 {
                 // `time_left` counts from the instant the *server* built the response, so
                 // it is anchored on the server's reading of the fetch, not the Mac's.
                 snapshot.travelArrivalAt =
-                    serverClock.serverTimestamp(fetchedAt: lastFetchTime, plus: timeLeft)
+                    player.serverClock.serverTimestamp(fetchedAt: player.lastFetchTime, plus: timeLeft)
             }
         }
-        if let status = data?.status {
+        if let status = player.data?.status {
             if status.isInHospital { snapshot.hospitalReleaseAt = status.until }
             if status.isInJail { snapshot.jailReleaseAt = status.until }
         }
-        if let until = education?.current?.until, until > 0 {
+        if let until = player.education?.current?.until, until > 0 {
             snapshot.educationEndsAt = until
         }
-        if let ready = organizedCrime?.readyAt, ready > 0 {
+        if let ready = player.organizedCrime?.readyAt, ready > 0 {
             snapshot.ocReadyAt = ready
         }
         if let chain = liveChain, chain.isActive, let timeout = chain.timeout, timeout > 0 {
@@ -151,10 +151,10 @@ extension AppState {
            let checked = companion.fetchedAt["user.stocksv2"], time.now.timeIntervalSince(checked) < 600 {
             snapshot.stockBonusReady = companion.stocks.contains { $0.bonus.available }
         }
-        if let refills, !refills.unclaimed.isEmpty {
+        if let refills = player.refills, !refills.unclaimed.isEmpty {
             snapshot.refillsAvailable = true
         }
-        if let virus, virus.until > 0 {
+        if let virus = player.virus, virus.until > 0 {
             snapshot.virusFinishesAt = virus.until
         }
         return snapshot
@@ -166,7 +166,7 @@ extension AppState {
     /// off every bar ETA.
     private func barFullAt(_ bar: Bar) -> Int? {
         guard bar.current < bar.maximum, let full = bar.fulltime, full > 0 else { return nil }
-        return serverClock.serverTimestamp(fetchedAt: lastFetchTime, plus: full)
+        return player.serverClock.serverTimestamp(fetchedAt: player.lastFetchTime, plus: full)
     }
 
     func nextEvents(now: Date = Date()) -> [NextEvent] {
@@ -187,7 +187,7 @@ extension AppState {
             architecture: BuildInfo.architecture,
             isOnline: connectivity.isConnected,
             notificationPermission: notif,
-            lastSuccessfulRefresh: lastUpdated,
+            lastSuccessfulRefresh: player.lastUpdated,
             lastErrorSummary: lastErrorClassificationSummary(),
             keyPresent: !apiKey.isEmpty,
             requiredAccessLevel: TornEndpointRegistry.requiredAccessLevel.label,

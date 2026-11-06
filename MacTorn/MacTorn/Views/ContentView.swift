@@ -20,7 +20,7 @@ struct ContentView: View {
     /// is the module content made inert; every later refresh keeps the UI live because
     /// the previous snapshot is still on screen.
     private var isBlockingInitialLoad: Bool {
-        appState.isLoading && appState.lastUpdated == nil
+        appState.isLoading && appState.player.lastUpdated == nil
     }
 
     private var isShowingModalPrompt: Bool {
@@ -130,7 +130,7 @@ struct ContentView: View {
     // MARK: - Header
     private var headerView: some View {
         HStack {
-            if let lastUpdated = appState.lastUpdated {
+            if let lastUpdated = appState.player.lastUpdated {
                 Text("Updated: \(lastUpdated, formatter: Self.timeFormatter)")
                     .font(.caption2)
                     .foregroundColor(.secondary)

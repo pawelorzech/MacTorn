@@ -363,8 +363,8 @@ final class CompanionStoreTests: XCTestCase {
         try session.setSuccessResponse(json: json)
         app.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
-        XCTAssertNotNil(app.data, "precondition: the fast poll applied")
-        XCTAssertFalse(app.stocksData.isEmpty,
+        XCTAssertNotNil(app.player.data, "precondition: the fast poll applied")
+        XCTAssertFalse(app.player.stocksData.isEmpty,
                        "Money Total Tracked must keep counting stocks with Stock bonuses on")
     }
     func testWarfareUsesOnlyTimestampFromNextLinkAndCompletedChainCategory() throws {

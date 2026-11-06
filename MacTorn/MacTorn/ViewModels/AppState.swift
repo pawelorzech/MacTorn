@@ -49,6 +49,8 @@ class AppState {
     private static let appLogger = Logger(subsystem: TornConstants.logSubsystem, category: "AppState")
     var logger: Logger { Self.appLogger }
     let companion: CompanionStore
+    /// Torn data for the signed-in account. Replaced wholesale on an account change.
+    var player = PlayerState()
 
     // MARK: - Persisted
     var apiKey: String {
@@ -114,22 +116,15 @@ class AppState {
     var widgetStore: WidgetSnapshotStore?
     @ObservationIgnored var widgetPublicationTask: Task<Void, Never>?
     @ObservationIgnored var reloadWidgetTimelines: () -> Void = { WidgetCenter.shared.reloadAllTimelines() }
-    var data: TornResponse?
-    var lastUpdated: Date?
     var errorMsg: String?
     var isLoading: Bool = false
     var notificationRules: [NotificationRule] = []
     var travelNotificationSettings: [TravelNotificationSetting] = []
 
     // MARK: - New Data Sources
-    var moneyData: MoneyData?
-    var battleStats: BattleStats?
-    var recentAttacks: [AttackResult]?
     // Row-based, display-only data pulled on a slow cadence (see fetchActivityData).
     // Kept as dedicated properties (not on `data`) so the fast poll — which no longer
     // requests events/messages — never clobbers them.
-    var activityEvents: [TornEvent] = []
-    var unreadMessages: Int = 0
     var factionData: FactionData? {
         faction.basic
     }
@@ -153,8 +148,6 @@ class AppState {
                      timeout: chain.timeout,
                      cooldown: chain.cooldown)
     }
-    var propertiesData: [PropertyInfo]?
-    var stocksData: [StockHolding] = []
     var stocksMetadata: [Int: StockMetadata] = [:]
     /// Torn's global item catalogue, id → name. Empty until the first successful fetch;
     /// everything that reads it degrades to `Item #id` rather than waiting on it.
@@ -178,19 +171,6 @@ class AppState {
         }
     }
     // MARK: - API v2 user state (organized crime, refills, education, bounties)
-    var organizedCrime: OrganizedCrime2?
-    var organizedCrimeUnavailableReason: String?
-    var refills: Refills?
-    var education: EducationStatus?
-    var bountiesOnMe: [Bounty] = []
-    var bountiesDataTimestamp: Date?
-    var bountiesFetchedAt: Date?
-    var bountiesCacheDelay: TimeInterval?
-    /// Unread messages / events / awards / competition, from the point-in-time
-    /// `notifications` selection. Cheap enough to refresh on every poll.
-    var notificationCounts: TornNotifications?
-    /// The virus currently being written, if any. Read rarely — see `fetchVirusIfNeeded`.
-    var virus: VirusProgramming?
     // MARK: - Faction v2 state (ranked wars, news)
     var rankedWars: [RankedWar] {
         faction.wars
@@ -224,27 +204,16 @@ class AppState {
     static let feedbackThresholds: [TimeInterval] = [3600, 7 * 86400, 30 * 86400]
 
     // MARK: - Fetch Time (for live countdown calculations)
-    var lastFetchTime: Date = Date()
 
-    /// Mac↔Torn clock skew, re-derived from `server_time` on every successful snapshot
-    /// (issue #46). Every countdown in the app — travel, hospital, jail, chain, OC,
-    /// cooldowns, bars — is measured through this, so the whole window agrees on one
-    /// clock. Absent or implausible anchors leave it `.synchronized`, i.e. the plain
-    /// local clock.
-    var serverClock: ServerClock = .synchronized
 
     /// "Now" on Torn's clock. The only `now` any countdown should compare against.
-    var serverNow: Date { serverClock.serverNow(time.now) }
+    var serverNow: Date { player.serverClock.serverNow(time.now) }
 
     /// The instant of the last successful fetch, expressed on Torn's clock. Pair it with
     /// `serverNow` whenever a duration is relative to the response (`travel.time_left`,
     /// `bar.fulltime`) so the elapsed time is a same-clock subtraction.
-    var serverFetchTime: Date { serverClock.serverNow(lastFetchTime) }
+    var serverFetchTime: Date { player.serverClock.serverNow(player.lastFetchTime) }
 
-    /// Absolute end-timestamps for active cooldowns, derived at fetch time from
-    /// the server's response timestamp. The single source of truth that keeps
-    /// the menu-bar and Status tab cooldown countdowns matching torn.com.
-    var cooldownEnds: CooldownEnds?
 
     // MARK: - Next Action (Etap J)
     /// Categories the user has hidden from the Next Action timeline. Persisted.
@@ -256,8 +225,6 @@ class AppState {
     }
 
     // MARK: - Live Travel Countdown
-    var travelSecondsRemaining: Int = 0
-    var menuBarDisplay: MenuBarDisplay = .fallbackIcon
     @ObservationIgnored var liveTimerCancellable: AnyCancellable?
 
     // MARK: - Managers
@@ -280,7 +247,6 @@ class AppState {
     @ObservationIgnored let forumWatch: ForumWatchService
 
     // MARK: - State Comparison
-    @ObservationIgnored var previousTravel: Travel?
     // MARK: - Timer
     @ObservationIgnored var timerCancellable: AnyCancellable?
     @ObservationIgnored var forumTimerCancellable: AnyCancellable?
@@ -425,34 +391,11 @@ class AppState {
     func resetAccountScopedState() {
         keyValidationGeneration &+= 1
         clearWidgets()
-        data = nil
-        lastUpdated = nil
+        player = PlayerState()
         errorMsg = nil
         isLoading = false
-        moneyData = nil
-        battleStats = nil
-        recentAttacks = nil
-        activityEvents = []
-        unreadMessages = 0
         faction.reset()
-        propertiesData = nil
-        stocksData = []
         companion.reset()
-        organizedCrime = nil
-        organizedCrimeUnavailableReason = nil
-        refills = nil
-        education = nil
-        bountiesOnMe = []
-        bountiesDataTimestamp = nil
-        bountiesFetchedAt = nil
-        bountiesCacheDelay = nil
-        notificationCounts = nil
-        virus = nil
-        cooldownEnds = nil
-        serverClock = .synchronized
-        travelSecondsRemaining = 0
-        menuBarDisplay = .fallbackIcon
-        previousTravel = nil
         // Landing alerts were scheduled for the old account's flight. Left pending, they
         // fire later for an account that is not travelling (or a key that no longer works).
         cancelLandingAlerts()

@@ -10,7 +10,7 @@ struct PropertiesView: View {
                 ModuleStateView(
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
-                        hasContent: appState.propertiesData != nil,
+                        hasContent: appState.player.propertiesData != nil,
                         staleAfter: 120,
                         requiredUserSelections: ["properties"]
                     ),
@@ -26,18 +26,18 @@ struct PropertiesView: View {
                         Text("Properties")
                             .font(.caption.bold())
                         Spacer()
-                        if let properties = appState.propertiesData, !properties.isEmpty {
+                        if let properties = appState.player.propertiesData, !properties.isEmpty {
                             Text("Market: \(TornFormatter.formatMoney(NumericSafety.total(properties.map(\.marketprice))))")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }
                     
-                    if let properties = appState.propertiesData, !properties.isEmpty {
+                    if let properties = appState.player.propertiesData, !properties.isEmpty {
                         ForEach(properties) { property in
                             PropertyCard(property: property)
                         }
-                    } else if appState.propertiesData == nil {
+                    } else if appState.player.propertiesData == nil {
                         EmptyStateView(icon: "house.slash", title: "Property data unavailable",
                                        subtitle: "Check the module status above.")
                     } else {

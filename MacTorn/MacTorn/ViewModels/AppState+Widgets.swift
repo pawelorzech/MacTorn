@@ -2,11 +2,11 @@ import Foundation
 
 extension AppState {
     func makeWidgetSnapshot() -> WidgetSnapshot? {
-        guard let data else { return nil }
+        guard let data = player.data else { return nil }
         // Server→local conversion lives on `ServerClock`; this used to re-derive it by hand
         // (audit D-8).
         func localDate(_ timestamp: Int) -> Date {
-            serverClock.localDate(forServerTimestamp: timestamp)
+            player.serverClock.localDate(forServerTimestamp: timestamp)
         }
         let meters = data.bars.map { bars in
             [("Energy", bars.energy), ("Nerve", bars.nerve), ("Happy", bars.happy), ("Life", bars.life)]
@@ -20,14 +20,14 @@ extension AppState {
         else if data.status?.isInJail == true { status = "Jail" }
         else if data.travel?.isTraveling == true { status = "Traveling" }
         else { status = data.travel?.destination ?? "Torn" }
-        return WidgetSnapshot(updatedAt: lastFetchTime, meters: meters, status: status,
+        return WidgetSnapshot(updatedAt: player.lastFetchTime, meters: meters, status: status,
             destination: data.travel?.destination,
             departure: data.travel?.departed.flatMap { $0 > 0 ? localDate($0) : nil },
             arrival: next.travelArrivalAt.map(localDate), events: events)
     }
 
     func publishWidgets() {
-        guard widgetStore != nil, data != nil, widgetPublicationTask == nil else { return }
+        guard widgetStore != nil, player.data != nil, widgetPublicationTask == nil else { return }
         // Batch a burst of endpoint completions without waiting for slower siblings.
         widgetPublicationTask = Task { [weak self] in
             do { try await Task.sleep(nanoseconds: 100_000_000) }

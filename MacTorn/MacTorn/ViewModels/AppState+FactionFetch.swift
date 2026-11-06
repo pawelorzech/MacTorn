@@ -8,7 +8,7 @@ extension AppState {
         // Torn's `chain.timeout` is seconds remaining, not a timestamp. Resolve it to an
         // absolute server-clock expiry here, at the boundary, so every consumer downstream
         // compares it against `serverNow` — see `FactionChain.resolvingExpiry`.
-        faction.basic = payload.resolvingChainExpiry(fetchedAt: Date(), clock: serverClock)
+        faction.basic = payload.resolvingChainExpiry(fetchedAt: Date(), clock: player.serverClock)
         checkChainNotification()
     }
 

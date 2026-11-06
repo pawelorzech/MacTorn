@@ -135,9 +135,9 @@ final class ServerClockOffsetTests: XCTestCase {
                                            departedAt: serverNow - 300,
                                            timeLeft: 300))
 
-        XCTAssertEqual(app.travelSecondsRemaining, 300,
+        XCTAssertEqual(app.player.travelSecondsRemaining, 300,
                        "travel must count down from server_time; the Mac's 90 s lag must not inflate it")
-        XCTAssertEqual(app.menuBarDisplay, .traveling(destination: "Mexico", seconds: 300),
+        XCTAssertEqual(app.player.menuBarDisplay, .traveling(destination: "Mexico", seconds: 300),
                        "the menu bar is the surface the issue reports as wrong")
         XCTAssertEqual(try eta(.travel), 300,
                        "the Next Action timeline must agree with the menu bar")
@@ -158,7 +158,7 @@ final class ServerClockOffsetTests: XCTestCase {
                        "time_left must be turned into an absolute time by adding it to "
                        + "server_time; adding it to lastFetchTime lands 90 s early")
         XCTAssertEqual(try eta(.travel), 300)
-        XCTAssertEqual(app.travelSecondsRemaining, 300,
+        XCTAssertEqual(app.player.travelSecondsRemaining, 300,
                        "an off-by-a-second miss here means the countdown still reads Date() "
                        + "instead of the injected AppState.time")
     }
@@ -169,7 +169,7 @@ final class ServerClockOffsetTests: XCTestCase {
         let serverNow = localNow + skew
         try await poll(serverTime: serverNow, status: hospitalSlice(until: serverNow + 300))
 
-        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 300),
+        XCTAssertEqual(app.player.menuBarDisplay, .hospitalAtHome(seconds: 300),
                        "hospital release is an absolute server timestamp — compare it against server now")
         XCTAssertEqual(try eta(.hospital), 300,
                        "the Next Action timeline must agree with the menu bar")
@@ -179,7 +179,7 @@ final class ServerClockOffsetTests: XCTestCase {
         let serverNow = localNow + skew
         try await poll(serverTime: serverNow, status: jailSlice(until: serverNow + 450))
 
-        XCTAssertEqual(app.menuBarDisplay, .jail(seconds: 450),
+        XCTAssertEqual(app.player.menuBarDisplay, .jail(seconds: 450),
                        "jail release is an absolute server timestamp — compare it against server now")
         XCTAssertEqual(try eta(.jail), 450,
                        "the Next Action timeline must agree with the menu bar")
@@ -209,7 +209,7 @@ final class ServerClockOffsetTests: XCTestCase {
         let serverNow = localNow + skew
         try await poll(serverTime: serverNow)
 
-        app.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
+        app.player.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
                                              status: "Planning",
                                              readyAt: serverNow + 240)
 
@@ -246,7 +246,7 @@ final class ServerClockOffsetTests: XCTestCase {
     func testMissingServerTimeFallsBackToTheLocalClock() async throws {
         try await poll(serverTime: nil, status: hospitalSlice(until: localNow + 300))
 
-        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 300),
+        XCTAssertEqual(app.player.menuBarDisplay, .hospitalAtHome(seconds: 300),
                        "without an anchor the local clock is all we have — no offset, no shift")
         XCTAssertEqual(try eta(.hospital), 300)
     }
@@ -259,7 +259,7 @@ final class ServerClockOffsetTests: XCTestCase {
         try await poll(serverTime: localNow + tenYears,
                        status: hospitalSlice(until: localNow + 300))
 
-        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 300),
+        XCTAssertEqual(app.player.menuBarDisplay, .hospitalAtHome(seconds: 300),
                        "an implausible anchor must be discarded, not applied")
         XCTAssertEqual(try eta(.hospital), 300)
     }
@@ -268,7 +268,7 @@ final class ServerClockOffsetTests: XCTestCase {
     func testZeroServerTimeIsIgnored() async throws {
         try await poll(serverTime: 0, status: hospitalSlice(until: localNow + 300))
 
-        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 300))
+        XCTAssertEqual(app.player.menuBarDisplay, .hospitalAtHome(seconds: 300))
         XCTAssertEqual(try eta(.hospital), 300)
     }
 
@@ -278,7 +278,7 @@ final class ServerClockOffsetTests: XCTestCase {
         let serverNow = localNow + 600
         try await poll(serverTime: serverNow, status: hospitalSlice(until: serverNow + 300))
 
-        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 300),
+        XCTAssertEqual(app.player.menuBarDisplay, .hospitalAtHome(seconds: 300),
                        "10 minutes of clock drift is skew, not corruption")
         XCTAssertEqual(try eta(.hospital), 300)
     }
@@ -299,7 +299,7 @@ final class ServerClockOffsetTests: XCTestCase {
 
         XCTAssertEqual(try eta(.hospital), 540,
                        "a minute later, 540 s left — the offset is still 90, not 180")
-        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 540))
+        XCTAssertEqual(app.player.menuBarDisplay, .hospitalAtHome(seconds: 540))
     }
 
     /// Skew that shrinks between polls (the Mac's clock being corrected mid-session)
@@ -356,20 +356,20 @@ final class ServerClockOffsetTests: XCTestCase {
     func testCooldownCountdownDoesNotJumpBackWhenTheAnchorJitters() async throws {
         try await poll(serverTime: localNow,
                        cooldowns: ["drug": 0, "booster": 0, "medical": 300])
-        XCTAssertEqual(app.serverClock.offset, 0, "first poll: anchor and receipt agree")
+        XCTAssertEqual(app.player.serverClock.offset, 0, "first poll: anchor and receipt agree")
         XCTAssertEqual(try eta(.medical), 300)
 
         clock.advance(60)
         try await poll(serverTime: localNow + 58,
                        cooldowns: ["drug": 0, "booster": 0, "medical": 240])
 
-        XCTAssertEqual(app.serverClock.offset, 0,
+        XCTAssertEqual(app.player.serverClock.offset, 0,
                        "2 s of request latency is jitter, not a clock correction — "
                        + "re-deriving the offset from scratch reads it as -2")
         XCTAssertEqual(try eta(.medical), 240,
                        "the menu bar counted 300…241 over that minute; 242 is a visible "
                        + "jump backwards on the app's only always-visible surface")
-        XCTAssertEqual(app.menuBarDisplay, .cooldown(kind: .medical, seconds: 240))
+        XCTAssertEqual(app.player.menuBarDisplay, .cooldown(kind: .medical, seconds: 240))
     }
 
     /// Travel carries an absolute arrival timestamp, so the deadline is provably
@@ -380,7 +380,7 @@ final class ServerClockOffsetTests: XCTestCase {
                        travel: travelSlice(arrivingAt: arrival,
                                            departedAt: localNow - 300,
                                            timeLeft: 300))
-        XCTAssertEqual(app.travelSecondsRemaining, 300)
+        XCTAssertEqual(app.player.travelSecondsRemaining, 300)
 
         clock.advance(60)
         try await poll(serverTime: localNow + 58,
@@ -388,9 +388,9 @@ final class ServerClockOffsetTests: XCTestCase {
                                            departedAt: localNow - 300,
                                            timeLeft: 240))
 
-        XCTAssertEqual(app.travelSecondsRemaining, 240,
+        XCTAssertEqual(app.player.travelSecondsRemaining, 240,
                        "same arrival timestamp, 60 s later — the plane cannot get further away")
-        XCTAssertEqual(app.menuBarDisplay, .traveling(destination: "Mexico", seconds: 240))
+        XCTAssertEqual(app.player.menuBarDisplay, .traveling(destination: "Mexico", seconds: 240))
         XCTAssertEqual(try eta(.travel), 240)
     }
 
@@ -404,7 +404,7 @@ final class ServerClockOffsetTests: XCTestCase {
 
         XCTAssertEqual(try eta(.hospital), 240,
                        "`until` never moved, so the countdown can only fall")
-        XCTAssertEqual(app.menuBarDisplay, .hospitalAtHome(seconds: 240))
+        XCTAssertEqual(app.player.menuBarDisplay, .hospitalAtHome(seconds: 240))
     }
 
     func testJailCountdownDoesNotJumpBackWhenTheAnchorJitters() async throws {
@@ -416,7 +416,7 @@ final class ServerClockOffsetTests: XCTestCase {
         try await poll(serverTime: localNow + 58, status: jailSlice(until: release))
 
         XCTAssertEqual(try eta(.jail), 390)
-        XCTAssertEqual(app.menuBarDisplay, .jail(seconds: 390))
+        XCTAssertEqual(app.player.menuBarDisplay, .jail(seconds: 390))
     }
 
     /// Chain and OC deadlines arrive on their own endpoints, so they are re-published
@@ -428,7 +428,7 @@ final class ServerClockOffsetTests: XCTestCase {
 
         try await poll(serverTime: localNow)
         publishChain(timeout: chainTimeout)
-        app.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
+        app.player.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
                                              status: "Planning", readyAt: ocReadyAt)
         XCTAssertEqual(try eta(.chain), 180)
         XCTAssertEqual(try eta(.organizedCrime), 240)
@@ -436,7 +436,7 @@ final class ServerClockOffsetTests: XCTestCase {
         clock.advance(60)
         try await poll(serverTime: localNow + 58)
         publishChain(timeout: chainTimeout)
-        app.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
+        app.player.organizedCrime = OrganizedCrime2(id: 1, name: "Clinical Precision",
                                              status: "Planning", readyAt: ocReadyAt)
 
         XCTAssertEqual(try eta(.chain), 120,
@@ -451,13 +451,13 @@ final class ServerClockOffsetTests: XCTestCase {
     func testSkewChangeBeyondToleranceIsStillAdopted() async throws {
         let release = localNow + 600
         try await poll(serverTime: localNow, status: hospitalSlice(until: release))
-        XCTAssertEqual(app.serverClock.offset, 0)
+        XCTAssertEqual(app.player.serverClock.offset, 0)
 
         // 60 s of local time pass; Torn's clock advanced 64 → the Mac lost 4 s.
         clock.advance(60)
         try await poll(serverTime: localNow + 64, status: hospitalSlice(until: release + 4))
 
-        XCTAssertEqual(app.serverClock.offset, 4,
+        XCTAssertEqual(app.player.serverClock.offset, 4,
                        "4 s is past the jitter tolerance — a real correction, so track it")
         XCTAssertEqual(try eta(.hospital), 540)
     }
@@ -483,7 +483,7 @@ final class ServerClockOffsetTests: XCTestCase {
 
         try await poll(serverTime: localNow, status: hospitalSlice(until: localNow + 300))
 
-        XCTAssertEqual(app.serverClock.offset, 0,
+        XCTAssertEqual(app.player.serverClock.offset, 0,
                        "the decode took 5 s of wall time; that is not clock skew")
         XCTAssertEqual(try eta(.hospital), 295,
                        "5 s really did elapse, so 5 s came off the countdown — reading the "

@@ -11,7 +11,7 @@ struct FlyingStatusView: View {
     let departed: Int
 
     private var secondsRemaining: Int {
-        appState.travelSecondsRemaining
+        appState.player.travelSecondsRemaining
     }
 
     private var progress: Double {
@@ -93,7 +93,7 @@ struct TravelView: View {
                 ModuleStateView(
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
-                        hasContent: appState.data?.travel != nil,
+                        hasContent: appState.player.data?.travel != nil,
                         staleAfter: 120
                     ),
                     onRetry: appState.refreshNow
@@ -105,7 +105,7 @@ struct TravelView: View {
                 Divider()
 
                 // Quick Travel Section (only when not traveling)
-                if let travel = appState.data?.travel, !travel.isTraveling {
+                if let travel = appState.player.data?.travel, !travel.isTraveling {
                     quickTravelSection(isAbroad: travel.isAbroad, currentLocation: travel.destination)
                     Divider()
                 }
@@ -125,7 +125,7 @@ struct TravelView: View {
     // MARK: - Travel Status Section
     @ViewBuilder
     private var travelStatusSection: some View {
-        if let travel = appState.data?.travel {
+        if let travel = appState.player.data?.travel {
             if travel.isTraveling {
                 // Flying state with live countdown - FlyingStatusView observes appState directly
                 FlyingStatusView(

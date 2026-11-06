@@ -141,13 +141,13 @@ final class AppStateTests: XCTestCase {
         let app = AppState(session: mock, connectivity: conn, defaults: .createMockDefaults())
         app.apiKey = "bad_key"
         app.keyValidation = .validating
-        app.moneyData = MoneyData(cash: 42)
+        app.player.moneyData = MoneyData(cash: 42)
         try mock.setSuccessResponse(json: ["code": 2, "error": "Incorrect key"]) // HTTP 200 + Torn envelope
         app.startPolling()
         try await Task.sleep(nanoseconds: 1_000_000_000)
         XCTAssertTrue(app.keyHalted, "a code-2 error must halt polling")
-        XCTAssertNil(app.data)
-        XCTAssertNil(app.moneyData, "revoked credentials must not leave stale account data visible")
+        XCTAssertNil(app.player.data)
+        XCTAssertNil(app.player.moneyData, "revoked credentials must not leave stale account data visible")
         XCTAssertNotNil(app.errorMsg)
         guard case .failure = app.keyValidation else {
             return XCTFail("a permanently rejected key must invalidate prior validation")
@@ -168,21 +168,21 @@ final class AppStateTests: XCTestCase {
                            connectivity: ControllableConnectivity(),
                            defaults: .createMockDefaults())
         app.apiKey = "account_a"
-        app.data = try JSONDecoder().decode(
+        app.player.data = try JSONDecoder().decode(
             TornResponse.self,
             from: TornAPIFixtures.toData(TornAPIFixtures.validFullResponse())
         )
-        app.moneyData = MoneyData(cash: 1_000, vault: 2_000)
-        app.activityEvents = try XCTUnwrap(app.data?.recentEvents)
-        app.lastUpdated = Date()
+        app.player.moneyData = MoneyData(cash: 1_000, vault: 2_000)
+        app.player.activityEvents = try XCTUnwrap(app.player.data?.recentEvents)
+        app.player.lastUpdated = Date()
 
         app.apiKey = "account_b"
 
-        XCTAssertNil(app.data)
-        XCTAssertNil(app.moneyData)
-        XCTAssertTrue(app.activityEvents.isEmpty)
-        XCTAssertNil(app.lastUpdated)
-        XCTAssertEqual(app.menuBarDisplay, .fallbackIcon)
+        XCTAssertNil(app.player.data)
+        XCTAssertNil(app.player.moneyData)
+        XCTAssertTrue(app.player.activityEvents.isEmpty)
+        XCTAssertNil(app.player.lastUpdated)
+        XCTAssertEqual(app.player.menuBarDisplay, .fallbackIcon)
     }
 
     func testResponseFromPreviousKeyCannotOverwriteCurrentAccount() async throws {
@@ -200,8 +200,8 @@ final class AppStateTests: XCTestCase {
         app.apiKey = "account_b"
         try await Task.sleep(nanoseconds: 500_000_000)
 
-        XCTAssertNil(app.data, "a non-cooperative response for account A must be discarded")
-        XCTAssertNil(app.lastUpdated)
+        XCTAssertNil(app.player.data, "a non-cooperative response for account A must be discarded")
+        XCTAssertNil(app.player.lastUpdated)
         XCTAssertFalse(app.isLoading)
     }
 
@@ -261,7 +261,7 @@ final class AppStateTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 100_000_000)
 
         XCTAssertEqual(appState.errorMsg, "API Key required")
-        XCTAssertNil(appState.data)
+        XCTAssertNil(appState.player.data)
     }
 
     // These two used to assert `errorMsg == "Invalid API Key"` and `data == nil` for a
@@ -276,7 +276,7 @@ final class AppStateTests: XCTestCase {
         try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
-        XCTAssertNotNil(appState.data, "precondition: a good snapshot is on screen")
+        XCTAssertNotNil(appState.player.data, "precondition: a good snapshot is on screen")
 
         mockSession.setHTTPError(statusCode: 403)
         appState.fetchData()
@@ -284,7 +284,7 @@ final class AppStateTests: XCTestCase {
 
         XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(403),
                        "an edge/CDN rejection must not be reported as a bad key")
-        XCTAssertNotNil(appState.data,
+        XCTAssertNotNil(appState.player.data,
                         "a transient HTTP error must not wipe the last good snapshot")
         XCTAssertFalse(appState.keyHalted, "polling must keep running")
     }
@@ -294,14 +294,14 @@ final class AppStateTests: XCTestCase {
         try mockSession.setSuccessResponse(json: TornAPIFixtures.validFullResponse())
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
-        XCTAssertNotNil(appState.data)
+        XCTAssertNotNil(appState.player.data)
 
         mockSession.setHTTPError(statusCode: 404)
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
         XCTAssertEqual(appState.errorMsg, TornAPIError.httpStatusMessage(404))
-        XCTAssertNotNil(appState.data)
+        XCTAssertNotNil(appState.player.data)
         XCTAssertFalse(appState.keyHalted)
     }
 
@@ -315,7 +315,7 @@ final class AppStateTests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
         XCTAssertTrue(appState.keyHalted)
-        XCTAssertNil(appState.data)
+        XCTAssertNil(appState.player.data)
     }
 
     // MARK: - Fetch Success Tests
@@ -329,11 +329,11 @@ final class AppStateTests: XCTestCase {
         // Wait for async completion
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertNotNil(appState.data)
-        XCTAssertEqual(appState.data?.name, "TestPlayer")
-        XCTAssertEqual(appState.data?.playerId, 123456)
+        XCTAssertNotNil(appState.player.data)
+        XCTAssertEqual(appState.player.data?.name, "TestPlayer")
+        XCTAssertEqual(appState.player.data?.playerId, 123456)
         XCTAssertNil(appState.errorMsg)
-        XCTAssertNotNil(appState.lastUpdated)
+        XCTAssertNotNil(appState.player.lastUpdated)
     }
 
     func testMalformedResponseDoesNotAdvanceLastSuccessfulRefresh() async throws {
@@ -343,7 +343,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertNil(appState.lastUpdated)
+        XCTAssertNil(appState.player.lastUpdated)
         XCTAssertEqual(appState.errorMsg, "Unexpected response from Torn.")
         XCTAssertEqual(appState.requester.health.latest(for: "user.fast")?.outcome, .error)
     }
@@ -354,16 +354,16 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        let goodSnapshot = try XCTUnwrap(appState.data)
-        let goodTimestamp = try XCTUnwrap(appState.lastUpdated)
+        let goodSnapshot = try XCTUnwrap(appState.player.data)
+        let goodTimestamp = try XCTUnwrap(appState.player.lastUpdated)
 
         try mockSession.setSuccessResponse(json: [:])
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.data?.playerId, goodSnapshot.playerId)
-        XCTAssertEqual(appState.data?.name, goodSnapshot.name)
-        XCTAssertEqual(appState.lastUpdated, goodTimestamp)
+        XCTAssertEqual(appState.player.data?.playerId, goodSnapshot.playerId)
+        XCTAssertEqual(appState.player.data?.name, goodSnapshot.name)
+        XCTAssertEqual(appState.player.lastUpdated, goodTimestamp)
         XCTAssertEqual(appState.errorMsg, "Unexpected response from Torn.")
         XCTAssertEqual(appState.requester.health.latest(for: "user.fast")?.outcome, .error)
     }
@@ -429,11 +429,11 @@ final class AppStateTests: XCTestCase {
 
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertNotNil(appState.data?.bars)
-        XCTAssertEqual(appState.data?.energy?.current, 100)
-        XCTAssertEqual(appState.data?.nerve?.current, 50)
-        XCTAssertEqual(appState.data?.life?.current, 7500)
-        XCTAssertEqual(appState.data?.happy?.current, 5000)
+        XCTAssertNotNil(appState.player.data?.bars)
+        XCTAssertEqual(appState.player.data?.energy?.current, 100)
+        XCTAssertEqual(appState.player.data?.nerve?.current, 50)
+        XCTAssertEqual(appState.player.data?.life?.current, 7500)
+        XCTAssertEqual(appState.player.data?.happy?.current, 5000)
     }
 
     // MARK: - Torn API Error Tests
@@ -459,7 +459,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        let ends = try XCTUnwrap(appState.cooldownEnds)
+        let ends = try XCTUnwrap(appState.player.cooldownEnds)
         XCTAssertEqual(ends.drugEndsAt, 0, "Inactive cooldown (drug=0) should be stored as 0, not anchor+0")
         XCTAssertEqual(ends.boosterEndsAt, serverTs + 3600)
         XCTAssertEqual(ends.medicalEndsAt, serverTs + 1200)
@@ -485,7 +485,7 @@ final class AppStateTests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_000_000_000)
         let after = Int(Date().timeIntervalSince1970)
 
-        let ends = try XCTUnwrap(appState.cooldownEnds)
+        let ends = try XCTUnwrap(appState.player.cooldownEnds)
         XCTAssertGreaterThanOrEqual(ends.boosterEndsAt, before + 600)
         XCTAssertLessThanOrEqual(ends.boosterEndsAt, after + 600)
     }
@@ -506,7 +506,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        let ends = try XCTUnwrap(appState.cooldownEnds)
+        let ends = try XCTUnwrap(appState.player.cooldownEnds)
         XCTAssertEqual(ends.boosterEndsAt, legacyTs + 3600,
                        "legacy `timestamp` must anchor cooldowns when `server_time` is absent")
     }
@@ -524,7 +524,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        let oc = try XCTUnwrap(appState.organizedCrime, "v2 organized crime should be parsed")
+        let oc = try XCTUnwrap(appState.player.organizedCrime, "v2 organized crime should be parsed")
         XCTAssertEqual(oc.name, "Clinical Precision")
         XCTAssertEqual(oc.difficulty, 8)
         XCTAssertEqual(oc.filledSlots, 2)
@@ -541,8 +541,8 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.bountiesOnMe.count, 1)
-        XCTAssertEqual(appState.bountiesOnMe.first?.reward, 3_000_000)
+        XCTAssertEqual(appState.player.bountiesOnMe.count, 1)
+        XCTAssertEqual(appState.player.bountiesOnMe.first?.reward, 3_000_000)
     }
 
     func testMalformedUserV2SectionPreservesLastGoodState() throws {
@@ -550,8 +550,8 @@ final class AppStateTests: XCTestCase {
             Bounty.self,
             from: TornAPIFixtures.toData(TornAPIFixtures.bountyOnMe(reward: 9_000_000))
         )
-        appState.bountiesOnMe = [existing]
-        appState.notificationCounts = TornNotifications(messages: 7)
+        appState.player.bountiesOnMe = [existing]
+        appState.player.notificationCounts = TornNotifications(messages: 7)
 
         appState.applyUserV2Payload(UserV2Payload(
             organizedCrime: .unchanged,
@@ -564,8 +564,8 @@ final class AppStateTests: XCTestCase {
             malformedSelections: ["bounties"]
         ))
 
-        XCTAssertEqual(appState.bountiesOnMe, [existing])
-        XCTAssertEqual(appState.notificationCounts?.messages, 2,
+        XCTAssertEqual(appState.player.bountiesOnMe, [existing])
+        XCTAssertEqual(appState.player.notificationCounts?.messages, 2,
                        "a valid sibling section must still update")
     }
 
@@ -583,7 +583,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        let bounty = try XCTUnwrap(appState.bountiesOnMe.first)
+        let bounty = try XCTUnwrap(appState.player.bountiesOnMe.first)
         let key = "bounty.\(bounty.id)"
 
         // The fetch consumed the one-shot, so asking again must report "already fired".
@@ -662,8 +662,8 @@ final class AppStateTests: XCTestCase {
             Bounty.self,
             from: TornAPIFixtures.toData(TornAPIFixtures.bountyOnMe(reward: 1_000_000))
         )
-        appState.bountiesOnMe = [existing]
-        appState.bountiesDataTimestamp = Date(timeIntervalSince1970: 200)
+        appState.player.bountiesOnMe = [existing]
+        appState.player.bountiesDataTimestamp = Date(timeIntervalSince1970: 200)
 
         appState.applyUserV2Payload(UserV2Payload(
             organizedCrime: .unchanged,
@@ -676,10 +676,10 @@ final class AppStateTests: XCTestCase {
             malformedSelections: []
         ))
 
-        XCTAssertEqual(appState.bountiesOnMe, [existing])
-        XCTAssertEqual(appState.bountiesDataTimestamp, Date(timeIntervalSince1970: 200))
-        XCTAssertNotNil(appState.bountiesFetchedAt)
-        XCTAssertEqual(appState.bountiesCacheDelay, 30)
+        XCTAssertEqual(appState.player.bountiesOnMe, [existing])
+        XCTAssertEqual(appState.player.bountiesDataTimestamp, Date(timeIntervalSince1970: 200))
+        XCTAssertNotNil(appState.player.bountiesFetchedAt)
+        XCTAssertEqual(appState.player.bountiesCacheDelay, 30)
     }
 
     /// Ranked wars from the dedicated v2 faction endpoint land in `rankedWars`.
@@ -858,7 +858,7 @@ final class AppStateTests: XCTestCase {
         )
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
-        let firstEndsAt = try XCTUnwrap(appState.cooldownEnds?.boosterEndsAt)
+        let firstEndsAt = try XCTUnwrap(appState.player.cooldownEnds?.boosterEndsAt)
         XCTAssertEqual(firstEndsAt, firstTs + 3600)
 
         // Poll 2 ~30 s later, but booster was rounded by API such that the recomputed
@@ -872,7 +872,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        let secondEndsAt = try XCTUnwrap(appState.cooldownEnds?.boosterEndsAt)
+        let secondEndsAt = try XCTUnwrap(appState.player.cooldownEnds?.boosterEndsAt)
         XCTAssertEqual(secondEndsAt, firstEndsAt,
                        "Within ±3 s tolerance, the pinned endsAt must survive the next poll")
     }
@@ -891,7 +891,7 @@ final class AppStateTests: XCTestCase {
         )
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
-        XCTAssertEqual(appState.cooldownEnds?.boosterEndsAt, firstTs + 600)
+        XCTAssertEqual(appState.player.cooldownEnds?.boosterEndsAt, firstTs + 600)
 
         // Poll 2: user took a new booster — fresh endsAt is far in the future.
         try mockSession.setSuccessResponse(
@@ -902,7 +902,7 @@ final class AppStateTests: XCTestCase {
         appState.fetchData()
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        XCTAssertEqual(appState.cooldownEnds?.boosterEndsAt, firstTs + 30 + 18000,
+        XCTAssertEqual(appState.player.cooldownEnds?.boosterEndsAt, firstTs + 30 + 18000,
                        "Reset detected (>3 s gap) → adopt the new endsAt instead of pinning")
     }
 
@@ -919,7 +919,7 @@ final class AppStateTests: XCTestCase {
         // retrying a dead key forever).
         XCTAssertTrue(appState.keyHalted)
         XCTAssertEqual(appState.errorMsg, "Incorrect Key")
-        XCTAssertNil(appState.data)
+        XCTAssertNil(appState.player.data)
     }
 
     func testFetchData_tornAPIRateLimit() async throws {
@@ -999,7 +999,7 @@ final class AppStateTests: XCTestCase {
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
         XCTAssertTrue(mockSession.requestedURLs.count >= 1)
-        XCTAssertNotNil(appState.data)
+        XCTAssertNotNil(appState.player.data)
     }
 
     func testStopPolling_stopsTimer() {
@@ -1026,7 +1026,7 @@ final class AppStateTests: XCTestCase {
         // After completion, loading should be false
         XCTAssertFalse(appState.isLoading)
         // And we should have data
-        XCTAssertNotNil(appState.data)
+        XCTAssertNotNil(appState.player.data)
     }
 
     // MARK: - Notification Rules Tests
@@ -1083,7 +1083,7 @@ final class AppStateTests: XCTestCase {
 
         // Verify request was made
         XCTAssertGreaterThanOrEqual(mockSession.requestedURLs.count, 1)
-        XCTAssertNotNil(appState.data)
+        XCTAssertNotNil(appState.player.data)
     }
 
     func testRefreshNow_debouncesBurstAndAcceptsBoundaryAtThreeSeconds() {
@@ -1333,8 +1333,8 @@ final class AppStateTests: XCTestCase {
     func testMenuBarDisplay_traveling() async throws {
         try await fetch(fixture(travel: TornAPIFixtures.travelTraveling))
 
-        guard case .traveling(let destination, let seconds) = appState.menuBarDisplay else {
-            return XCTFail("Expected .traveling, got \(appState.menuBarDisplay)")
+        guard case .traveling(let destination, let seconds) = appState.player.menuBarDisplay else {
+            return XCTFail("Expected .traveling, got \(appState.player.menuBarDisplay)")
         }
         XCTAssertEqual(destination, "Japan")
         // The rendered glyph is derived from the name, so the menu bar still shows the flag.
@@ -1353,8 +1353,8 @@ final class AppStateTests: XCTestCase {
         ]
         try await fetch(fixture(travel: abroad, status: hospital))
 
-        guard case .hospitalAbroad(let destination, let seconds) = appState.menuBarDisplay else {
-            return XCTFail("Expected .hospitalAbroad, got \(appState.menuBarDisplay)")
+        guard case .hospitalAbroad(let destination, let seconds) = appState.player.menuBarDisplay else {
+            return XCTFail("Expected .hospitalAbroad, got \(appState.player.menuBarDisplay)")
         }
         XCTAssertEqual(destination, "Mexico")
         XCTAssertEqual(TornDestination.flag(for: destination ?? "", hasPrivateIsland: false), "🇲🇽")
@@ -1369,8 +1369,8 @@ final class AppStateTests: XCTestCase {
         ]
         try await fetch(fixture(status: hospital))
 
-        guard case .hospitalAtHome(let seconds) = appState.menuBarDisplay else {
-            return XCTFail("Expected .hospitalAtHome, got \(appState.menuBarDisplay)")
+        guard case .hospitalAtHome(let seconds) = appState.player.menuBarDisplay else {
+            return XCTFail("Expected .hospitalAtHome, got \(appState.player.menuBarDisplay)")
         }
         XCTAssertGreaterThan(seconds, 200)
         XCTAssertLessThanOrEqual(seconds, 300)
@@ -1383,8 +1383,8 @@ final class AppStateTests: XCTestCase {
         ]
         try await fetch(fixture(status: jail))
 
-        guard case .jail(let seconds) = appState.menuBarDisplay else {
-            return XCTFail("Expected .jail, got \(appState.menuBarDisplay)")
+        guard case .jail(let seconds) = appState.player.menuBarDisplay else {
+            return XCTFail("Expected .jail, got \(appState.player.menuBarDisplay)")
         }
         XCTAssertGreaterThan(seconds, 350)
         XCTAssertLessThanOrEqual(seconds, 450)
@@ -1394,8 +1394,8 @@ final class AppStateTests: XCTestCase {
         // Medical (60s) is soonest — drug 300, booster 1200
         try await fetch(fixture(cooldowns: ["drug": 300, "booster": 1200, "medical": 60]))
 
-        guard case .cooldown(let kind, let seconds) = appState.menuBarDisplay else {
-            return XCTFail("Expected .cooldown, got \(appState.menuBarDisplay)")
+        guard case .cooldown(let kind, let seconds) = appState.player.menuBarDisplay else {
+            return XCTFail("Expected .cooldown, got \(appState.player.menuBarDisplay)")
         }
         XCTAssertEqual(kind, .medical)
         XCTAssertEqual(kind.emoji, "🩹")
@@ -1406,7 +1406,7 @@ final class AppStateTests: XCTestCase {
     func testMenuBarDisplay_idleNoCooldowns_fallsBack() async throws {
         try await fetch(TornAPIFixtures.validFullResponse()) // all cooldowns 0, status Okay, in Torn
 
-        XCTAssertEqual(appState.menuBarDisplay, .fallbackIcon)
+        XCTAssertEqual(appState.player.menuBarDisplay, .fallbackIcon)
     }
 
     func testMenuBarDisplay_travelingBeatsHospital() async throws {
@@ -1417,8 +1417,8 @@ final class AppStateTests: XCTestCase {
         ]
         try await fetch(fixture(travel: TornAPIFixtures.travelTraveling, status: hospital))
 
-        if case .traveling = appState.menuBarDisplay { /* ok */ }
-        else { XCTFail("Expected .traveling to win, got \(appState.menuBarDisplay)") }
+        if case .traveling = appState.player.menuBarDisplay { /* ok */ }
+        else { XCTFail("Expected .traveling to win, got \(appState.player.menuBarDisplay)") }
     }
 
     // MARK: - ISC-15.1: daily-row-limit pauses only the offending row source

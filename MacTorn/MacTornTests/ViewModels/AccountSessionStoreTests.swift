@@ -7,10 +7,10 @@ final class AccountSessionStoreTests: XCTestCase {
         let defaults = makeDefaults()
         let store = AccountSessionStore(defaults: defaults, credentialStore: RefusingAPIKeyStore())
         let app = AppState(session: MockNetworkSession(), defaults: defaults, accountSession: store)
-        app.moneyData = MoneyData(cash: 123)
+        app.player.moneyData = MoneyData(cash: 123)
         app.apiKey = "new-key"
         XCTAssertEqual(app.apiKey, "saved-key")
-        XCTAssertEqual(app.moneyData?.cash, 123)
+        XCTAssertEqual(app.player.moneyData?.cash, 123)
         XCTAssertNotNil(store.persistenceError)
     }
 

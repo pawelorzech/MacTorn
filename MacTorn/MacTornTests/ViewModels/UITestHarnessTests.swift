@@ -13,7 +13,7 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertTrue(host.apiKey.isEmpty)
         XCTAssertFalse(host.connectivity.isConnected)
         XCTAssertTrue(host.companion.enabled.isEmpty)
-        XCTAssertNil(host.data)
+        XCTAssertNil(host.player.data)
         XCTAssertTrue(UITestConfiguration.isUnitTesting)
         XCTAssertTrue(UITestConfiguration.isIsolated)
     }
@@ -131,7 +131,7 @@ final class UITestHarnessTests: XCTestCase {
             {"timestamp": \(Int(Date().timeIntervalSince1970) - 90), "event": "You were mugged for $500."}
             """.utf8)
         ).identified(by: "9002")
-        appState.activityEvents = [seeded]
+        appState.player.activityEvents = [seeded]
 
         XCTAssertTrue(appState.fetchData(), "The fixture poll should start")
 
@@ -143,7 +143,7 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertNotNil(appState.requester.health.latest(for: "user.activity"),
                         "The activity call must have run for this probe to mean anything")
 
-        XCTAssertEqual(appState.activityEvents.map(\.id), ["9002"],
+        XCTAssertEqual(appState.player.activityEvents.map(\.id), ["9002"],
                        "The accessibility fixture's seeded event must survive the activity poll — " +
                        "StatusView hides EventsView entirely when activityEvents is empty")
     }

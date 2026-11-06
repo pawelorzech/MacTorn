@@ -49,7 +49,7 @@ struct RecruitingPanel: View {
                 Stepper("Minimum CPR: \(app.companion.minimumCPR)%", value: Binding(
                     get: { app.companion.minimumCPR }, set: { app.companion.minimumCPR = $0 }), in: 0...100, step: 5)
                     .font(.caption)
-                if app.organizedCrime != nil {
+                if app.player.organizedCrime != nil {
                     Text("You already have an OC. Recruiting checks resume when you leave it.").font(.caption)
                 } else if app.companion.eligibleSlots.isEmpty {
                     Text(app.requester.isInFlight("user.recruiting")

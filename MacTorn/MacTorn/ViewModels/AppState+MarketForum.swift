@@ -76,7 +76,7 @@ extension AppState {
     private func fetchPrice(itemID: Int, into batch: PriceAlertBatch) async {
         switch await requester.fetch("market.item", parameter: itemID, decode: MarketWatchService.decodePrice) {
         case .loaded(let snapshot?):
-            if let alert = watchlist.apply(snapshot.localized(using: serverClock), to: itemID) {
+            if let alert = watchlist.apply(snapshot.localized(using: player.serverClock), to: itemID) {
                 batch.alerts.append(alert)
             }
         case .loaded(nil):

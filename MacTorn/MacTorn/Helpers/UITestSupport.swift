@@ -138,7 +138,7 @@ enum UITestConfiguration {
 
         if scenario == .accessibility {
             let now = Int(Date().timeIntervalSince1970)
-            appState.recentAttacks = [
+            appState.player.recentAttacks = [
                 AttackResult(
                     code: "fixture-attack",
                     timestampStarted: now - 150,
@@ -168,7 +168,7 @@ enum UITestConfiguration {
             // assignment is never clobbered by the real (mocked) poll pipeline —
             // same trick as recentAttacks above. Used by the a11y UI tests to
             // pin PropertyCard's combined VoiceOver label (issue #45).
-            appState.propertiesData = [
+            appState.player.propertiesData = [
                 PropertyInfo(
                     id: 9101,
                     propertyType: "Property",
@@ -190,14 +190,14 @@ enum UITestConfiguration {
             // This only holds because `UserSnapshotService.loadActivity` reports an
             // *absent* "events" key as nil rather than as an empty array (issue #84).
             // Before that fix the first poll wiped this seed and StatusView's
-            // `if !appState.activityEvents.isEmpty` dropped EventsView from the tree
+            // `if !appState.player.activityEvents.isEmpty` dropped EventsView from the tree
             // entirely. Never rely on this pattern for a field whose parser collapses
             // "absent" to an empty collection.
             let fixtureEventJSON = Data("""
             {"timestamp": \(now - 90), "event": "You were mugged by <a href=\\"#\\">Fixture Mugger</a> for $500."}
             """.utf8)
             if let fixtureEvent = try? JSONDecoder().decode(TornEvent.self, from: fixtureEventJSON) {
-                appState.activityEvents = [fixtureEvent.identified(by: "9002")]
+                appState.player.activityEvents = [fixtureEvent.identified(by: "9002")]
             }
         }
 

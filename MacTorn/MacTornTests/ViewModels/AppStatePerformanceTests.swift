@@ -35,15 +35,15 @@ final class AppStatePerformanceTests: XCTestCase {
     func testLiveTimerStopsAtDeadlineAndRestartsForNewCooldown() throws {
         let clock = MutableTimeSource(Date(timeIntervalSince1970: 1000))
         let app = AppState(defaults: .createMockDefaults(), time: clock)
-        app.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
-        app.cooldownEnds = CooldownEnds(drugEndsAt: 1010, boosterEndsAt: 0, medicalEndsAt: 0)
+        app.player.data = try JSONDecoder().decode(TornResponse.self, from: Data("{}".utf8))
+        app.player.cooldownEnds = CooldownEnds(drugEndsAt: 1010, boosterEndsAt: 0, medicalEndsAt: 0)
         app.manageLiveTimer()
         XCTAssertNotNil(app.liveTimerCancellable)
         clock.advance(10)
         app.tick()
         XCTAssertNil(app.liveTimerCancellable)
-        XCTAssertEqual(app.menuBarDisplay, .fallbackIcon)
-        app.cooldownEnds = CooldownEnds(drugEndsAt: 1030, boosterEndsAt: 0, medicalEndsAt: 0)
+        XCTAssertEqual(app.player.menuBarDisplay, .fallbackIcon)
+        app.player.cooldownEnds = CooldownEnds(drugEndsAt: 1030, boosterEndsAt: 0, medicalEndsAt: 0)
         app.manageLiveTimer()
         XCTAssertNotNil(app.liveTimerCancellable)
         app.resetAccountScopedState()
@@ -53,14 +53,14 @@ final class AppStatePerformanceTests: XCTestCase {
     func testExpiredTravelStopsTimerWithoutConfirmingArrival() throws {
         let clock = MutableTimeSource(Date(timeIntervalSince1970: 1000))
         let app = AppState(defaults: .createMockDefaults(), time: clock)
-        app.data = try JSONDecoder().decode(TornResponse.self, from: Data(#"{"travel":{"destination":"Japan","time_left":10,"timestamp":1010}}"#.utf8))
+        app.player.data = try JSONDecoder().decode(TornResponse.self, from: Data(#"{"travel":{"destination":"Japan","time_left":10,"timestamp":1010}}"#.utf8))
         app.manageLiveTimer()
         XCTAssertNotNil(app.liveTimerCancellable)
         clock.advance(10)
         app.tick()
         XCTAssertNil(app.liveTimerCancellable)
-        XCTAssertEqual(app.menuBarDisplay, .traveling(destination: "Japan", seconds: 0))
-        XCTAssertEqual(app.data?.travel?.isTraveling, true)
+        XCTAssertEqual(app.player.menuBarDisplay, .traveling(destination: "Japan", seconds: 0))
+        XCTAssertEqual(app.player.data?.travel?.isTraveling, true)
     }
 
     func testRetryBackoffLadderCapsAtThirtyMinutesAndClearsOnSuccess() {

@@ -143,7 +143,7 @@ extension AppState {
         if let index = travelNotificationSettings.firstIndex(where: { $0.id == setting.id }) {
             travelNotificationSettings[index] = setting
             saveTravelNotificationSettings()
-            if let travel = data?.travel, travel.isTraveling {
+            if let travel = player.data?.travel, travel.isTraveling {
                 scheduleTravelNotifications(for: travel)
             }
         }
@@ -160,7 +160,7 @@ extension AppState {
         // notification fires on the *Mac's* clock — so convert back through the skew
         // (issue #46), or a 90 s-slow Mac fires every landing alert 90 s early.
         guard travel.isTraveling, let arrival = travel.timestamp, arrival > 0 else { return }
-        let arrivalDate = serverClock.localDate(forServerTimestamp: arrival)
+        let arrivalDate = player.serverClock.localDate(forServerTimestamp: arrival)
 
         for setting in travelNotificationSettings where setting.enabled {
             let notificationDate = arrivalDate.addingTimeInterval(-Double(setting.secondsBefore))

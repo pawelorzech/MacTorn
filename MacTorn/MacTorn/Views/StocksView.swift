@@ -10,7 +10,7 @@ struct StocksView: View {
                 ModuleStateView(
                     state: appState.presentationState(
                         endpointIDs: ["user.fast"],
-                        hasContent: !appState.stocksData.isEmpty,
+                        hasContent: !appState.player.stocksData.isEmpty,
                         staleAfter: 120,
                         requiredUserSelections: ["stocks"]
                     ),
@@ -25,17 +25,17 @@ struct StocksView: View {
                         Text("Stocks")
                             .font(.caption.bold())
                         Spacer()
-                        if !appState.stocksData.isEmpty {
+                        if !appState.player.stocksData.isEmpty {
                             Text("Market: \(TornFormatter.formatMoney(totalMarketValue))")
                                 .font(.caption2)
                                 .foregroundColor(.secondary)
                         }
                     }
 
-                    if appState.stocksData.isEmpty {
+                    if appState.player.stocksData.isEmpty {
                         EmptyStateView(icon: "chart.line.downtrend.xyaxis", title: "No stocks found")
                     } else {
-                        ForEach(appState.stocksData) { stock in
+                        ForEach(appState.player.stocksData) { stock in
                             let metadata = appState.stocksMetadata[stock.stockId]
                             HStack(spacing: 6) {
                                 if let metadata {
@@ -96,11 +96,11 @@ struct StocksView: View {
     }
 
     private var totalMarketValue: Int? {
-        NumericSafety.optionalTotal(appState.stocksData.map { $0.marketValue(using: appState.stocksMetadata) })
+        NumericSafety.optionalTotal(appState.player.stocksData.map { $0.marketValue(using: appState.stocksMetadata) })
     }
 
     private var totalCostBasis: Int? {
-        NumericSafety.optionalTotal(appState.stocksData.map(\.totalCostBasis))
+        NumericSafety.optionalTotal(appState.player.stocksData.map(\.totalCostBasis))
     }
 
 }

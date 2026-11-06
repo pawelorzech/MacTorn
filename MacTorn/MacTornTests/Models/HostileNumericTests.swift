@@ -100,7 +100,7 @@ final class HostileNumericTests: XCTestCase {
             "nerve": ["current": 0, "maximum": 1], "life": ["current": 0, "maximum": 1],
             "happy": ["current": 0, "maximum": 1],
             "travel": ["destination": "Mexico", "time_left": Int.max]]
-        state.data = try! JSONDecoder().decode(TornResponse.self, from: JSONSerialization.data(withJSONObject: json))
+        state.player.data = try! JSONDecoder().decode(TornResponse.self, from: JSONSerialization.data(withJSONObject: json))
         XCTAssertNil(state.makeNextActionSnapshot().energyFullAt)
         XCTAssertNil(state.makeNextActionSnapshot().travelArrivalAt)
     }
@@ -142,11 +142,11 @@ final class HostileNumericTests: XCTestCase {
     func testHostileValuesRenderWithoutTrapping() throws {
         let state = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
         defer { state.stopPolling() }
-        state.moneyData = MoneyData(cash: Int.max, vault: 1)
-        state.propertiesData = [PropertyInfo(id: 1, marketprice: Int.max), PropertyInfo(id: 2, marketprice: 1)]
-        state.bountiesOnMe = try JSONDecoder().decode([Bounty].self, from: JSONSerialization.data(withJSONObject: [
+        state.player.moneyData = MoneyData(cash: Int.max, vault: 1)
+        state.player.propertiesData = [PropertyInfo(id: 1, marketprice: Int.max), PropertyInfo(id: 2, marketprice: 1)]
+        state.player.bountiesOnMe = try JSONDecoder().decode([Bounty].self, from: JSONSerialization.data(withJSONObject: [
             ["target_id": 1, "reward": Int.max], ["target_id": 1, "reward": 1]]))
-        state.stocksData = [StockHolding(stockId: 1, totalShares: 2, transactions: nil)]
+        state.player.stocksData = [StockHolding(stockId: 1, totalShares: 2, transactions: nil)]
         state.stocksMetadata = [1: StockMetadata(id: 1, name: "Fixture", acronym: "F", currentPrice: 1e300)]
         render(MoneyView().environment(state))
         render(PropertiesView().environment(state))

@@ -138,7 +138,7 @@ struct MenuBarLabel: View {
 
     var body: some View {
         Group {
-            switch appState.menuBarDisplay {
+            switch appState.player.menuBarDisplay {
             case .traveling(let destination, let seconds):
                 Text("✈️\(flag(for: destination))\(Self.formatShortTime(seconds))")
             case .hospitalAbroad(let destination, let seconds):
@@ -196,14 +196,14 @@ struct MenuBarLabel: View {
 
     private var idleState: IdleState {
         if appState.errorMsg != nil { return .error }
-        if let travel = appState.data?.travel, travel.isAbroad { return .abroad }
-        if let energy = appState.data?.bars?.energy, energy.current >= energy.maximum { return .energyFull }
+        if let travel = appState.player.data?.travel, travel.isAbroad { return .abroad }
+        if let energy = appState.player.data?.bars?.energy, energy.current >= energy.maximum { return .energyFull }
         return .idle
     }
 
     private var accessibilityText: String {
-        guard case .fallbackIcon = appState.menuBarDisplay, let spoken = idleState.spoken else {
-            return appState.menuBarDisplay.accessibilityDescription
+        guard case .fallbackIcon = appState.player.menuBarDisplay, let spoken = idleState.spoken else {
+            return appState.player.menuBarDisplay.accessibilityDescription
         }
         return spoken
     }

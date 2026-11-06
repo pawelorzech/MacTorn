@@ -14,7 +14,7 @@ struct StatusView: View {
                 ModuleStateView(
                     state: appState.presentationState(
                         endpointIDs: ["user.fast", "user.v2", "user.activity"],
-                        hasContent: appState.data != nil,
+                        hasContent: appState.player.data != nil,
                         staleAfter: 120
                     ),
                     onRetry: appState.refreshNow,
@@ -22,39 +22,39 @@ struct StatusView: View {
                 )
 
                 // Next Action timeline (Etap J) — the single most useful glance.
-                if appState.data != nil {
+                if appState.player.data != nil {
                     NextActionView(reduceTransparency: reduceTransparency)
                 }
 
                 CompetitionPanel()
 
                 // Status badges (Hospital/Jail)
-                if let status = appState.data?.status {
-                    StatusBadgesView(status: status, serverClock: appState.serverClock)
+                if let status = appState.player.data?.status {
+                    StatusBadgesView(status: status, serverClock: appState.player.serverClock)
                 }
                 
                 // Chain status
                 if let chain = appState.liveChain {
-                    ChainView(chain: chain, serverClock: appState.serverClock)
+                    ChainView(chain: chain, serverClock: appState.player.serverClock)
                 }
                 
                 // Travel status
-                if let travel = appState.data?.travel, travel.isTraveling || travel.isAbroad {
+                if let travel = appState.player.data?.travel, travel.isTraveling || travel.isAbroad {
                     travelSection(travel)
                 }
                 
                 // Bars
-                if let bars = appState.data?.bars {
+                if let bars = appState.player.data?.bars {
                     barsSection(bars)
                 }
                 
                 // Cooldowns
-                if let cooldowns = appState.data?.cooldowns {
+                if let cooldowns = appState.player.data?.cooldowns {
                     cooldownsSection(cooldowns)
                 }
 
                 // Bounty alert — someone placed a bounty on you (safety signal)
-                if !appState.bountiesOnMe.isEmpty {
+                if !appState.player.bountiesOnMe.isEmpty {
                     bountyBadge
                 }
 
@@ -66,14 +66,14 @@ struct StatusView: View {
                 // `unreadMessages` while it is present renders the row with zero badges,
                 // because that value comes from the slower activity poll and can still be
                 // non-zero after the counters have gone to zero.
-                if appState.notificationCounts?.hasAny == true
-                    || (appState.notificationCounts == nil && appState.unreadMessages > 0) {
+                if appState.player.notificationCounts?.hasAny == true
+                    || (appState.player.notificationCounts == nil && appState.player.unreadMessages > 0) {
                     notificationBadges
                 }
 
                 // Events
-                if !appState.activityEvents.isEmpty {
-                    EventsView(events: appState.activityEvents, serverClock: appState.serverClock)
+                if !appState.player.activityEvents.isEmpty {
+                    EventsView(events: appState.player.activityEvents, serverClock: appState.player.serverClock)
                 }
                 
                 // Quick Links
@@ -91,7 +91,7 @@ struct StatusView: View {
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                if let name = appState.data?.name, let id = appState.data?.playerId {
+                if let name = appState.player.data?.name, let id = appState.player.data?.playerId {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(name)
                             .font(.headline)
@@ -134,13 +134,13 @@ struct StatusView: View {
     /// against a daily cap to produce one integer. The `notifications` selection returns
     /// all four for free, so the app can now show what it could only ever guess at.
     private var notificationBadges: some View {
-        let counts = appState.notificationCounts
+        let counts = appState.player.notificationCounts
         // Icon + count only. Spelling the noun out reads better but does not fit: four
         // badges of "2 competitions" width overflow a 320pt popover, and this row can show
         // all four at once. The noun lives in the accessibility label and the tooltip,
         // where it costs no horizontal space.
         return HStack(spacing: 6) {
-            if let messages = counts?.messages ?? (appState.unreadMessages > 0 ? appState.unreadMessages : nil),
+            if let messages = counts?.messages ?? (appState.player.unreadMessages > 0 ? appState.player.unreadMessages : nil),
                messages > 0 {
                 badge(count: messages,
                       noun: "message",
@@ -224,7 +224,7 @@ struct StatusView: View {
                         .foregroundColor(.secondary)
                     // The row outlives the countdown until the next poll clears `isTraveling`;
                     // at zero it must read "Ready", as it did before c71ee24.
-                    Text(TornFormatter.clock(appState.travelSecondsRemaining, zeroText: "Ready"))
+                    Text(TornFormatter.clock(appState.player.travelSecondsRemaining, zeroText: "Ready"))
                         .font(.caption.monospacedDigit())
                         .foregroundColor(.blue)
                 }
@@ -289,10 +289,10 @@ struct StatusView: View {
                 .foregroundColor(.secondary)
 
             HStack(spacing: 16) {
-                if let ends = appState.cooldownEnds {
-                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, actionURL: drugURL, actionLabel: "Use Drug →", serverClock: appState.serverClock)
-                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, actionURL: medicalURL, actionLabel: "Use Medical →", serverClock: appState.serverClock)
-                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, actionURL: boosterURL, actionLabel: boosterLabel, serverClock: appState.serverClock)
+                if let ends = appState.player.cooldownEnds {
+                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, actionURL: drugURL, actionLabel: "Use Drug →", serverClock: appState.player.serverClock)
+                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, actionURL: medicalURL, actionLabel: "Use Medical →", serverClock: appState.player.serverClock)
+                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, actionURL: boosterURL, actionLabel: boosterLabel, serverClock: appState.player.serverClock)
                 } else {
                     CooldownItem(label: "Drug", seconds: cooldowns.drug, actionURL: drugURL, actionLabel: "Use Drug →")
                     CooldownItem(label: "Medical", seconds: cooldowns.medical, actionURL: medicalURL, actionLabel: "Use Medical →")
@@ -360,8 +360,8 @@ struct StatusView: View {
     
     // MARK: - Bounty Alert
     private var bountyBadge: some View {
-        let total = NumericSafety.total(appState.bountiesOnMe.map(\.reward))
-        let count = appState.bountiesOnMe.count
+        let total = NumericSafety.total(appState.player.bountiesOnMe.map(\.reward))
+        let count = appState.player.bountiesOnMe.count
         let amount = total.map { TornFormatter.formatMoney($0) } ?? "Unavailable"
         return Button {
             BrowserManager.shared.open(TornLink.bounties)
@@ -386,8 +386,8 @@ struct StatusView: View {
     // MARK: - Dailies (refills + education)
     @ViewBuilder
     private var dailiesSection: some View {
-        let refills = appState.refills
-        let studying = appState.education?.isStudying ?? false
+        let refills = appState.player.refills
+        let studying = appState.player.education?.isStudying ?? false
         if refills != nil || studying {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -415,10 +415,10 @@ struct StatusView: View {
                 }
 
                 // `endsDate` is an absolute time, so tick `now` against it — no drift.
-                if let ends = appState.education?.endsDate {
+                if let ends = appState.player.education?.endsDate {
                     TimelineView(.periodic(from: .now, by: 1.0)) { context in
                         let remaining = max(0, Int(ends.timeIntervalSince(
-                            appState.serverClock.serverNow(context.date))))
+                            appState.player.serverClock.serverNow(context.date))))
                         HStack(spacing: 6) {
                             Image(systemName: "graduationcap.fill")
                                 .foregroundColor(.purple)

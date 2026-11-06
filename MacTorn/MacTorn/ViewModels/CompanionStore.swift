@@ -157,7 +157,7 @@ final class CompanionStore {
         func active(_ feature: Feature) -> Bool {
             token == generation && !Task.isCancelled && enabled.contains(feature)
         }
-        if active(.recruiting), app.organizedCrime == nil, requester.isDue("user.recruiting"),
+        if active(.recruiting), app.player.organizedCrime == nil, requester.isDue("user.recruiting"),
            let value: RecruitingResponse = await request("user.recruiting", app: app) {
             recruiting = value.organizedcrimes
             let fresh = newlyAvailable(Set(eligibleSlots.map { "\($0.crime.id):\($0.slot.positionInfo.id)" }), feature: .recruiting)

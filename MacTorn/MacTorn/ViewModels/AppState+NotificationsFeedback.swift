@@ -45,7 +45,7 @@ extension AppState {
             }
         }
 
-        if let prevTravel = previousTravel, let currentTravel = newData.travel {
+        if let prevTravel = player.previousTravel, let currentTravel = newData.travel {
             // Just landed
             if prevTravel.isTraveling && !currentTravel.isTraveling {
                 notifier.send(title: "Landed!", body: "You have arrived in \(currentTravel.destination ?? "destination")", type: .landed)
@@ -55,7 +55,7 @@ extension AppState {
             if !prevTravel.isTraveling && currentTravel.isTraveling {
                 scheduleTravelNotifications(for: currentTravel)
             }
-        } else if let currentTravel = newData.travel, currentTravel.isTraveling, previousTravel == nil {
+        } else if let currentTravel = newData.travel, currentTravel.isTraveling, player.previousTravel == nil {
             // First data fetch while traveling
             scheduleTravelNotifications(for: currentTravel)
         }

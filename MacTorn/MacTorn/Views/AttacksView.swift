@@ -10,7 +10,7 @@ struct AttacksView: View {
                 ModuleStateView(
                     state: appState.presentationState(
                         endpointIDs: ["user.fast", "user.activity"],
-                        hasContent: appState.battleStats != nil || appState.recentAttacks != nil,
+                        hasContent: appState.player.battleStats != nil || appState.player.recentAttacks != nil,
                         staleAfter: 360
                     ),
                     onRetry: appState.refreshNow
@@ -26,7 +26,7 @@ struct AttacksView: View {
                             .font(.caption.bold())
                     }
 
-                    if let stats = appState.battleStats {
+                    if let stats = appState.player.battleStats {
                         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                             StatItem(label: "Strength", value: formatStat(stats.strength), color: .red)
                             StatItem(label: "Defense", value: formatStat(stats.defense), color: .blue)
@@ -73,8 +73,8 @@ struct AttacksView: View {
                             .font(.caption.bold())
                     }
                     
-                    if let attacks = appState.recentAttacks, !attacks.isEmpty,
-                       let userId = appState.data?.playerId {
+                    if let attacks = appState.player.recentAttacks, !attacks.isEmpty,
+                       let userId = appState.player.data?.playerId {
                         ForEach(attacks.prefix(5)) { attack in
                             let result = attack.result.flatMap { $0.isEmpty ? nil : $0 }
                                 ?? "Result unavailable"

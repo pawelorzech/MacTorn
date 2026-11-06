@@ -10,7 +10,7 @@ extension AppState {
             return
         }
         if timerCancellable != nil,
-           time.now.timeIntervalSince(lastFetchTime) < Double(refreshInterval) / 2 {
+           time.now.timeIntervalSince(player.lastFetchTime) < Double(refreshInterval) / 2 {
             return
         }
         // Assigning over an AnyCancellable cancels the old one; `timerCancellable != nil`
@@ -395,8 +395,8 @@ extension AppState {
             async let userV2: Void = self.fetchUserV2Data()
             async let factionV2: Void = self.fetchFactionV2Data()
             async let activity: Void = self.fetchActivityData()
-            async let virus: Void = self.fetchVirusIfNeeded()
-            _ = await (faction, userV2, factionV2, activity, virus)
+            async let virusRead: Void = self.fetchVirusIfNeeded()
+            _ = await (faction, userV2, factionV2, activity, virusRead)
 
             guard !Task.isCancelled, self.accountSession.isCurrent(identity) else { return }
             if case .loaded = result { self.triggerReferenceDataFetchIfNeeded() }
@@ -414,10 +414,10 @@ extension AppState {
         // way `CooldownEnds.merged` damps `endsAt` — the raw value wobbles by a second or
         // three per poll and would walk every countdown backwards.
         let derivedClock = ServerClock(anchor: decoded.anchorTimestamp, localNow: receivedAt)
-        serverClock = serverClock.merged(with: derivedClock)
+        player.serverClock = player.serverClock.merged(with: derivedClock)
 
         checkNotifications(newData: decoded)
-        self.data = decoded
+        player.data = decoded
 
         if let cooldowns = decoded.cooldowns {
             // Deliberately the raw anchor: a cooldown's `endsAt` only has to agree with the
@@ -425,23 +425,23 @@ extension AppState {
             // re-anchor cooldowns from a payload whose timestamp is merely unusual.
             let anchor = decoded.anchorTimestamp ?? Int(receivedAt.timeIntervalSince1970)
             let fresh = CooldownEnds.from(cooldowns: cooldowns, anchor: anchor)
-            cooldownEnds = cooldownEnds?.merged(with: fresh) ?? fresh
+            player.cooldownEnds = player.cooldownEnds?.merged(with: fresh) ?? fresh
         } else {
-            cooldownEnds = nil
+            player.cooldownEnds = nil
         }
 
         // Travel's alert schedules and cancels local notifications, so it still compares
         // against the previous poll; everything else latches in `notificationCoordinator`.
-        previousTravel = decoded.travel
+        player.previousTravel = decoded.travel
 
-        moneyData = payload.money
-        battleStats = payload.battleStats
-        if let attacks = payload.recentAttacks { recentAttacks = attacks }
-        if let properties = payload.properties { propertiesData = properties }
-        stocksData = payload.stocks
+        player.moneyData = payload.money
+        player.battleStats = payload.battleStats
+        if let attacks = payload.recentAttacks { player.recentAttacks = attacks }
+        if let properties = payload.properties { player.propertiesData = properties }
+        player.stocksData = payload.stocks
 
-        lastUpdated = Date()
-        lastFetchTime = receivedAt
+        player.lastUpdated = Date()
+        player.lastFetchTime = receivedAt
         errorMsg = nil
 
         manageLiveTimer()
@@ -455,20 +455,20 @@ extension AppState {
         guard requester.isDue("user.activity"),
               let payload = await requester.fetch("user.activity", decode: UserSnapshotService.decodeActivity).value
         else { return }
-        if let events = payload.events { activityEvents = events }
-        if let attacks = payload.recentAttacks { recentAttacks = attacks }
+        if let events = payload.events { player.activityEvents = events }
+        if let attacks = payload.recentAttacks { player.recentAttacks = attacks }
     }
 
     /// Writing a virus takes days and Torn answers with an absolute finish time, so the
     /// endpoint is only re-read once a known virus has finished, or after the registry's
     /// half-hour floor when none is known.
     func fetchVirusIfNeeded() async {
-        if let virus, !virus.isReady(at: serverNow) { return }
+        if let virus = player.virus, !virus.isReady(at: serverNow) { return }
         guard requester.isDue("user.virus"),
               case .loaded(let value) = await requester.fetch("user.virus", decode: UserSnapshotService.decodeVirus)
         else { return }
-        let wasProgramming = virus
-        virus = value
+        let wasProgramming = player.virus
+        player.virus = value
         publishWidgets()
         if let wasProgramming, value == nil || value?.itemID != wasProgramming.itemID,
            notificationCoordinator.shouldFireOnce("virus.ready", epoch: "\(wasProgramming.until)") {
@@ -498,30 +498,30 @@ extension AppState {
         case .unchanged:
             break
         case .replace(let value):
-            organizedCrime = value
-            organizedCrimeUnavailableReason = nil
+            player.organizedCrime = value
+            player.organizedCrimeUnavailableReason = nil
             if shouldNotifyOCReady(value), let value {
                 notifier.send(title: "OC Ready! 💼", body: "\(value.name) is ready to execute", type: .ocReady)
             }
         case .unavailable(let message):
-            organizedCrime = nil
-            organizedCrimeUnavailableReason = message
+            player.organizedCrime = nil
+            player.organizedCrimeUnavailableReason = message
         }
-        if case .replace(let value) = payload.refills { refills = value }
-        if case .replace(let value) = payload.education { education = value }
+        if case .replace(let value) = payload.refills { player.refills = value }
+        if case .replace(let value) = payload.education { player.education = value }
         if case .replace(let value) = payload.bounties {
             let incoming = payload.bountiesTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) }
-            bountiesFetchedAt = Date()
-            bountiesCacheDelay = payload.bountiesDelay.map(TimeInterval.init)
-            if incoming == nil || bountiesDataTimestamp == nil || incoming! > bountiesDataTimestamp! {
-                bountiesDataTimestamp = incoming
-                bountiesOnMe = value
+            player.bountiesFetchedAt = Date()
+            player.bountiesCacheDelay = payload.bountiesDelay.map(TimeInterval.init)
+            if incoming == nil || player.bountiesDataTimestamp == nil || incoming! > player.bountiesDataTimestamp! {
+                player.bountiesDataTimestamp = incoming
+                player.bountiesOnMe = value
                 notifyBountiesOnMe()
             }
         }
         if case .replace(let counts) = payload.notifications {
-            notificationCounts = counts
-            unreadMessages = counts.messages
+            player.notificationCounts = counts
+            player.unreadMessages = counts.messages
         }
     }
 
@@ -533,7 +533,7 @@ extension AppState {
     /// `shouldFireOnce` tests and records, keyed by the bounty id, so each bounty
     /// announces itself once and stays quiet for as long as it hangs there.
     private func notifyBountiesOnMe() {
-        let fresh = bountiesOnMe.filter {
+        let fresh = player.bountiesOnMe.filter {
             notificationCoordinator.shouldFireOnce("bounty.\($0.id)", epoch: $0.id)
         }
         guard let banner = Self.bountyBanner(for: fresh) else { return }
