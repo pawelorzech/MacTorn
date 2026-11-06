@@ -133,23 +133,18 @@ extension AppState {
     /// The price-alert timer runs only while user polling does and at least one item has a
     /// threshold, so a watchlist with no alerts spends nothing.
     func syncPriceAlertPolling() {
-        guard timerCancellable != nil, !keyHalted, !apiKey.isEmpty, hasPriceThresholds else {
+        guard pollTimer.isRunning, !keyHalted, !apiKey.isEmpty, hasPriceThresholds else {
             stopPriceAlertPolling()
             return
         }
-        guard priceAlertTimerCancellable == nil else { return }
-        priceAlertTimerCancellable = Timer.publish(every: Self.priceAlertPollInterval,
-                                                   tolerance: Self.priceAlertPollInterval / 10,
-                                                   on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.refreshPriceAlerts()
-            }
+        guard !priceAlertTimer.isRunning else { return }
+        priceAlertTimer.start(every: Self.priceAlertPollInterval) { [weak self] in
+            self?.refreshPriceAlerts()
+        }
     }
 
     func stopPriceAlertPolling() {
-        priceAlertTimerCancellable?.cancel()
-        priceAlertTimerCancellable = nil
+        priceAlertTimer.stop()
     }
 
     func refreshPriceAlerts() {

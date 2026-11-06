@@ -94,7 +94,7 @@ class AppState {
     var refreshInterval: Int = 30 {
         didSet {
             guard refreshInterval != oldValue else { return }
-            guard Self.allowedRefreshIntervals.contains(refreshInterval) else {
+            guard Self.refreshIntervals.contains(refreshInterval) else {
                 refreshInterval = 30
                 return
             }
@@ -104,7 +104,7 @@ class AppState {
             notificationCoordinator.refreshInterval = TimeInterval(refreshInterval)
             // A running timer keeps the cadence it was installed with and `startPolling` returns early while
             // one runs, so the change has to reinstall it.
-            if timerCancellable != nil { installPollingTimer() }
+            if pollTimer.isRunning { installPollingTimer() }
         }
     }
 
@@ -175,8 +175,8 @@ class AppState {
             forumWatch.config = newValue
             // Same as `refreshInterval`: `startForumPolling` returns early while a timer
             // runs, so a new cadence has to reinstall the running timer itself.
-            if forumTimerCancellable != nil,
-               forumTimerInterval != Double(forumWatch.config.pollingIntervalSeconds) {
+            if forumTimer.isRunning,
+               forumTimer.interval != Double(forumWatch.config.pollingIntervalSeconds) {
                 installForumTimer()
             }
         }
@@ -212,7 +212,7 @@ class AppState {
     }
 
     // MARK: - Live Travel Countdown
-    @ObservationIgnored var liveTimerCancellable: AnyCancellable?
+    @ObservationIgnored let liveTimer = RepeatingTimer()
 
     // MARK: - Managers
     @ObservationIgnored let updateManager: UpdateManager
@@ -232,15 +232,10 @@ class AppState {
     @ObservationIgnored let forumWatch: ForumWatchService
 
     // MARK: - Timer
-    @ObservationIgnored var timerCancellable: AnyCancellable?
-    @ObservationIgnored var forumTimerCancellable: AnyCancellable?
-    /// Background price-alert refresh (see `syncPriceAlertPolling`). Nil unless polling is
-    /// running and at least one watchlist item has a threshold.
-    @ObservationIgnored var priceAlertTimerCancellable: AnyCancellable?
-    /// The cadence each running timer was installed with. Combine hides the interval, so
-    /// these are what tells a stale timer from a current one (and what tests read).
-    @ObservationIgnored var pollingTimerInterval: TimeInterval?
-    @ObservationIgnored var forumTimerInterval: TimeInterval?
+    @ObservationIgnored let pollTimer = RepeatingTimer()
+    @ObservationIgnored let forumTimer = RepeatingTimer()
+    /// Runs only while polling does and at least one watchlist item has a threshold.
+    @ObservationIgnored let priceAlertTimer = RepeatingTimer()
     @ObservationIgnored var lastForumFetchAt: Date?
 
     /// Monotonic identity for accepted user snapshot polls. Deferred cleanup from an
@@ -336,7 +331,7 @@ class AppState {
         // Seeded by hand from UserDefaults; `didSet` does not fire during `init`, so these assignments do
         // not write back.
         if let stored = defaults.object(forKey: "refreshInterval") as? Int,
-           Self.allowedRefreshIntervals.contains(stored) {
+           Self.refreshIntervals.contains(stored) {
             self.refreshInterval = stored
         }
         // didSet does not fire on init, so the dedup staleness window is seeded by hand
@@ -363,7 +358,8 @@ class AppState {
         }
     }
 
-    private static let allowedRefreshIntervals: Set<Int> = [15, 30, 60, 120]
+    /// The main poll cadences Settings offers, fastest first.
+    static let refreshIntervals = [15, 30, 60, 120]
 
     /// Removes data that belongs to the previously authenticated Torn account. Local
     /// preferences (watchlist, watched threads, appearance) intentionally remain.
@@ -391,15 +387,12 @@ class AppState {
         // The old account's timer must not keep polling under the new account's key. Cancelling it is also
         // what lets `startPolling` run again: its early-return guard reads `timerCancellable` and
         // `lastFetchTime`, which an account change would otherwise leave untouched.
-        timerCancellable?.cancel()
-        timerCancellable = nil
-        pollingTimerInterval = nil
+        pollTimer.stop()
         stopPriceAlertPolling()
         accountSession.cancelAllTasks()
         keyResumeTask?.cancel()
         keyResumeTask = nil
-        liveTimerCancellable?.cancel()
-        liveTimerCancellable = nil
+        liveTimer.stop()
     }
 
 }

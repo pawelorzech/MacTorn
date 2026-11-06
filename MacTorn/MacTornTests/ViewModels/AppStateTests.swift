@@ -1246,11 +1246,11 @@ final class AppStateTests: XCTestCase {
         )
         app.apiKey = "timer-\(UUID().uuidString)"
         app.startPolling()
-        let timer = try XCTUnwrap(app.timerCancellable)
+        let started = try XCTUnwrap(app.pollTimer.startedAt)
 
         app.refreshNow()
 
-        XCTAssertTrue(app.timerCancellable === timer,
+        XCTAssertEqual(app.pollTimer.startedAt, started,
                       "manual refresh must not cancel and recreate the automatic timer")
         app.stopPolling()
     }
@@ -1262,11 +1262,11 @@ final class AppStateTests: XCTestCase {
             defaults: .createMockDefaults()
         )
         app.apiKey = "timer-restore-\(UUID().uuidString)"
-        XCTAssertNil(app.timerCancellable)
+        XCTAssertFalse(app.pollTimer.isRunning)
 
         app.refreshNow()
 
-        XCTAssertNotNil(app.timerCancellable,
+        XCTAssertTrue(app.pollTimer.isRunning,
                         "saving a key after polling was stopped must resume automatic polling")
         app.stopPolling()
     }
@@ -2010,34 +2010,34 @@ final class PollingCadenceChangeTests: XCTestCase {
         let app = makeApp()
         app.refreshInterval = 30
         app.startPolling()
-        XCTAssertEqual(app.pollingTimerInterval, 30)
+        XCTAssertEqual(app.pollTimer.interval, 30)
 
         app.refreshInterval = 60
         app.startPolling()
 
-        XCTAssertEqual(app.pollingTimerInterval, 60)
+        XCTAssertEqual(app.pollTimer.interval, 60)
         app.stopPolling()
     }
 
     func testChangingRefreshIntervalWhileStoppedDoesNotStartPolling() {
         let app = makeApp()
         app.refreshInterval = 60
-        XCTAssertNil(app.timerCancellable)
-        XCTAssertNil(app.pollingTimerInterval)
+        XCTAssertFalse(app.pollTimer.isRunning)
+        XCTAssertNil(app.pollTimer.interval)
     }
 
     func testChangingForumIntervalReinstallsTheRunningForumTimer() {
         let app = makeApp()
         app.forumWatchConfig.pollingIntervalSeconds = 180
         app.startForumPolling()
-        XCTAssertEqual(app.forumTimerInterval, 180)
+        XCTAssertEqual(app.forumTimer.interval, 180)
         // A forum poll just landed — the state in which `startForumPolling` returns early.
         app.lastForumFetchAt = Date()
 
         app.forumWatchConfig.pollingIntervalSeconds = 300
         app.startForumPolling()
 
-        XCTAssertEqual(app.forumTimerInterval, 300)
+        XCTAssertEqual(app.forumTimer.interval, 300)
         app.stopForumPolling()
     }
 }

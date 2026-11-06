@@ -825,38 +825,38 @@ final class WatchlistPriceAlertTimerTests: XCTestCase {
         try await Task.sleep(nanoseconds: 300_000_000)
 
         XCTAssertTrue(marketRequests.isEmpty)
-        XCTAssertNil(state.priceAlertTimerCancellable)
+        XCTAssertFalse(state.priceAlertTimer.isRunning)
     }
 
     func testTimerFollowsPollingAndThresholds() {
         state.watchlistItems = [item(123, threshold: nil)]
         state.startPolling()
-        XCTAssertNil(state.priceAlertTimerCancellable)
+        XCTAssertFalse(state.priceAlertTimer.isRunning)
 
         state.watchlistItems[0].priceThreshold = 1_000
-        XCTAssertNotNil(state.priceAlertTimerCancellable, "setting a threshold starts it")
+        XCTAssertTrue(state.priceAlertTimer.isRunning, "setting a threshold starts it")
 
         state.watchlistItems[0].priceThreshold = nil
-        XCTAssertNil(state.priceAlertTimerCancellable, "clearing the last threshold stops it")
+        XCTAssertFalse(state.priceAlertTimer.isRunning, "clearing the last threshold stops it")
     }
 
     func testTimerIsGoneAfterKeyClear() {
         state.watchlistItems = [item(123, threshold: 1_000)]
         state.startPolling()
-        XCTAssertNotNil(state.priceAlertTimerCancellable)
+        XCTAssertTrue(state.priceAlertTimer.isRunning)
 
         state.apiKey = ""
 
-        XCTAssertNil(state.priceAlertTimerCancellable)
+        XCTAssertFalse(state.priceAlertTimer.isRunning)
     }
 
     func testTimerIsGoneAfterPermanentKeyError() async throws {
         state.watchlistItems = [item(123, threshold: 1_000)]
         state.startPolling()
-        XCTAssertNotNil(state.priceAlertTimerCancellable)
+        XCTAssertTrue(state.priceAlertTimer.isRunning)
 
         state.handlePermanentKeyError(.permanentKey(code: 2, message: "Incorrect key"))
-        XCTAssertNil(state.priceAlertTimerCancellable)
+        XCTAssertFalse(state.priceAlertTimer.isRunning)
 
         try mockSession.setSuccessResponse(json: TornAPIFixtures.marketItemSuccess)
         state.refreshPriceAlerts()
@@ -867,10 +867,10 @@ final class WatchlistPriceAlertTimerTests: XCTestCase {
     func testTimerIsGoneAfterStopPolling() {
         state.watchlistItems = [item(123, threshold: 1_000)]
         state.startPolling()
-        XCTAssertNotNil(state.priceAlertTimerCancellable)
+        XCTAssertTrue(state.priceAlertTimer.isRunning)
 
         state.stopPolling()
 
-        XCTAssertNil(state.priceAlertTimerCancellable)
+        XCTAssertFalse(state.priceAlertTimer.isRunning)
     }
 }

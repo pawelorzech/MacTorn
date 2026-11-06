@@ -345,19 +345,26 @@ struct SettingsView: View {
         }
     }
 
+    private static func intervalLabel(_ seconds: Int) -> String {
+        seconds < 120 ? "\(seconds)s" : "\(seconds / 60)m"
+    }
+
     private var refreshSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Picker("Main refresh", selection: refreshIntervalBinding) {
-                Text("15s ⚡︎")
-                    .accessibilityLabel("15 seconds, fastest")
-                    .tag(15)
-                Text("30s").tag(30)
-                Text("60s").tag(60)
-                Text("2m").tag(120)
+                ForEach(AppState.refreshIntervals, id: \.self) { seconds in
+                    if seconds == AppState.refreshIntervals.first {
+                        Text("\(Self.intervalLabel(seconds)) ⚡︎")
+                            .accessibilityLabel("\(seconds) seconds, fastest")
+                            .tag(seconds)
+                    } else {
+                        Text(Self.intervalLabel(seconds)).tag(seconds)
+                    }
+                }
             }
             .pickerStyle(.segmented)
 
-            if appState.refreshInterval == 15 {
+            if appState.refreshInterval == AppState.refreshIntervals.first {
                 Text("Torn may cache data for about 30 seconds. A 15-second interval can spend API budget without returning fresher data; 30 seconds is recommended.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -365,9 +372,9 @@ struct SettingsView: View {
             }
 
             Picker("Forum check", selection: forumPollingBinding) {
-                Text("2m").tag(120)
-                Text("3m").tag(180)
-                Text("5m").tag(300)
+                ForEach(ForumWatchConfig.pollingIntervals, id: \.self) { seconds in
+                    Text(Self.intervalLabel(seconds)).tag(seconds)
+                }
             }
             .pickerStyle(.segmented)
 

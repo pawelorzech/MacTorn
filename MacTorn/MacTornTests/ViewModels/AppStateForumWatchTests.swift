@@ -299,11 +299,11 @@ final class ForumWatchKeyHaltTests: XCTestCase {
 
     func testPermanentKeyErrorStopsTheForumTimer() {
         app.startForumPolling()
-        XCTAssertNotNil(app.forumTimerCancellable)
+        XCTAssertTrue(app.forumTimer.isRunning)
 
         app.handlePermanentKeyError(.permanentKey(code: 2, message: "Incorrect key"))
 
-        XCTAssertNil(app.forumTimerCancellable,
+        XCTAssertFalse(app.forumTimer.isRunning,
                      "a rejected key must not keep polling threads every few minutes")
     }
 
@@ -324,7 +324,7 @@ final class ForumWatchKeyHaltTests: XCTestCase {
         app.startForumPolling()
         try await Task.sleep(nanoseconds: 300_000_000)
 
-        XCTAssertNil(app.forumTimerCancellable)
+        XCTAssertFalse(app.forumTimer.isRunning)
         XCTAssertTrue(forumRequests.isEmpty)
     }
 }

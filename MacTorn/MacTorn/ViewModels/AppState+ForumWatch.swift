@@ -17,31 +17,25 @@ extension AppState {
         // A permanent key error holds until the key changes; the menu's onAppear must not
         // quietly restart the forum timer, nor restart one that polled recently.
         guard !keyHalted else { return }
-        if forumTimerCancellable != nil,
+        if forumTimer.isRunning,
            let last = lastForumFetchAt,
            time.now.timeIntervalSince(last) < Double(forumWatchConfig.pollingIntervalSeconds) / 2 {
             return
         }
-        forumTimerCancellable?.cancel()
+        forumTimer.stop()
         guard !apiKey.isEmpty else { return }
         refreshForumWatch()
         installForumTimer()
     }
 
     func installForumTimer() {
-        let interval = Double(forumWatchConfig.pollingIntervalSeconds)
-        forumTimerInterval = interval
-        forumTimerCancellable = Timer.publish(every: interval, tolerance: interval / 10, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.refreshForumWatch()
-            }
+        forumTimer.start(every: Double(forumWatchConfig.pollingIntervalSeconds)) { [weak self] in
+            self?.refreshForumWatch()
+        }
     }
 
     func stopForumPolling() {
-        forumTimerCancellable?.cancel()
-        forumTimerCancellable = nil
-        forumTimerInterval = nil
+        forumTimer.stop()
     }
 
     func refreshForumWatch() {

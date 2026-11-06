@@ -7,8 +7,8 @@ extension AppState {
     func manageLiveTimer() {
         tick()
         if shouldRunLiveTimer {
-            if liveTimerCancellable == nil {
-                startLiveTimer()
+            if !liveTimer.isRunning {
+                liveTimer.start(every: 1.0, tolerance: 0.1) { [weak self] in self?.tick() }
             }
         }
     }
@@ -25,16 +25,6 @@ extension AppState {
         return false
     }
 
-    private func startLiveTimer() {
-        liveTimerCancellable?.cancel()
-
-        liveTimerCancellable = Timer.publish(every: 1.0, tolerance: 0.1, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
-                self?.tick()
-            }
-    }
-
     func tick() {
         updateTravelSecondsRemaining()
         let next = computeMenuBarDisplay()
@@ -42,8 +32,7 @@ extension AppState {
             player.menuBarDisplay = next
         }
         if !shouldRunLiveTimer {
-            liveTimerCancellable?.cancel()
-            liveTimerCancellable = nil
+            liveTimer.stop()
         }
     }
 

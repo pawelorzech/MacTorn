@@ -51,8 +51,8 @@ final class ForumWatchService {
         if let data = defaults.data(forKey: "forumWatchConfig"),
            let decoded = try? JSONDecoder().decode(ForumWatchConfig.self, from: data) {
             config = decoded
-            if ![120, 180, 300].contains(config.pollingIntervalSeconds) {
-                config.pollingIntervalSeconds = 180
+            if !ForumWatchConfig.pollingIntervals.contains(config.pollingIntervalSeconds) {
+                config.pollingIntervalSeconds = ForumWatchConfig.defaultPollingInterval
             }
         }
     }

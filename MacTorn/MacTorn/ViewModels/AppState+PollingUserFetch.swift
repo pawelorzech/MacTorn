@@ -9,12 +9,10 @@ extension AppState {
             logger.warning("startPolling skipped: polling halted on a permanent key error")
             return
         }
-        if timerCancellable != nil,
+        if pollTimer.isRunning,
            time.now.timeIntervalSince(player.lastFetchTime) < Double(refreshInterval) / 2 {
             return
         }
-        // Assigning over an AnyCancellable cancels the old one; `timerCancellable != nil`
-        // must keep meaning "a timer is running", which `refreshNow` relies on.
         installPollingTimer()
         let needsCapabilities = requester.keyInfo == nil && !apiKey.isEmpty && connectivity.isConnected
         startFirstFetch()
@@ -69,11 +67,7 @@ extension AppState {
     }
 
     func installPollingTimer() {
-        let interval = Double(refreshInterval)
-        pollingTimerInterval = interval
-        timerCancellable = Timer.publish(every: interval, tolerance: interval / 10, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in
+        pollTimer.start(every: Double(refreshInterval)) { [weak self] in
                 guard let self else { return }
                 // A tick during the first key-capabilities load would send exactly the
                 // un-narrowed request that load exists to prevent.
@@ -97,9 +91,7 @@ extension AppState {
     }
 
     func stopPolling() {
-        timerCancellable?.cancel()
-        timerCancellable = nil
-        pollingTimerInterval = nil
+        pollTimer.stop()
         stopPriceAlertPolling()
         updateCheckTask?.cancel()
     }
@@ -125,7 +117,7 @@ extension AppState {
         // Save & Connect and connectivity restoration arrive here right after account
         // state cleared the capabilities, so they take the same ordered handshake.
         if requester.keyInfo == nil, !apiKey.isEmpty, connectivity.isConnected {
-            if timerCancellable == nil { installPollingTimer() }
+            if !pollTimer.isRunning { installPollingTimer() }
             guard startFirstFetch() else { return }
             lastManualRefreshAt = time.now
             lastManualRefreshGeneration = identity.generation
@@ -137,7 +129,7 @@ extension AppState {
         guard fetchData() else { return }
         lastManualRefreshAt = time.now
         lastManualRefreshGeneration = identity.generation
-        if timerCancellable == nil {
+        if !pollTimer.isRunning {
             installPollingTimer()
         }
     }

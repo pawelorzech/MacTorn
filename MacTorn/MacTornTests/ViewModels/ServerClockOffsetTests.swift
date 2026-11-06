@@ -50,8 +50,7 @@ final class ServerClockOffsetTests: XCTestCase {
 
     override func tearDown() async throws {
         app.stopPolling()
-        app.liveTimerCancellable?.cancel()
-        app.liveTimerCancellable = nil
+        app.liveTimer.stop()
         app = nil
         session = nil
         clock = nil

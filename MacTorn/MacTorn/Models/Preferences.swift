@@ -193,6 +193,10 @@ extension WatchedThread {
 }
 
 struct ForumWatchConfig: Codable {
+    /// The forum poll cadences Settings offers, in seconds.
+    static let pollingIntervals = [120, 180, 300]
+    static let defaultPollingInterval = 180
+
     var factionForumAutoMonitor: Bool
     var factionForumCategoryId: Int?
     var pollingIntervalSeconds: Int
@@ -221,7 +225,7 @@ struct ForumWatchConfig: Codable {
 
     init(factionForumAutoMonitor: Bool = false,
          factionForumCategoryId: Int? = nil,
-         pollingIntervalSeconds: Int = 180,
+         pollingIntervalSeconds: Int = ForumWatchConfig.defaultPollingInterval,
          seenFactionThreadIds: [Int] = [],
          seededCategoryId: Int? = nil,
          hasSeededFactionThreads: Bool = false) {
@@ -267,7 +271,7 @@ struct ForumWatchConfig: Codable {
         factionForumCategoryId =
             try container.decodeIfPresent(Int.self, forKey: .factionForumCategoryId)
         pollingIntervalSeconds =
-            try container.decodeIfPresent(Int.self, forKey: .pollingIntervalSeconds) ?? 180
+            try container.decodeIfPresent(Int.self, forKey: .pollingIntervalSeconds) ?? Self.defaultPollingInterval
 
         // `knownFactionThreadIds` was an unordered Set written by 1.12.0 and 1.12.1. Decoding it keeps
         // those installs from re-announcing their whole category; order is unrecoverable from a Set, but

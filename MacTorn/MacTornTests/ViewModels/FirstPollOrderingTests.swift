@@ -33,7 +33,7 @@ final class FirstPollOrderingTests: XCTestCase {
         app.apiKey = "ordering-\(UUID().uuidString)"
         app.startPolling()
 
-        XCTAssertNotNil(app.timerCancellable,
+        XCTAssertTrue(app.pollTimer.isRunning,
                         "a caller that returns without a timer lets refreshNow create a second one")
         app.stopPolling()
     }
@@ -42,11 +42,11 @@ final class FirstPollOrderingTests: XCTestCase {
         let app = makeApp()
         app.apiKey = "ordering-\(UUID().uuidString)"
         app.startPolling()
-        let timer = try XCTUnwrap(app.timerCancellable)
+        let started = try XCTUnwrap(app.pollTimer.startedAt)
 
         app.refreshNow()
 
-        XCTAssertTrue(app.timerCancellable === timer,
+        XCTAssertEqual(app.pollTimer.startedAt, started,
                       "the automatic timer must survive a refresh issued mid-wait")
         app.stopPolling()
     }
@@ -111,11 +111,11 @@ final class FirstPollOrderingTests: XCTestCase {
         let app = makeApp()
         app.apiKey = "first-\(UUID().uuidString)"
         app.startPolling()
-        XCTAssertNotNil(app.timerCancellable)
+        XCTAssertTrue(app.pollTimer.isRunning)
 
         app.apiKey = "second-\(UUID().uuidString)"
 
-        XCTAssertNil(app.timerCancellable,
+        XCTAssertFalse(app.pollTimer.isRunning,
                      "the old account's timer must not poll under the new account's key")
     }
 
@@ -158,7 +158,7 @@ final class FirstPollOrderingTests: XCTestCase {
 
         XCTAssertFalse(app.awaitingFirstKeyInfo,
                        "a validated key costs no round-trip on a later startPolling")
-        XCTAssertNotNil(app.timerCancellable)
+        XCTAssertTrue(app.pollTimer.isRunning)
         app.stopPolling()
     }
 }

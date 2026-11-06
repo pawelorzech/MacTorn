@@ -136,7 +136,7 @@ extension AppState {
     var forumPresentationState: ModulePresentationState {
         presentationState(endpointIDs: ["forum.thread"],
                           hasContent: watchedThreads.contains { $0.lastChecked != nil },
-                          staleAfter: TimeInterval(max(forumWatchConfig.pollingIntervalSeconds, 180)) + 30,
+                          staleAfter: TimeInterval(max(forumWatchConfig.pollingIntervalSeconds, ForumWatchConfig.defaultPollingInterval)) + 30,
                           rowHealth: watchedThreads.map {
             EndpointHealth(endpointID: "forum.thread", outcome: $0.error != nil ? .error : $0.lastChecked == nil ? .pending : .ok,
                            latencyMs: 0, responseBytes: 0, at: $0.lastChecked ?? time.now,

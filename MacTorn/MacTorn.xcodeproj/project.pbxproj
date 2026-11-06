@@ -37,6 +37,7 @@
 		7017F241191838ADD5A9DF18 /* TornRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE3522844C1DD7E0691B03C /* TornRequester.swift */; };
 		8392A02CF47E5A17E4B562FE /* AppState+Widgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = C41799E4A7F97D996D739B4E /* AppState+Widgets.swift */; };
 		8CCD722D6AF80D733778559F /* ModuleStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7206469C1364A3222743381F /* ModuleStateView.swift */; };
+		9D80975BCAD44DDEDC23C112 /* RepeatingTimer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB75925EBACD51C24C9DF75F /* RepeatingTimer.swift */; };
 		AAA00001 /* MacTornApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10001 /* MacTornApp.swift */; };
 		AAA00002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10002 /* ContentView.swift */; };
 		AAA00003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AAA10003 /* Assets.xcassets */; };
@@ -336,6 +337,7 @@
 		F37EBED0CA05A318E80070E3 /* UserV2.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserV2.swift; sourceTree = "<group>"; };
 		F532C521C0EDD5772B67773D /* AppState+Watchlist.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = "AppState+Watchlist.swift"; sourceTree = "<group>"; };
 		F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SentryOptInPromptView.swift; sourceTree = "<group>"; };
+		FB75925EBACD51C24C9DF75F /* RepeatingTimer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RepeatingTimer.swift; sourceTree = "<group>"; };
 		FCD0F18721EDFD4FD024279E /* DisplayText.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisplayText.swift; sourceTree = "<group>"; };
 		FD208526C28ECAFA90FEE05E /* WatchlistItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchlistItem.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -554,6 +556,7 @@
 				FCD0F18721EDFD4FD024279E /* DisplayText.swift */,
 				87E2E7353486CC40C8120905 /* RetryBackoff.swift */,
 				2AA54A57C3F28DF703DA7FB1 /* PositiveIntegerInput.swift */,
+				FB75925EBACD51C24C9DF75F /* RepeatingTimer.swift */,
 			);
 			path = Helpers;
 			sourceTree = "<group>";
@@ -929,6 +932,7 @@
 				8CCD722D6AF80D733778559F /* ModuleStateView.swift in Sources */,
 				64FD2388CF0F28A5B4AC5DED /* UndoBanner.swift in Sources */,
 				1BC7BCBF3367632E2AB8F6BE /* UndoController.swift in Sources */,
+				9D80975BCAD44DDEDC23C112 /* RepeatingTimer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
