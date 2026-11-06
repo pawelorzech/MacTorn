@@ -24,7 +24,7 @@ struct StatusView: View {
 
                 // Next Action timeline (Etap J) — the single most useful glance.
                 if appState.player.data != nil {
-                    NextActionView(reduceTransparency: reduceTransparency)
+                    NextActionView()
                 }
 
                 CompetitionPanel()
@@ -291,13 +291,13 @@ struct StatusView: View {
 
             HStack(spacing: 16) {
                 if let ends = appState.player.cooldownEnds {
-                    LiveCooldownItem(label: "Drug", endsAt: ends.drugEndsAt, actionURL: drugURL, actionLabel: "Use Drug →", serverClock: appState.player.serverClock)
-                    LiveCooldownItem(label: "Medical", endsAt: ends.medicalEndsAt, actionURL: medicalURL, actionLabel: "Use Medical →", serverClock: appState.player.serverClock)
-                    LiveCooldownItem(label: "Booster", endsAt: ends.boosterEndsAt, actionURL: boosterURL, actionLabel: boosterLabel, serverClock: appState.player.serverClock)
+                    CooldownItem(label: "Drug", source: .endsAt(ends.drugEndsAt, serverClock: appState.player.serverClock), actionURL: drugURL, actionLabel: "Use Drug →")
+                    CooldownItem(label: "Medical", source: .endsAt(ends.medicalEndsAt, serverClock: appState.player.serverClock), actionURL: medicalURL, actionLabel: "Use Medical →")
+                    CooldownItem(label: "Booster", source: .endsAt(ends.boosterEndsAt, serverClock: appState.player.serverClock), actionURL: boosterURL, actionLabel: boosterLabel)
                 } else {
-                    CooldownItem(label: "Drug", seconds: cooldowns.drug, actionURL: drugURL, actionLabel: "Use Drug →")
-                    CooldownItem(label: "Medical", seconds: cooldowns.medical, actionURL: medicalURL, actionLabel: "Use Medical →")
-                    CooldownItem(label: "Booster", seconds: cooldowns.booster, actionURL: boosterURL, actionLabel: boosterLabel)
+                    CooldownItem(label: "Drug", source: .remaining(cooldowns.drug), actionURL: drugURL, actionLabel: "Use Drug →")
+                    CooldownItem(label: "Medical", source: .remaining(cooldowns.medical), actionURL: medicalURL, actionLabel: "Use Medical →")
+                    CooldownItem(label: "Booster", source: .remaining(cooldowns.booster), actionURL: boosterURL, actionLabel: boosterLabel)
                 }
             }
         }
@@ -438,107 +438,75 @@ struct StatusView: View {
             .cornerRadius(8)
         }
     }
-
-    // MARK: - Helpers
 }
 
 // MARK: - Cooldown Item
 struct CooldownItem: View {
+    /// Where the remaining time comes from.
+    enum Source {
+        /// A fixed number of seconds left, as of the last fetch.
+        case remaining(Int)
+        /// The *absolute* end-timestamp (Unix seconds) the cooldown expires at, computed
+        /// once at fetch time from the server's response timestamp. Each tick recomputes
+        /// `endsAt - now`, never `originalSeconds - elapsed`, so the countdown stays
+        /// drift-free against torn.com. `0` means the cooldown is not active. The clock
+        /// carries the Mac-Torn skew (issue #46), since `endsAt` is server-absolute.
+        case endsAt(Int, serverClock: ServerClock)
+    }
+
     let label: String
-    let seconds: Int
+    let source: Source
     var actionURL: URL? = nil
     var actionLabel: String? = nil
 
-    @Environment(\.reduceTransparency) private var reduceTransparency
-
     var body: some View {
-        if seconds <= 0, let url = actionURL {
+        switch source {
+        case .remaining(let seconds):
+            tile(remaining: seconds)
+        case .endsAt(let endsAt, let serverClock):
+            TimelineView(.periodic(from: .now, by: 1.0)) { context in
+                tile(remaining: endsAt > 0
+                     ? max(0, endsAt - serverClock.serverUnix(context.date))
+                     : 0)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tile(remaining: Int) -> some View {
+        if remaining <= 0, let url = actionURL {
             Button {
                 BrowserManager.shared.open(url)
             } label: {
-                cellContent(remaining: seconds)
+                cell(remaining: remaining)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Use \(label)")
             .accessibilityHint("Opens Torn items page in browser")
         } else {
-            cellContent(remaining: seconds)
+            cell(remaining: remaining)
         }
     }
 
-    private func cellContent(remaining: Int) -> some View {
+    private func cell(remaining: Int) -> some View {
         CooldownCell(
             label: label,
             timeText: TornFormatter.clock(remaining, zeroText: "Ready"),
             remaining: remaining,
             hasAction: actionURL != nil,
-            actionLabel: actionLabel,
-            reduceTransparency: reduceTransparency
+            actionLabel: actionLabel
         )
     }
 }
 
-// MARK: - Live Cooldown Item
-//
-// Receives the *absolute* end-timestamp (Unix seconds) the cooldown will expire
-// at, computed once at fetch time from the server's response timestamp. Each
-// tick recomputes `endsAt - now` — never `originalSeconds - elapsed` — so the
-// countdown stays drift-free against torn.com.
-//
-// `endsAt == 0` means the cooldown is not active.
-struct LiveCooldownItem: View {
-    let label: String
-    let endsAt: Int
-    var actionURL: URL? = nil
-    var actionLabel: String? = nil
-    /// Mac↔Torn skew (issue #46) — `endsAt` is server-absolute, so the tick is compared
-    /// against Torn's now.
-    var serverClock: ServerClock = .synchronized
-
-    @Environment(\.reduceTransparency) private var reduceTransparency
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1.0)) { context in
-            let remaining = endsAt > 0
-                ? max(0, endsAt - serverClock.serverUnix(context.date))
-                : 0
-
-            if remaining <= 0, let url = actionURL {
-                Button {
-                    BrowserManager.shared.open(url)
-                } label: {
-                    cellContent(remaining: remaining)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Use \(label)")
-                .accessibilityHint("Opens Torn items page in browser")
-            } else {
-                cellContent(remaining: remaining)
-            }
-        }
-    }
-
-    private func cellContent(remaining: Int) -> some View {
-        CooldownCell(
-            label: label,
-            timeText: TornFormatter.clock(remaining, zeroText: "Ready"),
-            remaining: remaining,
-            hasAction: actionURL != nil,
-            actionLabel: actionLabel,
-            reduceTransparency: reduceTransparency
-        )
-    }
-}
-
-/// Shared body of the static and live cooldown cells. They differed only in how
-/// `remaining` was derived; the rendered cell was byte-for-byte identical (audit D-6).
 private struct CooldownCell: View {
     let label: String
     let timeText: String
     let remaining: Int
     let hasAction: Bool
     let actionLabel: String?
-    let reduceTransparency: Bool
+
+    @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
         VStack(spacing: 2) {

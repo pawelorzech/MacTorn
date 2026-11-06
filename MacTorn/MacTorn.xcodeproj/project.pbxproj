@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		06B327C288325DD558EBC0D7 /* TornConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B26B9A530C0C2FBE1A8BECF /* TornConstants.swift */; };
 		0B1525E92794A5931934A964 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 9D32C7372CF21C5A6D2443EC /* Sentry */; };
+		1BC7BCBF3367632E2AB8F6BE /* UndoController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B859D8B0B95B7196280CA2E1 /* UndoController.swift */; };
 		1C25264D9730B46222A98CC9 /* AppState+Notifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7EF41C5F1C79C16B30EC304 /* AppState+Notifications.swift */; };
 		204146F97184B5CA1A32E486 /* Travel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B617259087CA076C0EB4A2F /* Travel.swift */; };
 		21BAC0D19ACA3B675B8A773B /* AppState+ReferenceData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 730EDF751996AFCFB6ADE02E /* AppState+ReferenceData.swift */; };
@@ -283,6 +284,7 @@
 		ADD85E9523C992FBE1C69B85 /* WidgetSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotTests.swift; sourceTree = "<group>"; };
 		B3E426F61328CF1462BC13E8 /* Navigation.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Navigation.swift; sourceTree = "<group>"; };
 		B78831F93E0CC7049C5D1B2C /* PlayerState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerState.swift; sourceTree = "<group>"; };
+		B859D8B0B95B7196280CA2E1 /* UndoController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UndoController.swift; sourceTree = "<group>"; };
 		BBB10000 /* MacTornTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacTornTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BBB10001 /* MockNetworkSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkSession.swift; sourceTree = "<group>"; };
 		BBB10002 /* TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHelpers.swift; sourceTree = "<group>"; };
@@ -501,6 +503,7 @@
 				F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */,
 				7206469C1364A3222743381F /* ModuleStateView.swift */,
 				0A82A2B11A4EFE8C6B712EDC /* UndoBanner.swift */,
+				B859D8B0B95B7196280CA2E1 /* UndoController.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -925,6 +928,7 @@
 				28C81D387B7BA3337BA6487E /* PositiveIntegerInput.swift in Sources */,
 				8CCD722D6AF80D733778559F /* ModuleStateView.swift in Sources */,
 				64FD2388CF0F28A5B4AC5DED /* UndoBanner.swift in Sources */,
+				1BC7BCBF3367632E2AB8F6BE /* UndoController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

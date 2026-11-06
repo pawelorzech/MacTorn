@@ -7,8 +7,7 @@ struct ForumWatchView: View {
     @State private var showAddThread = false
     @State private var threadInput = ""
     @State private var threadInputError: String?
-    @State private var recentlyRemoved: RemovedWatchedThread?
-    @State private var undoDismissTask: Task<Void, Never>?
+    @State private var undo = UndoController<RemovedWatchedThread>()
 
     var body: some View {
         ScrollView {
@@ -129,13 +128,8 @@ struct ForumWatchView: View {
                     }
                 }
 
-                if let recentlyRemoved {
-                    UndoBanner(message: "\(recentlyRemoved.thread.title) removed") {
-                        undoRemoval()
-                    }
-                    .transition(reduceMotion
-                                ? .opacity
-                                : .move(edge: .top).combined(with: .opacity))
+                PendingUndoBanner(controller: undo, message: { "\($0.thread.title) removed" }) {
+                    undoRemoval()
                 }
 
                 Divider()
@@ -156,8 +150,7 @@ struct ForumWatchView: View {
             .padding()
         }
         .onDisappear {
-            undoDismissTask?.cancel()
-            recentlyRemoved = nil
+            undo.reset()
         }
     }
 
@@ -192,27 +185,14 @@ struct ForumWatchView: View {
         }
         let removedThread = appState.watchedThreads[index]
 
-        undoDismissTask?.cancel()
-        appState.forumWatch.remove(threadID: thread.id)
-        withAnimation(reduceMotion ? nil : .default) {
-            recentlyRemoved = RemovedWatchedThread(thread: removedThread, index: index)
-        }
-        undoDismissTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 6_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(reduceMotion ? nil : .default) {
-                recentlyRemoved = nil
-            }
+        undo.schedule(RemovedWatchedThread(thread: removedThread, index: index), reduceMotion: reduceMotion) {
+            appState.forumWatch.remove(threadID: thread.id)
         }
     }
 
     private func undoRemoval() {
-        guard let recentlyRemoved else { return }
-
-        undoDismissTask?.cancel()
-        appState.forumWatch.restore(recentlyRemoved.thread, at: recentlyRemoved.index)
-        withAnimation(reduceMotion ? nil : .default) {
-            self.recentlyRemoved = nil
+        undo.undo(reduceMotion: reduceMotion) { removed in
+            appState.forumWatch.restore(removed.thread, at: removed.index)
         }
     }
 }

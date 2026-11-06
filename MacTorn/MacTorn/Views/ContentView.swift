@@ -8,6 +8,18 @@ private enum NavigationFocus: Hashable {
     case quit
 }
 
+/// Full-panel backdrop behind a blocking overlay: an opaque window colour under
+/// Reduce Transparency, otherwise a dimmed blur.
+private struct ModalScrim: View {
+    var dimming: Double = 0.3
+    @Environment(\.reduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(dimming))
+            .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+    }
+}
+
 struct ContentView: View {
     @Environment(AppState.self) private var appState
     @Environment(AppNavigationState.self) private var navigation
@@ -77,8 +89,7 @@ struct ContentView: View {
             
             // Loading Overlay
             if isBlockingInitialLoad && !navigation.isShowingSettings {
-                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.4))
-                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+                ModalScrim(dimming: 0.4)
                     .allowsHitTesting(false)
 
                 VStack(spacing: 12) {
@@ -94,8 +105,7 @@ struct ContentView: View {
             // Feedback Prompt Overlay — the Sentry opt-in wins when both are due, so at
             // most one modal is on screen; feedback shows once the opt-in is dismissed.
             if appState.showFeedbackPrompt && !showSentryOptIn {
-                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.3))
-                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+                ModalScrim()
 
                 FeedbackPromptView()
                     .accessibilityAddTraits(.isModal)
@@ -103,8 +113,7 @@ struct ContentView: View {
 
             // Sentry Opt-In Prompt Overlay
             if showSentryOptIn {
-                (reduceTransparency ? Color(.windowBackgroundColor) : Color.black.opacity(0.3))
-                    .background(reduceTransparency ? AnyShapeStyle(Color(.windowBackgroundColor)) : AnyShapeStyle(.ultraThinMaterial))
+                ModalScrim()
 
                 SentryOptInPromptView(isPresented: $showSentryOptIn)
                     .accessibilityAddTraits(.isModal)

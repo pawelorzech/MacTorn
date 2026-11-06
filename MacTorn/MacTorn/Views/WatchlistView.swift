@@ -7,8 +7,7 @@ struct WatchlistView: View {
     @State private var showAddItem = false
     @State private var itemIdInput = ""
     @State private var addItemError: String?
-    @State private var pendingUndo: PendingWatchlistUndo?
-    @State private var undoDismissTask: Task<Void, Never>?
+    @State private var undo = UndoController<PendingWatchlistUndo>()
     
     var body: some View {
         ScrollView {
@@ -158,13 +157,8 @@ struct WatchlistView: View {
                     }
                 }
 
-                if let pendingUndo {
-                    UndoBanner(message: pendingUndo.message) {
-                        undoPending()
-                    }
-                    .transition(reduceMotion
-                                ? .opacity
-                                : .move(edge: .top).combined(with: .opacity))
+                PendingUndoBanner(controller: undo, message: \.message) {
+                    undoPending()
                 }
                 
                 Divider()
@@ -186,8 +180,7 @@ struct WatchlistView: View {
             appState.refreshWatchlistPrices()
         }
         .onDisappear {
-            undoDismissTask?.cancel()
-            pendingUndo = nil
+            undo.reset()
         }
     }
 
@@ -344,36 +337,18 @@ struct WatchlistView: View {
         }
     }
 
-    /// Shared Undo primitive: performs `action`, shows the banner for `pending`,
-    /// and schedules its six-second dismissal. Both item removal and threshold
-    /// clearing route through this so there is exactly one Undo mechanism.
     private func scheduleUndo(_ pending: PendingWatchlistUndo, action: () -> Void) {
-        undoDismissTask?.cancel()
-        action()
-        withAnimation(reduceMotion ? nil : .default) {
-            pendingUndo = pending
-        }
-        undoDismissTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 6_000_000_000)
-            guard !Task.isCancelled else { return }
-            withAnimation(reduceMotion ? nil : .default) {
-                pendingUndo = nil
-            }
-        }
+        undo.schedule(pending, reduceMotion: reduceMotion, action: action)
     }
 
     private func undoPending() {
-        guard let pendingUndo else { return }
-
-        undoDismissTask?.cancel()
-        switch pendingUndo {
-        case .itemRemoved(let item, let index):
-            appState.watchlist.restore(item, at: index)
-        case .thresholdCleared(let itemId, _, let threshold, let lastAlertedPrice):
-            appState.restoreWatchlistThreshold(itemId: itemId, threshold: threshold, lastAlertedPrice: lastAlertedPrice)
-        }
-        withAnimation(reduceMotion ? nil : .default) {
-            self.pendingUndo = nil
+        undo.undo(reduceMotion: reduceMotion) { pending in
+            switch pending {
+            case .itemRemoved(let item, let index):
+                appState.watchlist.restore(item, at: index)
+            case .thresholdCleared(let itemId, _, let threshold, let lastAlertedPrice):
+                appState.restoreWatchlistThreshold(itemId: itemId, threshold: threshold, lastAlertedPrice: lastAlertedPrice)
+            }
         }
     }
 }
