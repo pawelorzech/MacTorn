@@ -142,12 +142,12 @@ struct ForumWatchView: View {
 
                 // Quick Links
                 HStack(spacing: 8) {
-                    ActionButton(title: "Forums", icon: "bubble.left.fill", color: .blue) {
+                    TileButton(title: "Forums", icon: "bubble.left.fill", color: .blue) {
                         openTorn(TornLink.forums)
                     }
 
                     if appState.factionData != nil {
-                        ActionButton(title: "Faction Forum", icon: "person.3.fill", color: .orange) {
+                        TileButton(title: "Faction Forum", icon: "person.3.fill", color: .orange) {
                             openTorn(TornLink.page("forums.php#/p=forums&f=999&b=1&a=\(appState.factionData?.factionId ?? 0)"))
                         }
                     }

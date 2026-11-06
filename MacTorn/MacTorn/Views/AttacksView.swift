@@ -141,15 +141,15 @@ struct AttacksView: View {
 
                 // Actions
                 HStack(spacing: 8) {
-                    ActionButton(title: "Attack", icon: "bolt.fill", color: .red) {
+                    TileButton(title: "Attack", icon: "bolt.fill", color: .red) {
                         openTorn(TornLink.page("loader.php?sid=attack&user2ID="))
                     }
                     
-                    ActionButton(title: "Hospital", icon: "cross.case.fill", color: .pink) {
+                    TileButton(title: "Hospital", icon: "cross.case.fill", color: .pink) {
                         openTorn(TornLink.hospital)
                     }
                     
-                    ActionButton(title: "Bounties", icon: "target", color: .purple) {
+                    TileButton(title: "Bounties", icon: "target", color: .purple) {
                         openTorn(TornLink.bounties)
                     }
                 }

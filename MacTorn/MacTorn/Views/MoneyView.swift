@@ -145,15 +145,15 @@ struct MoneyView: View {
 
                 // MARK: - Action Buttons
                 HStack(spacing: 8) {
-                    ActionButton(title: "Send Money", icon: "paperplane.fill", color: .blue) {
+                    TileButton(title: "Send Money", icon: "paperplane.fill", color: .blue) {
                         openTorn(TornLink.page("sendcash.php"))
                     }
 
-                    ActionButton(title: "Bazaar", icon: "cart.fill", color: .orange) {
+                    TileButton(title: "Bazaar", icon: "cart.fill", color: .orange) {
                         openTorn(TornLink.page("bazaar.php"))
                     }
 
-                    ActionButton(title: "Bank", icon: "building.columns.fill", color: .purple) {
+                    TileButton(title: "Bank", icon: "building.columns.fill", color: .purple) {
                         openTorn(TornLink.page("bank.php"))
                     }
                 }
@@ -161,20 +161,5 @@ struct MoneyView: View {
             .padding()
         }
         .accessibilityIdentifier("account.money")
-    }
-}
-
-// MARK: - Action Button Component
-struct ActionButton: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        TileButton(title: title, icon: icon, color: color,
-                   iconFont: .body, titleFont: .caption2,
-                   spacing: 4, verticalPadding: 8, cornerRadius: 8, opacity: 0.1,
-                   action: action)
     }
 }

@@ -105,15 +105,15 @@ struct FactionView: View {
                     }
                     
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                        ArmoryButton(title: "Xanax", icon: "pills.fill", color: .blue) {
+                        armoryButton(title: "Xanax", icon: "pills.fill", color: .blue) {
                             openTorn(TornLink.page("factions.php?step=your#/tab=armoury&start=0&sub=donate"))
                         }
                         
-                        ArmoryButton(title: "Refill", icon: "drop.fill", color: .cyan) {
+                        armoryButton(title: "Refill", icon: "drop.fill", color: .cyan) {
                             openTorn(TornLink.factionArmoury)
                         }
                         
-                        ArmoryButton(title: "SED", icon: "syringe.fill", color: .green) {
+                        armoryButton(title: "SED", icon: "syringe.fill", color: .green) {
                             openTorn(TornLink.factionArmoury)
                         }
                     }
@@ -125,21 +125,28 @@ struct FactionView: View {
 
                 // Actions
                 HStack(spacing: 8) {
-                    ActionButton(title: "Faction", icon: "person.3.fill", color: .blue) {
+                    TileButton(title: "Faction", icon: "person.3.fill", color: .blue) {
                         openTorn(TornLink.faction)
                     }
                     
-                    ActionButton(title: "Wars", icon: "flame.fill", color: .red) {
+                    TileButton(title: "Wars", icon: "flame.fill", color: .red) {
                         openTorn(TornLink.factionWars)
                     }
                     
-                    ActionButton(title: "OC", icon: "briefcase.fill", color: .orange) {
+                    TileButton(title: "OC", icon: "briefcase.fill", color: .orange) {
                         openTorn(TornLink.factionCrimes)
                     }
                 }
             }
             .padding()
         }
+    }
+
+    private func armoryButton(title: String, icon: String, color: Color,
+                              action: @escaping () -> Void) -> some View {
+        TileButton(title: title, icon: icon, color: color,
+                   iconFont: .caption, spacing: 2, verticalPadding: 6,
+                   cornerRadius: 6, opacity: 0.15, action: action)
     }
 }
 
@@ -333,20 +340,5 @@ struct FactionNewsView: View {
         .padding()
         .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
         .cornerRadius(8)
-    }
-}
-
-// MARK: - Armory Button
-struct ArmoryButton: View {
-    let title: String
-    let icon: String
-    let color: Color
-    let action: () -> Void
-
-    var body: some View {
-        TileButton(title: title, icon: icon, color: color,
-                   iconFont: .caption, titleFont: .caption2,
-                   spacing: 2, verticalPadding: 6, cornerRadius: 6, opacity: 0.15,
-                   action: action)
     }
 }

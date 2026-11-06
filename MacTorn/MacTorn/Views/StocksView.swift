@@ -82,7 +82,7 @@ struct StocksView: View {
                 }
                 StockBonusPanel()
 
-                ActionButton(
+                TileButton(
                     title: "Stock Market",
                     icon: "chart.line.uptrend.xyaxis",
                     color: .blue

@@ -171,11 +171,11 @@ struct WatchlistView: View {
                 
                 // Quick Market Links
                 HStack(spacing: 8) {
-                    ActionButton(title: "Item Market", icon: "bag.fill", color: .blue) {
+                    TileButton(title: "Item Market", icon: "bag.fill", color: .blue) {
                         openTorn(TornLink.itemMarket)
                     }
                     
-                    ActionButton(title: "Points", icon: "star.fill", color: .orange) {
+                    TileButton(title: "Points", icon: "star.fill", color: .orange) {
                         openTorn(TornLink.page("pmarket.php"))
                     }
                 }
@@ -577,49 +577,5 @@ struct WatchlistPriceRow: View {
         onSetThreshold(thresholdValue)
         thresholdError = nil
         showThresholdPopover = false
-    }
-}
-
-enum PositiveIntegerInput {
-    static func value(from input: String) -> Int? {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let value = Int(trimmed), value > 0 else { return nil }
-        return value
-    }
-
-    static func errorMessage(for input: String) -> String? {
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard value(from: input) == nil else { return nil }
-        if trimmed.isEmpty {
-            return "Enter a price."
-        }
-        if let value = Int(trimmed), value <= 0 {
-            return "Price must be greater than zero."
-        }
-        return "Enter a whole number."
-    }
-}
-
-struct UndoBanner: View {
-    let message: String
-    let onUndo: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(message)
-                .font(.caption)
-                .lineLimit(1)
-
-            Spacer()
-
-            Button("Undo", action: onUndo)
-                .buttonStyle(.borderless)
-                .font(.caption.bold())
-                .accessibilityLabel("Undo \(message)")
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.accentColor.opacity(0.14))
-        .cornerRadius(6)
     }
 }
