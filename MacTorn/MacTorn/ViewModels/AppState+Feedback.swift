@@ -19,7 +19,7 @@ extension AppState {
             feedbackState = state
         } else {
             feedbackState = AppFeedbackState(
-                firstLaunchDate: Date(),
+                firstLaunchDate: time.now,
                 hasResponded: false,
                 dismissCount: 0,
                 lastDismissedDate: nil
@@ -41,11 +41,11 @@ extension AppState {
 
         // 5-minute cooldown after last dismissal
         if let lastDismissed = state.lastDismissedDate,
-           Date().timeIntervalSince(lastDismissed) < 300 {
+           time.now.timeIntervalSince(lastDismissed) < 300 {
             return
         }
 
-        let elapsed = Date().timeIntervalSince(state.firstLaunchDate)
+        let elapsed = time.now.timeIntervalSince(state.firstLaunchDate)
         let requiredTime = Self.feedbackThresholds[state.dismissCount]
 
         if elapsed >= requiredTime {
@@ -61,7 +61,7 @@ extension AppState {
 
     func feedbackDismissed() {
         feedbackState?.dismissCount += 1
-        feedbackState?.lastDismissedDate = Date()
+        feedbackState?.lastDismissedDate = time.now
         showFeedbackPrompt = false
         saveFeedbackState()
     }

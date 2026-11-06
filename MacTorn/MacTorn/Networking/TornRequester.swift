@@ -71,8 +71,8 @@ final class TornRequester {
     let health: EndpointHealthTracker
     /// What `/key/info` says this key can read. `nil` until known; the gate then allows
     /// everything rather than guessing.
-    var keyInfo: TornKeyInfo?
-    @ObservationIgnored var keyInfoLoadedAt: Date?
+    private(set) var keyInfo: TornKeyInfo?
+    @ObservationIgnored private(set) var keyInfoLoadedAt: Date?
     private(set) var inFlight: [String: UUID] = [:]
 
     @ObservationIgnored let session: NetworkSession
@@ -103,6 +103,17 @@ final class TornRequester {
         inFlight.removeAll()
     }
 
+    func adopt(_ info: TornKeyInfo, at loadedAt: Date) {
+        keyInfo = info
+        keyInfoLoadedAt = loadedAt
+    }
+
+    /// Capabilities are re-read before the next request; until then the gate allows all.
+    func forgetKeyInfo() {
+        keyInfo = nil
+        keyInfoLoadedAt = nil
+    }
+
     func url(_ endpointID: String, parameter: Int? = nil, key: String? = nil) -> URL? {
         guard let endpoint = TornEndpointRegistry.endpoint(id: endpointID) else { return nil }
         let resolvedKey = key ?? account.apiKey
@@ -130,6 +141,8 @@ final class TornRequester {
     /// caller has accepted is already counted before its transport runs.
     func prepare(_ endpointID: String, parameter: Int? = nil, query: [URLQueryItem] = [],
                  key: String? = nil) -> TornPreparedRequest? {
+        // A halted account spends nothing, whichever feature is asking.
+        guard !account.isHalted else { return nil }
         let identity = account.identity
         let key = key ?? identity.apiKey
         guard var url = url(endpointID, parameter: parameter, key: key) else { return nil }

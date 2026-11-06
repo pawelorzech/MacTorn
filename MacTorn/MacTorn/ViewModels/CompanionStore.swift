@@ -33,7 +33,6 @@ final class CompanionStore {
 
     /// Torn's answer when a competition or elimination round is not running (code 33).
     private static let noCompetitionCode = 33
-    private static let shopCatalogCadence: TimeInterval = 604_800
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let notifier: Notifying
@@ -217,7 +216,7 @@ final class CompanionStore {
             trades = value.trades
             tradeDetails = [:] // Details are point-in-time; refetch after trade changes.
         }
-        if active(.shops), shopsLoadedAt.map({ app.time.now.timeIntervalSince($0) >= Self.shopCatalogCadence }) ?? true {
+        if active(.shops), shopsLoadedAt.map({ app.time.now.timeIntervalSince($0) >= AppState.itemCatalogMaxAge }) ?? true {
             await refreshShops(app: app, isActive: { active(.shops) })
         }
     }

@@ -70,7 +70,7 @@ final class NotificationCoordinator {
     /// Per-category window. Cooldown readiness gets the long one; status releases and
     /// bar thresholds really are stale news after a long gap, so they keep the default.
     func stalenessWindow(for key: String) -> TimeInterval {
-        key.hasPrefix("cooldown.ready.")
+        AlertKey.isCooldown(key)
             ? max(Self.cooldownStalenessWindow, stalenessWindow)
             : stalenessWindow
     }
@@ -291,4 +291,21 @@ private struct BoundedRecencyStore {
             entries.removeValue(forKey: evicted)
         }
     }
+}
+
+/// The persisted dedup keys. They are stored, so the strings never change once shipped.
+enum AlertKey {
+    private static let cooldownPrefix = "cooldown.ready."
+
+    static let chainExpiring = "chain.expiring"
+    static let released = "status.released"
+    static let virusReady = "virus.ready"
+    static let ocReady = "oc.ready"
+
+    static func cooldownReady(_ kind: CooldownKind) -> String { cooldownPrefix + kind.displayName }
+    static func bar(_ rule: NotificationRule) -> String { "bar.\(rule.barType.rawValue).\(rule.id).\(rule.threshold)" }
+    static func bounty(_ id: String) -> String { "bounty.\(id)" }
+
+    /// Cooldowns run for many hours, so a ready edge stays news far longer than a bar's.
+    static func isCooldown(_ key: String) -> Bool { key.hasPrefix(cooldownPrefix) }
 }

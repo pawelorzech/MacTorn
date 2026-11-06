@@ -57,7 +57,7 @@ extension AppState {
     private func fetchPrices(for items: [WatchlistItem]) async {
         guard connectivity.isConnected, !keyHalted, !apiKey.isEmpty else { return }
         let identity = accountSession.identity
-        let now = Date()
+        let now = time.now
         let due = items.filter { item in
             guard let timestamp = item.dataTimestamp, let delay = item.cacheDelay else { return true }
             return timestamp.addingTimeInterval(delay) <= now

@@ -104,7 +104,8 @@ extension AppState {
     /// Builds the timeline input. `now` is a *local* instant (the shared clock's); it is converted to
     /// Torn's clock here, and every timestamp in the snapshot is likewise server-absolute, so the whole
     /// timeline runs on one clock.
-    func makeNextActionSnapshot(now: Date = Date()) -> NextActionSnapshot {
+    func makeNextActionSnapshot(now: Date? = nil) -> NextActionSnapshot {
+        let now = now ?? time.now
         let nowUnix = player.serverClock.serverUnix(now)
         var snapshot = NextActionSnapshot(now: nowUnix)
 
@@ -164,7 +165,7 @@ extension AppState {
         return player.serverClock.serverTimestamp(fetchedAt: player.lastFetchTime, plus: full)
     }
 
-    func nextEvents(now: Date = Date()) -> [NextEvent] {
+    func nextEvents(now: Date? = nil) -> [NextEvent] {
         NextActionEngine().events(from: makeNextActionSnapshot(now: now), hidden: hiddenNextActionCategories)
     }
 }

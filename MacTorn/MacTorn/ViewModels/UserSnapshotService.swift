@@ -75,10 +75,7 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     func load(_ url: URL) async throws -> UserHTTPResponse {
         let request = TornAPIClient.request(for: url)
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        return UserHTTPResponse(data: data, statusCode: http.statusCode)
+        return UserHTTPResponse(data: data, statusCode: (response as? HTTPURLResponse)?.statusCode ?? 0)
     }
 
     func parseSnapshot(

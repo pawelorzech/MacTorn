@@ -124,7 +124,7 @@ extension AppState {
     private static var itemCatalogCacheKey: String { "itemCatalogCache" }
     private static var itemCatalogFetchedAtKey: String { "itemCatalogFetchedAt" }
     /// A week. Torn adds items occasionally, never hourly.
-    private static var itemCatalogMaxAge: TimeInterval { 604_800 }
+    static let itemCatalogMaxAge: TimeInterval = 604_800
 
     // MARK: Cache
 

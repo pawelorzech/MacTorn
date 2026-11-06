@@ -157,8 +157,7 @@ extension AppState {
                 logger.warning("Code 16 persisted after capability refresh for \(endpointID)")
                 return
             }
-            requester.keyInfo = nil
-            requester.keyInfoLoadedAt = nil
+            requester.forgetKeyInfo()
             logger.warning("Refreshing capabilities after code 16 from \(endpointID)")
             // `/key/info` itself cannot be narrowed; never refresh it in a loop.
             if endpointID != "key.info" { startFirstFetch() }
@@ -237,8 +236,7 @@ extension AppState {
         let task = Task { [weak self] in
             guard let self,
                   let info = await self.requester.send(request, decode: Self.decodeKeyInfo).value else { return }
-            self.requester.keyInfo = info
-            self.requester.keyInfoLoadedAt = self.time.now
+            self.requester.adopt(info, at: self.time.now)
             self.logger.info("Key capabilities loaded: access level \(info.access.level)")
         }
         keyInfoTask = task
@@ -278,7 +276,7 @@ extension AppState {
         switch result {
         case .loaded(let info):
             if trimmed == apiKey.trimmingCharacters(in: .whitespacesAndNewlines) {
-                requester.keyInfo = info
+                requester.adopt(info, at: time.now)
             }
             keyValidation = .success(KeyValidator.validate(info))
             logger.info("Key validated: access level \(info.access.level)")
@@ -438,7 +436,7 @@ extension AppState {
         if let properties = payload.properties { player.propertiesData = properties }
         player.stocksData = payload.stocks
 
-        player.lastUpdated = Date()
+        player.lastUpdated = time.now
         player.lastFetchTime = receivedAt
         errorMsg = nil
 
@@ -469,7 +467,7 @@ extension AppState {
         player.virus = value
         publishWidgets()
         if let wasProgramming, value == nil || value?.itemID != wasProgramming.itemID,
-           notificationCoordinator.shouldFireOnce("virus.ready", epoch: "\(wasProgramming.until)") {
+           notificationCoordinator.shouldFireOnce(AlertKey.virusReady, epoch: "\(wasProgramming.until)") {
             notifier.send(title: "Virus ready 💾",
                           body: "\(wasProgramming.name) has finished programming",
                           type: .virusReady)
@@ -509,7 +507,7 @@ extension AppState {
         if case .replace(let value) = payload.education { player.education = value }
         if case .replace(let value) = payload.bounties {
             let incoming = payload.bountiesTimestamp.map { Date(timeIntervalSince1970: TimeInterval($0)) }
-            player.bountiesFetchedAt = Date()
+            player.bountiesFetchedAt = time.now
             player.bountiesCacheDelay = payload.bountiesDelay.map(TimeInterval.init)
             if incoming == nil || player.bountiesDataTimestamp == nil || incoming! > player.bountiesDataTimestamp! {
                 player.bountiesDataTimestamp = incoming
@@ -525,14 +523,14 @@ extension AppState {
 
     func shouldNotifyOCReady(_ oc: OrganizedCrime2?) -> Bool {
         guard let oc, oc.isReady(at: serverNow) else { return false }
-        return notificationCoordinator.shouldFireOnce("oc.ready", epoch: "\(oc.id)")
+        return notificationCoordinator.shouldFireOnce(AlertKey.ocReady, epoch: "\(oc.id)")
     }
 
     /// `shouldFireOnce` tests and records, keyed by the bounty id, so each bounty
     /// announces itself once and stays quiet for as long as it hangs there.
     private func notifyBountiesOnMe() {
         let fresh = player.bountiesOnMe.filter {
-            notificationCoordinator.shouldFireOnce("bounty.\($0.id)", epoch: $0.id)
+            notificationCoordinator.shouldFireOnce(AlertKey.bounty($0.id), epoch: $0.id)
         }
         guard let banner = Self.bountyBanner(for: fresh) else { return }
         notifier.send(title: banner.title, body: banner.body, type: .bountyOnMe)

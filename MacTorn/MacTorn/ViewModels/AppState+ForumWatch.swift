@@ -19,7 +19,7 @@ extension AppState {
         guard !keyHalted else { return }
         if forumTimerCancellable != nil,
            let last = lastForumFetchAt,
-           Date().timeIntervalSince(last) < Double(forumWatchConfig.pollingIntervalSeconds) / 2 {
+           time.now.timeIntervalSince(last) < Double(forumWatchConfig.pollingIntervalSeconds) / 2 {
             return
         }
         forumTimerCancellable?.cancel()
@@ -54,7 +54,7 @@ extension AppState {
         guard connectivity.isConnected, !apiKey.isEmpty, !keyHalted else { return }
         // Nothing to watch: no request, and no re-encoding two unchanged blobs every poll.
         guard !watchedThreads.isEmpty || forumWatchConfig.factionForumAutoMonitor else {
-            lastForumFetchAt = Date()
+            lastForumFetchAt = time.now
             return
         }
         let identity = accountSession.identity
@@ -63,7 +63,7 @@ extension AppState {
         }
         await checkFactionForumForNewThreads()
         guard !Task.isCancelled, accountSession.isCurrent(identity) else { return }
-        lastForumFetchAt = Date()
+        lastForumFetchAt = time.now
         forumWatch.save()
     }
 

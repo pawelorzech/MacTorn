@@ -170,3 +170,13 @@ func userV2Selections(_ url: URL) -> Set<String> {
 func jsonObject(_ data: Data) -> [String: Any] {
     (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
 }
+
+extension TornRequester {
+    /// Sets or clears the key capabilities as if `/key/info` had just answered.
+    var testKeyInfo: TornKeyInfo? {
+        get { keyInfo }
+        set {
+            if let newValue { adopt(newValue, at: Date()) } else { forgetKeyInfo() }
+        }
+    }
+}

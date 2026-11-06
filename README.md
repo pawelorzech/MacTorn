@@ -232,7 +232,6 @@ in an `Authorization` header instead of the URL.
 | Your calendar start time | v2 | — | point-in-time | Opt-in; at least 21600s between background reads | — | core | no | Your personal start time for non-fixed events; optional. |
 | Active trades | v2 | — | point-in-time | Opt-in; at least 120s between background reads | — | core | no | Ongoing exchanges and change alerts. |
 | Trade details | v2 | — | point-in-time | Opt-in; at least 30s between background reads | — | core | no | Items offered by each participant in a trade; loaded on demand. |
-| Travel shop catalog | v2 | — | point-in-time | Opt-in; at least 604800s between background reads | — | metadata | no | Country shop prices and catalog market values; no live stock guarantee. |
 | Ranked wars | v2 | — | row-based | On demand | 20 | faction | no | Conflict history, loaded on demand with bounded pages. |
 | Raids | v2 | — | row-based | On demand | 20 | faction | no | Conflict history, loaded on demand with bounded pages. |
 | Territory wars | v2 | — | row-based | On demand | 20 | faction | no | Conflict history, loaded on demand with bounded pages. |

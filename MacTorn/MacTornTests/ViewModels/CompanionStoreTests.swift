@@ -1,4 +1,5 @@
 import XCTest
+import os.log
 @testable import MacTorn
 
 @MainActor
@@ -14,7 +15,7 @@ final class CompanionStoreTests: XCTestCase {
 
     func testOptionalModuleExplainsMissingPermissionsBeforeBuildingNarrowedURL() async {
         let app = makeApp(MockNetworkSession())
-        app.requester.keyInfo = TornKeyInfo(
+        app.requester.testKeyInfo = TornKeyInfo(
             access: .init(level: 1, type: "Custom", faction: false),
             user: .init(id: 42, factionId: nil),
             selections: .init(user: ["bars"], faction: [], market: [], property: [], torn: [],
@@ -52,9 +53,11 @@ final class CompanionStoreTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(other.competition).isElimination)
     }
     func testShopsUseNewArrayWithNullablePrices() throws {
-        let response = try JSONDecoder().decode(ShopsResponse.self, from: Data(#"{"items":[{"id":2,"name":"Flower","value":{"market_price":123,"shops":[{"country":"Mexico","shop":"Flower shop","buy_price":50,"sell_price":null}]}}]}"#.utf8))
-        XCTAssertEqual(response.items[0].value.shops[0].buyPrice, 50)
-        XCTAssertNil(response.items[0].value.shops[0].sellPrice)
+        let catalog = AppState.parseItemCatalog(json: jsonObject(Data(#"{"items":[{"id":2,"name":"Flower","value":{"market_price":123,"shops":[{"country":"Mexico","shop":"Flower shop","buy_price":50,"sell_price":null}]}}]}"#.utf8)),
+                                                logger: Logger(subsystem: "tests", category: "shops"))
+        let shop = try XCTUnwrap(catalog[2]?.shops.first)
+        XCTAssertEqual(shop.buyPrice, 50)
+        XCTAssertNil(shop.sellPrice)
     }
     func testShopModuleReusesFreshItemCatalogRequestAndCache() async throws {
         let defaults = UserDefaults.createMockDefaults()
@@ -130,7 +133,7 @@ final class CompanionStoreTests: XCTestCase {
                 ]
             ]
         ])
-        app.requester.keyInfo = try JSONDecoder().decode(TornKeyInfo.Response.self, from: infoData).info
+        app.requester.testKeyInfo = try JSONDecoder().decode(TornKeyInfo.Response.self, from: infoData).info
         app.companion.setEnabled(.shops, true, app: app)
         app.companion.start(app: app)
         await app.companion.task?.value

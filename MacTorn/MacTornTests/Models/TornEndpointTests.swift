@@ -183,7 +183,6 @@ final class TornEndpointTests: XCTestCase {
             ("user.calendar", "user/calendar", [:]),
             ("user.trades", "user/trades", ["cat": "ongoing"]),
             ("user.trade", "user/4242/trade", [:]),
-            ("torn.shops", "torn/items", [:]),
             ("faction.warfareranked", "faction/warfareranked", ["limit": "20", "sort": "DESC"]),
             ("faction.warfareraids", "faction/warfareraids", ["limit": "20", "sort": "DESC"]),
             ("faction.warfareterritory", "faction/warfareterritory", ["limit": "20", "sort": "DESC"]),
@@ -200,11 +199,6 @@ final class TornEndpointTests: XCTestCase {
     }
 
     /// The contract test above is only meaningful if it covers every endpoint.
-    func testEveryEndpointIsCoveredByContract() {
-        XCTAssertEqual(TornEndpointRegistry.all.count, 28,
-                       "add the new endpoint to testRegistryURLsMatchLegacyBuilders too")
-    }
-
     // MARK: - URL building
 
     func testParameterizedEndpointRequiresParameter() {

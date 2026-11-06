@@ -105,11 +105,8 @@ struct TornEndpoint: Identifiable, Equatable, Sendable {
 
     /// The `/key/info` selections category that grants this endpoint.
     var keyCategory: TornKeyInfo.Category {
-        if path.contains("/faction") { return .faction }
-        if path.contains("/market") { return .market }
-        if path.contains("/forum") { return .forum }
-        if path.contains("/torn") { return .torn }
-        return .user
+        let segments = (URLComponents(string: path)?.path ?? "").split(separator: "/").filter { $0 != "v2" }
+        return segments.first.flatMap { TornKeyInfo.Category(rawValue: String($0)) } ?? .user
     }
 
     var isParameterized: Bool { path.contains("{param}") }

@@ -20,8 +20,6 @@ extension TornEndpointRegistry {
                           title: "Active trades", purpose: "Ongoing exchanges and change alerts.", seconds: 120, query: ["cat": "ongoing"]),
         companionEndpoint("user.trade", path: "user/{param}/trade", capability: "trade", level: .limited,
                           title: "Trade details", purpose: "Items offered by each participant in a trade; loaded on demand.", seconds: 30),
-        companionEndpoint("torn.shops", path: "torn/items", capability: "items", level: .publicOnly,
-                          title: "Travel shop catalog", purpose: "Country shop prices and catalog market values; no live stock guarantee.", seconds: 604800, budget: .metadata),
     ] + WarfareCategory.allCases.map { category in
         companionEndpoint(category.endpointID, path: "faction/\(category.rawValue)", capability: category.rawValue,
                           level: .publicOnly, title: category.title, purpose: "Conflict history, loaded on demand with bounded pages.",

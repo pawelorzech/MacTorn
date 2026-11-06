@@ -1098,7 +1098,7 @@ final class AppStateTests: XCTestCase {
         app.apiKey = "debounce-\(UUID().uuidString)"
         // This test isolates the three-second manual debounce; first-session capability
         // ordering is covered by FirstPollOrderingTests.
-        app.requester.keyInfo = TornKeyInfo.testFixture()
+        app.requester.testKeyInfo = TornKeyInfo.testFixture()
 
         app.refreshNow()
         XCTAssertEqual(app.pollSequence, 1)

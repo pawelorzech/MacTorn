@@ -71,7 +71,7 @@ final class FirstPollOrderingTests: XCTestCase {
     func testAManualRefreshIsAcceptedOnceTheWaitIsOver() {
         let app = makeApp()
         app.apiKey = "ordering-\(UUID().uuidString)"
-        app.requester.keyInfo = TornKeyInfo.testFixture()
+        app.requester.testKeyInfo = TornKeyInfo.testFixture()
         app.awaitingFirstKeyInfo = false
         app.lastManualRefreshAt = nil
 
@@ -152,7 +152,7 @@ final class FirstPollOrderingTests: XCTestCase {
     func testAKeyAlreadyKnownThisSessionDoesNotWait() {
         let app = makeApp()
         app.apiKey = "ordering-\(UUID().uuidString)"
-        app.requester.keyInfo = TornKeyInfo.testFixture()
+        app.requester.testKeyInfo = TornKeyInfo.testFixture()
 
         app.startPolling()
 

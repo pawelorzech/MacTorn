@@ -68,7 +68,7 @@ extension AppState {
     /// not three banners.
     func shouldFireCooldownReady(_ kind: CooldownKind, seconds: Int) -> Bool {
         notificationCoordinator.shouldFireOnEdge(
-            "cooldown.ready.\(kind.displayName)",
+            AlertKey.cooldownReady(kind),
             active: seconds <= 0,
             seedOnFirstSight: true
         )
@@ -81,7 +81,7 @@ extension AppState {
     func shouldFireBarThreshold(_ rule: NotificationRule, percentage: Double) -> Bool {
         guard rule.enabled else { return false }
         return notificationCoordinator.shouldFireOnEdge(
-            "bar.\(rule.barType.rawValue).\(rule.id).\(rule.threshold)",
+            AlertKey.bar(rule),
             active: percentage >= Double(rule.threshold),
             seedOnFirstSight: true
         )
@@ -97,7 +97,7 @@ extension AppState {
         let confined = status.isInHospital || status.isInJail
         guard status.isOkay || confined else { return false }
         return notificationCoordinator.shouldFireOnEdge(
-            "status.released",
+            AlertKey.released,
             active: status.isOkay,
             seedOnFirstSight: true
         )
@@ -125,7 +125,7 @@ extension AppState {
         let inDanger = (chain?.isActive == true)
             && remaining > 0
             && remaining < Self.chainWarningThreshold
-        return notificationCoordinator.shouldFireOnEdge("chain.expiring", active: inDanger)
+        return notificationCoordinator.shouldFireOnEdge(AlertKey.chainExpiring, active: inDanger)
     }
 
     private func checkBarNotifications(bar: Bar, barType: NotificationRule.BarType) {

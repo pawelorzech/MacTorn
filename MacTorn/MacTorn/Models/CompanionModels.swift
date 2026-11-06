@@ -241,7 +241,6 @@ struct CalendarEntry: Equatable {
 }
 struct EliminationResponse: Decodable { let elimination: [EliminationTeam] }
 struct TradesResponse: Decodable { let trades: [TradeV2] }
-struct ShopsResponse: Decodable { let items: [ShopItem] }
 
 struct TradeDetailResponse: Decodable {
     let trade: Detail

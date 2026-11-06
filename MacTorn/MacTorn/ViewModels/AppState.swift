@@ -395,21 +395,11 @@ class AppState {
         timerCancellable = nil
         pollingTimerInterval = nil
         stopPriceAlertPolling()
-        accountSession.cancelTask(.stockMetadata)
-        accountSession.cancelTask(.itemCatalog)
+        accountSession.cancelAllTasks()
         keyResumeTask?.cancel()
         keyResumeTask = nil
         liveTimerCancellable?.cancel()
         liveTimerCancellable = nil
     }
 
-    func isCurrentAccount(_ key: String, generation: UInt) -> Bool {
-        accountSession.isCurrent(AccountIdentity(apiKey: key, generation: generation))
-    }
-
-}
-
-// MARK: - Errors
-enum APIError: Error {
-    case invalidResponse
 }
