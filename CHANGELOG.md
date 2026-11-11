@@ -37,9 +37,8 @@ hour instead of 30 seconds, bounties for five minutes, and `user → bazaar` bec
 - Already covered for 1 January 2027: `faction → warfare` is removed (MacTorn uses the five
   selections that replace it) and `chain` becomes `null` in v2 attacks (MacTorn reads v1
   attacks and does not decode it).
-- Unit tests passed locally (771 tests). The coverage gate runs in CI for this release: this
-  Mac's Xcode writes no coverage data, with or without the change. UI automation tests were
-  not run.
+- Unit tests passed locally and in CI (771 tests). The coverage gate passed in CI; locally
+  Xcode wrote no coverage data, with or without this change. UI automation tests were not run.
 
 ## [1.16.4] - 2026-11-07 - Under the hood
 
