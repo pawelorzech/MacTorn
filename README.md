@@ -57,7 +57,9 @@ forum updates without keeping the game open.
 
 - **Watchlist:** search Torn's item catalog by name (or paste an ID), API v2
   item-market prices, quantity at the lowest price, price changes, threshold alerts,
-  inline validation, and undo for destructive changes.
+  inline validation, and undo for destructive changes. Torn publishes item-market data
+  to every API user at least an hour late and updates it hourly, so prices and alerts
+  follow that schedule rather than the live market.
 - **Forums:** watch individual threads by URL/ID for new posts, or watch a whole
   category for new threads, with per-thread notification control and 2/3/5-minute
   polling options.
@@ -199,6 +201,13 @@ data (events, attacks, news, forum posts) counts against Torn's per-category dai
 limit, so MacTorn throttles and hard-limits those calls. A daily row-limit error pauses
 only the affected feed; core live data continues updating.
 
+Two selections MacTorn reads are **globally cached** by Torn: every key gets the same
+snapshot and no request can get a newer one. Since 11 November 2026 item-market listings
+are cached for an hour and bounties for five minutes. MacTorn asks for a watched item
+again only once Torn can have a newer snapshot. It does not read bazaars, market
+property or rental listings, or the company directory, and its hard ceiling of 60
+requests a minute sits far below Torn's 100 per user and 5,000 per IP address.
+
 MacTorn reads your key's own permissions from `/key/info` and skips what it cannot use.
 A Public-Only key is never asked for battle stats. If you have no faction, MacTorn stops
 asking for faction data. And when a request names several selections, MacTorn trims it to
@@ -217,7 +226,7 @@ in an `Authorization` header instead of the URL.
 | Faction basic + chain | v1 | basic, chain | point-in-time | Every refresh interval (rides the fast poll) | — | faction | no | Faction identity and the live chain counter/timeout that drives the chain-expiring alert. |
 | Faction ranked wars | v2 | — | point-in-time | ≥5 min (throttled; large, slow-changing payload) | — | faction | no | Active ranked war progress (your faction vs. the opponent). |
 | Faction news | v2 | — | row-based | ≥5 min (throttled; hard row limit) | 25 | faction | no | Recent faction news feed. |
-| Item market | v2 | — | point-in-time | Watchlist refresh (manual + on price-alert timer) | — | market | no | Lowest item-market listings for each watchlist item, used to drive price alerts. |
+| Item market | v2 | — | point-in-time | Per item, once Torn's hourly cache can have changed (watchlist refresh + price-alert timer) | — | market | no | Lowest item-market listings for each watchlist item, used to drive price alerts. Globally cached by Torn for an hour. |
 | Stock metadata | v1 | stocks | point-in-time | Rarely (cached; refreshed on demand) | — | metadata | no | Global stock names/acronyms used to label the user's stock holdings (slow-changing reference data). |
 | Item catalog | v2 | — | point-in-time | Rarely (cached for a week; refreshed on demand) | — | metadata | no | Names for every Torn item, so the watchlist can be searched by name and priced items are labelled rather than numbered. |
 | Forum thread | v2 | — | point-in-time | Forum poll (opt-in feature) | — | forum | no | Post count of a watched forum thread, to alert on new replies. |

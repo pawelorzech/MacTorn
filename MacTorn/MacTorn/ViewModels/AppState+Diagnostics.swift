@@ -123,14 +123,27 @@ extension AppState {
         )
     }
 
+    /// The Watchlist tab is as fresh as its last check, not as its prices. Torn publishes
+    /// item-market data at least one cache window late (an hour since 2026-11-11), so
+    /// judging the tab by the data's own timestamp would badge a working watchlist stale
+    /// for good.
     var watchlistPresentationState: ModulePresentationState {
         presentationState(endpointIDs: ["market.item"],
-                          hasContent: watchlist.items.contains { $0.lastUpdated != nil }, staleAfter: 360,
+                          hasContent: watchlist.items.contains { $0.lastUpdated != nil },
+                          staleAfter: watchlistStaleAfter,
                           rowHealth: watchlist.items.map {
-            EndpointHealth(endpointID: "market.item", outcome: $0.error != nil ? .error : $0.lastUpdated == nil ? .pending : .ok,
-                           latencyMs: 0, responseBytes: 0, at: $0.lastUpdated ?? time.now,
-                           errorClass: nil, lastSuccessfulAt: $0.lastUpdated)
+            let checkedAt = $0.lastFetchedAt ?? $0.lastUpdated
+            return EndpointHealth(endpointID: "market.item", outcome: $0.error != nil ? .error : $0.lastUpdated == nil ? .pending : .ok,
+                                  latencyMs: 0, responseBytes: 0, at: checkedAt ?? time.now,
+                                  errorClass: nil, lastSuccessfulAt: checkedAt)
         })
+    }
+
+    /// An item is left alone for one cache window, then read on the next alert tick or two
+    /// (`WatchlistItem.isRefreshDue`). Anything quieter than that is worth a "Stale".
+    var watchlistStaleAfter: TimeInterval {
+        let window = watchlist.items.compactMap(\.cacheDelay).max() ?? 0
+        return max(360, window + 2 * Self.priceAlertPollInterval)
     }
 
     var forumPresentationState: ModulePresentationState {

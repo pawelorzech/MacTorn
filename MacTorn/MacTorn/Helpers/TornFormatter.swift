@@ -82,6 +82,16 @@ enum TornFormatter {
         return "\(minutes)m"
     }
 
+    /// A duration written out for a sentence: "1 hour", "2 hours", "90 minutes".
+    static func spelledDuration(_ seconds: Int) -> String {
+        let minutes = max(1, Int((Double(seconds) / 60).rounded()))
+        if minutes % 60 == 0 {
+            let hours = minutes / 60
+            return hours == 1 ? "1 hour" : "\(hours) hours"
+        }
+        return minutes == 1 ? "1 minute" : "\(minutes) minutes"
+    }
+
     /// Compact human countdown for the Next Action strip: "45s", "4:32", "2h 05m", "1d 3h".
     static func compactETA(_ seconds: Int) -> String {
         let s = max(0, seconds)

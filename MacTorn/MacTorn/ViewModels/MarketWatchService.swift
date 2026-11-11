@@ -19,7 +19,12 @@ struct MarketPriceSnapshot: Equatable {
 
     /// Longest `cache_delay` honoured. The value comes off the wire and is persisted, so an
     /// absurd one would otherwise freeze the item's refresh indefinitely.
-    static let maxCacheDelay: TimeInterval = 300
+    ///
+    /// Torn raised the item-market global cache from 30 seconds to one hour on 2026-11-11
+    /// and the live response now reports `cache_delay: 3600`. Two hours leaves room for
+    /// that without trusting an arbitrary number; the old five-minute cap turned every
+    /// hourly snapshot into twelve identical requests.
+    static let maxCacheDelay: TimeInterval = 2 * 60 * 60
 
     /// Re-expresses Torn's `cache_timestamp` (server clock) on the Mac's clock and clamps
     /// the delay, so the refresh filter and the "Price data from … ago" label — both of
@@ -116,11 +121,12 @@ final class MarketWatchService {
         return true
     }
 
-    func apply(_ snapshot: MarketPriceSnapshot, to itemID: Int) -> MarketPriceAlert? {
+    /// Records one answer from Torn, read at `now`. Returns the alert it latched, if any.
+    func apply(_ snapshot: MarketPriceSnapshot, to itemID: Int, at now: Date) -> MarketPriceAlert? {
         guard let index = items.firstIndex(where: { $0.id == itemID }) else { return nil }
         var item = items[index]
-        let fetchedAt = Date()
-        item.lastFetchedAt = fetchedAt
+        let previousRead = item.lastFetchedAt
+        item.lastFetchedAt = now
         item.cacheDelay = snapshot.cacheDelay
         if let incoming = snapshot.dataTimestamp,
            let current = item.dataTimestamp,
@@ -129,17 +135,45 @@ final class MarketWatchService {
             items[index] = item
             return nil
         }
+        // Torn moved to a newer snapshot some time after `previousRead`, which still got
+        // the old one. Snapshots are a full `cacheDelay` apart, so the next cannot show up
+        // before `previousRead + cacheDelay` (`WatchlistItem.isRefreshDue`). A first
+        // price, or one without a timestamp, says nothing about when the change happened.
+        if snapshot.dataTimestamp != nil, item.dataTimestamp != nil,
+           let previousRead, let delay = snapshot.cacheDelay {
+            item.refreshNotBefore = previousRead.addingTimeInterval(delay)
+        } else {
+            item.refreshNotBefore = nil
+        }
         item.lowestPrice = snapshot.lowestPrice
         item.lowestPriceQuantity = snapshot.lowestPriceQuantity
         item.secondLowestPrice = snapshot.secondLowestPrice
-        item.dataTimestamp = snapshot.dataTimestamp ?? fetchedAt
+        item.dataTimestamp = snapshot.dataTimestamp ?? now
         item.lastUpdated = item.dataTimestamp
         item.error = nil
         items[index] = item
+        return latchAlert(for: itemID)
+    }
 
-        guard items[index].shouldFirePriceAlert else { return nil }
-        items[index].lastAlertedPrice = snapshot.lowestPrice
-        return MarketPriceAlert(name: item.name, price: snapshot.lowestPrice)
+    /// Latches the alert the held price has earned, if it has not been announced yet.
+    ///
+    /// Called for every new snapshot, and also for prices that were not re-read: a
+    /// threshold set since the last read can already be met, and with Torn's hourly cache
+    /// the next new snapshot may be an hour away. A row showing an error is left alone —
+    /// its price is the last one known, not necessarily Torn's current one.
+    func latchAlert(for itemID: Int) -> MarketPriceAlert? {
+        guard let index = items.firstIndex(where: { $0.id == itemID }),
+              items[index].error == nil, items[index].shouldFirePriceAlert else { return nil }
+        items[index].lastAlertedPrice = items[index].lowestPrice
+        return MarketPriceAlert(name: items[index].name, price: items[index].lowestPrice)
+    }
+
+    /// How far behind the live market Torn publishes these prices, for the one line that
+    /// tells the user so. `nil` while nothing has been priced, or while the delay is too
+    /// short to matter to anyone watching a price.
+    var publishedPriceLag: TimeInterval? {
+        guard let delay = items.compactMap(\.cacheDelay).max(), delay >= 300 else { return nil }
+        return delay
     }
 
     func setError(_ error: String, for itemID: Int) {

@@ -204,11 +204,14 @@ final class AppStateWatchlistTests: XCTestCase {
         // Prices should be updated from fixtures (950 is the lowest item-market listing)
         XCTAssertGreaterThan(item?.lowestPrice ?? 0, 0)
         XCTAssertEqual(item?.dataTimestamp, Date(timeIntervalSince1970: 1_783_107_206))
-        XCTAssertEqual(item?.cacheDelay, 30)
+        XCTAssertEqual(item?.cacheDelay, 3_600)
         XCTAssertNotNil(item?.lastFetchedAt)
     }
 
     func testRepeatedNetworkSnapshotDoesNotReplacePriceOrRetriggerAlert() async throws {
+        // The second read has to be far enough after the first to be asked for at all.
+        let clock = MutableTimeSource(Date(timeIntervalSince1970: 1_783_110_000))
+        appState = AppState(session: mockSession, defaults: testDefaults, time: clock)
         appState.apiKey = "valid_key"
         appState.watchlist.items = [
             WatchlistItem(id: 123, name: "Xanax", lowestPrice: 0,
@@ -229,6 +232,7 @@ final class AppStateWatchlistTests: XCTestCase {
         market["listings"] = [["price": 800, "amount": 1], ["price": 850, "amount": 1]]
         response["itemmarket"] = market
         try mockSession.setSuccessResponse(json: response)
+        clock.advance(AppState.priceAlertPollInterval)
         appState.refreshWatchlistPrices()
         try await Task.sleep(nanoseconds: 500_000_000)
 
@@ -630,5 +634,187 @@ final class WatchlistPriceAlertTimerTests: XCTestCase {
         state.stopPolling()
 
         XCTAssertFalse(state.priceAlertTimer.isRunning)
+    }
+}
+
+// MARK: - Torn's hourly item-market cache (2026-11-11)
+
+/// On 2026-11-11 Torn raised the global cache on `market → itemmarket` from 30 seconds to
+/// an hour. Measured the same day: the response reports `cache_delay: 3600`, and a snapshot
+/// is served from `cache_timestamp + 3600` until `+ 7200` — it is already older than its own
+/// delay when it first appears. These drive the alert timer across simulated hours and
+/// count the requests the mock session saw.
+@MainActor
+final class WatchlistHourlyCacheTests: XCTestCase {
+    private static let start = Date(timeIntervalSince1970: 1_800_000_000)
+    /// The snapshot Torn is serving when the test begins: 4,000 s old, as live ones are.
+    private static let firstCache = start.addingTimeInterval(-4_000)
+
+    private var mockSession: MockNetworkSession!
+    private var clock: MutableTimeSource!
+    private var notifier: RecordingNotifier!
+    private var state: AppState!
+
+    override func setUp() async throws {
+        try await super.setUp()
+        mockSession = MockNetworkSession()
+        clock = MutableTimeSource(Self.start)
+        notifier = RecordingNotifier()
+        state = AppState(session: mockSession,
+                         connectivity: ControllableConnectivity(),
+                         defaults: .createMockDefaults(),
+                         time: clock,
+                         notifier: notifier)
+        state.apiKey = "hourly-cache-\(UUID().uuidString)"
+    }
+
+    override func tearDown() async throws {
+        state.stopPolling()
+        state = nil
+        mockSession = nil
+        try await super.tearDown()
+    }
+
+    private func item(_ id: Int, threshold: Int?) -> WatchlistItem {
+        WatchlistItem(id: id, name: "Item \(id)", lowestPrice: 0, lowestPriceQuantity: 0,
+                      secondLowestPrice: 0, lastUpdated: nil, error: nil,
+                      priceThreshold: threshold)
+    }
+
+    /// What Torn answers from now on: the snapshot it cached at `cachedAt`.
+    private func serve(cachedAt: Date, lowest: Int) throws {
+        try mockSession.setSuccessResponse(json: ["itemmarket": [
+            "cache_timestamp": Int(cachedAt.timeIntervalSince1970),
+            "cache_delay": 3_600,
+            "listings": [["price": lowest, "amount": 2], ["price": lowest + 50, "amount": 5]]
+        ]])
+    }
+
+    private var marketRequests: Int {
+        mockSession.requestedURLs.filter { $0.absoluteString.contains("/market/") }.count
+    }
+
+    /// Runs `refresh` `seconds` later and asserts how many market requests have been made
+    /// in total since the test began.
+    private func after(_ seconds: TimeInterval, expectRequests expected: Int, _ message: String,
+                       refresh: () -> Void, file: StaticString = #filePath, line: UInt = #line) async {
+        clock.advance(seconds)
+        refresh()
+        await quiesce()
+        XCTAssertEqual(marketRequests, expected, message, file: file, line: line)
+    }
+
+    /// Waits for the refresh just started to finish: its request, if it made one, is in
+    /// flight by the first suspension, and done once nothing is.
+    private func quiesce() async {
+        await settle(milliseconds: 50)
+        _ = await eventually { !self.state.requester.isInFlight("market.item") }
+        await settle(milliseconds: 50)
+    }
+
+    private func tick(after seconds: TimeInterval, expectRequests expected: Int, _ message: String,
+                      file: StaticString = #filePath, line: UInt = #line) async {
+        await after(seconds, expectRequests: expected, message,
+                    refresh: { state.refreshPriceAlerts() }, file: file, line: line)
+    }
+
+    /// Torn as measured: the snapshot cached at T is served from T + 3,600 s until
+    /// T + 7,200 s, then replaced by the one cached at T + 3,600 s.
+    private func serveAsTornDoes(prices: [Int]) throws {
+        let windowsElapsed = Int(clock.now.timeIntervalSince(Self.firstCache) / 3_600)
+        let index = max(0, windowsElapsed - 1)
+        try serve(cachedAt: Self.firstCache.addingTimeInterval(Double(index) * 3_600),
+                  lowest: prices[min(index, prices.count - 1)])
+    }
+
+    /// Three and a half hours of five-minute alert ticks against Torn's real rollover:
+    /// snapshots change 3,200 s, 6,800 s and 10,400 s into the test.
+    func testAlertTicksCostTwoRequestsPerHourOnceTornsScheduleIsKnown() async throws {
+        state.watchlist.items = [item(123, threshold: 1_000)]
+        let prices = [1_500, 950, 900, 900]
+        var requestedAt: [Int] = []
+        var priceChangedAt: [Int] = []
+
+        for second in stride(from: 0, through: 12_600, by: 300) {
+            if second > 0 { clock.advance(300) }
+            try serveAsTornDoes(prices: prices)
+            let requestsBefore = marketRequests
+            let priceBefore = state.watchlist.items.first?.lowestPrice
+            state.refreshPriceAlerts()
+            await quiesce()
+            if marketRequests > requestsBefore { requestedAt.append(second) }
+            if state.watchlist.items.first?.lowestPrice != priceBefore { priceChangedAt.append(second) }
+        }
+
+        XCTAssertEqual(requestedAt.filter { $0 <= 3_300 }, Array(stride(from: 0, through: 3_300, by: 300)),
+                       "until a snapshot has been seen to change, Torn's schedule is unknown and every tick looks")
+        XCTAssertEqual(requestedAt.filter { $0 > 3_300 }, [6_600, 6_900, 10_200, 10_500],
+                       "after that: one look as the window closes and one that finds the new snapshot — two an hour, not twelve")
+        XCTAssertEqual(priceChangedAt, [0, 3_300, 6_900],
+                       "each new snapshot is noticed on the first tick after Torn publishes it")
+        XCTAssertEqual(notifier.sent.map(\.title), ["Price Alert: Item 123", "Price Alert: Item 123"],
+                       "950 crosses the threshold, 900 undercuts the price already announced")
+    }
+
+    func testReopeningTheTabDoesNotReAskForPricesItJustRead() async throws {
+        state.watchlist.items = [item(123, threshold: nil), item(456, threshold: nil)]
+        try serve(cachedAt: Self.firstCache, lowest: 950)
+        let open = { self.state.refreshWatchlistPrices() }
+
+        await after(0, expectRequests: 2, "opening the tab prices both items", refresh: open)
+        await after(30, expectRequests: 2, "reopening it half a minute later asks for nothing", refresh: open)
+        await after(AppState.priceAlertPollInterval, expectRequests: 4,
+                    "minutes later the snapshot may have changed, so it looks again", refresh: open)
+    }
+
+    func testAFailedReadIsRetriedOnTheNextTick() async throws {
+        state.watchlist.items = [item(123, threshold: 1_000)]
+        try serve(cachedAt: Self.firstCache, lowest: 1_500)
+        await tick(after: 0, expectRequests: 1, "the first price")
+
+        mockSession.setHTTPError(statusCode: 502)
+        await tick(after: 300, expectRequests: 2, "a tick that fails")
+        XCTAssertNotNil(state.watchlist.items.first?.error)
+
+        try serve(cachedAt: Self.firstCache, lowest: 1_500)
+        await tick(after: 5, expectRequests: 3, "a retry does not wait out the recheck floor")
+        XCTAssertNil(state.watchlist.items.first?.error)
+    }
+
+    /// With a 30-second cache a threshold set on a price that already met it was announced
+    /// by the next read. With an hourly one that read may be an hour away, so the price
+    /// MacTorn already holds has to answer for it.
+    func testAThresholdAlreadyMetByTheHeldPriceAlertsOnTheNextTickWithoutARequest() async throws {
+        state.watchlist.items = [item(123, threshold: nil)]
+        try serve(cachedAt: Self.firstCache, lowest: 950)
+        await after(0, expectRequests: 1, "the tab prices the item") { state.refreshWatchlistPrices() }
+        XCTAssertTrue(notifier.sent.isEmpty, "no threshold, no alert")
+
+        state.setWatchlistThreshold(1_000, for: 123)
+        await tick(after: 60, expectRequests: 1, "the price was read a minute ago; nothing to ask Torn")
+
+        XCTAssertEqual(notifier.sent.map(\.title), ["Price Alert: Item 123"])
+        XCTAssertEqual(state.watchlist.items.first?.lastAlertedPrice, 950)
+
+        await tick(after: 300, expectRequests: 2, "the next tick looks for a new snapshot")
+        XCTAssertEqual(notifier.sent.count, 1, "and the same price is not announced twice")
+    }
+
+    /// The prices are over an hour old by design; the tab is judged by when it last asked.
+    func testTabIsFreshAfterARecentCheckAndStaleOnceAChecksIsOverdue() async throws {
+        state.watchlist.items = [item(123, threshold: 1_000)]
+        try serve(cachedAt: Self.firstCache, lowest: 1_500)
+        await tick(after: 0, expectRequests: 1, "the first price")
+
+        XCTAssertEqual(state.watchlistPresentationState.kind, .fresh,
+                       "a price Torn published 4,000 s ago, read just now, is as fresh as it gets")
+        XCTAssertEqual(state.watchlistPresentationState.updatedAt, Self.start)
+
+        clock.advance(3_600)
+        XCTAssertEqual(state.watchlistPresentationState.kind, .fresh, "one cache window without a read is normal")
+
+        clock.advance(601)
+        XCTAssertEqual(state.watchlistPresentationState.kind, .stale,
+                       "a window plus two alert ticks with no read means something stopped")
     }
 }

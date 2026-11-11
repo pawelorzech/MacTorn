@@ -50,23 +50,24 @@ extension AppState {
         }
     }
 
-    /// Prices every item Torn has re-cached since its last read, four at a time. Alerts
-    /// are announced and the list saved once, at the end of the run — deliberately even
-    /// when a newer refresh superseded this one, because `apply` has already spent each
-    /// alert's epoch. Only an account change voids them.
+    /// Prices every item Torn can have re-cached since its last read
+    /// (`WatchlistItem.isRefreshDue`), four at a time. Alerts are announced and the list
+    /// saved once, at the end of the run — deliberately even when a newer refresh
+    /// superseded this one, because `apply` has already spent each alert's epoch. Only an
+    /// account change voids them.
     private func fetchPrices(for items: [WatchlistItem]) async {
         guard canTalkToTorn else { return }
         let identity = accountSession.identity
         let now = time.now
-        let due = items.filter { item in
-            guard let timestamp = item.dataTimestamp, let delay = item.cacheDelay else { return true }
-            return timestamp.addingTimeInterval(delay) <= now
-        }.map(\.id)
+        let due = items.filter { $0.isRefreshDue(at: now) }.map(\.id)
         let batch = PriceAlertBatch()
         await BoundedTaskQueue.run(due, limit: 4) { [weak self] itemID in
             await self?.fetchPrice(itemID: itemID, into: batch)
         }
         guard accountSession.isCurrent(identity) else { return }
+        // Prices that were not re-read still answer to their thresholds: one set a minute
+        // ago must not wait an hour for Torn's next snapshot to be noticed.
+        batch.alerts += items.compactMap { watchlist.latchAlert(for: $0.id) }
         postPriceAlerts(batch.alerts)
         watchlist.save()
     }
@@ -74,7 +75,7 @@ extension AppState {
     private func fetchPrice(itemID: Int, into batch: PriceAlertBatch) async {
         switch await requester.fetch("market.item", parameter: itemID, decode: MarketWatchService.decodePrice) {
         case .loaded(let snapshot?):
-            if let alert = watchlist.apply(snapshot.localized(using: player.serverClock), to: itemID) {
+            if let alert = watchlist.apply(snapshot.localized(using: player.serverClock), to: itemID, at: time.now) {
                 batch.alerts.append(alert)
             }
         case .loaded(nil):
@@ -122,8 +123,10 @@ extension AppState {
 
     // MARK: - Background price alerts
 
-    /// Torn caches item-market data for about this long anyway, and `cacheDelay` skips
-    /// anything not yet re-cached.
+    /// How often the alert timer looks for items that are due. It is not a request rate:
+    /// Torn's item-market cache changes once an hour, and `WatchlistItem.isRefreshDue`
+    /// leaves an item alone until a newer snapshot can exist. The tick only bounds how
+    /// soon after that change MacTorn notices it.
     static let priceAlertPollInterval: TimeInterval = 300
 
     var hasPriceThresholds: Bool {

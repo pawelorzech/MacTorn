@@ -243,7 +243,7 @@ enum TornAPIFixtures {
     static let marketItemSuccess: [String: Any] = [
         "itemmarket": [
             "cache_timestamp": 1_783_107_206,
-            "cache_delay": 30,
+            "cache_delay": 3_600,
             "listings": [
                 ["price": 950, "amount": 2],
                 ["price": 1000, "amount": 5],
@@ -256,7 +256,7 @@ enum TornAPIFixtures {
     static let marketItemNoListings: [String: Any] = [
         "itemmarket": [
             "cache_timestamp": 1_783_107_206,
-            "cache_delay": 30,
+            "cache_delay": 3_600,
             "listings": []
         ]
     ]
@@ -295,7 +295,7 @@ enum TornAPIFixtures {
             "education": education,
             "bounties": bounties,
             "bounties_timestamp": 1783107206,
-            "bounties_delay": 0,
+            "bounties_delay": 300,
             "notifications": ["messages": 1, "events": 2, "awards": 0, "competition": 0]
         ]
     }

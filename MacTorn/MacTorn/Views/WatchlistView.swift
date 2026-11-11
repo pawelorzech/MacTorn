@@ -145,6 +145,16 @@ struct WatchlistView: View {
                     }
                 }
 
+                // Torn's item-market data is globally cached and published late on
+                // purpose. Said once, so a price that is an hour old reads as Torn's
+                // schedule rather than as MacTorn falling behind.
+                if let lag = appState.watchlist.publishedPriceLag {
+                    Text("Torn's API publishes item-market prices at least \(TornFormatter.spelledDuration(Int(lag))) late. Alerts follow Torn's price, not the live market.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 PendingUndoBanner(controller: undo, message: \.message) {
                     undoPending()
                 }

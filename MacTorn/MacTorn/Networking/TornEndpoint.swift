@@ -8,7 +8,14 @@ import Foundation
 /// Torn API major version. v1 is frozen but not sunset: Torn's own OpenAPI document
 /// states that a v2 selection "will default to the API v1 version" where it has not been
 /// migrated, and every selection MacTorn relies on still returns its v1 shape. v2 is the
-/// actively developed surface. Reviewed against spec version 6.13.8 on 2026-10-20.
+/// actively developed surface. Reviewed against spec version 6.15.9 on 2026-11-11: every
+/// path below exists and none is deprecated.
+///
+/// Globally cached selections return one shared snapshot that no request can bypass.
+/// Since 2026-11-11 `market → itemmarket` is cached for an hour and `user → bounties` for
+/// five minutes (`cache_delay` / `bounties_delay` in the response say so); both are served
+/// a further cache window late. MacTorn reads no other globally cached selection, and
+/// nothing from `user → bazaar`, which became private the same day.
 enum TornAPIVersion: String, Equatable, Sendable {
     case v1
     case v2
@@ -261,8 +268,8 @@ enum TornEndpointRegistry {
             version: .v2,
             path: "https://api.torn.com/v2/market/{param}/itemmarket",
             minimumAccessLevel: .publicOnly,
-            purpose: "Lowest item-market listings for each watchlist item, used to drive price alerts.",
-            cadence: "Watchlist refresh (manual + on price-alert timer)",
+            purpose: "Lowest item-market listings for each watchlist item, used to drive price alerts. Globally cached by Torn for an hour.",
+            cadence: "Per item, once Torn's hourly cache can have changed (watchlist refresh + price-alert timer)",
             budget: .market,
             critical: false,
             requiredCapabilities: ["itemmarket"]
