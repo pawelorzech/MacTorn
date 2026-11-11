@@ -17,12 +17,18 @@ import SwiftUI
 //                                       "FeedbackPrompt", "SentryPrompt"
 //   -uitest-snapshot-appearance light   "light", "dark" or both when absent
 //   -uitest-window-height 1400          taller than the panel, to see below the fold
+//   -uitest-snapshot-seed 0             only what the canned network returns (modules off)
 //   -uitest-fixture / -uitest-apikey    as for UI tests; no key renders onboarding
 
 extension UITestConfiguration {
     static let snapshotKey = "-uitest-snapshots"
     static let snapshotScreensKey = "-uitest-snapshot-screens"
     static let snapshotAppearanceKey = "-uitest-snapshot-appearance"
+    static let snapshotSeedKey = "-uitest-snapshot-seed"
+
+    /// "0" renders only what the canned network returns: optional modules off, lists
+    /// empty. Anything else (the default) adds `SnapshotFixtures`.
+    static var snapshotSeedsExtras: Bool { snapshotArgument(snapshotSeedKey) != "0" }
 
     private static func snapshotArgument(_ key: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
@@ -103,7 +109,7 @@ enum SnapshotRunner {
                 break
             }
             for (appearanceName, appearance) in UITestConfiguration.snapshotAppearances {
-                if hasAccount { SnapshotFixtures.seed(appState) }
+                if hasAccount, UITestConfiguration.snapshotSeedsExtras { SnapshotFixtures.seed(appState) }
                 let root = rootView(for: screen, appState: appState, navigation: navigation)
                 let file = directory.appendingPathComponent("\(screen.name)-\(appearanceName).png")
                 await render(root, appearance: appearance, to: file)

@@ -662,7 +662,7 @@ struct SettingsView: View {
         BoardRow {
             DisclosureGroup {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Choose which events appear in the Next up list.")
+                    Text("Choose which countdowns appear under Next up on Status and in the widgets. A hidden one is not counted down anywhere on Status; Drug, Medical and Booster still show under Ready now once they are over.")
                         .font(.boardDetail)
                         .foregroundStyle(Board.inkSecondary)
 

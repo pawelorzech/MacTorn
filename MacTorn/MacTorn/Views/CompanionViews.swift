@@ -28,7 +28,11 @@ struct CompetitionPanel: View {
             }
 
             if hasCalendar {
-                BoardSection("Torn calendar") {
+                let standsAlone = app.companion.competition == nil
+                BoardSection(title: "Torn calendar", trailing: {
+                    if standsAlone { ModuleFreshness(feature: .competition) }
+                }) {
+                    if standsAlone { ModuleIssues(feature: .competition) }
                     ForEach(Array(active.enumerated()), id: \.offset) { _, entry in
                         ValueRow(label: entry.title,
                                  value: "ends in \(TornFormatter.coarseDuration(Int(entry.end.timeIntervalSince(now))))",

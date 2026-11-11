@@ -2,8 +2,8 @@
 project: MacTorn
 task: Panel redesign ("Tablica dyspozytora"), on top of the reliability + product quality program
 effort: E4
-phase: build
-progress: redesign 0 of 14 claims
+phase: verify
+progress: redesign 13 of 14 claims (ISC-45 awaits a UI-test run)
 mode: algorithm
 started: 2026-07-15
 updated: 2026-11-11
@@ -285,47 +285,66 @@ Antecedent for "doesn't look like shit": opening the panel answers "what needs m
 without scrolling — bars, ready actions and the next countdowns sit in the first 640 pt, and
 configuration never sits above content.
 
-- [ ] ISC-36: One design system (`Views/Design/`: tokens, type, surfaces, rows, meters,
+- [x] ISC-36: One design system (`Views/Design/`: tokens, type, surfaces, rows, meters,
   buttons) styles every screen; Reduce Transparency and Increase Contrast are handled inside
-  it. *Probe: `rg "opacity\(reduceTransparency" MacTorn/MacTorn/Views` returns hits only
-  under `Views/Design/`.*
-- [ ] ISC-37: Navigation is a left icon rail (nine modules in three groups, Settings at the
-  bottom); the two rows of group/module buttons are gone. *Probe: rendered Status PNG viewed;
-  `rg "groupBar|modulePicker" MacTorn/MacTorn` empty.*
-- [ ] ISC-38: Status shows four single-line meters, ready items as actions and "Next up" as
-  a list of countdowns in large condensed numerals. *Probe: rendered PNG viewed, light and
-  dark.*
-- [ ] ISC-39: Companion module switches, their per-endpoint "Last checked" lines and Refresh
-  buttons no longer render above content in any tab; they are in Settings.
-  *Probe: `rg "CompanionControls\(" MacTorn/MacTorn/Views` hits only Settings; Status and
-  Travel PNGs viewed.*
-- [ ] ISC-40: Travel shop prices are a search-first table (item, buy, market) with a hard
-  row cap, never an unbounded text list. *Probe: rendered Travel PNG viewed with shop data
-  seeded.*
-- [ ] ISC-41: Every tab, Settings, Diagnostics, Credits, onboarding and both prompts were
-  viewed as rendered pixels, light and dark, from fixture data. *Probe: PNG per screen read.*
-- [ ] ISC-42: The navigation contract holds: `mactorn://<tab>` routes, ⌘1–⌘9 order, ⌘R, ⌘,
-  and Escape. *Probe: `NavigationTests` green; `rg "mactorn://"` call sites unchanged.*
-- [ ] ISC-43: Content-level accessibility labels and UI-test identifiers that existed before
-  the redesign still exist. *Probe: every `uitest.*` id referenced by `MacTornUITests` other
-  than `uitest.group.*` resolves in `rg`.*
-- [ ] ISC-44: `make test` is green and the Release Universal build succeeds.
-  *Probe: command output.*
-- [ ] ISC-45: UI tests are migrated to the rail and run green. *Probe: `make test-ui`
-  output; needs Paweł's go-ahead because XCUITest takes over the screen.*
-- [ ] ISC-46: The theme is recorded in `CLAUDE.md` (`## Frontend Theme`) and
-  `docs/visual-identity.md` no longer describes the old navigation. *Probe: `Read` both.*
+  it. *Evidence: `rg "reduceTransparency \?" MacTorn/MacTorn/Views` hits only
+  `Design/Primitives.swift` (the modal scrim), 131175a.*
+- [x] ISC-37: Navigation is a left icon rail (nine modules in three groups, Settings at the
+  bottom); the two rows of group/module buttons are gone. *Evidence: rendered PNGs viewed;
+  `rg "groupBar|modulePicker"` empty.*
+- [x] ISC-38: Status shows four single-line meters, ready items as actions and "Next up" as
+  a list of countdowns in large condensed numerals. *Evidence: Status PNG viewed, light and
+  dark, calm and busy fixture.*
+- [x] ISC-39: Optional-module switches, their per-endpoint "Last checked" lines and Refresh
+  buttons no longer render above content in any tab; the switches are in Settings › Modules
+  (`ModuleSwitchList`), freshness is one small button in the module's heading.
+  *Evidence: `CompanionControls` no longer exists; Status, Travel, Money, Stocks, Faction and
+  Settings-modules PNGs viewed.*
+- [x] ISC-40: Travel shop prices are a search-first lookup (item, buy, market) capped at 12
+  rows, opening on the country being flown to. *Evidence: Travel PNG viewed with shop data,
+  flying to Japan.*
+- [x] ISC-41: Every tab, every Settings section, Diagnostics, Credits, first run and both
+  prompts were viewed as rendered pixels, light and dark, from fixture data; the tabs also
+  with optional modules off and with an invalid key. *Evidence: snapshot PNGs read in-run.
+  Not seen: expanded disclosures in Settings, the add-item/add-thread panels, the update
+  notice, a healthy watched item (the canned network answers market calls with an error).*
+- [x] ISC-42: The navigation contract holds: `mactorn://<tab>` routes, ⌘1–⌘9 order, ⌘R, ⌘,
+  and Escape. *Evidence: `UITestHarnessTests` navigation tests green; `AppTab(route:)` and
+  `MacTornCommand` untouched; commands registered in `ModuleRail.moreMenu`.*
+- [x] ISC-43: Content-level UI-test identifiers that existed before the redesign still
+  exist. *Evidence: every `uitest.*` id referenced by `MacTornUITests` resolves in the app
+  sources (literal or as an interpolation prefix). Their accessibility labels are exercised
+  only by ISC-45.*
+- [x] ISC-44: The unit suite is green and the Release Universal build verifies.
+  *Evidence: `TEST EXECUTE SUCCEEDED`; `make verify-release` "universal and strict ad-hoc
+  signed" at 131175a.*
+- [ ] ISC-45: UI tests are migrated to the rail and run green. *Migrated and compiling
+  (`TEST BUILD SUCCEEDED`); not run — XCUITest takes over the screen and needs Paweł's
+  go-ahead.*
+- [x] ISC-46: The theme is recorded in `CLAUDE.md` (`### Frontend Theme`; the file is
+  gitignored, so it is local) and `docs/visual-identity.md` describes the rail and the board.
 
 Anti-claims:
 
-- [ ] ISC-47: No store, networking or polling behaviour changed. *Probe: `git diff --stat
-  main` touches only `Views/`, the app entry, the UI-test harness, tests and docs.*
-- [ ] ISC-48: Nothing a player could see or do before was silently dropped: every element of
-  the old tabs is placed (glance, detail, Settings) or named as cut in the hand-off report.
-  *Probe: inventory table in the report, checked against `git show main:<view>`.*
-- [ ] ISC-49: MacTorn did not become a regular Mac app: no sidebar window, no Dock icon; the
-  window a widget opens shows the same panel. *Probe: `rg NavigationSplitView` empty;
-  `LSUIElement` still set.*
+- [x] ISC-47: No store, networking or polling behaviour changed. *Evidence: `git diff
+  --name-only main` touches only `Views/`, `Helpers/{UITestSupport,SnapshotSupport}`, the app
+  entry, the Xcode project, tests and docs.*
+- [x] ISC-48: Nothing a player could see or do before was silently dropped: every element of
+  the old tabs is placed or named as cut in the hand-off report (2026-11-11). Moved: player
+  id → Settings › Account; optional-module switches, alert switches and minimum pass rate →
+  Settings › Modules; shop prices only in Travel (gone from Watchlist). Cut: the "Refills
+  claimed" and "Education: complete" lines, per-shop price lines beyond the cheapest shop
+  ("+N more"), section icons, the travel card on Status (the header line and "Next up" carry
+  it). Changed: a category hidden in Settings now drops its countdown from Status entirely
+  (it used to hide only the one-line strip); Drug, Medical and Booster still show under
+  "Ready now" when over.
+- [x] ISC-49: MacTorn did not become a regular Mac app: no sidebar window, no Dock icon; the
+  window a widget opens shows the same panel at the same width. *Evidence:
+  `rg NavigationSplitView` empty; `LSUIElement` true; `.windowResizability(.contentSize)`.*
+
+Not yet verified by anyone: the real menu-bar panel was never opened on this branch — only
+offscreen renders. Keyboard focus rings on the rail, live switch tint and the commands menu
+are unexercised until the UI tests or a person run it.
 
 ## Test Strategy
 

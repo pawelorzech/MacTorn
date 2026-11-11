@@ -467,6 +467,7 @@ final class MacTornUITests: XCTestCase {
         let app = launch(fixture: "watchAccessibility", apiKey: "sample-watch-a11y-user")
         let win = window(app)
 
+        win.buttons["uitest.tab.Watchlist"].click()
 
         let priceAlert = win.buttons["Set price alert for Accessibility Item"]
         let removeItem = win.buttons["Remove Accessibility Item from price watch"]

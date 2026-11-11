@@ -225,30 +225,50 @@ struct MeterReading: Identifiable {
     var progress: Double { NumericSafety.progress(current: current, maximum: maximum) }
 }
 
-/// The bars as a grid, so the lines share one left and one right edge whatever the numbers.
+/// The bars as aligned rows, so the lines share one left and one right edge whatever the
+/// numbers. Each row is one accessibility element: the bar's name, then "51 of 150, 34
+/// percent". (A `Grid` would align the columns for free, but modifiers on a `GridRow`
+/// land on every cell, which made three elements per bar.)
 struct MeterGrid: View {
     let meters: [MeterReading]
 
     var body: some View {
-        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 9) {
+        VStack(alignment: .leading, spacing: 9) {
             ForEach(meters) { meter in
-                GridRow {
-                    Text(meter.name)
-                        .font(.boardBody)
-                        .foregroundStyle(Board.ink)
+                HStack(spacing: 10) {
+                    // Every row lays out all the names and readings invisibly, so each
+                    // column is as wide as its widest entry in any row.
+                    ZStack(alignment: .leading) {
+                        ForEach(meters) { name($0).hidden() }
+                        name(meter)
+                    }
                     ProgressLine(progress: meter.progress, color: meter.color)
-                    (Text(TornFormatter.formatNumber(meter.current)).font(.figureValue).foregroundStyle(Board.ink)
-                     + Text(" / \(TornFormatter.formatNumber(meter.maximum))").font(.figure(16, weight: .regular))
-                        .foregroundStyle(Board.inkSecondary))
-                        .lineLimit(1)
-                        .fixedSize()
-                        .gridColumnAlignment(.trailing)
+                    ZStack(alignment: .trailing) {
+                        ForEach(meters) { reading($0).hidden() }
+                        reading(meter)
+                    }
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(meter.name)
                 .accessibilityValue("\(meter.current) of \(meter.maximum), \(Int(meter.progress * 100)) percent")
             }
         }
+    }
+
+    private func name(_ meter: MeterReading) -> some View {
+        Text(meter.name)
+            .font(.boardBody)
+            .foregroundStyle(Board.ink)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    private func reading(_ meter: MeterReading) -> some View {
+        (Text(TornFormatter.formatNumber(meter.current)).font(.figureValue).foregroundStyle(Board.ink)
+         + Text(" / \(TornFormatter.formatNumber(meter.maximum))").font(.figure(16, weight: .regular))
+            .foregroundStyle(Board.inkSecondary))
+            .lineLimit(1)
+            .fixedSize()
     }
 }
 

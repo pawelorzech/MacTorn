@@ -69,22 +69,23 @@ struct NextUpSection: View {
     }
 
     private func readyActions(events: [NextEvent], now: Date) -> [ReadyAction] {
-        let hidden = appState.hiddenNextActionCategories
+        // The three cooldowns are shown whenever they are over, whatever is hidden from the
+        // timeline: a hidden category drops its countdown row, never the way to act on it.
         var actions: [ReadyAction] = []
 
         if events.contains(where: { $0.category == .refills && $0.isReady }) {
             actions.append(ReadyAction(id: "refills", title: "Refills", spoken: "Claim refills",
                                        url: TornLink.page("page.php?sid=points")))
         }
-        if isOver(\.drugEndsAt, \.drug, now: now), !hidden.contains(.drug) {
+        if isOver(\.drugEndsAt, \.drug, now: now) {
             actions.append(ReadyAction(id: "drug", title: "Drug", spoken: "Use Drug",
                                        url: TornLink.page("item.php#drugs-items")))
         }
-        if isOver(\.medicalEndsAt, \.medical, now: now), !hidden.contains(.medical) {
+        if isOver(\.medicalEndsAt, \.medical, now: now) {
             actions.append(ReadyAction(id: "medical", title: "Medical", spoken: "Use Medical",
                                        url: TornLink.page("item.php#medical-items")))
         }
-        if isOver(\.boosterEndsAt, \.booster, now: now), !hidden.contains(.booster) {
+        if isOver(\.boosterEndsAt, \.booster, now: now) {
             actions.append(ReadyAction(id: "booster", title: boosterTarget.title.replacingOccurrences(of: "Boosters", with: "Booster"),
                                        spoken: "Use \(boosterTarget == .alcohol ? "Alcohol" : "Booster")",
                                        url: boosterTarget.itemsURL))
