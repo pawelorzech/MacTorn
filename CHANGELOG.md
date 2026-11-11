@@ -5,6 +5,42 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.5] - 2026-11-11 - Torn's hourly market cache
+
+Torn restricted its API on 11 November 2026: item-market listings are now cached for an
+hour instead of 30 seconds, bounties for five minutes, and `user → bazaar` became private.
+
+### Changed
+- The watchlist follows the hourly cache. A watched item is read again only once Torn can
+  have a newer price: about two requests an hour per alert item instead of twelve, with
+  the change still picked up within five minutes of Torn publishing it. Until MacTorn has
+  seen one update (first run, or after a gap longer than an hour) it looks every five
+  minutes, as before.
+- The Watchlist tab says once that Torn publishes item-market prices at least an hour
+  late, and that alerts follow Torn's price rather than the live market.
+
+### Fixed
+- The Watchlist tab no longer reads "Stale" all the time. It judged freshness by the age of
+  Torn's data, which is now always over an hour; it goes by the last check instead.
+- Reopening the Watchlist tab no longer re-requests prices it read moments earlier.
+- A price alert set on a price that already meets it fires within five minutes, from the
+  price MacTorn holds. With the hourly cache it would have waited for Torn's next update.
+
+### Notes
+- Checked against live responses and Torn OpenAPI 6.15.9; every endpoint MacTorn calls is
+  present and none is deprecated. Torn serves a cached snapshot from one cache window after
+  it was taken until two windows after, so item-market prices are one to two hours old and
+  a bounty on you can show up five to ten minutes late.
+- Nothing else in the announcement touches MacTorn: it never read bazaars, market property
+  or rental listings or the company directory, and its ceiling of 60 requests a minute is
+  far below the 5,000 per IP address Torn now documents.
+- Already covered for 1 January 2027: `faction → warfare` is removed (MacTorn uses the five
+  selections that replace it) and `chain` becomes `null` in v2 attacks (MacTorn reads v1
+  attacks and does not decode it).
+- Unit tests passed locally (771 tests). The coverage gate runs in CI for this release: this
+  Mac's Xcode writes no coverage data, with or without the change. UI automation tests were
+  not run.
+
 ## [1.16.4] - 2026-11-07 - Under the hood
 
 ### Changed

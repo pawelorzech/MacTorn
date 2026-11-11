@@ -230,6 +230,47 @@ tracked backlog with deferral reasons.
   if a paid program is ever set up. SHA-256 checksums of release artifacts could still be
   added cheaply if desired, but the signing/notarization core is out of scope.
 
+**Stage — Torn API restriction of 2026-11-11 (v1.16.5):**
+
+> principal_stated_goal (verbatim): "TORN zmienia api. […] zrób pełną analizę naszej
+> aplikacji, zobacz co się musi zmienić, wprowadź wszystkie zmiany, poprawki, testy.
+> upewnij się, że wszystko jest tip top. na koniec: wrzuć nową wersję na produkcję"
+
+Torn's announcement: `user→bazaar` private; global cache 30 s → 1 h on `market→itemmarket`
+/ `properties` / `rentals` and `company→companies`; 30 s → 5 min on `torn→bounties` and
+`user→bounties`; IP limit 5,000 req/min documented.
+
+- [x] ISC-26: Every endpoint in `TornEndpointRegistry` exists and is not deprecated in the
+  current OpenAPI document. *Evidence: `jq` over OpenAPI 6.15.9, 28 paths present, none
+  deprecated (2026-11-11).*
+- [x] ISC-27: The cache figures are read from live responses, not from the forum post.
+  *Evidence: live `cache_delay: 3600`, `bounties_delay: 300`; rollover witnessed at
+  `timestamp + 2 × delay` (bounties twice, item 206 once at 10:00:26 CET).*
+- [x] ISC-28: A watched item whose snapshot MacTorn saw change is not requested again until
+  Torn can have a newer one, and is picked up within one alert tick once it does.
+  *Evidence: `WatchlistHourlyCacheTests.testAlertTicksCostTwoRequestsPerHourOnceTornsScheduleIsKnown`.*
+- [x] ISC-29: A one-hour `cache_delay` is honoured rather than clamped to five minutes; an
+  absurd one is still capped. *Evidence: `testLocalizedSnapshotClampsCacheDelay`.*
+- [x] ISC-30: The Watchlist tab reads as fresh when it was checked recently, even though
+  the prices themselves are over an hour old.
+  *Evidence: `testTabIsFreshAfterARecentCheckAndStaleOnceAChecksIsOverdue`.*
+- [x] ISC-31: The app says, where prices are shown, how old Torn's market data is by
+  design. *Evidence: caption in `WatchlistView`, driven by `publishedPriceLag` (unit-tested);
+  the built tab was not viewed.*
+- [x] ISC-32: README endpoint table, CHANGELOG and the registry's spec-review stamp match
+  the code. *Evidence: `testREADMETableIsExactlyWhatTheRegistryGenerates` green in the 771-test run.*
+- [ ] ISC-33: `make test` and `make coverage-gate` pass; v1.16.5 is tagged, published with
+  its SHA-256 and installed. *Probe: command output, `gh release view`, installed
+  `CFBundleVersion`.*
+- Anti-claim A-26: no request is added and no cadence is raised anywhere; nothing reads
+  bazaar, market properties/rentals or companies; a price alert is never suppressed by the
+  new schedule for longer than Torn's own cache window.
+- Anti-claim A-27: bounties stay inside the combined v2 user call (splitting them out would
+  cost a request to save none).
+- [x] ISC-34 (found during the run): a threshold set on a price that already meets it alerts
+  on the next tick from the held price, without waiting for Torn's next snapshot.
+  *Evidence: `testAThresholdAlreadyMetByTheHeldPriceAlertsOnTheNextTickWithoutARequest`.*
+
 ## Test Strategy
 
 | isc | type | check | threshold | tool |
@@ -270,6 +311,17 @@ tracked backlog with deferral reasons.
   regression harness; shipping the tested model now de-risks the wiring later (ISC-15).
 - 2026-07-15: Voice/Pulse announcements from the Algorithm doctrine skipped — Pulse is
   permanently disabled in this environment (no `localhost:31337`).
+- 2026-11-11: Watchlist reads are scheduled from what was observed, not from the forum post:
+  `refreshNotBefore` = last read of the previous snapshot + `cache_delay`. It holds under
+  the measured rollover and under plain TTL; a fixed `timestamp + 2 × delay` rule would be
+  one request cheaper per hour but an hour late if Torn changes how it serves the cache.
+- 2026-11-11: Second look by an independent (non-forked) reviewer on the diff. Adopted: clock
+  set back by less than a window (`lastFetchedAt > now`), a faithful Torn double in the hour
+  simulation, witnessing the market rollover before shipping the "at least an hour late"
+  copy, held-price alerts (ISC-34). Accepted as is: if Torn reverts to a short cache, items
+  holding a one-hour schedule notice at their next due read, once, at most one old window
+  late (A-26 is therefore relative to the window Torn last reported). Deferred, pre-existing:
+  an item with no listings carries no cache timestamp and is re-asked on every tick.
 
 ## Changelog
 
