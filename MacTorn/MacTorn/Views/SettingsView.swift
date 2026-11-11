@@ -156,7 +156,7 @@ struct SettingsView: View {
 
     private var settingsHeader: some View {
         HStack(alignment: .center, spacing: Board.Space.s) {
-            Text("Settings")
+            Text(isFirstRun ? "Welcome to MacTorn" : "Settings")
                 .font(.boardTitle)
                 .foregroundStyle(Board.ink)
                 .accessibilityAddTraits(.isHeader)

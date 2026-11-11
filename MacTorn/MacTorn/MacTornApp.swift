@@ -39,7 +39,10 @@ struct MacTornApp: App {
         uiTestWindow
         #endif
         WindowGroup("MacTorn", id: "widget") {
+            // The window a widget opens is the panel itself: same width, and only as
+            // resizable as the panel is (taller, never wider).
             ContentView()
+                .frame(minHeight: 420)
                 .macTornRoot(appState, navigation: navigation)
                 .handlesExternalEvents(preferring: ["mactorn"], allowing: ["mactorn"])
                 .onOpenURL { url in
@@ -49,6 +52,7 @@ struct MacTornApp: App {
                 }
         }
         .defaultSize(width: Board.panelWidth, height: Board.panelHeight)
+        .windowResizability(.contentSize)
         .handlesExternalEvents(matching: ["mactorn"])
         MenuBarExtra {
             ContentView()

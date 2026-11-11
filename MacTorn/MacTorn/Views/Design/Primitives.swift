@@ -21,6 +21,18 @@ struct BoardPage<Content: View>: View {
     }
 }
 
+// MARK: - Scrim
+
+/// Full-panel backdrop behind a modal prompt: the one translucent thing in the app, and
+/// opaque under Reduce Transparency.
+struct BoardScrim: View {
+    @Environment(\.reduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        reduceTransparency ? Board.surface : Color.black.opacity(0.4)
+    }
+}
+
 // MARK: - Section
 
 /// A heading over a strong rule, then its rows. The rule is the only "container" a section
@@ -225,8 +237,8 @@ struct MeterGrid: View {
                         .font(.boardBody)
                         .foregroundStyle(Board.ink)
                     ProgressLine(progress: meter.progress, color: meter.color)
-                    (Text(meter.current.formatted()).font(.figureValue).foregroundStyle(Board.ink)
-                     + Text(" / \(meter.maximum.formatted())").font(.figure(16, weight: .regular))
+                    (Text(TornFormatter.formatNumber(meter.current)).font(.figureValue).foregroundStyle(Board.ink)
+                     + Text(" / \(TornFormatter.formatNumber(meter.maximum))").font(.figure(16, weight: .regular))
                         .foregroundStyle(Board.inkSecondary))
                         .lineLimit(1)
                         .fixedSize()
@@ -260,7 +272,7 @@ struct CountLabel: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text(count.formatted())
+            Text(TornFormatter.formatNumber(count))
                 .font(.figure(20))
                 .foregroundStyle(Board.ink)
             Text(count == 1 ? noun : "\(noun)s")

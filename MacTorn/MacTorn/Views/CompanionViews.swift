@@ -48,17 +48,17 @@ struct CompetitionPanel: View {
     private func competitionRows(_ competition: CompetitionV2) -> some View {
         if let team = competition.team { ValueRow(label: "Your team", value: team, isFigure: false) }
         if competition.name != "Easter Egg Hunt", let score = competition.score {
-            ValueRow(label: "Your score", value: score.formatted())
+            ValueRow(label: "Your score", value: TornFormatter.formatNumber(score))
         }
-        if let attacks = competition.attacks { ValueRow(label: "Your attacks", value: attacks.formatted()) }
+        if let attacks = competition.attacks { ValueRow(label: "Your attacks", value: TornFormatter.formatNumber(attacks)) }
         if let status = competition.status { ValueRow(label: "Your side", value: status.capitalized, isFigure: false) }
         if let hp = competition.hp {
-            ValueRow(label: "HP", value: "\(hp.current.formatted()) / \(hp.maximum.formatted())")
+            ValueRow(label: "HP", value: "\(TornFormatter.formatNumber(hp.current)) / \(TornFormatter.formatNumber(hp.maximum))")
         }
-        if let treats = competition.treatsCollected { ValueRow(label: "Treats collected", value: treats.formatted()) }
+        if let treats = competition.treatsCollected { ValueRow(label: "Treats collected", value: TornFormatter.formatNumber(treats)) }
         if let basket = competition.basket { ValueRow(label: "Basket", value: basket.name, isFigure: false) }
         if competition.name == "Easter Egg Hunt", let eggs = competition.score, let total = competition.total {
-            ValueRow(label: "Eggs found", value: "\(eggs.formatted()) / \(total.formatted())")
+            ValueRow(label: "Eggs found", value: "\(TornFormatter.formatNumber(eggs)) / \(TornFormatter.formatNumber(total))")
         }
         if competition.isElimination {
             ForEach(app.companion.teams) { team in
@@ -69,7 +69,7 @@ struct CompetitionPanel: View {
                                 .font(.boardStrong)
                                 .foregroundStyle(team.eliminated ? Board.inkSecondary : Board.ink)
                             Spacer(minLength: Board.Space.s)
-                            Text(team.score.formatted())
+                            Text(TornFormatter.formatNumber(team.score))
                                 .font(.figureValue)
                                 .foregroundStyle(Board.ink)
                         }
@@ -154,7 +154,7 @@ struct ShopPricesPanel: View {
                     BoardEmptyState(title: "No shop data yet",
                                     detail: "It loads the next time this module refreshes.")
                 } else if !hasFilter {
-                    BoardEmptyState(title: "\(app.companion.shops.count.formatted()) items in Torn's shops",
+                    BoardEmptyState(title: "\(TornFormatter.formatNumber(app.companion.shops.count)) items in Torn's shops",
                                     detail: "Type a name or pick a country to see what is sold there and for how much.")
                 } else if matches.isEmpty {
                     BoardEmptyState(title: "Nothing sold matches that")
@@ -232,11 +232,11 @@ struct ShopPricesPanel: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                Text(buy.map { "$\($0.formatted())" } ?? "—")
+                Text(buy.map { "$\(TornFormatter.formatNumber($0))" } ?? "—")
                     .font(.figureValue)
                     .foregroundStyle(buy == nil ? Board.inkSecondary : Board.ink)
                     .frame(width: 62, alignment: .trailing)
-                Text("$\(market.formatted())")
+                Text("$\(TornFormatter.formatNumber(market))")
                     .font(.figureValue)
                     .foregroundStyle(buy.map { market > $0 } == true ? Board.Tone.ready.ink : Board.ink)
                     .frame(width: 70, alignment: .trailing)
@@ -245,8 +245,8 @@ struct ShopPricesPanel: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(item.name), \(shown.shop), \(shown.country). "
-            + (buy.map { "Buy $\($0.formatted())" } ?? "Not sold here")
-            + ", \(watched == nil ? "catalog market value" : "last known market price") $\(market.formatted())"
+            + (buy.map { "Buy $\(TornFormatter.formatNumber($0))" } ?? "Not sold here")
+            + ", \(watched == nil ? "catalog market value" : "last known market price") $\(TornFormatter.formatNumber(market))"
         )
     }
 }
@@ -319,8 +319,8 @@ struct StockBonusPanel: View {
     @Environment(AppState.self) private var app
 
     private func money(_ value: Double) -> String {
-        guard value.isFinite, value >= 0 else { return "Unavailable" }
-        return value.formatted(.currency(code: "USD").precision(.fractionLength(0)))
+        guard let amount = NumericSafety.integerAmount(value) else { return "Unavailable" }
+        return TornFormatter.formatMoney(amount)
     }
 
     var body: some View {
@@ -342,7 +342,7 @@ struct StockBonusPanel: View {
                                 Spacer(minLength: Board.Space.s)
                                 bonusState(stock, reference: reference)
                             }
-                            Text("\(stock.shares.formatted()) shares, cost \(money(stock.costBasis))"
+                            Text("\(TornFormatter.formatNumber(stock.shares)) shares, cost \(money(stock.costBasis))"
                                  + (reference.map { ", value \(money(Double(stock.shares) * $0.market.price))" } ?? ""))
                                 .font(.boardDetail)
                                 .foregroundStyle(Board.inkSecondary)

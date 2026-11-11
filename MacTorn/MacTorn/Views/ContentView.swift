@@ -1,15 +1,5 @@
 import SwiftUI
 
-/// Full-panel backdrop behind a blocking overlay. Opaque under Reduce Transparency, a flat
-/// dim otherwise — the board has no blur anywhere.
-private struct ModalScrim: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
-
-    var body: some View {
-        reduceTransparency ? Board.surface : Color.black.opacity(0.4)
-    }
-}
-
 /// The whole panel: the module rail on the left, and beside it either a module under its
 /// header or Settings. The menu bar and the window a widget opens both show exactly this.
 struct ContentView: View {
@@ -43,14 +33,14 @@ struct ContentView: View {
             // Feedback Prompt Overlay — the Sentry opt-in wins when both are due, so at
             // most one modal is on screen; feedback shows once the opt-in is dismissed.
             if appState.showFeedbackPrompt && !showSentryOptIn {
-                ModalScrim()
+                BoardScrim()
 
                 FeedbackPromptView()
                     .accessibilityAddTraits(.isModal)
             }
 
             if showSentryOptIn {
-                ModalScrim()
+                BoardScrim()
 
                 SentryOptInPromptView(isPresented: $showSentryOptIn)
                     .accessibilityAddTraits(.isModal)

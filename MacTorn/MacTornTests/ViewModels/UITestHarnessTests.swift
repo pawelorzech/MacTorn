@@ -222,6 +222,29 @@ final class UITestHarnessTests: XCTestCase {
         XCTAssertEqual(commands.map(\.keyEquivalent), Array("123456789"))
     }
 
+    /// A module can send the player straight to its own switches, and plain "open
+    /// Settings" must not throw away the section they were last on.
+    func testSettingsOpenOnTheRequestedSectionAndRememberIt() {
+        let navigation = AppNavigationState()
+        XCTAssertEqual(navigation.settingsSection, .account)
+
+        navigation.showSettings(.modules)
+        XCTAssertTrue(navigation.isShowingSettings)
+        XCTAssertEqual(navigation.settingsSection, .modules)
+
+        navigation.select(.travel)
+        XCTAssertFalse(navigation.isShowingSettings)
+
+        navigation.showSettings()
+        XCTAssertTrue(navigation.isShowingSettings)
+        XCTAssertEqual(navigation.settingsSection, .modules)
+    }
+
+    /// The rail is icon-only, so two modules sharing a symbol would be indistinguishable.
+    func testEveryModuleHasItsOwnRailIcon() {
+        XCTAssertEqual(Set(AppTab.allCases.map(\.icon)).count, AppTab.allCases.count)
+    }
+
     func testNavigationStateKeepsClicksAndCommandsInSync() {
         let navigation = AppNavigationState()
 

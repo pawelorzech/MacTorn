@@ -351,55 +351,66 @@ struct WatchlistPriceRow: View {
 
     var body: some View {
         BoardRow {
-            VStack(alignment: .leading, spacing: 2) {
-                headline
-                if item.lastUpdated != nil, !item.isLoading {
-                    stockDetail
+            VStack(alignment: .leading, spacing: 6) {
+                // What it is and what is known about it on the left; the price and the two
+                // things you can do to the row on the right, so a row is two lines, not four.
+                HStack(alignment: .top, spacing: Board.Space.s) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        nameButton
+                        if item.lastUpdated != nil, !item.isLoading {
+                            stockDetail
+                        }
+                        alertLine
+                    }
+                    Spacer(minLength: Board.Space.s)
+                    VStack(alignment: .trailing, spacing: 0) {
+                        price
+                        buttons
+                    }
                 }
                 if let error = item.error {
                     BoardNotice(tone: .alert, message: error)
-                        .padding(.vertical, 2)
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel("Price update error: \(error)")
                 }
-                controls
             }
         }
     }
 
     // MARK: Parts
 
-    private var headline: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Board.Space.s) {
-            Button(action: onOpen) {
-                Text(item.name)
-                    .font(.boardStrong)
-                    .foregroundStyle(Board.ink)
-                    .lineLimit(1)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Open \(item.name) in Item Market")
+    private var nameButton: some View {
+        Button(action: onOpen) {
+            Text(item.name)
+                .font(.boardStrong)
+                .foregroundStyle(Board.ink)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open \(item.name) in Item Market")
+    }
 
-            Spacer(minLength: Board.Space.s)
-
-            if item.isLoading && item.error == nil {
-                ProgressView()
-                    .controlSize(.small)
-            } else if item.lastUpdated != nil {
-                Text(formatPrice(item.lowestPrice))
-                    .font(.figure(22))
-                    .foregroundStyle(thresholdMet ? Board.Tone.ready.ink : Board.ink)
-                    .lineLimit(1)
-                    .fixedSize()
-            }
+    @ViewBuilder
+    private var price: some View {
+        if item.isLoading && item.error == nil {
+            ProgressView()
+                .controlSize(.small)
+                .frame(height: 26)
+        } else if item.lastUpdated != nil {
+            Text(formatPrice(item.lowestPrice))
+                .font(.figure(22))
+                .foregroundStyle(thresholdMet ? Board.Tone.ready.ink : Board.ink)
+                .lineLimit(1)
+                .fixedSize()
         }
     }
 
     private var stockParts: [String] {
         var parts: [String] = []
         if item.lowestPriceQuantity > 0 {
-            parts.append("\(item.lowestPriceQuantity.formatted()) at this price")
+            parts.append("\(TornFormatter.formatNumber(item.lowestPriceQuantity)) at this price")
         }
         if item.priceDifference > 0 {
             parts.append("next \(formatPrice(item.secondLowestPrice))")
@@ -417,30 +428,31 @@ struct WatchlistPriceRow: View {
             }
 
             if let dataTimestamp = item.dataTimestamp ?? item.lastUpdated {
-                let prefix = item.error == nil ? "Price data from " : "Last known price, data from "
-                (Text(prefix) + Text(dataTimestamp, style: .relative) + Text(" ago"))
+                let prefix = item.error == nil ? "Price from " : "Last known price, from "
+                Text(prefix + TornFormatter.relativeDate(dataTimestamp, abbreviated: true))
                     .font(.boardDetail)
                     .foregroundStyle(Board.inkSecondary)
             }
         }
     }
 
-    private var controls: some View {
-        HStack(spacing: 2) {
-            if let threshold = item.priceThreshold {
-                if thresholdMet {
-                    Label("At or under your alert of \(formatPrice(threshold))", systemImage: "checkmark.circle.fill")
-                        .font(.boardDetail.weight(.medium))
-                        .foregroundStyle(Board.Tone.ready.ink)
-                } else {
-                    Text("Alert at or under \(formatPrice(threshold))")
-                        .font(.boardDetail)
-                        .foregroundStyle(Board.inkSecondary)
-                }
+    @ViewBuilder
+    private var alertLine: some View {
+        if let threshold = item.priceThreshold {
+            if thresholdMet {
+                Text("At or under your alert of \(formatPrice(threshold))")
+                    .font(.boardDetail.weight(.medium))
+                    .foregroundStyle(Board.Tone.ready.ink)
+            } else {
+                Text("Alert at or under \(formatPrice(threshold))")
+                    .font(.boardDetail)
+                    .foregroundStyle(Board.inkSecondary)
             }
+        }
+    }
 
-            Spacer(minLength: Board.Space.s)
-
+    private var buttons: some View {
+        HStack(spacing: 0) {
             IconButton(
                 systemImage: item.priceThreshold != nil ? "bell.fill" : "bell",
                 label: item.priceThreshold != nil

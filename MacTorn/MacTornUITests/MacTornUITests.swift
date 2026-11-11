@@ -84,21 +84,17 @@ final class MacTornUITests: XCTestCase {
 
         // The tab bar belongs to the signed-in UI and must be absent during onboarding.
         XCTAssertFalse(win.buttons["uitest.tab.Status"].exists,
-                       "Tabs must not be shown before a key is entered")
-        XCTAssertFalse(win.buttons["uitest.group.Now"].exists,
-                       "Navigation groups must not be shown before a key is entered")
+                       "Modules must not be shown before a key is entered")
+        XCTAssertFalse(win.buttons["uitest.openSettings"].exists,
+                       "The rail must not be shown before a key is entered")
     }
 
     // MARK: - Navigation
 
-    /// Every module stays reachable in at most two actions: group, then module.
-    func testGroupedNavigationSwitchesContentAndPreservesSelectedState() throws {
+    /// Every module is one action away on the rail, and the rail says which one is open.
+    func testRailNavigationSwitchesContentAndPreservesSelectedState() throws {
         let app = launch(fixture: "full", apiKey: "sample-full-user")
         let win = window(app)
-
-        let nowGroup = win.buttons["uitest.group.Now"]
-        XCTAssertTrue(nowGroup.waitForExistence(timeout: 10), "Now group should exist")
-        XCTAssertTrue(nowGroup.isSelected, "Now should be the selected group by default")
 
         let statusTab = win.buttons["uitest.tab.Status"]
         XCTAssertTrue(statusTab.waitForExistence(timeout: 10), "Status tab should exist")
@@ -108,59 +104,49 @@ final class MacTornUITests: XCTestCase {
         XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Status"].waitForExistence(timeout: 10),
                       "Status content should be shown by default")
 
-        // One action selects Watch and its default module, Watchlist.
-        let watchGroup = win.buttons["uitest.group.Watch"]
-        watchGroup.click()
+        // One action opens any module, and the previous one stops reporting selected.
+        win.buttons["uitest.tab.Watchlist"].click()
         XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Watchlist"].waitForExistence(timeout: 10),
-                      "Watchlist should be the Watch group's default module")
-        XCTAssertTrue(watchGroup.isSelected, "Watch group should report selected in AX")
+                      "Watchlist content should be shown from the rail")
         XCTAssertTrue(win.buttons["uitest.tab.Watchlist"].isSelected,
                       "Watchlist should report selected in AX")
+        XCTAssertFalse(statusTab.isSelected, "Status should no longer report selected")
 
-        // A second action reaches the other module in the active group.
         win.buttons["uitest.tab.Forums"].click()
         XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Forums"].waitForExistence(timeout: 10),
-                      "Forums content should be shown from the Watch module picker")
+                      "Forums content should be shown from the rail")
         XCTAssertTrue(win.buttons["uitest.tab.Forums"].isSelected,
                       "Forums should report selected in AX")
 
-        // Account is also one action away and defaults to Money.
-        win.buttons["uitest.group.Account"].click()
+        win.buttons["uitest.tab.Money"].click()
         XCTAssertTrue(win.descendants(matching: .any)["uitest.tabContent.Money"].waitForExistence(timeout: 10),
-                      "Money should be the Account group's default module")
+                      "Money content should be shown from the rail")
         XCTAssertTrue(win.buttons["uitest.tab.Money"].isSelected,
                       "Money should report selected in AX")
+
+        // Settings takes the selection away from every module, and a module takes it back.
+        let settings = win.buttons["uitest.openSettings"]
+        settings.click()
+        assertBecomesSelected(settings)
+        XCTAssertFalse(win.buttons["uitest.tab.Money"].isSelected,
+                       "No module should report selected while Settings is open")
+        statusTab.click()
+        assertBecomesSelected(statusTab)
     }
 
-    /// The fixed menu-bar surface remains 320 pt wide and neither navigation row clips
+    /// The fixed menu-bar surface remains 360 pt wide and the whole rail fits inside it
     /// when reduced transparency and increased contrast are requested.
-    func testGroupedNavigationFits320WithAccessibilityDisplayOptions() throws {
+    func testRailFitsThePanelWithAccessibilityDisplayOptions() throws {
         let app = launch(
             fixture: "full",
             apiKey: "sample-accessibility-user",
             accessibilityDisplayOptions: true
         )
         let win = window(app)
-        XCTAssertEqual(win.frame.width, 320, accuracy: 3,
-                       "The compact UI-test surface should remain 320 pt wide")
+        XCTAssertEqual(win.frame.width, 360, accuracy: 3,
+                       "The compact UI-test surface should remain 360 pt wide")
 
-        let groupIDs = ["Now", "Account", "Watch"]
-        let groups = groupIDs.map { win.buttons["uitest.group.\($0)"] }
-        for group in groups {
-            XCTAssertTrue(group.waitForExistence(timeout: 10))
-            assertContained(group, in: win)
-        }
-        assertDoNotOverlap(groups)
-
-        let nowModules = ["Status", "Travel", "Attacks"].map {
-            win.buttons["uitest.tab.\($0)"]
-        }
-        for module in nowModules {
-            XCTAssertTrue(module.waitForExistence(timeout: 10))
-            XCTAssertTrue(module.isHittable)
-            assertContained(module, in: win)
-        }
-        assertDoNotOverlap(nowModules)
+        assertRailFits(in: win)
     }
 
     /// Financial data is split into focused Account modules, and the longest one
@@ -173,23 +159,15 @@ final class MacTornUITests: XCTestCase {
         )
         let win = window(app)
 
-        win.buttons["uitest.group.Account"].click()
-
         XCTAssertLessThan(win.frame.height, 540,
                           "The short-window test must actually exercise a 480 pt content height")
 
-        let accountModules = ["Money", "Properties", "Stocks", "Faction"].map {
-            win.buttons["uitest.tab.\($0)"]
-        }
-        for module in accountModules {
-            XCTAssertTrue(module.waitForExistence(timeout: 10))
-            XCTAssertTrue(module.isHittable)
-            assertContained(module, in: win)
-        }
-        assertDoNotOverlap(accountModules)
+        // The whole rail, Settings included, has to fit a short display without scrolling.
+        assertRailFits(in: win)
 
+        win.buttons["uitest.tab.Money"].click()
         let moneyScroll = win.scrollViews["uitest.tabContent.Money"]
-        let sendMoney = win.buttons["Send Money"]
+        let sendMoney = win.buttons["Send money"]
         for _ in 0..<8 where !sendMoney.isHittable { moneyScroll.swipeUp() }
         XCTAssertTrue(sendMoney.isHittable, "Money actions must be reachable in a short window")
 
@@ -198,10 +176,10 @@ final class MacTornUITests: XCTestCase {
         XCTAssertTrue(stocksScroll.waitForExistence(timeout: 10))
         assertContained(stocksScroll, in: win)
 
-        let footer = win.buttons["uitest.openSettings"]
-        XCTAssertTrue(footer.isHittable, "The fixed footer should remain reachable")
+        let settings = win.buttons["uitest.openSettings"]
+        XCTAssertTrue(settings.isHittable, "Settings should remain reachable on the rail")
 
-        let stockMarket = win.buttons["Stock Market"]
+        let stockMarket = win.buttons["Stock market"]
         XCTAssertFalse(
             stockMarket.isHittable,
             "The long fixture should start with its bottom action outside the viewport"
@@ -221,38 +199,24 @@ final class MacTornUITests: XCTestCase {
         let app = launch(fixture: "full", apiKey: "sample-ax-user")
         let win = window(app)
 
-        let groups: [(name: String, modules: [String])] = [
-            ("Now", ["Status", "Travel", "Attacks"]),
-            ("Account", ["Money", "Properties", "Stocks", "Faction"]),
-            ("Watch", ["Watchlist", "Forums"]),
-        ]
-
-        for group in groups {
-            let groupButton = win.buttons["uitest.group.\(group.name)"]
-            XCTAssertTrue(groupButton.waitForExistence(timeout: 10))
-            XCTAssertEqual(groupButton.label, "\(group.name) group")
-            groupButton.click()
-            assertBecomesSelected(groupButton)
-
-            for module in group.modules {
-                let moduleButton = win.buttons["uitest.tab.\(module)"]
-                XCTAssertTrue(moduleButton.waitForExistence(timeout: 10))
-                XCTAssertEqual(moduleButton.label, module)
-                moduleButton.click()
-                assertBecomesSelected(moduleButton)
-                XCTAssertTrue(
-                    win.descendants(matching: .any)["uitest.tabContent.\(module)"]
-                        .waitForExistence(timeout: 10),
-                    "\(module) content should be reachable through its AX identifier"
-                )
-            }
+        // The rail shows icons only, so each button must carry its module's name.
+        for module in Self.allModules {
+            let moduleButton = win.buttons["uitest.tab.\(module)"]
+            XCTAssertTrue(moduleButton.waitForExistence(timeout: 10))
+            XCTAssertEqual(moduleButton.label, module)
+            moduleButton.click()
+            assertBecomesSelected(moduleButton)
+            XCTAssertTrue(
+                win.descendants(matching: .any)["uitest.tabContent.\(module)"]
+                    .waitForExistence(timeout: 10),
+                "\(module) content should be reachable through its AX identifier"
+            )
         }
 
         // Return to Status and pin the progress-bar elements exposed by XCUI.
         // On macOS, SwiftUI's accessibilityValue is available to assistive
         // technologies but is omitted from XCUI's snapshot for these `Other`
         // elements; spoken values remain part of the manual VoiceOver matrix.
-        win.buttons["uitest.group.Now"].click()
         win.buttons["uitest.tab.Status"].click()
         let refresh = win.buttons["Refresh Torn data"]
         XCTAssertTrue(refresh.waitForExistence(timeout: 10))
@@ -261,31 +225,26 @@ final class MacTornUITests: XCTestCase {
         let expectedProgressLabels = ["Energy", "Nerve", "Happy", "Life"]
         let statusScroll = win.scrollViews["uitest.tabContent.Status"]
         XCTAssertTrue(statusScroll.waitForExistence(timeout: 10))
-        // The requirement is that Status scrolls inside the window and never pushes the
-        // footer out of reach, not that it is any particular number of points tall. This
-        // used to assert `height <= 481`, which pinned a hard `maxHeight: 480` cap in
-        // StatusView — and that cap was the reason the panel stopped short of the window's
-        // bottom edge, leaving dead space that read as content having ended. Asserting the
-        // invariant instead holds at any window height.
-        let statusFooter = win.buttons["uitest.openSettings"]
-        XCTAssertTrue(statusFooter.waitForExistence(timeout: 10))
-        XCTAssertTrue(statusFooter.isHittable, "the footer must stay reachable from Status")
+        // The requirement is that Status scrolls inside the window and never pushes
+        // Settings out of reach, not that it is any particular number of points tall.
+        // Status runs to the window's bottom edge on purpose: content clipped there is
+        // the cue that there is more below.
+        let settingsButton = win.buttons["uitest.openSettings"]
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(settingsButton.isHittable, "Settings must stay reachable from Status")
+        assertContained(statusScroll, in: win)
+        assertContained(settingsButton, in: win)
         XCTAssertLessThanOrEqual(
-            statusScroll.frame.maxY,
-            statusFooter.frame.minY + 1,
-            "Status content must not overlap the footer"
-        )
-        XCTAssertLessThanOrEqual(
-            statusFooter.frame.maxY,
-            win.frame.maxY + 1,
-            "the footer must stay inside the window"
+            settingsButton.frame.maxX,
+            statusScroll.frame.minX + 1,
+            "Status content must not run under the rail"
         )
         let nextAction = win.descendants(matching: .any)["uitest.nextAction"]
         XCTAssertTrue(nextAction.waitForExistence(timeout: 10))
         XCTAssertLessThanOrEqual(
             nextAction.frame.height,
             52,
-            "Next Action should remain a single compact row"
+            "The nearest item on the board should remain a single compact row"
         )
         for label in expectedProgressLabels {
             let element = statusScroll.otherElements[label]
@@ -307,6 +266,7 @@ final class MacTornUITests: XCTestCase {
             ("account", "Account"),
             ("refresh", "Refresh"),
             ("notifications", "Notifications"),
+            ("modules", "Modules"),
             ("privacy", "Privacy"),
             ("general", "General"),
             ("diagnostics", "Diagnostics & About"),
@@ -350,7 +310,6 @@ final class MacTornUITests: XCTestCase {
         XCTAssertTrue(incomingAttack.label.contains("Hospitalized"))
         XCTAssertTrue(incomingAttack.label.contains("incoming attack from Fixture Aggressor"))
 
-        win.buttons["uitest.group.Account"].click()
         win.buttons["uitest.tab.Faction"].click()
 
         let ocProgress = win.descendants(matching: .any)["uitest.faction.ocProgress"]
@@ -391,7 +350,6 @@ final class MacTornUITests: XCTestCase {
         XCTAssertEqual(totalStat.label, "Total: 0")
 
         // MARK: Money — Cash card rows.
-        win.buttons["uitest.group.Account"].click()
         win.buttons["uitest.tab.Money"].click()
 
         let cashRow = win.descendants(matching: .any)["uitest.money.cash"]
@@ -427,7 +385,6 @@ final class MacTornUITests: XCTestCase {
         }
 
         // MARK: Status tab — Chain card, Hospital badge, Events row.
-        win.buttons["uitest.group.Now"].click()
         win.buttons["uitest.tab.Status"].click()
 
         let chainCard = win.descendants(matching: .any)["uitest.chain"]
@@ -450,7 +407,7 @@ final class MacTornUITests: XCTestCase {
         )
 
         // EventsView sits near the bottom of StatusView, outside the bounded
-        // 320x480 viewport, and XCUI cannot see what is not laid out. Scroll to it
+        // panel viewport, and XCUI cannot see what is not laid out. Scroll to it
         // the same way testAccountModulesFitAndStocksScrollInShortWindow reaches
         // the bottom of Stocks.
         let eventRow = scrollToElement("uitest.event.9002",
@@ -489,7 +446,7 @@ final class MacTornUITests: XCTestCase {
 
     /// Returns the element with `identifier`, scrolling `scrollView` until it is laid
     /// out. XCUI only sees what SwiftUI has actually realised, so anything below the
-    /// fold of this deliberately compact 320-pt surface is invisible until scrolled to.
+    /// fold of this deliberately compact panel is invisible until scrolled to.
     private func scrollToElement(_ identifier: String,
                                  in scrollView: XCUIElement,
                                  within window: XCUIElement,
@@ -510,7 +467,6 @@ final class MacTornUITests: XCTestCase {
         let app = launch(fixture: "watchAccessibility", apiKey: "sample-watch-a11y-user")
         let win = window(app)
 
-        win.buttons["uitest.group.Watch"].click()
 
         let priceAlert = win.buttons["Set price alert for Accessibility Item"]
         let removeItem = win.buttons["Remove Accessibility Item from price watch"]
@@ -686,13 +642,26 @@ final class MacTornUITests: XCTestCase {
                                  file: file, line: line)
     }
 
-    private func assertDoNotOverlap(_ elements: [XCUIElement],
-                                    file: StaticString = #filePath,
-                                    line: UInt = #line) {
-        let ordered = elements.sorted { $0.frame.minX < $1.frame.minX }
-        for (left, right) in zip(ordered, ordered.dropFirst()) {
-            XCTAssertLessThanOrEqual(left.frame.maxX, right.frame.minX,
-                                     "Navigation controls should not overlap",
+    private static let allModules = [
+        "Status", "Travel", "Attacks", "Money", "Properties", "Stocks", "Faction", "Watchlist", "Forums",
+    ]
+
+    /// All nine modules and Settings are on screen, hittable, inside the window and
+    /// stacked without overlapping.
+    private func assertRailFits(in window: XCUIElement,
+                                file: StaticString = #filePath,
+                                line: UInt = #line) {
+        let rail = Self.allModules.map { window.buttons["uitest.tab.\($0)"] }
+            + [window.buttons["uitest.openSettings"]]
+        for button in rail {
+            XCTAssertTrue(button.waitForExistence(timeout: 10), file: file, line: line)
+            XCTAssertTrue(button.isHittable, "\(button.identifier) must be hittable", file: file, line: line)
+            assertContained(button, in: window, file: file, line: line)
+        }
+        let ordered = rail.sorted { $0.frame.minY < $1.frame.minY }
+        for (upper, lower) in zip(ordered, ordered.dropFirst()) {
+            XCTAssertLessThanOrEqual(upper.frame.maxY, lower.frame.minY + 1,
+                                     "\(upper.identifier) overlaps \(lower.identifier)",
                                      file: file, line: line)
         }
     }

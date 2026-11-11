@@ -260,7 +260,7 @@ struct ForumThreadRow: View {
                     .foregroundStyle(Board.Tone.alert.ink)
                     .accessibilityLabel("Error: \(error)")
                 if let checked = thread.lastChecked {
-                    (Text("Last read ") + Text(checked, style: .relative) + Text(" ago"))
+                    Text("Last read " + TornFormatter.relativeDate(checked, abbreviated: true))
                         .foregroundStyle(Board.inkSecondary)
                 } else {
                     Text("Not read yet")
@@ -275,7 +275,7 @@ struct ForumThreadRow: View {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(Board.Tone.ready.ink)
                     .accessibilityLabel("Last checked successfully")
-                (Text("Checked ") + Text(checked, style: .relative) + Text(" ago"))
+                Text("Checked " + TornFormatter.relativeDate(checked, abbreviated: true))
                     .foregroundStyle(Board.inkSecondary)
             }
             .font(.boardDetail)
@@ -288,7 +288,7 @@ struct ForumThreadRow: View {
 
     private var postCount: some View {
         VStack(alignment: .trailing, spacing: 0) {
-            Text(thread.lastKnownPostCount > 0 ? thread.lastKnownPostCount.formatted() : "-")
+            Text(thread.lastKnownPostCount > 0 ? TornFormatter.formatNumber(thread.lastKnownPostCount) : "-")
                 .font(.figureValue)
                 .foregroundStyle(Board.ink)
                 .lineLimit(1)

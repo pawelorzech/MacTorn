@@ -215,17 +215,19 @@ enum SnapshotFixtures {
             }
         }
 
-        if app.watchlist.items.isEmpty {
+        // Always re-seeded: the canned network world answers market and forum calls with
+        // an empty object, which the stores rightly record as an error on every item.
+        do {
             app.watchlist.items = [
                 WatchlistItem(id: 206, name: "Xanax", lowestPrice: 834_500, lowestPriceQuantity: 12,
-                              secondLowestPrice: 835_000, lastUpdated: Date(), error: nil),
+                              secondLowestPrice: 835_000, lastUpdated: Date(), error: nil, priceThreshold: 850_000),
                 WatchlistItem(id: 367, name: "Feathery Hotel Coupon", lowestPrice: 13_950_000, lowestPriceQuantity: 1,
                               secondLowestPrice: 14_100_000, lastUpdated: Date().addingTimeInterval(-1_900), error: nil),
                 WatchlistItem(id: 283, name: "Donator Pack", lowestPrice: 0, lowestPriceQuantity: 0,
                               secondLowestPrice: 0, lastUpdated: nil, error: "Item market unavailable."),
             ]
         }
-        if app.forumWatch.threads.isEmpty {
+        do {
             app.forumWatch.threads = [
                 WatchedThread(id: 101, title: "Elimination 2026: team recruitment megathread", notificationsEnabled: true,
                               lastKnownPostCount: 482, lastChecked: Date(), error: nil),
