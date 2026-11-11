@@ -5,6 +5,54 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-11 - The dispatch board
+
+The whole interface is redesigned. Nothing about what MacTorn reads from Torn, how often,
+or what it notifies you about has changed.
+
+### Changed
+- **One visual language.** Flat surfaces, sections under a rule, rows closed by hairlines,
+  countdowns in large condensed numerals. Colour means state (ready, counting, alert) and
+  nothing else; the tinted cards are gone.
+- **Navigation is an icon rail** down the left edge: every module is one click away, with
+  Settings and a menu for commands and Quit at the bottom. The two rows of group and module
+  buttons and the footer are gone. The panel is 360 pt wide (was 320).
+- **Status** leads with the four bars on one line each, then "Ready now" (finished
+  cooldowns, refills, stock bonuses as buttons that open the right Torn page) and "Next up":
+  one timeline of everything counting down, soonest first. Your state (Okay, flying, in
+  hospital) is under your name in the header.
+- **Travel** makes the landing countdown the headline during a flight, with departure and
+  landing times. Landing alerts are four on/off chips; flight times are a table.
+- **Shop prices are a lookup**, not a list: type an item or pick a country. It opens on the
+  country you are flying to, shows the cheapest shop per item and caps at 12 rows.
+- **Optional modules are switched on in Settings › Modules.** Their switches, alert
+  options, "Last checked" lines and Refresh buttons no longer sit above the content of five
+  tabs; each module shows one small "checked … ago" button in its heading that refreshes it.
+- Every other tab, Settings, Diagnostics, Credits and the two prompts are rebuilt on the
+  same system. Money and Properties lead with the total; Watchlist rows show the price and
+  turn green at or under your alert.
+- Numbers use Torn's format (1,250,000) everywhere, whatever the Mac's region.
+- The window a desktop widget opens is the same panel at the same width.
+
+### Moved
+- Your player ID: from the Status header to Settings › Account.
+- The minimum pass rate for open OC slots: to Settings › Modules.
+- Shop prices: Travel only (they were also at the top of Watchlist).
+
+### Removed
+- The "Refills claimed" and "Education: complete" lines on Status; the row or button is
+  simply absent once there is nothing to do.
+- Per-shop price lines beyond the cheapest shop for an item ("+N more" says how many).
+
+### Notes
+- Hiding a category in Settings now removes its countdown from Status entirely (it used to
+  affect only the one-line "Next" strip). Drug, Medical and Booster still appear under
+  "Ready now" once they are over.
+- Unit tests passed locally and in CI. The UI tests were rewritten for the rail; the one
+  that had been failing in CI since 1.16.5 (forum error text replaced by the first poll in
+  the test fixture) is fixed in the fixture.
+- Desktop widgets are unchanged.
+
 ## [1.16.5] - 2026-11-11 - Torn's hourly market cache
 
 Torn restricted its API on 11 November 2026: item-market listings are now cached for an

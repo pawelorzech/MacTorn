@@ -262,6 +262,11 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             return (try? JSONSerialization.data(withJSONObject: fixture)) ?? Data("{}".utf8)
         }
 
+        if scenario == .watchAccessibility,
+           let fixture = watchAccessibilityResponse(for: url) {
+            return (try? JSONSerialization.data(withJSONObject: fixture)) ?? Data("{}".utf8)
+        }
+
         let json: [String: Any]
         switch (isKeyInfo, isFastUser, scenario) {
         case (true, _, .invalidKey):
@@ -289,6 +294,22 @@ final class FixtureNetworkSession: NetworkSession, @unchecked Sendable {
             json = [:]
         }
         return (try? JSONSerialization.data(withJSONObject: json)) ?? Data("{}".utf8)
+    }
+
+    /// The two seeded forum threads, as Torn would answer for them. The forum poll runs as
+    /// soon as the panel appears; with an empty object for an answer it replaced the seeded
+    /// error with "Unexpected response" and put the same error on the healthy thread, so
+    /// the test's two states vanished before it could look at them.
+    private static func watchAccessibilityResponse(for url: URL?) -> [String: Any]? {
+        switch url?.path {
+        case "/v2/forum/101/thread":
+            // Code 17 (backend error) is shown with Torn's own wording.
+            return ["error": ["code": 17, "error": "Fixture forum unavailable."]]
+        case "/v2/forum/102/thread":
+            return ["thread": ["id": 102, "title": "Healthy forum thread", "posts": 8]]
+        default:
+            return nil
+        }
     }
 
     private static func accessibilityResponse(for url: URL?) -> [String: Any]? {

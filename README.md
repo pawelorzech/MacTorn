@@ -11,9 +11,9 @@ forum updates without keeping the game open.
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
 <p align="center">
-  <img src="app_light_1.png" alt="MacTorn in light mode" width="320">
+  <img src="app_light_1.png" alt="MacTorn's Status screen in light mode: the four bars, what is ready now and what is counting down" width="360">
   &nbsp;&nbsp;
-  <img src="app_dark_1.png" alt="MacTorn in dark mode" width="320">
+  <img src="app_dark_1.png" alt="MacTorn's Travel screen in dark mode during a flight: the landing countdown, landing alerts and shop prices at the destination" width="360">
 </p>
 
 ## Highlights
@@ -21,7 +21,10 @@ forum updates without keeping the game open.
 - **Always-visible state:** the menu bar shows travel, hospital, jail, or the next
   cooldown as a live countdown.
 - **Nine focused modules:** Status, Travel, Attacks, Money, Properties, Stocks,
-  Faction, Watchlist, and Forums are grouped into a compact 320 pt popover.
+  Faction, Watchlist, and Forums, each one click away on an icon rail in a compact
+  360 pt panel.
+- **Built around the countdown:** Status lists what is ready now and everything that is
+  counting down, soonest first, in one timeline; colour means state and nothing else.
 - **Actionable notifications:** bar thresholds, cooldowns, landing, release, chain
   expiry, Organized Crime readiness, virus completion, bounties, item prices, forum posts
   and threads, and app updates.
@@ -37,11 +40,14 @@ forum updates without keeping the game open.
 
 ### Now
 
-- **Status:** Energy, Nerve, Happy, and Life; cooldowns; Next Action timeline;
-  daily refills; education; virus programming; hospital/jail state; bounties; waiting
-  messages, events, awards and competitions; chain status; and eight Torn quick links.
-- **Travel:** live flight and arrival countdowns, all 11 destinations, current
-  standard and Private Island airstrip estimates, pre-arrival alerts, and travel links.
+- **Status:** Energy, Nerve, Happy, and Life; "Ready now" actions for finished cooldowns,
+  refills and stock bonuses; the "Next up" timeline of bars, cooldowns, landing,
+  hospital/jail release, education, Organized Crime, virus programming and the chain;
+  bounties; waiting messages, events, awards and competitions; recent events; and eight
+  Torn quick links.
+- **Travel:** the landing countdown with departure and arrival times, flight times to all
+  11 destinations for standard and Private Island airstrip travel, pre-arrival alerts,
+  and travel links.
 - **Attacks:** battle stats, total battle stat score, and recent attack outcomes with
   direct links to relevant Torn pages.
 
@@ -154,9 +160,11 @@ and private vulnerability-reporting channel.
 MacTorn follows system Reduce Transparency, Reduce Motion, Increase Contrast, and
 light/dark appearance settings. Its status surfaces expose semantic VoiceOver labels,
 including live menu bar state, progress values, financial rows, attacks, events, chain,
-and status badges. Long modules remain scrollable in the fixed-size popover.
+and status badges. Every colour is opaque, so Reduce Transparency only affects the backdrop
+behind a prompt. Long modules remain scrollable in the fixed-size panel.
 
-Keyboard commands are available from the app's **Commands** menu:
+Keyboard commands are available from the **…** menu at the bottom of the rail and from the
+app's **Commands** menu:
 
 | Shortcut | Action |
 | --- | --- |
@@ -171,18 +179,21 @@ with every macOS assistive setting remains an ongoing release-quality activity; 
 
 ## Optional Torn API v2 tools
 
-Enable each module in its existing tab; notifications are separately opt-in:
+Enable each module in **Settings › Modules**; it then appears inside its tab.
+Notifications are separately opt-in, per module:
 
-- **Faction:** open OC slots with a minimum CPR filter, plus on-demand ranked-war,
-  raid, territory, completed-chain and dirty-bomb history with older-page loading.
+- **Faction:** open OC slots at or above a minimum pass rate (set in Settings), plus
+  on-demand ranked-war, raid, territory, completed-chain and dirty-bomb history with
+  older-page loading.
 - **Stocks:** v2 holdings, fractional cost basis, bonus progress and ready alerts.
-  Enabling this replaces stock holdings in the fast v1 poll; ready bonuses also appear in Next Action.
+  Enabling this replaces stock holdings in the fast v1 poll; ready bonuses also appear under "Ready now" on Status.
 - **Status:** current competition (Elimination, Rock Paper Scissors, Halloween, Easter Egg Hunt),
   Elimination team standings, remaining players and attacks during the last completed minute,
   plus the Torn calendar: running and upcoming events. Team data is requested only during Elimination.
 - **Money:** active trades, change alerts and on-demand offered-item details.
-- **Travel / Watchlist:** searchable country shop prices compared with catalog or
-  last-known watchlist prices. Prices do not guarantee live shop inventory or profit.
+- **Travel:** a shop-price lookup by item name or country, compared with catalog or
+  last-known watchlist prices. It opens on the country you are flying to or standing in.
+  Prices do not guarantee live shop inventory or profit.
 
 Modules preserve the last successful data with its checked time and error message on
 failures. Account changes discard responses and alert baselines. Initial loads do not
@@ -285,7 +296,7 @@ Developer ID workflow.
 ### Architecture
 
 ```text
-MacTornApp / ContentView
+MacTornApp / ContentView (module rail + header + one view per tab, built from Views/Design)
 └── AppState (@MainActor facade)
     ├── TornRequester             The one request pipeline: gate, budget, health, throttle
     ├── PlayerState               Torn data for the signed-in account

@@ -18,6 +18,10 @@ import SwiftUI
 //   -uitest-snapshot-appearance light   "light", "dark" or both when absent
 //   -uitest-window-height 1400          taller than the panel, to see below the fold
 //   -uitest-snapshot-seed 0             only what the canned network returns (modules off)
+//   -uitest-snapshot-healthy 1          forget endpoint failures before drawing. The canned
+//                                       network answers most calls with an empty object, so
+//                                       every tab otherwise carries a "Stale" notice; this
+//                                       is for screenshots of the app working normally
 //   -uitest-fixture / -uitest-apikey    as for UI tests; no key renders onboarding
 
 extension UITestConfiguration {
@@ -29,6 +33,7 @@ extension UITestConfiguration {
     /// "0" renders only what the canned network returns: optional modules off, lists
     /// empty. Anything else (the default) adds `SnapshotFixtures`.
     static var snapshotSeedsExtras: Bool { snapshotArgument(snapshotSeedKey) != "0" }
+    static var snapshotForgetsFailures: Bool { snapshotArgument("-uitest-snapshot-healthy") == "1" }
 
     private static func snapshotArgument(_ key: String) -> String? {
         let args = ProcessInfo.processInfo.arguments
@@ -110,6 +115,10 @@ enum SnapshotRunner {
             }
             for (appearanceName, appearance) in UITestConfiguration.snapshotAppearances {
                 if hasAccount, UITestConfiguration.snapshotSeedsExtras { SnapshotFixtures.seed(appState) }
+                if UITestConfiguration.snapshotForgetsFailures {
+                    appState.requester.health.reset()
+                    appState.errorMsg = nil
+                }
                 let root = rootView(for: screen, appState: appState, navigation: navigation)
                 let file = directory.appendingPathComponent("\(screen.name)-\(appearanceName).png")
                 await render(root, appearance: appearance, to: file)
