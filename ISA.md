@@ -317,7 +317,7 @@ configuration never sits above content.
   only by ISC-45.*
 - [x] ISC-44: The unit suite is green and the Release Universal build verifies.
   *Evidence: `TEST EXECUTE SUCCEEDED`; `make verify-release` "universal and strict ad-hoc
-  signed" at 131175a.*
+  signed" at 2e89a40.*
 - [ ] ISC-45: UI tests are migrated to the rail and run green. *Migrated and compiling
   (`TEST BUILD SUCCEEDED`); not run — XCUITest takes over the screen and needs Paweł's
   go-ahead.*
