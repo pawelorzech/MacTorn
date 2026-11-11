@@ -1,25 +1,18 @@
 import SwiftUI
 
+/// A removal that can still be taken back: one line in the notice style with an inline
+/// "Undo".
 struct UndoBanner: View {
     let message: String
     let onUndo: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(message)
-                .font(.caption)
-                .lineLimit(1)
-
-            Spacer()
-
+        BoardNotice(tone: .idle, message: message) {
             Button("Undo", action: onUndo)
-                .buttonStyle(.borderless)
-                .font(.caption.bold())
+                .buttonStyle(.boardInline)
+                .frame(minWidth: 44, minHeight: 28)
+                .contentShape(Rectangle())
                 .accessibilityLabel("Undo \(message)")
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.accentColor.opacity(0.14))
-        .cornerRadius(6)
     }
 }
