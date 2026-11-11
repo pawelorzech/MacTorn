@@ -1,93 +1,95 @@
 import SwiftUI
 
+/// "What are my shares worth": market value and cost basis first, then each holding.
 struct StocksView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                ModuleStateView(
-                    state: appState.presentationState(for: .stocks, hasContent: !appState.player.stocksData.isEmpty),
-                    onRetry: appState.refreshNow
-                )
+        BoardPage {
+            ModuleStateView(
+                state: appState.presentationState(for: .stocks, hasContent: !appState.player.stocksData.isEmpty),
+                onRetry: appState.refreshNow
+            )
 
-                if !appState.companion.enabled.contains(.stocks) {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "chart.line.uptrend.xyaxis")
-                            .foregroundColor(.blue)
-                        Text("Stocks")
-                            .font(.caption.bold())
-                        Spacer()
-                        if !appState.player.stocksData.isEmpty {
-                            Text("Market: \(TornFormatter.formatMoney(totalMarketValue))")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    if appState.player.stocksData.isEmpty {
-                        EmptyStateView(icon: "chart.line.downtrend.xyaxis", title: "No stocks found")
-                    } else {
-                        ForEach(appState.player.stocksData) { stock in
-                            let metadata = appState.stocksMetadata[stock.stockId]
-                            HStack(spacing: 6) {
-                                if let metadata {
-                                    Text(metadata.acronym)
-                                        .font(.caption2.bold())
-                                    Text(metadata.name)
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                } else {
-                                    Text("Stock details unavailable")
-                                        .font(.caption2)
-                                        .lineLimit(1)
-                                }
-
-                                Spacer(minLength: 4)
-
-                                Text(stock.totalShares.formatted())
-                                    .font(.caption2.monospacedDigit())
-                                    .foregroundColor(.secondary)
-                                Text(TornFormatter.formatMoney(stock.marketValue(using: appState.stocksMetadata)))
-                                    .font(.caption2.monospacedDigit())
-                            }
-                        }
-
-                        if totalCostBasis == nil || (totalCostBasis ?? 0) > 0 {
-                            Divider()
-                            HStack {
-                                Text("Cost basis")
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text(TornFormatter.formatMoney(totalCostBasis))
-                                    .monospacedDigit()
-                                    .foregroundColor(.secondary)
-                            }
-                            .font(.caption2)
-                        }
-                    }
-                }
-                .padding()
-                .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.08))
-                .cornerRadius(8)
-
-                }
-                StockBonusPanel()
-
-                TileButton(
-                    title: "Stock Market",
-                    icon: "chart.line.uptrend.xyaxis",
-                    color: .blue
-                ) {
-                    openTorn(TornLink.stocks)
-                }
+            // With the stocks module on, the bonus panel replaces the plain holdings list.
+            if !appState.companion.enabled.contains(.stocks) {
+                holdings
             }
-            .padding()
+
+            StockBonusPanel()
+
+            BoardSection("Open in Torn") {
+                TornLinks(links: [TornLinks.Link(title: "Stock market", url: TornLink.stocks)], columns: 2)
+                    .padding(.top, Board.Space.s)
+            }
         }
         .accessibilityIdentifier("account.stocks")
+    }
+
+    // MARK: - Holdings
+
+    @ViewBuilder
+    private var holdings: some View {
+        if appState.player.stocksData.isEmpty {
+            BoardSection("Stocks") {
+                BoardEmptyState(
+                    title: "No stocks found",
+                    detail: "Shares you buy on the Torn stock market appear here after the next refresh."
+                )
+            }
+        } else {
+            BoardSection("Portfolio") {
+                ValueRow(label: "Market value", value: TornFormatter.formatMoney(totalMarketValue))
+                if totalCostBasis == nil || (totalCostBasis ?? 0) > 0 {
+                    ValueRow(label: "Cost basis", value: TornFormatter.formatMoney(totalCostBasis))
+                }
+            }
+
+            let stocks = appState.player.stocksData
+            BoardSection("Holdings", note: stocks.count == 1 ? "1 stock" : "\(stocks.count) stocks") {
+                ForEach(stocks) { stock in
+                    holdingRow(stock)
+                }
+            }
+        }
+    }
+
+    private func holdingRow(_ stock: StockHolding) -> some View {
+        let metadata = appState.stocksMetadata[stock.stockId]
+        let value = TornFormatter.formatMoney(stock.marketValue(using: appState.stocksMetadata))
+        let shares = "\(TornFormatter.formatNumber(stock.totalShares)) \(stock.totalShares == 1 ? "share" : "shares")"
+        return BoardRow {
+            HStack(alignment: .firstTextBaseline, spacing: Board.Space.m) {
+                VStack(alignment: .leading, spacing: 1) {
+                    if let metadata {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(metadata.acronym)
+                                .font(.boardStrong)
+                                .foregroundStyle(Board.ink)
+                            Text(metadata.name)
+                                .font(.boardCaption)
+                                .foregroundStyle(Board.inkSecondary)
+                                .lineLimit(1)
+                        }
+                    } else {
+                        Text("Stock details unavailable")
+                            .font(.boardStrong)
+                            .foregroundStyle(Board.ink)
+                            .lineLimit(1)
+                    }
+                    Text(shares)
+                        .font(.boardDetail)
+                        .foregroundStyle(Board.inkSecondary)
+                }
+                Spacer(minLength: Board.Space.s)
+                Text(value)
+                    .font(.figureValue)
+                    .foregroundStyle(Board.ink)
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(metadata?.name ?? "Stock details unavailable"), \(shares), market value \(value)")
     }
 
     private var totalMarketValue: Int? {

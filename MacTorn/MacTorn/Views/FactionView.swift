@@ -1,246 +1,188 @@
 import SwiftUI
 
+/// "How is my faction doing": the faction and its chain, then my own organized crime, the
+/// active war, what happened lately, and the armoury.
 struct FactionView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
-    
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                ModuleStateView(
-                    state: appState.presentationState(
-                        for: .faction,
-                        hasContent: appState.factionData != nil
-                            || appState.player.organizedCrime != nil
-                            || appState.player.organizedCrimeUnavailableReason != nil
-                            || !appState.faction.wars.isEmpty
-                            || !appState.faction.news.isEmpty
-                    ),
-                    onRetry: appState.refreshNow
-                )
+        BoardPage {
+            ModuleStateView(
+                state: appState.presentationState(
+                    for: .faction,
+                    hasContent: appState.factionData != nil
+                        || appState.player.organizedCrime != nil
+                        || appState.player.organizedCrimeUnavailableReason != nil
+                        || !appState.faction.wars.isEmpty
+                        || !appState.faction.news.isEmpty
+                ),
+                onRetry: appState.refreshNow
+            )
 
-                VStack(alignment: .leading, spacing: 8) {
-                    if let faction = appState.factionData {
-                        HStack {
-                            Image(systemName: "person.3.fill")
-                                .foregroundColor(.blue)
-                            Text(faction.name)
-                                .font(.caption.bold())
-                            Spacer()
-                            Text("[\(faction.factionId)]")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        if let chain = appState.liveChain, faction.chain.current > 0 {
-                            ChainView(chain: chain, serverClock: appState.player.serverClock)
-                        }
-                        
-                        HStack {
-                            Text("Respect:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(TornFormatter.formatNumber(faction.respect))
-                                .font(.caption.bold())
-                        }
-                    } else {
-                        HStack {
-                            Image(systemName: "person.3.fill")
-                                .foregroundColor(.blue)
-                            Text("Faction")
-                                .font(.caption.bold())
-                        }
-                        // "Loading" only while nothing has ever arrived. Once a refresh
-                        // has completed, absent faction data is a *state*, not progress
-                        // — a player with no faction sat on "Loading…" forever.
-                        // While loading, the module bar above already says so.
-                        if !appState.isLoading {
-                            Text("No faction data. You may not be in a faction, or your API key has no faction access.")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                }
-                .padding()
-                .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
-                .cornerRadius(8)
+            factionSection
 
-                // Organized Crime 2.0 (your own current OC)
-                if let oc = appState.player.organizedCrime {
-                    OC2StatusView(oc: oc, playerId: appState.player.data?.playerId, serverClock: appState.player.serverClock)
-                } else if let reason = appState.player.organizedCrimeUnavailableReason {
-                    Label("OC 2.0 unavailable: \(reason)", systemImage: "briefcase.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .padding()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.08))
-                        .cornerRadius(8)
-                }
-
-                // Active ranked war (score vs target)
-                if let war = appState.faction.wars.first(where: { $0.isActive }) {
-                    RankedWarView(war: war, myFactionId: appState.factionData?.factionId)
-                }
-
-                if !appState.faction.news.isEmpty {
-                    FactionNewsView(news: appState.faction.news)
-                }
-
-                RecruitingPanel()
-                WarfarePanel()
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "shield.fill")
-                            .foregroundColor(.purple)
-                        Text("Armory Quick Use")
-                            .font(.caption.bold())
-                    }
-                    
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                        armoryButton(title: "Xanax", icon: "pills.fill", color: .blue) {
-                            openTorn(TornLink.page("factions.php?step=your#/tab=armoury&start=0&sub=donate"))
-                        }
-                        
-                        armoryButton(title: "Refill", icon: "drop.fill", color: .cyan) {
-                            openTorn(TornLink.factionArmoury)
-                        }
-                        
-                        armoryButton(title: "SED", icon: "syringe.fill", color: .green) {
-                            openTorn(TornLink.factionArmoury)
-                        }
-                    }
-                }
-                .padding()
-                .background(Color.purple.opacity(reduceTransparency ? 0.25 : 0.05))
-                .cornerRadius(8)
-                .disabled(appState.factionData == nil)
-
-                HStack(spacing: 8) {
-                    TileButton(title: "Faction", icon: "person.3.fill", color: .blue) {
-                        openTorn(TornLink.faction)
-                    }
-                    
-                    TileButton(title: "Wars", icon: "flame.fill", color: .red) {
-                        openTorn(TornLink.factionWars)
-                    }
-                    
-                    TileButton(title: "OC", icon: "briefcase.fill", color: .orange) {
-                        openTorn(TornLink.factionCrimes)
-                    }
-                }
+            // Organized Crime 2.0 (your own current OC)
+            if let oc = appState.player.organizedCrime {
+                OC2StatusView(oc: oc, playerId: appState.player.data?.playerId, serverClock: appState.player.serverClock)
+            } else if let reason = appState.player.organizedCrimeUnavailableReason {
+                BoardNotice(tone: .idle, message: "OC 2.0 unavailable", detail: reason)
             }
-            .padding()
+
+            // Active ranked war (score vs target)
+            if let war = appState.faction.wars.first(where: { $0.isActive }) {
+                RankedWarView(war: war, myFactionId: appState.factionData?.factionId)
+            }
+
+            if !appState.faction.news.isEmpty {
+                FactionNewsView(news: appState.faction.news)
+            }
+
+            RecruitingPanel()
+            WarfarePanel()
+
+            armourySection
+
+            BoardSection("Open in Torn") {
+                TornLinks(links: [
+                    TornLinks.Link(title: "Faction", url: TornLink.faction),
+                    TornLinks.Link(title: "Wars", url: TornLink.factionWars),
+                    TornLinks.Link(title: "OC", url: TornLink.factionCrimes),
+                ])
+                .padding(.top, Board.Space.s)
+            }
         }
     }
 
-    private func armoryButton(title: String, icon: String, color: Color,
-                              action: @escaping () -> Void) -> some View {
-        TileButton(title: title, icon: icon, color: color,
-                   iconFont: .caption, spacing: 2, verticalPadding: 6,
-                   cornerRadius: 6, opacity: 0.15, action: action)
+    // MARK: - Faction
+
+    @ViewBuilder
+    private var factionSection: some View {
+        if let faction = appState.factionData {
+            VStack(alignment: .leading, spacing: Board.Space.m) {
+                HStack(alignment: .firstTextBaseline, spacing: Board.Space.m) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(faction.name)
+                            .font(.boardTitle)
+                            .foregroundStyle(Board.ink)
+                            .lineLimit(2)
+                        Text(verbatim: "Faction ID \(faction.factionId)")
+                            .font(.boardDetail)
+                            .foregroundStyle(Board.inkSecondary)
+                    }
+                    Spacer(minLength: Board.Space.s)
+                    VStack(alignment: .trailing, spacing: 1) {
+                        Text(TornFormatter.formatNumber(faction.respect))
+                            .font(.figure(24))
+                            .foregroundStyle(Board.ink)
+                            .lineLimit(1)
+                        Text("Respect")
+                            .font(.boardDetail)
+                            .foregroundStyle(Board.inkSecondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
+
+                if let chain = appState.liveChain, faction.chain.current > 0 {
+                    VStack(spacing: 0) {
+                        Board.ink.frame(height: 1)
+                        ChainView(chain: chain, serverClock: appState.player.serverClock)
+                    }
+                }
+            }
+        } else if !appState.isLoading {
+            // "Loading" only while nothing has ever arrived. Once a refresh has completed,
+            // absent faction data is a state, not progress: a player with no faction sat on
+            // "Loading" forever. While loading, the module bar above already says so.
+            BoardSection("Faction") {
+                BoardEmptyState(
+                    title: "No faction data",
+                    detail: "You may not be in a faction, or your API key has no faction access."
+                )
+            }
+        }
+    }
+
+    // MARK: - Armoury
+
+    private var armourySection: some View {
+        BoardSection("Armoury quick use") {
+            HStack(spacing: 6) {
+                Button("Xanax") {
+                    openTorn(TornLink.page("factions.php?step=your#/tab=armoury&start=0&sub=donate"))
+                }
+                .buttonStyle(.boardFill)
+                Button("Refill") { openTorn(TornLink.factionArmoury) }
+                    .buttonStyle(.boardFill)
+                Button("SED") { openTorn(TornLink.factionArmoury) }
+                    .buttonStyle(.boardFill)
+            }
+            .padding(.top, Board.Space.s)
+        }
+        .disabled(appState.factionData == nil)
     }
 }
 
 // MARK: - Organized Crime 2.0 Status (your own current OC)
+
 struct OC2StatusView: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let oc: OrganizedCrime2
     let playerId: Int?
-    /// Mac↔Torn skew (issue #46) — `readyAt` is server-absolute.
+    /// Mac↔Torn skew (issue #46): `readyAt` is server-absolute.
     var serverClock: ServerClock = .synchronized
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "briefcase.fill")
-                    .foregroundColor(.orange)
-                Text("Organized Crime")
-                    .font(.caption.bold())
-                Spacer()
-                if let difficulty = oc.difficulty {
-                    Text("Lvl \(difficulty)")
-                        .font(.caption2.bold())
-                        .foregroundColor(.secondary)
-                }
-            }
+    private var detail: String? {
+        var parts: [String] = []
+        if let status = oc.status { parts.append(status) }
+        if oc.totalSlots > 0 { parts.append("\(oc.filledSlots)/\(oc.totalSlots) filled") }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+    }
 
-            // Name + ready countdown. `readyAt` is an absolute Unix timestamp, so we
-            // tick `now` against it every second — no drift vs the in-game OC panel.
+    var body: some View {
+        BoardSection("Organized crime", note: oc.difficulty.map { "Level \($0)" } ?? "") {
+            // Name + ready countdown. `readyAt` is an absolute Unix timestamp, so we tick
+            // `now` against it every second: no drift against the in-game OC panel.
             TimelineView(.periodic(from: .now, by: 1.0)) { context in
                 let now = serverClock.serverUnix(context.date)
                 let remaining = NumericSafety.remaining(until: oc.readyAt, now: now)
-                let ready = remaining == 0
 
-                HStack {
-                    Text(oc.name)
-                        .font(.caption.bold())
-                    Spacer()
-                    if ready {
-                        Text("READY")
-                            .font(.caption2.bold())
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.green)
-                            .cornerRadius(4)
-                    } else if let remaining, remaining > 0 {
-                        Text(TornFormatter.clock(remaining))
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(.orange)
-                    } else {
-                        Text("Unavailable").font(.caption).foregroundStyle(.secondary)
-                    }
+                if remaining == 0 {
+                    CountdownRow(tone: .ready, title: oc.name, detail: detail, value: "Ready")
+                } else if let remaining, remaining > 0 {
+                    CountdownRow(tone: .counting, title: oc.name, detail: detail, value: TornFormatter.clock(remaining))
+                } else {
+                    CountdownRow(tone: .idle, title: oc.name, detail: detail, value: "Unavailable")
                 }
             }
 
-            // Status + slots filled
-            HStack {
-                if let status = oc.status {
-                    Text(status)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                if oc.totalSlots > 0 {
-                    Text("\(oc.filledSlots)/\(oc.totalSlots) filled")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            // Your own progress in your slot, if you hold one
+            // Your own progress in your slot, if you hold one.
             if let pid = playerId, let progress = oc.myProgress(playerId: pid) {
-                let clampedProgress = min(max(progress, 0), 100)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text("Your progress")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text("\(Int(clampedProgress))%")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundColor(.secondary)
+                let clamped = min(max(progress, 0), 100)
+                BoardRow {
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("Your progress")
+                                .font(.boardBody)
+                                .foregroundStyle(Board.ink)
+                            Spacer()
+                            Text("\(Int(clamped))%")
+                                .font(.figureValue)
+                                .foregroundStyle(Board.ink)
+                        }
+                        ProgressLine(progress: clamped / 100, color: Board.Tone.counting.fill)
                     }
-                    ProgressView(value: clampedProgress, total: 100)
-                        .tint(.orange)
-                        .accessibilityLabel("Organized Crime progress")
-                        .accessibilityValue("\(Int(clampedProgress)) percent")
-                        .uiTestID("uitest.faction.ocProgress")
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Organized Crime progress")
+                .accessibilityValue("\(Int(clamped)) percent")
+                .uiTestID("uitest.faction.ocProgress")
             }
         }
-        .padding()
-        .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
-        .cornerRadius(8)
     }
 }
 
 // MARK: - Ranked War
+
 struct RankedWarView: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let war: RankedWar
     let myFactionId: Int?
 
@@ -248,91 +190,77 @@ struct RankedWarView: View {
         let mine = myFactionId.flatMap { war.faction(id: $0) }
         let opp = myFactionId.flatMap { war.opponent(of: $0) }
 
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "flame.fill")
-                    .foregroundColor(.red)
-                Text("Ranked War")
-                    .font(.caption.bold())
-                Spacer()
-                Text("Target \(TornFormatter.formatNumber(war.target))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
+        BoardSection("Ranked war", note: "Target \(TornFormatter.formatNumber(war.target))") {
             if let mine, let opp,
                let lead = NumericSafety.scoreLead(mine: mine.score, opponent: opp.score) {
                 let progressValue = min(max(lead, 0), max(0, war.target))
                 let progressTotal = max(war.target, 1)
-                HStack {
-                    Text(mine.name)
-                        .font(.caption.bold())
-                        .lineLimit(1)
-                    Spacer()
-                    Text("\(TornFormatter.formatNumber(mine.score)) – \(TornFormatter.formatNumber(opp.score))")
-                        .font(.caption.monospacedDigit())
-                        .foregroundColor(lead >= 0 ? .green : .red)
-                    Spacer()
-                    Text(opp.name)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
+                let tone: Board.Tone = lead >= 0 ? .ready : .alert
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: Board.Space.s) {
+                        Text(verbatim: "\(TornFormatter.formatNumber(mine.score)) to \(TornFormatter.formatNumber(opp.score))")
+                            .font(.figureRow)
+                            .foregroundStyle(Board.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Spacer(minLength: Board.Space.s)
+                        Text(lead >= 0 ? "Leading by \(TornFormatter.formatNumber(lead))" : "Behind by \(TornFormatter.formatNumber(-lead))")
+                            .font(.boardCaption.weight(.medium))
+                            .foregroundStyle(tone.ink)
+                            .lineLimit(1)
+                    }
+                    Text(verbatim: "\(mine.name) against \(opp.name)")
+                        .font(.boardCaption)
+                        .foregroundStyle(Board.inkSecondary)
+                        .lineLimit(2)
+
+                    // War is won when a faction's *lead* reaches `target`.
+                    ProgressLine(progress: Double(progressValue) / Double(progressTotal), color: tone.fill)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Ranked War lead progress")
+                        .accessibilityValue("\(TornFormatter.formatNumber(progressValue)) of \(TornFormatter.formatNumber(progressTotal))")
+                        .uiTestID("uitest.faction.warProgress")
                 }
-                // War is won when a faction's *lead* reaches `target`.
-                ProgressView(value: Double(progressValue),
-                             total: Double(progressTotal))
-                    .tint(lead >= 0 ? .green : .red)
-                    .accessibilityLabel("Ranked War lead progress")
-                    .accessibilityValue("\(TornFormatter.formatNumber(progressValue)) of \(TornFormatter.formatNumber(progressTotal))")
-                    .uiTestID("uitest.faction.warProgress")
-                Text(lead >= 0 ? "Leading by \(TornFormatter.formatNumber(lead))" : "Behind by \(TornFormatter.formatNumber(-lead))")
-                    .font(.caption2)
-                    .foregroundColor(lead >= 0 ? .green : .red)
+                .padding(.vertical, 8)
             } else {
-                Text("Lead unavailable").font(.caption).foregroundStyle(.secondary)
+                BoardNotice(tone: .idle, message: "Lead unavailable")
+                    .padding(.vertical, 8)
                 ForEach(war.factions) { f in
-                    HStack {
-                        Text(f.name).font(.caption).lineLimit(1)
-                        Spacer()
-                        Text(TornFormatter.formatNumber(f.score)).font(.caption.monospacedDigit())
+                    BoardRow {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text(f.name)
+                                .font(.boardBody)
+                                .foregroundStyle(Board.ink)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(TornFormatter.formatNumber(f.score))
+                                .font(.figureValue)
+                                .foregroundStyle(Board.ink)
+                        }
                     }
                 }
             }
         }
-        .padding()
-        .background(Color.red.opacity(reduceTransparency ? 0.25 : 0.06))
-        .cornerRadius(8)
     }
 }
 
 // MARK: - Faction News
+
 struct FactionNewsView: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let news: [FactionNews]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "newspaper.fill")
-                    .foregroundColor(.blue)
-                Text("Faction News")
-                    .font(.caption.bold())
-            }
+        BoardSection("Faction news") {
             ForEach(news.prefix(5)) { item in
-                HStack(alignment: .top, spacing: 4) {
-                    Text("•")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                BoardRow {
                     Text(item.plainText)
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .font(.boardCaption)
+                        .foregroundStyle(Board.ink)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
         }
-        .padding()
-        .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
-        .cornerRadius(8)
     }
 }
