@@ -1,78 +1,9 @@
 import SwiftUI
 
-// MARK: - Flying Status View (separate for proper live updates)
-struct FlyingStatusView: View {
-    @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
-    /// Optional because `Travel.isTraveling` only requires a positive `time_left`:
-    /// Torn can report an in-progress flight before the destination is populated.
-    let destination: String?
-    let timestamp: Int
-    let departed: Int
-
-    private var secondsRemaining: Int {
-        appState.player.travelSecondsRemaining
-    }
-
-    private var progress: Double {
-        Travel.flightProgress(arrival: timestamp, departure: departed, remainingSeconds: secondsRemaining)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "airplane")
-                    .font(.title2)
-                    .foregroundColor(.blue)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(destination.map { "Flying to \($0)" } ?? "Destination unavailable")
-                        .font(.headline)
-                    Text("In transit...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Arriving in:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(TornFormatter.clock(secondsRemaining, zeroText: "Arrived!"))
-                        .font(.title2.monospacedDigit())
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
-                }
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(reduceTransparency ? 0.5 : 0.2))
-                            .frame(height: 8)
-
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.blue)
-                            .frame(width: geometry.size.width * progress, height: 8)
-                    }
-                }
-                .frame(height: 8)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Flight progress")
-                .accessibilityValue("\(Int(progress * 100)) percent")
-                .uiTestID("uitest.travel.progress")
-            }
-        }
-        .padding()
-        .background(Color.blue.opacity(reduceTransparency ? 0.2 : 0.1))
-        .cornerRadius(12)
-        .transaction { $0.animation = nil }
-    }
-}
-
+/// Where the player is, how long until they land, and what the trip is worth: flight
+/// times, landing alerts and shop prices.
 struct TravelView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
     // Deliberately separate from the legacy `privateIsland` preference: owning or
     // renting a PI does not prove that its Airstrip upgrade exists or that a pilot
     // is currently hired.
@@ -84,297 +15,221 @@ struct TravelView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                ModuleStateView(
-                    state: appState.presentationState(for: .travel, hasContent: appState.player.data?.travel != nil),
-                    onRetry: appState.refreshNow
-                )
+        BoardPage {
+            ModuleStateView(
+                state: appState.presentationState(for: .travel, hasContent: appState.player.data?.travel != nil),
+                onRetry: appState.refreshNow
+            )
 
-                travelStatusSection
-
-                Divider()
-
-                // Quick Travel Section (only when not traveling)
-                if let travel = appState.player.data?.travel, !travel.isTraveling {
-                    quickTravelSection(isAbroad: travel.isAbroad, currentLocation: travel.destination)
-                    Divider()
+            if let travel = appState.player.data?.travel {
+                if travel.isTraveling {
+                    FlightBoard(travel: travel)
+                } else if travel.isAbroad {
+                    abroad(travel)
+                } else {
+                    PlaceLine(tone: .ready, place: "In Torn", note: "Ready to travel")
                 }
-
-                ShopPricesPanel()
-
-                preArrivalAlertsSection
-
-                quickActionsSection
-            }
-            .padding()
-        }
-    }
-
-    // MARK: - Travel Status Section
-    @ViewBuilder
-    private var travelStatusSection: some View {
-        if let travel = appState.player.data?.travel {
-            if travel.isTraveling {
-                // Flying state with live countdown - FlyingStatusView observes appState directly
-                FlyingStatusView(
-                    destination: travel.destination,
-                    timestamp: travel.timestamp ?? 0,
-                    departed: travel.departed ?? 0
-                )
-            } else if travel.isAbroad {
-                abroadStatusView(travel)
             } else {
-                inTornStatusView
-            }
-        } else {
-            // No travel data: don't claim "In Torn City" — the player may well be abroad.
-            travelUnavailableView
-        }
-    }
-
-    private var travelUnavailableView: some View {
-        HStack {
-            Image(systemName: "questionmark.circle")
-                .font(.title2)
-                .foregroundColor(.secondary)
-            Text("Travel status unavailable")
-                .font(.headline)
-                .foregroundColor(.secondary)
-            Spacer()
-        }
-        .padding()
-        .background(Color.secondary.opacity(reduceTransparency ? 0.2 : 0.1))
-        .cornerRadius(12)
-    }
-
-    private func abroadStatusView(_ travel: Travel) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "globe")
-                    .font(.title2)
-                    .foregroundColor(.orange)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(travel.destination.map { "In \($0)" } ?? "Location unavailable")
-                        .font(.headline)
-                    Text("Currently abroad")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
+                // No travel data: don't claim "In Torn" — the player may well be abroad.
+                BoardEmptyState(title: "Travel status unavailable",
+                                detail: "Torn hasn't told MacTorn where you are yet.")
             }
 
-            Button {
-                openTorn(TornLink.travelAgency)
-            } label: {
-                HStack {
-                    Image(systemName: "airplane.departure")
-                    Text("Return to Torn")
-                }
-                .font(.subheadline.bold())
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(Color.orange)
-                .foregroundColor(.white)
-                .cornerRadius(8)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding()
-        .background(Color.orange.opacity(reduceTransparency ? 0.2 : 0.1))
-        .cornerRadius(12)
-    }
+            alertsSection
 
-    private var inTornStatusView: some View {
-        HStack {
-            Image(systemName: "house.fill")
-                .font(.title2)
-                .foregroundColor(.green)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("In Torn City")
-                    .font(.headline)
-                Text("Ready to travel")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            Spacer()
-        }
-        .padding()
-        .background(Color.green.opacity(reduceTransparency ? 0.2 : 0.1))
-        .cornerRadius(12)
-    }
-
-    // MARK: - Quick Travel Section
-    private func quickTravelSection(isAbroad: Bool, currentLocation: String?) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "map.fill")
-                    .foregroundColor(.secondary)
-                Text("Quick Travel")
-                    .font(.subheadline.bold())
-                    .foregroundColor(.secondary)
-                Spacer()
-                if !isAbroad {
-                    Picker("Estimate method", selection: $flightMethodRawValue) {
-                        ForEach(TornDestination.FlightMethod.allCases, id: \.self) { method in
-                            Text(method.rawValue).tag(method.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .controlSize(.small)
-                    .accessibilityLabel("Quick Travel estimate method")
-                    .help("Airstrip estimates require both the Airstrip upgrade and a hired pilot.")
-                }
+            if let travel = appState.player.data?.travel, !travel.isTraveling, !travel.isAbroad {
+                flightTimesSection
             }
 
-            if isAbroad {
-                Button {
-                    openTorn(TornLink.travelAgency)
-                } label: {
-                    HStack {
-                        Text("Torn")
-                        Text("Return Home")
-                            .font(.caption)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
-                    .cornerRadius(8)
-                }
-                .buttonStyle(.plain)
-            } else {
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 8) {
-                    ForEach(TornDestination.allCases) { destination in
-                        destinationButton(destination)
-                    }
-                }
+            ShopPricesPanel()
 
-                if selectedFlightMethod == .airstrip {
-                    Text("Requires a Private Island Airstrip upgrade and a currently hired pilot.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Text(
-                    "Current Torn base estimates; actual flights can vary by "
-                        + "±\(TornDestination.estimateVariancePercent)%. "
-                        + "Active-flight countdowns use API arrival data."
-                )
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+            BoardSection("Open in Torn") {
+                TornLinks(links: [
+                    TornLinks.Link(title: "Travel agency", url: TornLink.travelAgency),
+                    TornLinks.Link(title: "Item market", url: TornLink.itemMarket),
+                ], columns: 2)
+                .padding(.top, Board.Space.s)
             }
         }
     }
 
-    private func destinationButton(_ destination: TornDestination) -> some View {
-        Button {
-            BrowserManager.shared.open(TornLink.travelAgency)
-        } label: {
-            VStack(spacing: 4) {
-                HStack(spacing: 4) {
-                    Text(destination.flag)
-                        .font(.title3)
-                    Text(destination.rawValue)
-                        .font(.caption)
-                        .lineLimit(1)
-                }
-                Text(
-                    "~\(destination.flightTimeFormatted(method: selectedFlightMethod))"
-                )
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
-            .cornerRadius(8)
+    // MARK: - Abroad
+
+    private func abroad(_ travel: Travel) -> some View {
+        VStack(alignment: .leading, spacing: Board.Space.m) {
+            PlaceLine(tone: .idle,
+                      place: travel.destination.map { "In \($0)" } ?? "Abroad",
+                      note: "Away from Torn")
+            Button("Return to Torn") { openTorn(TornLink.travelAgency) }
+                .buttonStyle(.boardPrimary)
+                .accessibilityHint("Opens the travel agency in your browser")
         }
-        .buttonStyle(.plain)
-        .accessibilityHint(
-            "Estimated with \(selectedFlightMethod.rawValue.lowercased()) travel"
-        )
     }
 
-    // MARK: - Pre-Arrival Alerts Section
-    private var preArrivalAlertsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "bell.fill")
-                    .foregroundColor(.secondary)
-                Text("Pre-Arrival Alerts")
-                    .font(.subheadline.bold())
-                    .foregroundColor(.secondary)
-            }
+    // MARK: - Landing alerts
 
-            VStack(spacing: 8) {
+    private var alertsSection: some View {
+        BoardSection("Alert me before landing") {
+            HStack(spacing: 6) {
                 ForEach(appState.travelNotificationSettings) { setting in
-                    Toggle(isOn: Binding(
+                    ToggleChip(title: Self.shortName(setting), isOn: Binding(
                         get: { setting.enabled },
                         set: { newValue in
                             var updated = setting
                             updated.enabled = newValue
                             appState.updateTravelNotificationSetting(updated)
                         }
-                    )) {
-                        Text(setting.displayName)
-                            .font(.subheadline)
-                    }
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
+                    ))
+                    .accessibilityLabel(setting.displayName)
                 }
             }
-            .padding()
-            .background(Color.secondary.opacity(reduceTransparency ? 0.2 : 0.1))
-            .cornerRadius(8)
+            .padding(.top, Board.Space.s)
         }
     }
 
-    // MARK: - Quick Actions Section
-    private var quickActionsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "link")
-                    .foregroundColor(.secondary)
-                Text("Quick Actions")
-                    .font(.subheadline.bold())
-                    .foregroundColor(.secondary)
+    /// "2 min", "30 sec": the section heading already says "before landing".
+    private static func shortName(_ setting: TravelNotificationSetting) -> String {
+        setting.displayName.replacingOccurrences(of: " before", with: "")
+    }
+
+    // MARK: - Flight times
+
+    private var flightTimesSection: some View {
+        BoardSection(title: "Flight times", trailing: {
+            Picker("Estimate method", selection: $flightMethodRawValue) {
+                ForEach(TornDestination.FlightMethod.allCases, id: \.self) { method in
+                    Text(method.rawValue).tag(method.rawValue)
+                }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize()
+            .accessibilityLabel("Flight time estimate method")
+            .help("Airstrip estimates require both the Airstrip upgrade and a hired pilot.")
+        }) {
+            ForEach(TornDestination.allCases) { destination in
+                Button {
+                    BrowserManager.shared.open(TornLink.travelAgency)
+                } label: {
+                    BoardRow(verticalPadding: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: Board.Space.s) {
+                            Text(destination.flag)
+                                .font(.boardBody)
+                                .accessibilityHidden(true)
+                            Text(destination.rawValue)
+                                .font(.boardBody)
+                                .foregroundStyle(Board.ink)
+                            Spacer(minLength: Board.Space.s)
+                            Text(destination.flightTimeFormatted(method: selectedFlightMethod))
+                                .font(.figureValue)
+                                .foregroundStyle(Board.ink)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(destination.rawValue), about \(destination.flightTimeFormatted(method: selectedFlightMethod))")
+                .accessibilityHint("Estimated with \(selectedFlightMethod.rawValue.lowercased()) travel. Opens the travel agency.")
             }
 
-            HStack(spacing: 8) {
-                Button {
-                    openTorn(TornLink.travelAgency)
-                } label: {
-                    HStack {
-                        Image(systemName: "airplane.departure")
-                        Text("Travel Agency")
-                    }
-                    .font(.caption)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
+            Text(estimateNote)
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, Board.Space.s)
+        }
+    }
 
-                Button {
-                    openTorn(TornLink.itemMarket)
-                } label: {
-                    HStack {
-                        Image(systemName: "storefront")
-                        Text("Abroad")
-                    }
-                    .font(.caption)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
+    private var estimateNote: String {
+        let base = "Torn's base times; a real flight can differ by ±\(TornDestination.estimateVariancePercent)%. "
+            + "A flight in progress counts down from Torn's own arrival time."
+        return selectedFlightMethod == .airstrip
+            ? "Airstrip times need the Private Island Airstrip upgrade and a hired pilot. " + base
+            : base
+    }
+}
+
+/// "In Torn" / "In Japan": the place as the screen's headline, with a state dot.
+private struct PlaceLine: View {
+    let tone: Board.Tone
+    let place: String
+    let note: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(place)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Board.ink)
+            HStack(spacing: 6) {
+                StateDot(tone: tone)
+                Text(note)
+                    .font(.boardCaption)
+                    .foregroundStyle(Board.inkSecondary)
             }
         }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A flight in progress: the one screen where a single countdown gets the whole width.
+/// Observes `travelSecondsRemaining`, which AppState ticks against Torn's clock.
+struct FlightBoard: View {
+    @Environment(AppState.self) private var appState
+    /// `destination` is optional because `Travel.isTraveling` only requires a positive
+    /// `time_left`: Torn can report an in-progress flight before the destination is set.
+    let travel: Travel
+
+    private var secondsRemaining: Int { appState.player.travelSecondsRemaining }
+
+    private var progress: Double {
+        Travel.flightProgress(arrival: travel.timestamp ?? 0, departure: travel.departed ?? 0,
+                              remainingSeconds: secondsRemaining)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .lastTextBaseline, spacing: Board.Space.m) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Flying to")
+                        .font(.boardCaption)
+                        .foregroundStyle(Board.inkSecondary)
+                    Text(travel.destination ?? "Destination pending")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(Board.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                Spacer(minLength: Board.Space.s)
+                Text(TornFormatter.clock(secondsRemaining, zeroText: "Landed"))
+                    .font(.figureHero)
+                    .foregroundStyle(Board.Tone.counting.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+            }
+
+            ProgressLine(progress: progress, color: Board.Tone.counting.fill, height: 4)
+                .accessibilityHidden(false)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Flight progress")
+                .accessibilityValue("\(Int(progress * 100)) percent")
+                .uiTestID("uitest.travel.progress")
+
+            HStack(alignment: .firstTextBaseline) {
+                if let departed = travel.departed, departed > 0 {
+                    Text("Left \(Self.time(departed))")
+                }
+                Spacer(minLength: Board.Space.s)
+                if let arrival = travel.timestamp, arrival > 0 {
+                    Text("Lands \(Self.time(arrival))")
+                }
+            }
+            .font(.boardCaption)
+            .foregroundStyle(Board.inkSecondary)
+        }
+        .transaction { $0.animation = nil }
+    }
+
+    private static func time(_ unix: Int) -> String {
+        Date(timeIntervalSince1970: TimeInterval(unix)).formatted(date: .omitted, time: .shortened)
     }
 }

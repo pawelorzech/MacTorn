@@ -464,11 +464,18 @@ import AppKit
 /// the window materializes, and activates it so the test runner can see it.
 final class UITestAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
-        guard UITestConfiguration.isActive else { return }
+        guard UITestConfiguration.showsTestWindow else { return }
         NSApp.setActivationPolicy(.regular)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let directory = UITestConfiguration.snapshotDirectory, UITestConfiguration.isActive {
+            Task { @MainActor in
+                await SnapshotRunner.run(into: directory)
+                NSApp.terminate(nil)
+            }
+            return
+        }
         guard UITestConfiguration.isActive else { return }
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -485,20 +492,20 @@ struct UITestRootView: View {
 
     var body: some View {
         Group {
-            if UITestConfiguration.isActive {
+            if UITestConfiguration.showsTestWindow {
                 // No accessibilityIdentifier here: a container-level identifier propagates
                 // to every descendant in AppKit-backed SwiftUI and shadows the per-element
                 // ids the tests rely on. The window itself is the query root instead.
                 ContentView()
                     .macTornRoot(appState, navigation: navigation)
-                    .frame(width: 320, height: UITestConfiguration.windowHeight)
+                    .frame(width: Board.panelWidth, height: UITestConfiguration.windowHeight)
             } else {
                 EmptyView()
             }
         }
         .background(
             UITestWindowConfigurator(
-                active: UITestConfiguration.isActive,
+                active: UITestConfiguration.showsTestWindow,
                 height: UITestConfiguration.windowHeight
             )
         )
@@ -516,7 +523,7 @@ private struct UITestWindowConfigurator: NSViewRepresentable {
             guard let window = view?.window else { return }
             if active {
                 window.title = "MacTorn UI Tests"
-                window.setContentSize(NSSize(width: 320, height: height))
+                window.setContentSize(NSSize(width: Board.panelWidth, height: height))
                 window.center()
                 window.makeKeyAndOrderFront(nil)
                 NSApp.activate(ignoringOtherApps: true)

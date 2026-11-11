@@ -86,7 +86,7 @@ final class HostileNumericTests: XCTestCase {
         XCTAssertEqual(NumericSafety.progress(current: Int.max, maximum: 1), 1)
         XCTAssertEqual(NumericSafety.progress(current: 1, maximum: 4), 0.25)
         // This evaluates the accessibility percentage even with VoiceOver disabled.
-        _ = ProgressBarView(label: "Energy", current: Int.min, maximum: 1, color: .green, icon: "bolt").body
+        _ = MeterGrid(meters: [MeterReading(name: "Energy", current: Int.min, maximum: 1, color: .green)]).body
         let state = AppState(session: MockNetworkSession(), defaults: .createMockDefaults())
         defer { state.stopPolling() }
         let json: [String: Any] = ["energy": ["current": 0, "maximum": 1, "fulltime": Int.max],

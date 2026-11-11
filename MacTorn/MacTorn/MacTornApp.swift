@@ -48,11 +48,11 @@ struct MacTornApp: App {
                     NSApp.activate(ignoringOtherApps: true)
                 }
         }
-        .defaultSize(width: 360, height: 640)
+        .defaultSize(width: Board.panelWidth, height: Board.panelHeight)
         .handlesExternalEvents(matching: ["mactorn"])
         MenuBarExtra {
             ContentView()
-                .frame(height: 640)
+                .frame(height: Board.panelHeight)
                 .macTornRoot(appState, navigation: navigation)
         } label: {
             MenuBarLabel(appState: appState)
@@ -163,7 +163,7 @@ struct MenuBarLabel: View {
         // reliable place to explicitly open the UI-test window (a MenuBarExtra's own content
         // only appears on click, which XCUITest can't trigger). Inert on a normal launch.
         .onAppear {
-            if UITestConfiguration.isActive {
+            if UITestConfiguration.showsTestWindow {
                 openWindow(id: "uitest-window")
             }
         }

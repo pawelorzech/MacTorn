@@ -1,6 +1,6 @@
 # MacTorn visual identity
 
-Last verified: 2026-08-26
+Last verified: 2026-11-11 | `redesign/dispatch-board`
 
 ## Direction
 
@@ -8,9 +8,13 @@ The MacTorn mark combines a broad tornado arc with a lightning cut. It represent
 live state, alerts, and speed without reusing Torn's official identity. Its shape is
 deliberately simple enough to survive the 16 px Finder and menu contexts.
 
-The visual system borrows the energy of Material 3 Expressive — stronger color,
-contrasting rounded shapes, and a clearer selected state — but uses native SwiftUI and
-macOS controls. Material is an influence, not a component library for this macOS app.
+The interface is "the dispatch board" (2026-11-11): flat opaque surfaces, sections as a
+heading over a rule, rows closed by hairlines, and countdowns set in large condensed SF
+numerals. Colour means state — ready, counting, alert, idle — plus the four game bar
+colours; the coral accent marks selection and the one primary action. The design system
+lives in `MacTorn/MacTorn/Views/Design/`, and the rules for using it are in the Frontend
+Theme section of `CLAUDE.md`. It replaced the earlier Material-3-influenced look of tinted
+rounded cards.
 
 ## Palette
 
@@ -21,8 +25,8 @@ macOS controls. Material is an influence, not a component library for this macOS
 | Icon primary | coral to amber | coral to amber | tornado and bolt mark |
 | Icon detail | electric cyan | electric cyan | one supporting accent only |
 
-Semantic colors such as success, warning, destructive, Energy, Nerve, Happy, and Life
-keep their existing meanings. The brand accent must not replace them.
+State colours (`Board.Tone`) and the Energy, Nerve, Happy and Life bar colours
+(`Board.Meter`) keep their meanings. The brand accent must not replace them.
 
 ## Assets
 
@@ -54,9 +58,10 @@ prompt, then adapted into the legacy macOS shipping geometry and optical sizes:
 
 - Keep the mark centered with generous safe space.
 - Do not add text, rings, chrome, drop shadows, or fine streaks.
-- Use a capsule only for the top-level three-way group navigation. Module navigation and
-  cards stay quieter and closer to native macOS geometry.
-- Honor Reduce Transparency and Increase Contrast exactly as the current UI does.
+- Navigation is the icon rail on the left of the panel: nine modules in three groups and
+  Settings at the bottom. There are no cards, capsules or tinted backgrounds.
+- Every colour is opaque, so Reduce Transparency changes nothing but the modal scrim;
+  Increase Contrast strengthens hairlines, outlines and secondary ink inside `Theme.swift`.
 - Prefer SF Symbols for interface actions; the custom mark is for product identity.
 
 ## References

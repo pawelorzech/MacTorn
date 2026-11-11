@@ -1,513 +1,116 @@
 import SwiftUI
 
+/// "You, right now": the four bars, what is ready, what is counting down, and what is
+/// waiting. The player's name and state are in the panel header above.
 struct StatusView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
-    @AppStorage(StoredPreference.boosterCooldownTarget) private var boosterCooldownTarget: BoosterCooldownTarget = .boosters
     @State private var quickLinks = QuickLinks.load()
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 10) {
-                headerSection
+        BoardPage {
+            ModuleStateView(
+                state: appState.presentationState(for: .status, hasContent: appState.player.data != nil),
+                onRetry: appState.refreshNow,
+                detail: appState.errorMsg
+            )
 
-                ModuleStateView(
-                    state: appState.presentationState(for: .status, hasContent: appState.player.data != nil),
-                    onRetry: appState.refreshNow,
-                    detail: appState.errorMsg
-                )
-
-                if appState.player.data != nil {
-                    NextActionView()
-                }
-
-                CompetitionPanel()
-
-                if let status = appState.player.data?.status {
-                    StatusBadgesView(status: status, serverClock: appState.player.serverClock)
-                }
-                
-                if let chain = appState.liveChain {
-                    ChainView(chain: chain, serverClock: appState.player.serverClock)
-                }
-                
-                if let travel = appState.player.data?.travel, travel.isTraveling || travel.isAbroad {
-                    travelSection(travel)
-                }
-                
-                if let bars = appState.player.data?.bars {
-                    barsSection(bars)
-                }
-                
-                if let cooldowns = appState.player.data?.cooldowns {
-                    cooldownsSection(cooldowns)
-                }
-
-                // Bounty alert — someone placed a bounty on you (safety signal)
-                if !appState.player.bountiesOnMe.isEmpty {
-                    bountyBadge
-                }
-
-                // Dailies (refills + education) — from the v2 user call
-                dailiesSection
-
-                // What's waiting: messages, events, awards, an open competition
-                // `notificationCounts` wins outright once it exists. Falling back to
-                // `unreadMessages` while it is present renders the row with zero badges,
-                // because that value comes from the slower activity poll and can still be
-                // non-zero after the counters have gone to zero.
-                if appState.player.notificationCounts?.hasAny == true
-                    || (appState.player.notificationCounts == nil && appState.player.unreadMessages > 0) {
-                    notificationBadges
-                }
-
-                if !appState.player.activityEvents.isEmpty {
-                    EventsView(events: appState.player.activityEvents, serverClock: appState.player.serverClock)
-                }
-                
-                quickLinksSection
+            if let bars = appState.player.data?.bars {
+                MeterGrid(meters: [
+                    MeterReading(name: "Energy", current: bars.energy.current, maximum: bars.energy.maximum, color: Board.Meter.energy),
+                    MeterReading(name: "Nerve", current: bars.nerve.current, maximum: bars.nerve.maximum, color: Board.Meter.nerve),
+                    MeterReading(name: "Happy", current: bars.happy.current, maximum: bars.happy.maximum, color: Board.Meter.happy),
+                    MeterReading(name: "Life", current: bars.life.current, maximum: bars.life.maximum, color: Board.Meter.life),
+                ])
             }
-            .padding(12)
-        }
-        // No height cap. A scroll view that stops short of the window's bottom edge looks
-        // like content that has ended, which is the opposite of the affordance a scroll
-        // view needs: the cue that there is more below is the content running to the edge
-        // and being clipped there.
-    }
-    
-    // MARK: - Header
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                if let name = appState.player.data?.name, let id = appState.player.data?.playerId {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(name)
-                            .font(.headline)
-                        Text("[\(String(id))]")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    Text("Torn Status")
-                        .font(.headline)
-                }
-                
-                Spacer()
-                
-                if appState.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                } else {
-                    Button {
-                        appState.refreshNow()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .frame(width: 28, height: 28)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.secondary)
-                    .accessibilityLabel("Refresh Torn data")
-                }
+
+            // Someone placed a bounty on you: a safety signal, so it sits above the board.
+            if !appState.player.bountiesOnMe.isEmpty {
+                bountyRow
+            }
+
+            if appState.player.data != nil {
+                NextUpSection()
+            }
+
+            // `notificationCounts` wins outright once it exists. Falling back to
+            // `unreadMessages` while it is present would render an empty section, because
+            // that value comes from the slower activity poll and can still be non-zero
+            // after the counters have gone to zero.
+            if appState.player.notificationCounts?.hasAny == true
+                || (appState.player.notificationCounts == nil && appState.player.unreadMessages > 0) {
+                waitingSection
+            }
+
+            CompetitionPanel()
+
+            if !appState.player.activityEvents.isEmpty {
+                EventsView(events: appState.player.activityEvents, serverClock: appState.player.serverClock)
+            }
+
+            BoardSection("Open in Torn") {
+                TornLinks(links: tornLinks)
+                    .padding(.top, Board.Space.s)
             }
         }
     }
-    
-    // MARK: - Notification Badges
 
-    /// One row of "there is something waiting for you", from Torn's own header counters.
-    ///
-    /// Awards and competitions are new here. They were never shown before because the only
-    /// counter MacTorn had came from the row-based `messages` selection — which cost rows
-    /// against a daily cap to produce one integer. The `notifications` selection returns
-    /// all four for free, so the app can now show what it could only ever guess at.
-    private var notificationBadges: some View {
-        let counts = appState.player.notificationCounts
-        // Icon + count only. Spelling the noun out reads better but does not fit: four
-        // badges of "2 competitions" width overflow a 320pt popover, and this row can show
-        // all four at once. The noun lives in the accessibility label and the tooltip,
-        // where it costs no horizontal space.
-        return HStack(spacing: 6) {
-            if let messages = counts?.messages ?? (appState.player.unreadMessages > 0 ? appState.player.unreadMessages : nil),
-               messages > 0 {
-                badge(count: messages,
-                      noun: "message",
-                      systemImage: "envelope.fill",
-                      tint: .blue,
-                      destination: TornLink.page("messages.php"))
-            }
-            if let events = counts?.events, events > 0 {
-                badge(count: events,
-                      noun: "event",
-                      systemImage: "bell.fill",
-                      tint: .orange,
-                      destination: TornLink.page("events.php"))
-            }
-            if let awards = counts?.awards, awards > 0 {
-                badge(count: awards,
-                      noun: "award",
-                      systemImage: "rosette",
-                      tint: .yellow,
-                      destination: TornLink.page("awards.php"))
-            }
-            if let competition = counts?.competition, competition > 0 {
-                badge(count: competition,
-                      noun: "competition",
-                      systemImage: "flag.checkered",
-                      tint: .green,
-                      destination: TornLink.page("competition.php"))
-            }
-            Spacer(minLength: 0)
-        }
-    }
+    // MARK: - Bounty
 
-    private func badge(count: Int,
-                       noun: String,
-                       systemImage: String,
-                       tint: Color,
-                       destination: URL) -> some View {
-        let spoken = "\(count) \(noun)\(count == 1 ? "" : "s")"
-        return Button {
-            BrowserManager.shared.open(destination)
-        } label: {
-            HStack(spacing: 3) {
-                // The icon distinguishes the four badges; the tint only reinforces it, so
-                // the row still reads without colour.
-                Image(systemName: systemImage)
-                    .foregroundColor(tint)
-                Text("\(count)")
-                    .font(.caption)
-                    .monospacedDigit()
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(tint.opacity(reduceTransparency ? 0.2 : 0.1))
-            .cornerRadius(6)
-        }
-        .buttonStyle(.plain)
-        .help(spoken)
-        .accessibilityLabel("\(spoken) waiting. Opens Torn.")
-    }
-    
-    // MARK: - Travel
-    private func travelSection(_ travel: Travel) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Image(systemName: "airplane")
-                    .foregroundColor(.blue)
-                // Torn can report an in-progress flight before it sends the destination,
-                // so the traveling row drops the place rather than naming it "Unknown" —
-                // the same rule MenuBarDisplay.accessibilityDescription already follows.
-                Text(travel.isTraveling
-                    ? (travel.destination.map { "Traveling to \($0)" } ?? "Traveling")
-                    : (travel.destination.map { "In \($0)" } ?? "Location unavailable"))
-                    .font(.caption.bold())
-            }
-
-            if travel.isTraveling {
-                HStack {
-                    Text("Arriving in:")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    // The row outlives the countdown until the next poll clears `isTraveling`;
-                    // at zero it must read "Ready", as it did before c71ee24.
-                    Text(TornFormatter.clock(appState.player.travelSecondsRemaining, zeroText: "Ready"))
-                        .font(.caption.monospacedDigit())
-                        .foregroundColor(.blue)
-                }
-            }
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.blue.opacity(reduceTransparency ? 0.2 : 0.1))
-        .cornerRadius(8)
-        .transaction { $0.animation = nil }
-    }
-    
-    // MARK: - Bars
-    private func barsSection(_ bars: Bars) -> some View {
-        VStack(spacing: 10) {
-            barView(.energy, bars.energy)
-            barView(.nerve, bars.nerve)
-            barView(.happy, bars.happy)
-            barView(.life, bars.life)
-        }
-    }
-
-    private func barView(_ kind: WidgetSnapshot.Meter.Kind, _ bar: Bar) -> some View {
-        ProgressBarView(
-            label: kind.name,
-            current: bar.current,
-            maximum: bar.maximum,
-            color: kind.color,
-            icon: kind.icon
-        )
-    }
-    
-    // MARK: - Cooldowns
-    private func cooldownsSection(_ cooldowns: Cooldowns) -> some View {
-        let drugURL = TornLink.page("item.php#drugs-items")
-        let medicalURL = TornLink.page("item.php#medical-items")
-        let boosterURL = boosterCooldownTarget.itemsURL
-        let boosterLabel = boosterCooldownTarget.actionLabel
-
-        return VStack(alignment: .leading, spacing: 8) {
-            Divider()
-
-            Text("Cooldowns")
-                .font(.caption.bold())
-                .foregroundColor(.secondary)
-
-            HStack(spacing: 16) {
-                if let ends = appState.player.cooldownEnds {
-                    CooldownItem(label: "Drug", source: .endsAt(ends.drugEndsAt, serverClock: appState.player.serverClock), actionURL: drugURL, actionLabel: "Use Drug →")
-                    CooldownItem(label: "Medical", source: .endsAt(ends.medicalEndsAt, serverClock: appState.player.serverClock), actionURL: medicalURL, actionLabel: "Use Medical →")
-                    CooldownItem(label: "Booster", source: .endsAt(ends.boosterEndsAt, serverClock: appState.player.serverClock), actionURL: boosterURL, actionLabel: boosterLabel)
-                } else {
-                    CooldownItem(label: "Drug", source: .remaining(cooldowns.drug), actionURL: drugURL, actionLabel: "Use Drug →")
-                    CooldownItem(label: "Medical", source: .remaining(cooldowns.medical), actionURL: medicalURL, actionLabel: "Use Medical →")
-                    CooldownItem(label: "Booster", source: .remaining(cooldowns.booster), actionURL: boosterURL, actionLabel: boosterLabel)
-                }
-            }
-        }
-    }
-    
-    // MARK: - Quick Links
-    private var quickLinksSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Divider()
-            
-            Text("Quick Links")
-                .font(.caption.bold())
-                .foregroundColor(.secondary)
-            
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-                GridItem(.flexible())
-            ], spacing: 8) {
-                ForEach(quickLinks) { shortcut in
-                    Button {
-                        if let url = URL(string: shortcut.url) { BrowserManager.shared.open(url) }
-                    } label: {
-                        Text(shortcut.name)
-                            .font(.caption2)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 6)
-                            .background(Color.accentColor.opacity(reduceTransparency ? 0.2 : 0.1))
-                            .cornerRadius(4)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Button {
-                    if let url = URL(string: "https://hub.tri.ovh") {
-                        BrowserManager.shared.open(url)
-                    }
-                } label: {
-                    HStack(spacing: 2) {
-                        Image(systemName: "globe")
-                            .font(.caption2)
-                        Text("TRI Hub")
-                            .font(.caption2)
-                    }
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 6)
-                    .background(Color.purple.opacity(reduceTransparency ? 0.3 : 0.15))
-                    .foregroundColor(.purple)
-                    .cornerRadius(4)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-    
-    // MARK: - Bounty Alert
-    private var bountyBadge: some View {
-        let total = NumericSafety.total(appState.player.bountiesOnMe.map(\.reward))
-        let count = appState.player.bountiesOnMe.count
+    private var bountyRow: some View {
+        let bounties = appState.player.bountiesOnMe
+        let total = NumericSafety.total(bounties.map(\.reward))
         let amount = total.map { TornFormatter.formatMoney($0) } ?? "Unavailable"
+        let title = bounties.count == 1 ? "Bounty on you" : "\(bounties.count) bounties on you"
         return Button {
             BrowserManager.shared.open(TornLink.bounties)
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "target")
-                    .foregroundColor(.red)
-                Text(count == 1 ? "Bounty on you" : "\(count) bounties on you")
-                    .font(.caption.bold())
-                Spacer()
-                Text(amount)
-                    .font(.caption.monospacedDigit())
-                    .foregroundColor(.red)
-            }
-            .padding()
-            .background(Color.red.opacity(reduceTransparency ? 0.3 : 0.1))
-            .cornerRadius(8)
+            CountdownRow(tone: .alert, title: title, detail: "Opens the bounty list", value: amount)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(amount). Opens Torn.")
     }
 
-    // MARK: - Dailies (refills + education)
-    @ViewBuilder
-    private var dailiesSection: some View {
-        let refills = appState.player.refills
-        let studying = appState.player.education?.isStudying ?? false
-        if refills != nil || studying {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Image(systemName: "checklist")
-                        .foregroundColor(.mint)
-                    Text("Dailies")
-                        .font(.caption.bold())
-                }
+    // MARK: - Waiting for you
 
-                if let refills {
-                    HStack(spacing: 6) {
-                        Image(systemName: "drop.fill")
-                            .foregroundColor(.cyan)
-                            .font(.caption2)
-                        if refills.unclaimed.isEmpty {
-                            Text("Refills claimed")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Refills left: \(refills.unclaimed.joined(separator: ", "))")
-                                .font(.caption)
-                                .foregroundColor(.orange)
-                        }
+    /// Torn's own header counters: what is sitting unread. Each opens its page.
+    private var waitingSection: some View {
+        let counts = appState.player.notificationCounts
+        let messages = counts?.messages ?? appState.player.unreadMessages
+        let items: [(count: Int, noun: String, url: URL)] = [
+            (messages, "message", TornLink.page("messages.php")),
+            (counts?.events ?? 0, "event", TornLink.page("events.php")),
+            (counts?.awards ?? 0, "award", TornLink.page("awards.php")),
+            (counts?.competition ?? 0, "competition", TornLink.page("competition.php")),
+        ].filter { $0.count > 0 }
+
+        return BoardSection("Waiting for you") {
+            HStack(alignment: .firstTextBaseline, spacing: Board.Space.l) {
+                ForEach(items, id: \.noun) { item in
+                    Button {
+                        BrowserManager.shared.open(item.url)
+                    } label: {
+                        CountLabel(count: item.count, noun: item.noun)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(item.count) \(item.noun)\(item.count == 1 ? "" : "s") waiting. Opens Torn.")
                 }
-
-                // `endsDate` is an absolute time, so tick `now` against it — no drift.
-                if let ends = appState.player.education?.endsDate {
-                    TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                        let remaining = max(0, Int(ends.timeIntervalSince(
-                            appState.player.serverClock.serverNow(context.date))))
-                        HStack(spacing: 6) {
-                            Image(systemName: "graduationcap.fill")
-                                .foregroundColor(.purple)
-                                .font(.caption2)
-                            Text(remaining > 0
-                                 ? "Education: \(TornFormatter.coarseDuration(remaining)) left"
-                                 : "Education: complete")
-                                .font(.caption)
-                                .foregroundColor(remaining > 0 ? .secondary : .green)
-                        }
-                    }
-                }
+                Spacer(minLength: 0)
             }
-            .padding()
-            .background(Color.mint.opacity(reduceTransparency ? 0.25 : 0.06))
-            .cornerRadius(8)
-        }
-    }
-}
-
-// MARK: - Cooldown Item
-struct CooldownItem: View {
-    /// Where the remaining time comes from.
-    enum Source {
-        /// A fixed number of seconds left, as of the last fetch.
-        case remaining(Int)
-        /// The *absolute* end-timestamp (Unix seconds) the cooldown expires at, computed
-        /// once at fetch time from the server's response timestamp. Each tick recomputes
-        /// `endsAt - now`, never `originalSeconds - elapsed`, so the countdown stays
-        /// drift-free against torn.com. `0` means the cooldown is not active. The clock
-        /// carries the Mac-Torn skew (issue #46), since `endsAt` is server-absolute.
-        case endsAt(Int, serverClock: ServerClock)
-    }
-
-    let label: String
-    let source: Source
-    var actionURL: URL? = nil
-    var actionLabel: String? = nil
-
-    var body: some View {
-        switch source {
-        case .remaining(let seconds):
-            tile(remaining: seconds)
-        case .endsAt(let endsAt, let serverClock):
-            TimelineView(.periodic(from: .now, by: 1.0)) { context in
-                tile(remaining: endsAt > 0
-                     ? max(0, endsAt - serverClock.serverUnix(context.date))
-                     : 0)
-            }
+            .padding(.top, Board.Space.s)
         }
     }
 
-    @ViewBuilder
-    private func tile(remaining: Int) -> some View {
-        if remaining <= 0, let url = actionURL {
-            Button {
-                BrowserManager.shared.open(url)
-            } label: {
-                cell(remaining: remaining)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Use \(label)")
-            .accessibilityHint("Opens Torn items page in browser")
-        } else {
-            cell(remaining: remaining)
+    // MARK: - Links
+
+    private var tornLinks: [TornLinks.Link] {
+        var links = quickLinks.compactMap { shortcut in
+            URL(string: shortcut.url).map { TornLinks.Link(title: shortcut.name, url: $0) }
         }
-    }
-
-    private func cell(remaining: Int) -> some View {
-        CooldownCell(
-            label: label,
-            timeText: TornFormatter.clock(remaining, zeroText: "Ready"),
-            remaining: remaining,
-            hasAction: actionURL != nil,
-            actionLabel: actionLabel
-        )
-    }
-}
-
-private struct CooldownCell: View {
-    let label: String
-    let timeText: String
-    let remaining: Int
-    let hasAction: Bool
-    let actionLabel: String?
-
-    @Environment(\.reduceTransparency) private var reduceTransparency
-
-    var body: some View {
-        VStack(spacing: 2) {
-            Text(label)
-                .font(.caption)
-                .foregroundColor(remaining > 0 ? .orange : .green)
-
-            Text(timeText)
-                .font(.caption2.monospacedDigit())
-                .foregroundColor(remaining > 0 ? .primary : .green)
-                .fontWeight(remaining <= 0 ? .bold : .regular)
-
-            if remaining <= 0, let actionLabel {
-                Text(actionLabel)
-                    .font(.caption2)
-                    .foregroundColor(.green)
-                    .opacity(0.7)
-            }
+        if let hub = URL(string: "https://hub.tri.ovh") {
+            links.append(TornLinks.Link(title: "TRI Hub", url: hub))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, remaining <= 0 && hasAction ? 4 : 0)
-        .background(
-            remaining <= 0 && hasAction
-                ? Color.green.opacity(reduceTransparency ? 0.25 : 0.12)
-                : Color.clear
-        )
-        .overlay {
-            if remaining <= 0 && hasAction {
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(Color.green.opacity(reduceTransparency ? 0.4 : 0.25))
-            }
-        }
-        .cornerRadius(6)
+        return links
     }
 }

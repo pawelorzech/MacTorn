@@ -1,281 +1,486 @@
 import SwiftUI
 
-struct CompanionControls: View {
+// The optional modules, as they appear inside the tabs. Each renders nothing until it has
+// been switched on in Settings › Modules; see `ModuleSwitches.swift` for the switches, the
+// freshness button in each heading and the shared "why is this empty" notices.
+
+// MARK: - Competition and calendar (Status)
+
+struct CompetitionPanel: View {
     @Environment(AppState.self) private var app
-    let feature: CompanionStore.Feature
-    @Environment(\.openMacTornSettings) private var openSettings
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Toggle(feature.title, isOn: Binding(get: { app.companion.enabled.contains(feature) }, set: {
-                app.companion.setEnabled(feature, $0, app: app)
-                app.companion.start(app: app)
-            }))
-            .font(.caption.bold())
-            if app.companion.enabled.contains(feature) {
-                if !app.connectivity.isConnected {
-                    Text("No internet connection. Reconnect to refresh this module.")
-                        .font(.caption).foregroundStyle(.orange)
-                } else if app.keyHalted {
-                    Button("Connect a valid key in Settings") { openSettings() }.font(.caption)
+        if app.companion.enabled.contains(.competition) {
+            let now = app.time.now
+            let (active, upcoming) = CalendarEntry.select(app.companion.calendarEntries, now: now)
+            let hasCalendar = !active.isEmpty || !upcoming.isEmpty
+
+            if let competition = app.companion.competition {
+                BoardSection(title: competition.name, trailing: { ModuleFreshness(feature: .competition) }) {
+                    ModuleIssues(feature: .competition)
+                    competitionRows(competition)
                 }
-                if feature.canAlert {
-                    Toggle("Notify on changes", isOn: Binding(get: { app.companion.alerts.contains(feature) }, set: {
-                        app.companion.setAlerts(feature, $0)
-                    })).font(.caption)
+            } else if !hasCalendar {
+                BoardSection(title: "Competition", trailing: { ModuleFreshness(feature: .competition) }) {
+                    ModuleIssues(feature: .competition)
+                    BoardEmptyState(title: "No active competition")
                 }
-                ForEach(feature.endpointIDs, id: \.self) { id in
-                    if let error = app.companion.errors[id] {
-                        Text(error).foregroundStyle(.orange).font(.caption).fixedSize(horizontal: false, vertical: true)
+            }
+
+            if hasCalendar {
+                BoardSection("Torn calendar") {
+                    ForEach(Array(active.enumerated()), id: \.offset) { _, entry in
+                        ValueRow(label: entry.title,
+                                 value: "ends in \(TornFormatter.coarseDuration(Int(entry.end.timeIntervalSince(now))))",
+                                 tone: .counting, isFigure: false)
                     }
-                    if app.requester.isInFlight(id) { ProgressView().controlSize(.small) }
-                    if let fetched = app.companion.fetchedAt[id] {
-                        (Text("Last checked ") + Text(fetched, style: .relative) + Text(" ago"))
-                            .font(.caption2).foregroundStyle(.secondary)
+                    ForEach(Array(upcoming.enumerated()), id: \.offset) { _, entry in
+                        ValueRow(label: entry.title,
+                                 value: TornFormatter.relativeDate(entry.start, relativeTo: now),
+                                 tone: .idle, isFigure: false)
                     }
                 }
-                Button("Refresh") { app.companion.retry(feature, app: app) }.font(.caption)
-                    .disabled(app.companion.isRefreshing || app.keyHalted || !app.connectivity.isConnected)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func competitionRows(_ competition: CompetitionV2) -> some View {
+        if let team = competition.team { ValueRow(label: "Your team", value: team, isFigure: false) }
+        if competition.name != "Easter Egg Hunt", let score = competition.score {
+            ValueRow(label: "Your score", value: score.formatted())
+        }
+        if let attacks = competition.attacks { ValueRow(label: "Your attacks", value: attacks.formatted()) }
+        if let status = competition.status { ValueRow(label: "Your side", value: status.capitalized, isFigure: false) }
+        if let hp = competition.hp {
+            ValueRow(label: "HP", value: "\(hp.current.formatted()) / \(hp.maximum.formatted())")
+        }
+        if let treats = competition.treatsCollected { ValueRow(label: "Treats collected", value: treats.formatted()) }
+        if let basket = competition.basket { ValueRow(label: "Basket", value: basket.name, isFigure: false) }
+        if competition.name == "Easter Egg Hunt", let eggs = competition.score, let total = competition.total {
+            ValueRow(label: "Eggs found", value: "\(eggs.formatted()) / \(total.formatted())")
+        }
+        if competition.isElimination {
+            ForEach(app.companion.teams) { team in
+                BoardRow {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline) {
+                            Text("\(team.position). \(team.name)\(team.id == competition.teamId ? " (your team)" : "")")
+                                .font(.boardStrong)
+                                .foregroundStyle(team.eliminated ? Board.inkSecondary : Board.ink)
+                            Spacer(minLength: Board.Space.s)
+                            Text(team.score.formatted())
+                                .font(.figureValue)
+                                .foregroundStyle(Board.ink)
+                        }
+                        Text("\(team.participantsLeft) players, \(team.lives) lives\(team.eliminated ? ", eliminated" : "")")
+                            .font(.boardDetail)
+                            .foregroundStyle(Board.inkSecondary)
+                        ForEach(Array(team.attackingSummary.enumerated()), id: \.offset) { _, attack in
+                            let opponent = app.companion.teams.first { $0.id == attack.teamId }?.name ?? "Team \(attack.teamId)"
+                            Text("Attacking \(opponent): \(attack.attacks)")
+                                .font(.boardDetail)
+                                .foregroundStyle(Board.inkSecondary)
+                        }
+                    }
+                }
+            }
+            Text("Team attacks cover the last completed minute.")
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
+                .padding(.top, 6)
+        }
+        if app.companion.notAvailable["torn.elimination"] == 32 {
+            Text("Elimination attacks are closed until the next attacking period.")
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
+                .padding(.top, 6)
+        }
+    }
+}
+
+// MARK: - Shop prices (Travel)
+
+/// A lookup, not a list: Torn sells hundreds of items, so nothing is shown until the player
+/// says what they are after — an item name, a country, or both.
+struct ShopPricesPanel: View {
+    @Environment(AppState.self) private var app
+    @State private var country = ShopPricesPanel.anyCountry
+    @State private var search = ""
+
+    private static let anyCountry = "All countries"
+    private static let rowCap = 12
+
+    private var countries: [String] {
+        [Self.anyCountry] + Set(app.companion.shops.flatMap { $0.value.shops.map(\.country) }).sorted()
+    }
+
+    private func shops(for item: ShopItem) -> [ShopItem.Shop] {
+        item.value.shops.filter { country == Self.anyCountry || $0.country == country }
+    }
+
+    private var hasFilter: Bool {
+        country != Self.anyCountry || !search.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var matches: [ShopItem] {
+        let query = search.trimmingCharacters(in: .whitespaces)
+        return app.companion.shops.filter {
+            (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query)) && !shops(for: $0).isEmpty
+        }
+    }
+
+    var body: some View {
+        if app.companion.enabled.contains(.shops) {
+            BoardSection(title: "Shop prices", trailing: { ModuleFreshness(feature: .shops) }) {
+                ModuleIssues(feature: .shops)
+
+                HStack(spacing: 6) {
+                    TextField("Find an item", text: $search)
+                        .textFieldStyle(.board)
+                        .accessibilityLabel("Find an item")
+                    Picker("Country", selection: $country) {
+                        ForEach(countries, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 118)
+                    .accessibilityLabel("Country")
+                }
+                .padding(.top, 10)
+                .padding(.bottom, Board.Space.s)
+
+                if app.companion.shops.isEmpty {
+                    BoardEmptyState(title: "No shop data yet",
+                                    detail: "It loads the next time this module refreshes.")
+                } else if !hasFilter {
+                    BoardEmptyState(title: "\(app.companion.shops.count.formatted()) items in Torn's shops",
+                                    detail: "Type a name or pick a country to see what is sold there and for how much.")
+                } else if matches.isEmpty {
+                    BoardEmptyState(title: "Nothing sold matches that")
+                } else {
+                    results
+                }
+            }
+            .onAppear(perform: preselectDestination)
+        }
+    }
+
+    /// Flying to or standing in a country: open on that country's shops, since that is the
+    /// question the trip raises.
+    private func preselectDestination() {
+        guard country == Self.anyCountry, let travel = app.player.data?.travel,
+              travel.isTraveling || travel.isAbroad, let destination = travel.destination,
+              countries.contains(destination) else { return }
+        country = destination
+    }
+
+    private var results: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Text("Item")
+                Spacer(minLength: 0)
+                Text("Buy").frame(width: 62, alignment: .trailing)
+                Text("Market").frame(width: 70, alignment: .trailing)
+            }
+            .font(.boardDetail)
+            .foregroundStyle(Board.inkSecondary)
+            .padding(.bottom, 4)
+            .accessibilityHidden(true)
+
+            Board.hairline.frame(height: 1)
+
+            ForEach(matches.prefix(Self.rowCap)) { item in
+                row(item)
+            }
+
+            Text(footnote)
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, Board.Space.s)
+        }
+    }
+
+    private var footnote: String {
+        let shown = min(matches.count, Self.rowCap)
+        let count = matches.count > shown ? "Showing \(shown) of \(matches.count); narrow the search to see the rest. " : ""
+        return count + "Catalog prices. Shop stock and live profit aren't guaranteed."
+    }
+
+    private func row(_ item: ShopItem) -> some View {
+        let offers = shops(for: item)
+        // The cheapest place to buy it among the shops in view; a shop with no buy price
+        // only takes the item, it does not sell it.
+        let cheapest = offers.filter { $0.buyPrice != nil }.min { ($0.buyPrice ?? 0) < ($1.buyPrice ?? 0) }
+        let shown = cheapest ?? offers[0]
+        let watched = app.watchlist.items.first { $0.id == item.id && $0.lowestPrice > 0 }
+        let market = watched?.lowestPrice ?? item.value.marketPrice
+        let buy = cheapest?.buyPrice
+        let more = offers.count - 1
+
+        return BoardRow(verticalPadding: 7) {
+            HStack(alignment: .center, spacing: 10) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(item.name)
+                        .font(.boardStrong)
+                        .foregroundStyle(Board.ink)
+                        .lineLimit(1)
+                    Text("\(shown.shop), \(shown.country)" + (more > 0 ? " +\(more) more" : ""))
+                        .font(.boardDetail)
+                        .foregroundStyle(Board.inkSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Text(buy.map { "$\($0.formatted())" } ?? "—")
+                    .font(.figureValue)
+                    .foregroundStyle(buy == nil ? Board.inkSecondary : Board.ink)
+                    .frame(width: 62, alignment: .trailing)
+                Text("$\(market.formatted())")
+                    .font(.figureValue)
+                    .foregroundStyle(buy.map { market > $0 } == true ? Board.Tone.ready.ink : Board.ink)
+                    .frame(width: 70, alignment: .trailing)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(item.name), \(shown.shop), \(shown.country). "
+            + (buy.map { "Buy $\($0.formatted())" } ?? "Not sold here")
+            + ", \(watched == nil ? "catalog market value" : "last known market price") $\(market.formatted())"
+        )
+    }
+}
+
+// MARK: - Trades (Money)
+
+struct TradesPanel: View {
+    @Environment(AppState.self) private var app
+
+    var body: some View {
+        if app.companion.enabled.contains(.trades) {
+            BoardSection(title: "Open trades", trailing: { ModuleFreshness(feature: .trades) }) {
+                ModuleIssues(feature: .trades)
+                if app.companion.trades.isEmpty {
+                    BoardEmptyState(title: "No open trades")
+                }
+                ForEach(app.companion.trades) { trade in
+                    BoardRow {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(trade.trader.name ?? "Player \(trade.trader.id)")
+                                    .font(.boardStrong)
+                                    .foregroundStyle(Board.ink)
+                                Spacer(minLength: Board.Space.s)
+                                if let expires = trade.expiresAt {
+                                    (Text("expires in ") + Text(Date(timeIntervalSince1970: Double(expires)), style: .relative))
+                                        .font(.boardDetail)
+                                        .foregroundStyle(Board.inkSecondary)
+                                }
+                            }
+                            let description = trade.description.strippedHTMLAndDecodedEntities
+                            if !description.isEmpty {
+                                Text(description)
+                                    .font(.boardCaption)
+                                    .foregroundStyle(Board.inkSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            if let details = app.companion.tradeDetails[trade.id] {
+                                if details.isEmpty {
+                                    Text("No items offered.")
+                                        .font(.boardDetail)
+                                        .foregroundStyle(Board.inkSecondary)
+                                }
+                                ForEach(Array(details.enumerated()), id: \.offset) { _, item in
+                                    Text(item.summary)
+                                        .font(.boardDetail)
+                                        .foregroundStyle(Board.ink)
+                                }
+                            }
+                            HStack(spacing: 6) {
+                                Button("Show offered items") {
+                                    Task { await app.companion.loadTrade(trade.id, app: app) }
+                                }
+                                .buttonStyle(.boardFill)
+                                .disabled(app.requester.isInFlight("user.trade"))
+                                Button("Review in Torn") { BrowserManager.shared.open(TornLink.trade(trade.id)) }
+                                    .buttonStyle(.boardFill)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-struct RecruitingPanel: View {
-    @Environment(AppState.self) private var app
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .recruiting)
-            if app.companion.enabled.contains(.recruiting) {
-                Stepper("Minimum CPR: \(app.companion.minimumCPR)%", value: Binding(
-                    get: { app.companion.minimumCPR }, set: { app.companion.minimumCPR = $0 }), in: 0...100, step: 5)
-                    .font(.caption)
-                if app.player.organizedCrime != nil {
-                    Text("You already have an OC. Recruiting checks resume when you leave it.").font(.caption)
-                } else if app.companion.eligibleSlots.isEmpty {
-                    Text(app.requester.isInFlight("user.recruiting")
-                             ? "Checking available slots…"
-                             : app.companion.fetchedAt["user.recruiting"] == nil
-                             ? "No recruiting data available yet." : "No open slots match your filter.")
-                        .font(.caption).foregroundStyle(.secondary)
-                } else {
-                    ForEach(app.companion.recruiting.filter { $0.status == "Recruiting" }) { crime in
-                        let slots = crime.slots.filter { $0.user == nil && $0.checkpointPassRate >= app.companion.minimumCPR }
-                        if !slots.isEmpty {
-                            Text(crime.name).font(.caption.bold())
-                            ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
-                                Text("\(slot.positionInfo.label) · \(slot.checkpointPassRate)% CPR").font(.caption)
-                            }
-                        }
-                    }
-                }
-                Link("Open organized crimes", destination: TornLink.factionCrimes)
-                    .font(.caption)
-            }
-        }.companionCard()
-    }
-}
+// MARK: - Stock bonuses (Stocks)
 
 struct StockBonusPanel: View {
     @Environment(AppState.self) private var app
+
     private func money(_ value: Double) -> String {
         guard value.isFinite, value >= 0 else { return "Unavailable" }
         return value.formatted(.currency(code: "USD").precision(.fractionLength(0)))
     }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .stocks)
-            if app.companion.enabled.contains(.stocks) {
-                if app.companion.stocks.isEmpty { Text("No stock holdings loaded.").font(.caption).foregroundStyle(.secondary) }
+        if app.companion.enabled.contains(.stocks) {
+            BoardSection(title: "Stock bonuses", trailing: { ModuleFreshness(feature: .stocks) }) {
+                ModuleIssues(feature: .stocks)
+                if app.companion.stocks.isEmpty {
+                    BoardEmptyState(title: "No share blocks loaded")
+                }
                 ForEach(app.companion.stocks) { stock in
                     let reference = app.companion.stockReferences.first { $0.id == stock.id }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(reference?.name ?? "Stock #\(stock.id)").font(.caption.bold())
-                        Text("\(stock.shares.formatted()) shares · Cost \(money(stock.costBasis))").font(.caption2)
-                        if let reference {
-                            Text("Value \(money(Double(stock.shares) * reference.market.price))").font(.caption2)
-                            Text(reference.bonus.description).font(.caption2).foregroundStyle(.secondary)
-                        }
-                        if reference?.bonus.passive == true {
-                            Text(stock.bonus.increment > 0 ? "Passive benefit active" : "More shares needed for benefit").font(.caption)
-                        } else if stock.bonus.available {
-                            Label("Bonus ready to collect", systemImage: "gift.fill").foregroundStyle(.green).font(.caption)
-                        } else {
-                            Text("Bonus progress: \(stock.bonus.progress) / \(stock.bonus.frequency) days · \(stock.bonus.increment) blocks")
-                                .font(.caption2)
-                        }
-                    }
-                    Divider()
-                }
-                Link("Collect in Torn", destination: TornLink.stocks).font(.caption)
-            }
-        }.companionCard()
-    }
-}
-
-struct CompetitionPanel: View {
-    @Environment(AppState.self) private var app
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .competition)
-            if app.companion.enabled.contains(.competition) {
-                if let competition = app.companion.competition {
-                    Text(competition.name).font(.caption.bold())
-                    if let team = competition.team { Text("Your team: \(team)").font(.caption) }
-                    if competition.name != "Easter Egg Hunt", let score = competition.score { Text("Your score: \(score)").font(.caption) }
-                    if let attacks = competition.attacks { Text("Your attacks: \(attacks)").font(.caption) }
-                    if let status = competition.status { Text("Your side: \(status.capitalized)").font(.caption) }
-                    if let hp = competition.hp { Text("HP: \(hp.current) / \(hp.maximum)").font(.caption) }
-                    if let treats = competition.treatsCollected { Text("Treats collected: \(treats)").font(.caption) }
-                    if let basket = competition.basket { Text("Basket: \(basket.name)").font(.caption) }
-                    if competition.name == "Easter Egg Hunt", let eggs = competition.score, let total = competition.total {
-                        Text("Eggs found: \(eggs) / \(total)").font(.caption)
-                    }
-                    if competition.isElimination {
-                        Text("Team attacks cover the last completed minute.").font(.caption2).foregroundStyle(.secondary)
-                        ForEach(app.companion.teams) { team in
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("#\(team.position) \(team.name)\(team.id == competition.teamId ? " (your team)" : "")").font(.caption.bold())
-                                Text("\(team.score) points · \(team.participantsLeft) players · \(team.lives) lives\(team.eliminated ? " · Eliminated" : "")").font(.caption2)
-                                ForEach(Array(team.attackingSummary.enumerated()), id: \.offset) { _, attack in
-                                    let opponent = app.companion.teams.first { $0.id == attack.teamId }?.name ?? "Team \(attack.teamId)"
-                                    Text("→ \(opponent): \(attack.attacks) attacks").font(.caption2).foregroundStyle(.secondary)
-                                }
+                    BoardRow {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(reference?.name ?? "Stock \(stock.id)")
+                                    .font(.boardStrong)
+                                    .foregroundStyle(Board.ink)
+                                    .lineLimit(1)
+                                Spacer(minLength: Board.Space.s)
+                                bonusState(stock, reference: reference)
+                            }
+                            Text("\(stock.shares.formatted()) shares, cost \(money(stock.costBasis))"
+                                 + (reference.map { ", value \(money(Double(stock.shares) * $0.market.price))" } ?? ""))
+                                .font(.boardDetail)
+                                .foregroundStyle(Board.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            if let reference {
+                                Text("Bonus: \(reference.bonus.description)")
+                                    .font(.boardDetail)
+                                    .foregroundStyle(Board.inkSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
-                } else { Text(app.companion.notAvailable["user.competition"] == 33 ? "No active competition." : "No active competition loaded.").font(.caption).foregroundStyle(.secondary) }
-                if app.companion.notAvailable["torn.elimination"] == 32 {
-                    Text("Elimination attacks are closed until the next attacking period.").font(.caption2).foregroundStyle(.secondary)
                 }
-                calendarSection
+                if app.companion.stocks.contains(where: { $0.bonus.available }) {
+                    Button("Collect in Torn") { BrowserManager.shared.open(TornLink.stocks) }
+                        .buttonStyle(.board(.ready, fillsWidth: false))
+                        .padding(.top, Board.Space.s)
+                }
             }
-        }.companionCard()
+        }
+    }
+
+    @ViewBuilder
+    private func bonusState(_ stock: StockV2, reference: StockReferenceV2?) -> some View {
+        if reference?.bonus.passive == true {
+            Text(stock.bonus.increment > 0 ? "Passive, active" : "Needs more shares")
+                .font(.boardCaption)
+                .foregroundStyle(stock.bonus.increment > 0 ? Board.Tone.ready.ink : Board.inkSecondary)
+        } else if stock.bonus.available {
+            Text("Ready")
+                .font(.figureValue)
+                .foregroundStyle(Board.Tone.ready.ink)
+        } else {
+            Text("\(stock.bonus.progress) / \(stock.bonus.frequency) d")
+                .font(.figureValue)
+                .foregroundStyle(Board.ink)
+                .accessibilityLabel("Bonus progress \(stock.bonus.progress) of \(stock.bonus.frequency) days, \(stock.bonus.increment) blocks")
+        }
     }
 }
 
-extension CompetitionPanel {
-    @ViewBuilder fileprivate var calendarSection: some View {
-        let now = app.time.now
-        let (active, upcoming) = CalendarEntry.select(app.companion.calendarEntries, now: now)
-        if !active.isEmpty || !upcoming.isEmpty {
-            Text("Torn calendar").font(.caption.bold())
-            ForEach(Array(active.enumerated()), id: \.offset) { _, entry in
-                Text("\(entry.title) · ends in \(TornFormatter.coarseDuration(Int(entry.end.timeIntervalSince(now))))").font(.caption2)
-            }
-            ForEach(Array(upcoming.enumerated()), id: \.offset) { _, entry in
-                Text("\(entry.title) · \(TornFormatter.relativeDate(entry.start, relativeTo: now))").font(.caption2).foregroundStyle(.secondary)
+// MARK: - Open OC slots (Faction)
+
+struct RecruitingPanel: View {
+    @Environment(AppState.self) private var app
+
+    var body: some View {
+        if app.companion.enabled.contains(.recruiting) {
+            BoardSection(title: "Open OC slots", trailing: { ModuleFreshness(feature: .recruiting) }) {
+                ModuleIssues(feature: .recruiting)
+                if app.player.organizedCrime != nil {
+                    BoardEmptyState(title: "You're already in an OC",
+                                    detail: "Recruiting checks resume when you leave it.")
+                } else if app.companion.eligibleSlots.isEmpty {
+                    BoardEmptyState(
+                        title: app.requester.isInFlight("user.recruiting") ? "Checking open slots"
+                            : app.companion.fetchedAt["user.recruiting"] == nil ? "No recruiting data yet"
+                            : "No open slot at \(app.companion.minimumCPR)% pass rate or better",
+                        detail: "The minimum pass rate is set in Settings › Modules."
+                    )
+                } else {
+                    ForEach(app.companion.recruiting.filter { $0.status == "Recruiting" }) { crime in
+                        let slots = crime.slots.filter { $0.user == nil && $0.checkpointPassRate >= app.companion.minimumCPR }
+                        ForEach(Array(slots.enumerated()), id: \.offset) { _, slot in
+                            ValueRow(label: slot.positionInfo.label, value: "\(slot.checkpointPassRate)%", detail: crime.name)
+                                .accessibilityLabel("\(crime.name), \(slot.positionInfo.label), \(slot.checkpointPassRate) percent pass rate")
+                        }
+                    }
+                    Button("Open organized crimes") { BrowserManager.shared.open(TornLink.factionCrimes) }
+                        .buttonStyle(.board)
+                        .padding(.top, Board.Space.s)
+                }
             }
         }
     }
 }
 
-struct TradesPanel: View {
-    @Environment(AppState.self) private var app
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .trades)
-            if app.companion.enabled.contains(.trades) {
-                if app.companion.trades.isEmpty { Text("No active trades loaded.").font(.caption).foregroundStyle(.secondary) }
-                ForEach(app.companion.trades) { trade in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Trade #\(trade.id) · \(trade.trader.name ?? "Player #\(trade.trader.id)")").font(.caption.bold())
-                        Text(trade.description.strippedHTMLAndDecodedEntities).font(.caption)
-                        if let expires = trade.expiresAt {
-                            (Text("Expires ") + Text(Date(timeIntervalSince1970: Double(expires)), style: .relative)).font(.caption2)
-                        }
-                        Button("Load offered items") { Task { await app.companion.loadTrade(trade.id, app: app) } }
-                            .font(.caption).disabled(app.requester.isInFlight("user.trade"))
-                        if let details = app.companion.tradeDetails[trade.id] {
-                            if details.isEmpty { Text("No items offered.").font(.caption2) }
-                            ForEach(Array(details.enumerated()), id: \.offset) { _, item in
-                                Text(item.summary).font(.caption2)
-                            }
-                        }
-                        Link("Review trade in Torn", destination: TornLink.trade(trade.id))
-                            .font(.caption)
-                    }
-                }
-            }
-        }.companionCard()
-    }
-}
+// MARK: - Conflict history (Faction)
 
-struct ShopPricesPanel: View {
-    @Environment(AppState.self) private var app
-    @State private var country = "All"
-    @State private var search = ""
-    let itemID: Int?
-    init(itemID: Int? = nil) { self.itemID = itemID }
-    private var countries: [String] {
-        ["All"] + Set(app.companion.shops.flatMap { $0.value.shops.map(\.country) }).sorted()
-    }
-    private var matches: [ShopItem] {
-        app.companion.shops.filter {
-            (itemID == nil || $0.id == itemID) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search))
-                && $0.value.shops.contains { country == "All" || $0.country == country }
-        }
-    }
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            CompanionControls(feature: .shops)
-            if app.companion.enabled.contains(.shops) {
-                if itemID == nil {
-                    Picker("Country", selection: $country) { ForEach(countries, id: \.self) { Text($0).tag($0) } }.font(.caption)
-                    TextField("Find an item", text: $search).textFieldStyle(.roundedBorder)
-                }
-                Text("Catalog prices; shop stock and live profit are not guaranteed.").font(.caption2).foregroundStyle(.secondary)
-                if matches.isEmpty { Text("No matching shop items loaded.").font(.caption) }
-                ForEach(matches.prefix(30)) { item in
-                    Text(item.name).font(.caption.bold())
-                    ForEach(Array(item.value.shops.filter { country == "All" || $0.country == country }.enumerated()), id: \.offset) { _, shop in
-                        Text("\(shop.country) · \(shop.shop) · Buy \(shop.buyPrice.map { "$\($0.formatted())" } ?? "—")")
-                            .font(.caption2)
-                    }
-                    if let watched = app.watchlist.items.first(where: { $0.id == item.id }), watched.lowestPrice > 0 {
-                        Text("Last known market price: $\(watched.lowestPrice.formatted())").font(.caption2)
-                    } else {
-                        Text("Catalog market value: $\(item.value.marketPrice.formatted())").font(.caption2)
-                    }
-                }
-                if matches.count > 30 { Text("Showing 30 of \(matches.count). Narrow your search.").font(.caption2) }
-            }
-        }.companionCard()
-    }
-}
-
+/// Torn-wide war records, loaded on request: they are large and nobody needs them polled.
 struct WarfarePanel: View {
     @Environment(AppState.self) private var app
     @State private var category = WarfareCategory.ranked
     private var endpoint: String { "faction.\(category.rawValue)" }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Global conflict history").font(.caption.bold())
-            Picker("Category", selection: $category) { ForEach(WarfareCategory.allCases) { Text($0.title).tag($0) } }
-                .font(.caption)
-            Button("Load history") { Task { await app.companion.loadWarfare(category, app: app) } }
-                .disabled(app.requester.isInFlight(endpoint))
-            if app.requester.isInFlight(endpoint) { ProgressView().controlSize(.small) }
-            if let error = app.companion.errors[endpoint] { Text(error).foregroundStyle(.orange).font(.caption) }
+        BoardSection("Conflict history") {
+            HStack(spacing: 6) {
+                Picker("Category", selection: $category) {
+                    ForEach(WarfareCategory.allCases) { Text($0.title).tag($0) }
+                }
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityLabel("Category")
+
+                if app.requester.isInFlight(endpoint) {
+                    ProgressView().controlSize(.small).frame(width: 28)
+                }
+                Button("Load") { Task { await app.companion.loadWarfare(category, app: app) } }
+                    .buttonStyle(.board)
+                    .disabled(app.requester.isInFlight(endpoint))
+            }
+            .padding(.top, 10)
+            .padding(.bottom, Board.Space.s)
+
+            if let error = app.companion.errors[endpoint] {
+                BoardNotice(tone: .counting, message: error)
+            }
             if let rows = app.companion.warfare[category] {
-                if rows.isEmpty { Text("No records.").font(.caption) }
+                if rows.isEmpty { BoardEmptyState(title: "No records") }
                 ForEach(rows) { row in
-                    VStack(alignment: .leading) {
-                        Text(row.title).font(.caption.bold())
-                        Text(row.detail).font(.caption)
-                        if row.timestamp > 0 { Text(Date(timeIntervalSince1970: Double(row.timestamp)), style: .date).font(.caption2) }
+                    BoardRow(verticalPadding: 7) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(row.title)
+                                    .font(.boardStrong)
+                                    .foregroundStyle(Board.ink)
+                                Spacer(minLength: Board.Space.s)
+                                if row.timestamp > 0 {
+                                    Text(Date(timeIntervalSince1970: Double(row.timestamp)), style: .date)
+                                        .font(.boardDetail)
+                                        .foregroundStyle(Board.inkSecondary)
+                                }
+                            }
+                            Text(row.detail)
+                                .font(.boardCaption)
+                                .foregroundStyle(Board.inkSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
                 if app.companion.nextWarPage[category] != nil {
                     Button("Load older") { Task { await app.companion.loadWarfare(category, app: app, more: true) } }
+                        .buttonStyle(.board)
                         .disabled(app.requester.isInFlight(endpoint))
+                        .padding(.top, Board.Space.s)
                 }
             }
-        }.companionCard()
-    }
-}
-private extension View {
-    func companionCard() -> some View {
-        self.frame(maxWidth: .infinity, alignment: .leading).padding(10)
-            .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        }
     }
 }

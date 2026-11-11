@@ -1,14 +1,14 @@
 import SwiftUI
 
+/// The faction chain as one line of the board: hits so far, and how long before it breaks.
 struct ChainView: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let chain: Chain
     var fetchTime: Date? = nil
     /// Mac↔Torn skew (issue #46). `chain.timeout` is an absolute server timestamp, so the
     /// tick has to be compared against Torn's now, not the Mac's.
     var serverClock: ServerClock = .synchronized
 
-    /// Which card the chain gets. Pulled out of `body` so the choice is testable.
+    /// Which row the chain gets. Pulled out of `body` so the choice is testable.
     enum Mode: Equatable {
         case active
         case cooldown
@@ -25,95 +25,51 @@ struct ChainView: View {
         return .hidden
     }
 
+    private var hits: String { "\(chain.current ?? 0)/\(chain.maximum ?? 0)" }
+
     var body: some View {
         switch Self.mode(for: chain) {
         case .active:
-            activeCard
+            activeRow
         case .cooldown:
-            cooldownCard
+            CountdownRow(tone: .idle, title: "Chain", detail: "The faction can't start a new one yet", value: "Cooldown")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Chain on cooldown")
+                .uiTestID("uitest.chain.cooldown")
         case .unavailable:
-            unavailableCard
+            CountdownRow(tone: .alert, title: "Chain", detail: "\(hits) hits", value: "No timer")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Chain \(hits), timeout unavailable")
+                .uiTestID("uitest.chain.unavailable")
         case .hidden:
             EmptyView()
         }
     }
 
-    private var activeCard: some View {
+    private var activeRow: some View {
         TimelineView(.periodic(from: fetchTime ?? .now, by: 1.0)) { context in
             let remaining = chain.timeoutRemaining(at: serverClock.serverNow(context.date))
             let urgency = ChainUrgency(remaining: remaining)
-            let color = Self.color(for: urgency)
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Image(systemName: "link")
-                        .foregroundColor(color)
-                        .accessibilityHidden(true)
-                    Text("Chain: \(chain.current ?? 0)/\(chain.maximum ?? 0)")
-                        .font(.caption.bold())
-
-                    Spacer()
-
-                    Text(TornFormatter.minutesSeconds(remaining))
-                        .font(.caption.monospacedDigit())
-                        .foregroundColor(color)
-                }
-            }
-            .padding(8)
-            .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
-            .cornerRadius(8)
+            CountdownRow(
+                tone: Self.tone(for: urgency),
+                title: "Chain",
+                detail: "\(hits) hits, breaks at zero",
+                value: TornFormatter.minutesSeconds(remaining)
+            )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
-                "Chain \(chain.current ?? 0)/\(chain.maximum ?? 0), " +
-                "\(urgency.spokenDescription), \(TornFormatter.minutesSeconds(remaining)) remaining"
+                "Chain \(hits), \(urgency.spokenDescription), \(TornFormatter.minutesSeconds(remaining)) remaining"
             )
             .uiTestID("uitest.chain")
         }
     }
 
-    private var cooldownCard: some View {
-        HStack {
-            Image(systemName: "clock")
-                .foregroundColor(.secondary)
-                .accessibilityHidden(true)
-            Text("Chain Cooldown")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Chain on cooldown")
-        .uiTestID("uitest.chain.cooldown")
-    }
-
-    private var unavailableCard: some View {
-        HStack {
-            Image(systemName: "link")
-                .foregroundColor(.red)
-                .accessibilityHidden(true)
-            Text("Chain: \(chain.current ?? 0)/\(chain.maximum ?? 0)")
-                .font(.caption.bold())
-
-            Spacer()
-
-            Text("Unavailable")
-                .font(.caption)
-                .foregroundColor(.red)
-        }
-        .padding(8)
-        .background(Color.red.opacity(reduceTransparency ? 0.4 : 0.1))
-        .cornerRadius(8)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "Chain \(chain.current ?? 0)/\(chain.maximum ?? 0), timeout unavailable"
-        )
-        .uiTestID("uitest.chain.unavailable")
-    }
-
-    private static func color(for urgency: ChainUrgency) -> Color {
+    private static func tone(for urgency: ChainUrgency) -> Board.Tone {
         switch urgency {
-        case .critical: return .red
-        case .warning: return .orange
-        case .healthy: return .green
+        case .critical: return .alert
+        case .warning: return .counting
+        case .healthy: return .ready
         }
     }
 }

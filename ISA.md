@@ -1,9 +1,9 @@
 ---
 project: MacTorn
-task: Reliability + product quality audit (Etap A–L), staged
+task: Panel redesign ("Tablica dyspozytora"), on top of the reliability + product quality program
 effort: E4
-phase: complete
-progress: stage-1 of program
+phase: build
+progress: redesign 0 of 14 claims
 mode: algorithm
 started: 2026-07-15
 updated: 2026-11-11
@@ -271,6 +271,61 @@ Torn's announcement: `user→bazaar` private; global cache 30 s → 1 h on `mark
 - [x] ISC-34 (found during the run): a threshold set on a price that already meets it alerts
   on the next tick from the held price, without waiting for Torn's next snapshot.
   *Evidence: `testAThresholdAlreadyMetByTheHeldPriceAlertsOnTheNextTickWithoutARequest`.*
+
+**Panel redesign — "Tablica dyspozytora" (branch `redesign/dispatch-board`, opened 2026-11-11):**
+
+Stated goal, verbatim (Paweł, 2026-11-11): *"cały nasz UI w całej naszej aplikacji wygląda
+jak gówno. chciałbym, żebyś przeprojektował, od zera, od nowa, całość aplikacji - to co jest
+w appce w ogóle, ale też to co się pojawia jak sie tam kliknie w mac tolbarze"*, narrowed by
+him the same day: *"mnie nie interesuje żeby to była taka normalna aplikacja. to toolbarowa
+appka miała być od zawsze."* Direction A and the left icon rail were chosen by him from the
+design canvas (https://claude.ai/artifact/DrRNLUR24iR4JdNwKdz46Z).
+
+Antecedent for "doesn't look like shit": opening the panel answers "what needs me now"
+without scrolling — bars, ready actions and the next countdowns sit in the first 640 pt, and
+configuration never sits above content.
+
+- [ ] ISC-36: One design system (`Views/Design/`: tokens, type, surfaces, rows, meters,
+  buttons) styles every screen; Reduce Transparency and Increase Contrast are handled inside
+  it. *Probe: `rg "opacity\(reduceTransparency" MacTorn/MacTorn/Views` returns hits only
+  under `Views/Design/`.*
+- [ ] ISC-37: Navigation is a left icon rail (nine modules in three groups, Settings at the
+  bottom); the two rows of group/module buttons are gone. *Probe: rendered Status PNG viewed;
+  `rg "groupBar|modulePicker" MacTorn/MacTorn` empty.*
+- [ ] ISC-38: Status shows four single-line meters, ready items as actions and "Next up" as
+  a list of countdowns in large condensed numerals. *Probe: rendered PNG viewed, light and
+  dark.*
+- [ ] ISC-39: Companion module switches, their per-endpoint "Last checked" lines and Refresh
+  buttons no longer render above content in any tab; they are in Settings.
+  *Probe: `rg "CompanionControls\(" MacTorn/MacTorn/Views` hits only Settings; Status and
+  Travel PNGs viewed.*
+- [ ] ISC-40: Travel shop prices are a search-first table (item, buy, market) with a hard
+  row cap, never an unbounded text list. *Probe: rendered Travel PNG viewed with shop data
+  seeded.*
+- [ ] ISC-41: Every tab, Settings, Diagnostics, Credits, onboarding and both prompts were
+  viewed as rendered pixels, light and dark, from fixture data. *Probe: PNG per screen read.*
+- [ ] ISC-42: The navigation contract holds: `mactorn://<tab>` routes, ⌘1–⌘9 order, ⌘R, ⌘,
+  and Escape. *Probe: `NavigationTests` green; `rg "mactorn://"` call sites unchanged.*
+- [ ] ISC-43: Content-level accessibility labels and UI-test identifiers that existed before
+  the redesign still exist. *Probe: every `uitest.*` id referenced by `MacTornUITests` other
+  than `uitest.group.*` resolves in `rg`.*
+- [ ] ISC-44: `make test` is green and the Release Universal build succeeds.
+  *Probe: command output.*
+- [ ] ISC-45: UI tests are migrated to the rail and run green. *Probe: `make test-ui`
+  output; needs Paweł's go-ahead because XCUITest takes over the screen.*
+- [ ] ISC-46: The theme is recorded in `CLAUDE.md` (`## Frontend Theme`) and
+  `docs/visual-identity.md` no longer describes the old navigation. *Probe: `Read` both.*
+
+Anti-claims:
+
+- [ ] ISC-47: No store, networking or polling behaviour changed. *Probe: `git diff --stat
+  main` touches only `Views/`, the app entry, the UI-test harness, tests and docs.*
+- [ ] ISC-48: Nothing a player could see or do before was silently dropped: every element of
+  the old tabs is placed (glance, detail, Settings) or named as cut in the hand-off report.
+  *Probe: inventory table in the report, checked against `git show main:<view>`.*
+- [ ] ISC-49: MacTorn did not become a regular Mac app: no sidebar window, no Dock icon; the
+  window a widget opens shows the same panel. *Probe: `rg NavigationSplitView` empty;
+  `LSUIElement` still set.*
 
 ## Test Strategy
 

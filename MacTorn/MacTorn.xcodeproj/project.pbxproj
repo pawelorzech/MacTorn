@@ -47,11 +47,11 @@
 		AAA00005 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10005 /* AppState.swift */; };
 		AAA00006 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10006 /* SettingsView.swift */; };
 		AAA00007 /* StatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10007 /* StatusView.swift */; };
-		AAA00008 /* ProgressBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10008 /* ProgressBarView.swift */; };
+		AAA00008 /* ModuleSwitches.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10008 /* ModuleSwitches.swift */; };
 		AAA00009 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10009 /* NotificationManager.swift */; };
 		AAA00010 /* LaunchAtLoginManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10011 /* LaunchAtLoginManager.swift */; };
 		AAA00012 /* ChainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10013 /* ChainView.swift */; };
-		AAA00013 /* StatusBadgesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10014 /* StatusBadgesView.swift */; };
+		AAA00013 /* PlayerStateLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10014 /* PlayerStateLine.swift */; };
 		AAA00014 /* EventsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10015 /* EventsView.swift */; };
 		AAA00016 /* MoneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10017 /* MoneyView.swift */; };
 		AAA00017 /* AttacksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10018 /* AttacksView.swift */; };
@@ -74,7 +74,7 @@
 		AAA00035 /* Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10035 /* Diagnostics.swift */; };
 		AAA00036 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10036 /* DiagnosticsView.swift */; };
 		AAA00037 /* NextAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10037 /* NextAction.swift */; };
-		AAA00038 /* NextActionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextActionView.swift */; };
+		AAA00038 /* NextUpSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10038 /* NextUpSection.swift */; };
 		AAA00039 /* UITestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10039 /* UITestSupport.swift */; };
 		AAA00040 /* TornKeyInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10040 /* TornKeyInfo.swift */; };
 		AAA00041 /* AccountSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10041 /* AccountSessionStore.swift */; };
@@ -154,6 +154,11 @@
 		F2AE96DBDC7C03A0EE0BE4E1 /* WidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD85E9523C992FBE1C69B85 /* WidgetSnapshotTests.swift */; };
 		F50FB58B86CA8320878570F6 /* MacTornWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5EFB34F21576D67E5BADBB3 /* MacTornWidgets.swift */; };
 		FFF2256F1E0755FF9FF80525 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93368049CCAEE9001DD59648 /* WidgetSnapshot.swift */; };
+		AAA00067 /* SnapshotSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10067 /* SnapshotSupport.swift */; };
+		AAA00068 /* ModuleRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10068 /* ModuleRail.swift */; };
+		AAA00069 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA10069 /* Theme.swift */; };
+		AAA0006A /* Primitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1006A /* Primitives.swift */; };
+		AAA0006B /* Controls.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA1006B /* Controls.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -227,12 +232,12 @@
 		AAA10005 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		AAA10006 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		AAA10007 /* StatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusView.swift; sourceTree = "<group>"; };
-		AAA10008 /* ProgressBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressBarView.swift; sourceTree = "<group>"; };
+		AAA10008 /* ModuleSwitches.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleSwitches.swift; sourceTree = "<group>"; };
 		AAA10009 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		AAA10010 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AAA10011 /* LaunchAtLoginManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLoginManager.swift; sourceTree = "<group>"; };
 		AAA10013 /* ChainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChainView.swift; sourceTree = "<group>"; };
-		AAA10014 /* StatusBadgesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusBadgesView.swift; sourceTree = "<group>"; };
+		AAA10014 /* PlayerStateLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerStateLine.swift; sourceTree = "<group>"; };
 		AAA10015 /* EventsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventsView.swift; sourceTree = "<group>"; };
 		AAA10017 /* MoneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoneyView.swift; sourceTree = "<group>"; };
 		AAA10018 /* AttacksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttacksView.swift; sourceTree = "<group>"; };
@@ -255,7 +260,7 @@
 		AAA10035 /* Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Diagnostics.swift; sourceTree = "<group>"; };
 		AAA10036 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		AAA10037 /* NextAction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextAction.swift; sourceTree = "<group>"; };
-		AAA10038 /* NextActionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextActionView.swift; sourceTree = "<group>"; };
+		AAA10038 /* NextUpSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NextUpSection.swift; sourceTree = "<group>"; };
 		AAA10039 /* UITestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestSupport.swift; sourceTree = "<group>"; };
 		AAA10040 /* TornKeyInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TornKeyInfo.swift; sourceTree = "<group>"; };
 		AAA10041 /* AccountSessionStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSessionStore.swift; sourceTree = "<group>"; };
@@ -344,6 +349,11 @@
 		FB75925EBACD51C24C9DF75F /* RepeatingTimer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RepeatingTimer.swift; sourceTree = "<group>"; };
 		FCD0F18721EDFD4FD024279E /* DisplayText.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisplayText.swift; sourceTree = "<group>"; };
 		FD208526C28ECAFA90FEE05E /* WatchlistItem.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchlistItem.swift; sourceTree = "<group>"; };
+		AAA10067 /* SnapshotSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnapshotSupport.swift; sourceTree = "<group>"; };
+		AAA10068 /* ModuleRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModuleRail.swift; sourceTree = "<group>"; };
+		AAA10069 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		AAA1006A /* Primitives.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Primitives.swift; sourceTree = "<group>"; };
+		AAA1006B /* Controls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Controls.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -475,6 +485,7 @@
 		AAA30005 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10068 /* ModuleRail.swift */,
 				AAA10064 /* CompanionViews.swift */,
 				AAA10002 /* ContentView.swift */,
 				AAA10006 /* SettingsView.swift */,
@@ -490,22 +501,33 @@
 				AAA10052 /* StocksView.swift */,
 				AAA10036 /* DiagnosticsView.swift */,
 				AAA30006 /* Components */,
+				AAA3000A /* Design */,
 				92DF634C5EBE4EB3A6927D0B /* AppRoot.swift */,
 				B3E426F61328CF1462BC13E8 /* Navigation.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
 		};
+		AAA3000A /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				AAA1006B /* Controls.swift */,
+				AAA1006A /* Primitives.swift */,
+				AAA10069 /* Theme.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
 		AAA30006 /* Components */ = {
 			isa = PBXGroup;
 			children = (
 				AAA10066 /* SharedComponents.swift */,
-				AAA10008 /* ProgressBarView.swift */,
+				AAA10008 /* ModuleSwitches.swift */,
 				AAA10013 /* ChainView.swift */,
-				AAA10014 /* StatusBadgesView.swift */,
+				AAA10014 /* PlayerStateLine.swift */,
 				AAA10015 /* EventsView.swift */,
 				AAA10026 /* FeedbackPromptView.swift */,
-				AAA10038 /* NextActionView.swift */,
+				AAA10038 /* NextUpSection.swift */,
 				F71B7A54C801E9B473317B0A /* SentryOptInPromptView.swift */,
 				7206469C1364A3222743381F /* ModuleStateView.swift */,
 				0A82A2B11A4EFE8C6B712EDC /* UndoBanner.swift */,
@@ -551,6 +573,7 @@
 		AAA30009 /* Helpers */ = {
 			isa = PBXGroup;
 			children = (
+				AAA10067 /* SnapshotSupport.swift */,
 				AAA1005F /* NumericSafety.swift */,
 				AAA1005D /* TornFormatter.swift */,
 				AAA10025 /* TransparencyEnvironment.swift */,
@@ -870,11 +893,11 @@
 				AAA00051 /* AppState+FactionFetch.swift in Sources */,
 				AAA00006 /* SettingsView.swift in Sources */,
 				AAA00007 /* StatusView.swift in Sources */,
-				AAA00008 /* ProgressBarView.swift in Sources */,
+				AAA00008 /* ModuleSwitches.swift in Sources */,
 				AAA00009 /* NotificationManager.swift in Sources */,
 				AAA00010 /* LaunchAtLoginManager.swift in Sources */,
 				AAA00012 /* ChainView.swift in Sources */,
-				AAA00013 /* StatusBadgesView.swift in Sources */,
+				AAA00013 /* PlayerStateLine.swift in Sources */,
 				AAA00014 /* EventsView.swift in Sources */,
 				AAA00016 /* MoneyView.swift in Sources */,
 				AAA00017 /* AttacksView.swift in Sources */,
@@ -893,8 +916,13 @@
 				AAA00035 /* Diagnostics.swift in Sources */,
 				AAA00036 /* DiagnosticsView.swift in Sources */,
 				AAA00037 /* NextAction.swift in Sources */,
-				AAA00038 /* NextActionView.swift in Sources */,
+				AAA00038 /* NextUpSection.swift in Sources */,
 				AAA00066 /* SharedComponents.swift in Sources */,
+				AAA0006B /* Controls.swift in Sources */,
+				AAA0006A /* Primitives.swift in Sources */,
+				AAA00069 /* Theme.swift in Sources */,
+				AAA00068 /* ModuleRail.swift in Sources */,
+				AAA00067 /* SnapshotSupport.swift in Sources */,
 				AAA00022 /* TravelView.swift in Sources */,
 				AAA00023 /* CreditsView.swift in Sources */,
 				AAA00024 /* TransparencyEnvironment.swift in Sources */,

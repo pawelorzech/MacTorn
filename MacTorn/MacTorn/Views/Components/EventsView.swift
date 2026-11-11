@@ -1,39 +1,30 @@
 import SwiftUI
 
+/// The latest things Torn told the player, newest first: what happened and how long ago.
 struct EventsView: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let events: [TornEvent]
     /// Mac↔Torn skew (issue #46) — event timestamps are Torn's, so "how long ago" is
-    /// measured from Torn's now like every other clock in the window.
+    /// measured from Torn's now like every other clock in the panel.
     var serverClock: ServerClock = .synchronized
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Image(systemName: "bell.fill")
-                    .foregroundColor(.blue)
-                    .accessibilityHidden(true)
-                Text("Recent Events")
-                    .font(.caption.bold())
-            }
-
+        BoardSection("Recent events") {
             if events.isEmpty {
-                Text("No recent events")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                BoardEmptyState(title: "No recent events")
             } else {
                 ForEach(events.prefix(5)) { event in
-                    HStack(alignment: .top, spacing: 6) {
-                        Text("•")
-                            .foregroundColor(.blue)
-                            .accessibilityHidden(true)
-                        Text(event.cleanEvent)
-                            .font(.caption2)
-                            .lineLimit(2)
-                        Spacer()
-                        Text(timeAgo(event.timestamp))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
+                    BoardRow(verticalPadding: 7) {
+                        HStack(alignment: .firstTextBaseline, spacing: Board.Space.m) {
+                            Text(event.cleanEvent)
+                                .font(.boardCaption)
+                                .foregroundStyle(Board.ink)
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: Board.Space.s)
+                            Text(timeAgo(event.timestamp))
+                                .font(.figure(13, weight: .regular))
+                                .foregroundStyle(Board.inkSecondary)
+                        }
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(event.cleanEvent), \(timeAgo(event.timestamp)) ago")
@@ -41,11 +32,8 @@ struct EventsView: View {
                 }
             }
         }
-        .padding(8)
-        .background(Color.blue.opacity(reduceTransparency ? 0.25 : 0.05))
-        .cornerRadius(8)
     }
-    
+
     private func timeAgo(_ timestamp: Int) -> String {
         TornFormatter.timeAgo(since: timestamp, now: serverClock.serverUnix(Date())) ?? "Unknown"
     }

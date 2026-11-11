@@ -6,14 +6,6 @@ enum AppGroup: String, CaseIterable {
     case account = "Account"
     case watch = "Watch"
 
-    var icon: String {
-        switch self {
-        case .now: return "bolt.fill"
-        case .account: return "person.crop.circle"
-        case .watch: return "eye.fill"
-        }
-    }
-
     /// Display order within the group, and — flattened — the order of the ⌘1…⌘9 shortcuts.
     var tabs: [AppTab] {
         switch self {
@@ -53,15 +45,15 @@ enum AppTab: String, CaseIterable {
 
     var icon: String {
         switch self {
-        case .status: return "chart.bar.fill"
+        case .status: return "waveform.path.ecg"
         case .travel: return "airplane"
-        case .money: return "dollarsign.circle.fill"
-        case .properties: return "house.fill"
+        case .money: return "dollarsign.circle"
+        case .properties: return "house"
         case .stocks: return "chart.line.uptrend.xyaxis"
-        case .attacks: return "bolt.shield.fill"
-        case .faction: return "person.3.fill"
-        case .watchlist: return "tag.fill"
-        case .forums: return "bubble.left.and.bubble.right.fill"
+        case .attacks: return "scope"
+        case .faction: return "person.2"
+        case .watchlist: return "tag"
+        case .forums: return "bubble.left"
         }
     }
 
@@ -116,6 +108,9 @@ enum MacTornCommand: Hashable, Identifiable {
 final class AppNavigationState {
     private(set) var selectedTab: AppTab
     private(set) var isShowingSettings: Bool
+    /// Which Settings section is open. Lives here rather than in the view so a module can
+    /// send the player straight to its own switches.
+    var settingsSection: SettingsSection = .account
 
     init(selectedTab: AppTab = .status, isShowingSettings: Bool = false) {
         self.selectedTab = selectedTab
@@ -127,7 +122,8 @@ final class AppNavigationState {
         isShowingSettings = false
     }
 
-    func showSettings() {
+    func showSettings(_ section: SettingsSection? = nil) {
+        if let section { settingsSection = section }
         isShowingSettings = true
     }
 

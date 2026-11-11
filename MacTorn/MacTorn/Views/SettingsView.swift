@@ -54,6 +54,7 @@ private enum SettingsFocus: Hashable {
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
+    @Environment(AppNavigationState.self) private var navigation
     @AppStorage(StoredPreference.appearanceMode) private var appearanceMode: AppearanceMode = .system
     @AppStorage(StoredPreference.reduceTransparency) private var reduceTransparencyOverride: Bool = false
     @Environment(\.reduceTransparency) private var reduceTransparency
@@ -112,6 +113,7 @@ struct SettingsView: View {
         // below the footer, which read as the panel having been truncated.
         .frame(maxHeight: .infinity, alignment: .top)
         .onAppear {
+            selectedSection = navigation.settingsSection
             inputKey = appState.apiKey
             refreshAvailableBrowsers()
             // First run: put the cursor in the key field so setup needs no pointer.
