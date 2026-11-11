@@ -4,6 +4,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case account
     case refresh
     case notifications
+    case modules
     case privacy
     case general
     case diagnostics
@@ -15,6 +16,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .account: return "Account"
         case .refresh: return "Refresh"
         case .notifications: return "Notifications"
+        case .modules: return "Modules"
         case .privacy: return "Privacy"
         case .general: return "General"
         case .diagnostics: return "Diagnostics & About"
@@ -26,6 +28,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .account: return "person.crop.circle"
         case .refresh: return "arrow.clockwise"
         case .notifications: return "bell"
+        case .modules: return "square.grid.2x2"
         case .privacy: return "lock.shield"
         case .general: return "gearshape"
         case .diagnostics: return "stethoscope"
@@ -41,6 +44,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .account: return "Account"
         case .refresh: return "Refresh"
         case .notifications: return "Alerts"
+        case .modules: return "Modules"
         case .privacy: return "Privacy"
         case .general: return "General"
         case .diagnostics: return "About"
@@ -57,7 +61,6 @@ struct SettingsView: View {
     @Environment(AppNavigationState.self) private var navigation
     @AppStorage(StoredPreference.appearanceMode) private var appearanceMode: AppearanceMode = .system
     @AppStorage(StoredPreference.reduceTransparency) private var reduceTransparencyOverride: Bool = false
-    @Environment(\.reduceTransparency) private var reduceTransparency
     @AppStorage(StoredPreference.preferredBrowser) private var preferredBrowser: String = PreferredBrowser.system.rawValue
     @AppStorage(StoredPreference.boosterCooldownTarget) private var boosterCooldownTarget: BoosterCooldownTarget = .boosters
     @AppStorage(StoredPreference.privateIsland) private var privateIsland: Bool = false
@@ -66,7 +69,6 @@ struct SettingsView: View {
     @State private var inputKey: String = ""
     @State private var showCredits = false
     @State private var showDiagnostics = false
-    @State private var selectedSection: SettingsSection = .account
     @State private var availableBrowsers: [PreferredBrowser] = PreferredBrowser.availableBrowsers()
     @FocusState private var settingsFocus: SettingsFocus?
 
@@ -88,37 +90,49 @@ struct SettingsView: View {
         .onExitCommand(perform: handleEscape)
     }
 
+    private var isFirstRun: Bool { appState.apiKey.isEmpty }
+
     private var settingsContent: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             settingsHeader
-            // First run: explain what the key is for instead of six tabs and a bare field.
-            if appState.apiKey.isEmpty {
+            // First run: explain what the key is for instead of seven chips and a bare field.
+            if isFirstRun {
                 welcomeIntro
             } else {
                 sectionPicker
             }
 
-            ScrollView {
-                settingsSection(visibleSection) {
+            BoardPage {
+                BoardSection(visibleSection.title) {
                     selectedSectionContent
                 }
-                .id(visibleSection)
+                .accessibilityElement(children: .contain)
+                .id(visibleSection.anchorID)
+                .uiTestID("uitest.settingsContent.\(visibleSection.rawValue)")
             }
+            .id(visibleSection)
             .scrollIndicators(.automatic)
+
+            if isFirstRun {
+                // No rail on first run, so this is the only way to quit.
+                Button("Quit MacTorn") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(.boardInline)
+                .padding(.horizontal, Board.gutter)
+                .padding(.vertical, Board.Space.m)
+            }
         }
-        .padding(12)
-        .frame(width: 320)
-        // Fill whatever height the window gives, rather than a number tuned against an
-        // older one. Locked at 500 inside a 640pt window this left ~100pt of dead space
-        // below the footer, which read as the panel having been truncated.
-        .frame(maxHeight: .infinity, alignment: .top)
+        // Fill whatever width and height the host gives, rather than a number tuned against
+        // an older one.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Board.surface)
         .onAppear {
-            selectedSection = navigation.settingsSection
             inputKey = appState.apiKey
             refreshAvailableBrowsers()
             // First run: put the cursor in the key field so setup needs no pointer.
-            // Deferred one runloop turn — focus set during onAppear is otherwise dropped.
-            if appState.apiKey.isEmpty && selectedSection == .account {
+            // Deferred one runloop turn, because focus set during onAppear is otherwise dropped.
+            if isFirstRun && navigation.settingsSection == .account {
                 DispatchQueue.main.async { settingsFocus = .apiKey }
             }
         }
@@ -128,7 +142,7 @@ struct SettingsView: View {
                     showDiagnostics = false
                 }
         }
-        .alert("Launch at Login Error", isPresented: Binding(
+        .alert("Launch at login error", isPresented: Binding(
             get: { launchAtLogin.errorMessage != nil },
             set: { if !$0 { launchAtLogin.errorMessage = nil } }
         )) {
@@ -141,90 +155,72 @@ struct SettingsView: View {
     }
 
     private var settingsHeader: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "bolt.circle.fill")
-                .font(.title)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.orange, .yellow],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+        HStack(alignment: .center, spacing: Board.Space.s) {
+            Text("Settings")
+                .font(.boardTitle)
+                .foregroundStyle(Board.ink)
+                .accessibilityAddTraits(.isHeader)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text("MacTorn")
-                    .font(.title2.bold())
-                Text("Settings")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Spacer(minLength: Board.Space.s)
 
-            Spacer()
-
-            if !appState.apiKey.isEmpty {
+            if !isFirstRun {
                 Button("Done", action: onDismiss)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .buttonStyle(.board)
             }
         }
+        .padding(.horizontal, Board.gutter)
+        .padding(.top, Board.Space.m)
+        .padding(.bottom, Board.Space.m)
         .accessibilityElement(children: .contain)
     }
 
     private var sectionPicker: some View {
         LazyVGrid(
-            columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3),
+            columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 4),
             spacing: 6
         ) {
             ForEach(SettingsSection.allCases) { section in
+                let isSelected = navigation.settingsSection == section
                 Button {
-                    selectedSection = section
+                    navigation.settingsSection = section
                 } label: {
-                    VStack(spacing: 3) {
-                        Image(systemName: section.icon)
-                            .font(.caption)
-                        Text(section.compactTitle)
-                            .font(.caption2.weight(.medium))
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-                    .background(
-                        selectedSection == section
-                            ? Color.accentColor.opacity(reduceTransparency ? 0.28 : 0.14)
-                            : Color.secondary.opacity(reduceTransparency ? 0.12 : 0.06)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(
-                                selectedSection == section
-                                    ? Color.accentColor.opacity(0.65)
-                                    : Color.clear
-                            )
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .contentShape(Rectangle())
+                    Text(section.compactTitle)
+                        .font(.boardCaption.weight(isSelected ? .semibold : .regular))
+                        .lineLimit(1)
+                        .foregroundStyle(isSelected ? Board.onAccent : Board.inkSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 30)
+                        .background(
+                            isSelected ? Board.accent : Color.clear,
+                            in: RoundedRectangle(cornerRadius: Board.Radius.control)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: Board.Radius.control)
+                                .strokeBorder(isSelected ? Board.accent : Board.outline, lineWidth: 1)
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: Board.Radius.control))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(selectedSection == section ? Color.accentColor : Color.secondary)
                 .accessibilityLabel(section.title)
-                .accessibilityAddTraits(selectedSection == section ? .isSelected : [])
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
                 .uiTestID(section.anchorID)
             }
         }
+        .padding(.horizontal, Board.gutter)
+        .padding(.bottom, Board.Space.m)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Settings sections")
     }
 
-    /// Without a key only the Account section is reachable; the picker is hidden.
+    /// Without a key only the Account section is reachable; the chips are hidden.
     private var visibleSection: SettingsSection {
-        appState.apiKey.isEmpty ? .account : selectedSection
+        isFirstRun ? .account : navigation.settingsSection
     }
 
     private var welcomeIntro: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Your Torn bars, cooldowns, travel and faction in the menu bar, refreshed in the background.")
-                .font(.caption)
+                .font(.boardCaption)
+                .foregroundStyle(Board.ink)
                 .fixedSize(horizontal: false, vertical: true)
             disclosureLine(
                 "key.fill",
@@ -235,6 +231,8 @@ struct SettingsView: View {
                 "The key is stored in the macOS **Keychain** and Torn data stays **on this Mac**. MacTorn never acts on your account."
             )
         }
+        .padding(.horizontal, Board.gutter)
+        .padding(.bottom, Board.Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
         .uiTestID("uitest.welcomeIntro")
@@ -249,6 +247,8 @@ struct SettingsView: View {
             refreshSection
         case .notifications:
             notificationsSection
+        case .modules:
+            modulesSection
         case .privacy:
             privacySection
         case .general:
@@ -258,301 +258,328 @@ struct SettingsView: View {
         }
     }
 
-    private func settingsSection<Content: View>(
-        _ section: SettingsSection,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(section.title, systemImage: section.icon)
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-
-            content()
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(reduceTransparency ? 0.14 : 0.06))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .accessibilityElement(children: .contain)
-        .id(section.anchorID)
-        .uiTestID("uitest.settingsContent.\(section.rawValue)")
-    }
+    // MARK: - Account
 
     private var accountSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SecureField("Torn API Key", text: $inputKey)
-                .textFieldStyle(.roundedBorder)
-                .focused($settingsFocus, equals: .apiKey)
-                .accessibilityLabel("Torn API Key")
-                .uiTestID("uitest.apiKeyField")
-                // Return in the key field does what "Save & Connect" does, so first-run
-                // setup completes from the keyboard alone.
-                .onSubmit {
-                    if canSaveKey { saveAndConnect() }
+        VStack(alignment: .leading, spacing: 0) {
+            if !isFirstRun, let player = appState.player.data, let name = player.name {
+                ValueRow(label: "Connected as", value: name, isFigure: false)
+                if let id = player.playerId {
+                    ValueRow(label: "Player ID", value: String(id))
                 }
-                // A validation result belongs to the key it was run against. Editing the
-                // field invalidates it — otherwise a green "✓ Full Access · ID 123456"
-                // from key A stays on screen under a freshly-typed key B, and the user
-                // saves B believing it was verified.
-                .onChange(of: inputKey) { _, _ in
-                    if appState.keyValidation != .idle {
-                        appState.keyValidation = .idle
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                SecureField("Torn API Key", text: $inputKey)
+                    .textFieldStyle(.plain)
+                    .font(.boardBody)
+                    .padding(.horizontal, 9)
+                    .frame(minHeight: 28)
+                    .background(Board.well, in: RoundedRectangle(cornerRadius: Board.Radius.control))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: Board.Radius.control)
+                            .strokeBorder(Board.outline, lineWidth: 1)
                     }
-                }
-
-            HStack(spacing: 8) {
-                Button("Save & Connect", action: saveAndConnect)
-                .buttonStyle(.borderedProminent)
-                .disabled(!canSaveKey)
-                .uiTestID("uitest.saveKey")
-
-                Button {
-                    let typed = trimmedInputKey
-                    Task { await appState.validateKey(typed.isEmpty ? nil : typed) }
-                } label: {
-                    if appState.keyValidation == .validating {
-                        HStack(spacing: 5) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Testing…")
+                    .focused($settingsFocus, equals: .apiKey)
+                    .accessibilityLabel("Torn API Key")
+                    .uiTestID("uitest.apiKeyField")
+                    // Return in the key field does what "Save & Connect" does, so first-run
+                    // setup completes from the keyboard alone.
+                    .onSubmit {
+                        if canSaveKey { saveAndConnect() }
+                    }
+                    // A validation result belongs to the key it was run against. Editing the
+                    // field invalidates it; otherwise a green result for key A stays on screen
+                    // under a freshly-typed key B, and the user saves B believing it was verified.
+                    .onChange(of: inputKey) { _, _ in
+                        if appState.keyValidation != .idle {
+                            appState.keyValidation = .idle
                         }
-                    } else {
-                        Text("Test Connection")
                     }
+
+                HStack(spacing: 8) {
+                    Button("Save & Connect", action: saveAndConnect)
+                        .buttonStyle(.boardPrimary)
+                        .disabled(!canSaveKey)
+                        .uiTestID("uitest.saveKey")
+
+                    Button {
+                        let typed = trimmedInputKey
+                        Task { await appState.validateKey(typed.isEmpty ? nil : typed) }
+                    } label: {
+                        if appState.keyValidation == .validating {
+                            HStack(spacing: 5) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Testing…")
+                            }
+                        } else {
+                            Text("Test Connection")
+                        }
+                    }
+                    .buttonStyle(.board)
+                    .disabled(appState.keyValidation == .validating
+                              || (trimmedInputKey.isEmpty && appState.apiKey.isEmpty))
+                    .uiTestID("uitest.testConnection")
                 }
-                .buttonStyle(.bordered)
-                .disabled(appState.keyValidation == .validating
-                          || (trimmedInputKey.isEmpty && appState.apiKey.isEmpty))
-                .uiTestID("uitest.testConnection")
-            }
-            .controlSize(.small)
 
-            keyValidationResult
+                keyValidationResult
 
-            if let error = appState.accountSession.persistenceError {
-                Label(error, systemImage: "lock.trianglebadge.exclamationmark")
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .uiTestID("uitest.keyPersistenceError")
-            }
+                if let error = appState.accountSession.persistenceError {
+                    BoardNotice(tone: .alert, message: error)
+                        .uiTestID("uitest.keyPersistenceError")
+                }
 
-            // Button + BrowserManager rather than `Link`, so the Preferred Browser setting
-            // is honoured.
-            Button("Get API Key from Torn") {
-                BrowserManager.shared.open(TornLink.apiKeyPreferences)
+                // Button + BrowserManager rather than `Link`, so the Preferred Browser setting
+                // is honoured.
+                Button("Get API Key from Torn") {
+                    BrowserManager.shared.open(TornLink.apiKeyPreferences)
+                }
+                .buttonStyle(.boardInline)
             }
-            .buttonStyle(.link)
-            .font(.caption)
+            .padding(.top, Board.Space.m)
         }
     }
+
+    // MARK: - Refresh
 
     private static func intervalLabel(_ seconds: Int) -> String {
         seconds < 120 ? "\(seconds)s" : "\(seconds / 60)m"
     }
 
     private var refreshSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Picker("Main refresh", selection: refreshIntervalBinding) {
-                ForEach(AppState.refreshIntervals, id: \.self) { seconds in
-                    if seconds == AppState.refreshIntervals.first {
-                        Text("\(Self.intervalLabel(seconds)) ⚡︎")
-                            .accessibilityLabel("\(seconds) seconds, fastest")
-                            .tag(seconds)
-                    } else {
+        VStack(alignment: .leading, spacing: 0) {
+            SettingChoiceRow(
+                title: "Main refresh",
+                detail: appState.refreshInterval == AppState.refreshIntervals.first
+                    ? "Torn may cache data for about 30 seconds. A 15-second interval can spend API budget without returning fresher data; 30 seconds is recommended."
+                    : nil
+            ) {
+                Picker("Main refresh", selection: refreshIntervalBinding) {
+                    ForEach(AppState.refreshIntervals, id: \.self) { seconds in
+                        if seconds == AppState.refreshIntervals.first {
+                            Text(Self.intervalLabel(seconds))
+                                .accessibilityLabel("\(seconds) seconds, fastest")
+                                .tag(seconds)
+                        } else {
+                            Text(Self.intervalLabel(seconds)).tag(seconds)
+                        }
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            }
+
+            SettingChoiceRow(title: "Forum check") {
+                Picker("Forum check", selection: forumPollingBinding) {
+                    ForEach(ForumWatchConfig.pollingIntervals, id: \.self) { seconds in
                         Text(Self.intervalLabel(seconds)).tag(seconds)
                     }
                 }
-            }
-            .pickerStyle(.segmented)
-
-            if appState.refreshInterval == AppState.refreshIntervals.first {
-                Text("Torn may cache data for about 30 seconds. A 15-second interval can spend API budget without returning fresher data; 30 seconds is recommended.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
             }
 
-            Picker("Forum check", selection: forumPollingBinding) {
-                ForEach(ForumWatchConfig.pollingIntervals, id: \.self) { seconds in
-                    Text(Self.intervalLabel(seconds)).tag(seconds)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Toggle("Alert on new threads in a forum category", isOn: forumCategoryMonitorBinding)
-                .font(.caption)
+            SwitchRow(title: "Alert on new threads in a forum category", isOn: forumCategoryMonitorBinding)
 
             if appState.forumWatch.config.factionForumAutoMonitor {
-                HStack {
-                    Text("Category ID")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    TextField("e.g. 4", text: forumCategoryIDBinding)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityLabel("Forum category ID")
-                        .font(.caption)
-                        .frame(width: 80)
+                BoardRow {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: Board.Space.s) {
+                            Text("Category ID")
+                                .font(.boardBody)
+                                .foregroundStyle(Board.ink)
+                            Spacer(minLength: Board.Space.s)
+                            TextField("e.g. 4", text: forumCategoryIDBinding)
+                                .textFieldStyle(.board)
+                                .accessibilityLabel("Forum category ID")
+                                .frame(width: 80)
+                        }
+                        // Without a category id the watch fetches nothing and reports nothing,
+                        // so the switch reads as armed while being permanently inert. Say so.
+                        if appState.forumWatch.config.factionForumCategoryId == nil {
+                            BoardNotice(
+                                tone: .counting,
+                                message: "Enter a category ID, nothing is being watched yet."
+                            )
+                        }
+                        Text("Find the ID in the forum URL: torn.com/forums.php#/p=forums&f=4 is category 4. The first check only learns which threads are already there, so alerts start from the next one.")
+                            .font(.boardDetail)
+                            .foregroundStyle(Board.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                // Without a category id the watch fetches nothing and reports nothing, so
-                // the switch reads as armed while being permanently inert. Say so.
-                if appState.forumWatch.config.factionForumCategoryId == nil {
-                    Label("Enter a category ID — nothing is being watched yet.",
-                          systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Text("Find the ID in the forum URL: torn.com/forums.php#/p=forums&f=4 is category 4. The first check only learns which threads are already there, so alerts start from the next one.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
 
+    // MARK: - Notifications, modules, privacy
+
     private var notificationsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            nextActionConfigSection
+        nextActionConfigSection
+    }
+
+    private var modulesSection: some View {
+        VStack(alignment: .leading, spacing: Board.Space.s) {
+            Text("Optional extras that use more of your Torn API budget. Once switched on, each one appears inside its tab.")
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, Board.Space.s)
+
+            ModuleSwitchList()
         }
     }
 
     private var privacySection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
             apiUsageDisclosure
 
-            Divider()
-
-            VStack(alignment: .leading, spacing: 3) {
-                Toggle("Send crash reports", isOn: $sentryEnabled)
-                    .toggleStyle(.switch)
-                    .onChange(of: sentryEnabled) { _, _ in
-                        SentryManager.applyState()
-                    }
-                Text("Anonymous crash and error reports help fix bugs. API keys and player data are never sent.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            SwitchRow(
+                title: "Send crash reports",
+                detail: "Anonymous crash and error reports help fix bugs. API keys and player data are never sent.",
+                isOn: $sentryEnabled
+            )
+            .onChange(of: sentryEnabled) { _, _ in
+                SentryManager.applyState()
             }
         }
     }
 
+    // MARK: - General
+
     private var generalSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Toggle("Launch at Login", isOn: Binding(
+        VStack(alignment: .leading, spacing: 0) {
+            SwitchRow(title: "Launch at login", isOn: Binding(
                 get: { launchAtLogin.isEnabled },
                 set: { _ in launchAtLogin.toggle() }
             ))
-            .toggleStyle(.switch)
 
-            Picker("Appearance", selection: $appearanceMode) {
-                ForEach(AppearanceMode.allCases, id: \.self) { mode in
-                    Text(mode.rawValue).tag(mode)
+            SettingChoiceRow(title: "Appearance") {
+                Picker("Appearance", selection: $appearanceMode) {
+                    ForEach(AppearanceMode.allCases, id: \.self) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            }
+
+            BoardRow {
+                HStack(spacing: Board.Space.s) {
+                    Text("Preferred browser")
+                        .font(.boardBody)
+                        .foregroundStyle(Board.ink)
+                    Spacer(minLength: Board.Space.s)
+                    Picker("Preferred browser", selection: $preferredBrowser) {
+                        ForEach(availableBrowsers) { browser in
+                            Text(browser.rawValue).tag(browser.rawValue)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
                 }
             }
-            .pickerStyle(.segmented)
 
-            Picker("Preferred Browser", selection: $preferredBrowser) {
-                ForEach(availableBrowsers) { browser in
-                    Text(browser.rawValue).tag(browser.rawValue)
+            SettingChoiceRow(title: "Booster cooldown link") {
+                Picker("Booster cooldown link", selection: $boosterCooldownTarget) {
+                    ForEach(BoosterCooldownTarget.allCases, id: \.self) { target in
+                        Text(target.title).tag(target)
+                    }
                 }
-            }
-            .pickerStyle(.menu)
-
-            Picker("Booster cooldown link", selection: $boosterCooldownTarget) {
-                ForEach(BoosterCooldownTarget.allCases, id: \.self) { target in
-                    Text(target.title).tag(target)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Toggle("Private Island return icon", isOn: $privateIsland)
-                    .toggleStyle(.switch)
-                Text("Shows the Private Island shortcut for the return trip. Quick Travel time is selected separately.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
             }
 
-            Toggle("Always reduce transparency", isOn: $reduceTransparencyOverride)
-                .toggleStyle(.switch)
-                .help("MacTorn already follows System Settings → Accessibility → "
-                      + "Display → Reduce transparency. Turn this on to use solid "
-                      + "backgrounds even when that system setting is off.")
-                .accessibilityHint("Forces solid backgrounds regardless of the system "
-                                   + "Reduce transparency setting")
+            SwitchRow(
+                title: "Private Island return icon",
+                detail: "Shows the Private Island shortcut for the return trip. Quick Travel time is selected separately.",
+                isOn: $privateIsland
+            )
+
+            SwitchRow(
+                title: "Always reduce transparency",
+                detail: "MacTorn already follows the Reduce transparency setting in System Settings, under Accessibility and Display. Turn this on to use solid backgrounds even when that setting is off.",
+                isOn: $reduceTransparencyOverride
+            )
+            .help("MacTorn already follows System Settings, Accessibility, Display, Reduce transparency. "
+                  + "Turn this on to use solid backgrounds even when that system setting is off.")
+            .accessibilityHint("Forces solid backgrounds regardless of the system "
+                               + "Reduce transparency setting")
         }
     }
 
-    private var diagnosticsSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if let update = appState.updateAvailable {
-                VStack(alignment: .leading, spacing: 6) {
-                    Label(
-                        "New version available: \(update.tagName)",
-                        systemImage: "arrow.triangle.2.circlepath"
-                    )
-                    .font(.caption.bold())
-                    .foregroundStyle(.green)
+    // MARK: - Diagnostics & About
 
-                    Button("Download Update") {
+    private var diagnosticsSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let update = appState.updateAvailable {
+                BoardNotice(tone: .ready, message: "New version available: \(update.tagName)") {
+                    Button("Download update") {
                         // Only a github.com link, whatever the API answered with. See
                         // `UpdateManager.allowedReleaseHosts`.
                         guard UpdateManager.isTrustedReleaseURL(update.htmlUrl),
                               let url = URL(string: update.htmlUrl) else { return }
                         BrowserManager.shared.open(url)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
+                    .buttonStyle(.board(.ready, fillsWidth: false))
                 }
+                .padding(.top, Board.Space.m)
+                .padding(.bottom, Board.Space.s)
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 Button("Diagnostics") {
                     showDiagnostics = true
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.boardFill)
                 .accessibilityIdentifier("settings.diagnostics")
 
                 Button("Credits") {
                     showCredits = true
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                .buttonStyle(.boardFill)
 
                 Button("GitHub") {
                     BrowserManager.shared.open(URL(string: "https://github.com/pawelorzech/MacTorn")!)
                 }
-                .buttonStyle(.link)
-                .font(.caption)
+                .buttonStyle(.boardFill)
+            }
+            .padding(.vertical, Board.Space.m)
+
+            Board.hairline.frame(height: 1)
+
+            BoardRow {
+                HStack(spacing: Board.Space.m) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Support the developer")
+                            .font(.boardBody)
+                            .foregroundStyle(Board.ink)
+                        Text("Send Xanax or cash in Torn to help keep MacTorn going.")
+                            .font(.boardDetail)
+                            .foregroundStyle(Board.inkSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: Board.Space.s)
+
+                    Button("Send to bombel") {
+                        openTornProfile()
+                    }
+                    .buttonStyle(.board)
+                }
             }
 
-            Divider()
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Support the Developer")
-                        .font(.caption.bold())
-                    Text("Send me some Xanax or cash :)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button("Send to bombel") {
-                    openTornProfile()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-
-            Text("MacTorn v\(BuildInfo.appVersion)")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            ValueRow(label: "MacTorn version", value: BuildInfo.appVersion, isFigure: false)
         }
     }
+
+    // MARK: - Bindings
 
     private var refreshIntervalBinding: Binding<Int> {
         Binding(
@@ -629,34 +656,40 @@ struct SettingsView: View {
         }
     }
 
-    private var nextActionConfigSection: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Choose which events appear in the Next Action timeline.")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+    // MARK: - Pieces
 
-                ForEach(NextActionCategory.allCases, id: \.self) { category in
-                    Toggle(isOn: Binding(
-                        get: { !appState.hiddenNextActionCategories.contains(category) },
-                        set: { show in
-                            if show {
-                                appState.hiddenNextActionCategories.remove(category)
-                            } else {
-                                appState.hiddenNextActionCategories.insert(category)
+    private var nextActionConfigSection: some View {
+        BoardRow {
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Choose which events appear in the Next up list.")
+                        .font(.boardDetail)
+                        .foregroundStyle(Board.inkSecondary)
+
+                    ForEach(NextActionCategory.allCases, id: \.self) { category in
+                        Toggle(isOn: Binding(
+                            get: { !appState.hiddenNextActionCategories.contains(category) },
+                            set: { show in
+                                if show {
+                                    appState.hiddenNextActionCategories.remove(category)
+                                } else {
+                                    appState.hiddenNextActionCategories.insert(category)
+                                }
                             }
+                        )) {
+                            Label(category.label, systemImage: category.systemImage)
+                                .font(.boardBody)
+                                .foregroundStyle(Board.ink)
                         }
-                    )) {
-                        Label(category.label, systemImage: category.systemImage)
-                            .font(.caption)
+                        .toggleStyle(.checkbox)
                     }
-                    .toggleStyle(.checkbox)
                 }
+                .padding(.top, Board.Space.s)
+            } label: {
+                Text("Next up categories")
+                    .font(.boardStrong)
+                    .foregroundStyle(Board.ink)
             }
-            .padding(.top, 4)
-        } label: {
-            Label("Next Action timeline", systemImage: "flag.checkered")
-                .font(.caption.bold())
         }
     }
 
@@ -667,98 +700,105 @@ struct SettingsView: View {
             EmptyView()
         case .success(let result):
             let blocked = result.availability.filter { !$0.available }
-            VStack(alignment: .leading, spacing: 4) {
-                Label(
-                    "\(result.accessType) · ID \(result.playerID)",
-                    systemImage: "checkmark.seal.fill"
-                )
-                .font(.caption.bold())
-                .foregroundStyle(.green)
-
-                if blocked.isEmpty {
-                    Text("All MacTorn features are available with this key.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("Limited by your key — these features won't load:")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                    ForEach(blocked) { item in
-                        Text("• \(item.name)")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                }
-            }
+            BoardNotice(
+                tone: .ready,
+                message: "\(result.accessType), player ID \(result.playerID)",
+                detail: blocked.isEmpty
+                    ? "All MacTorn features are available with this key."
+                    : "Limited by your key. These features won't load: \(blocked.map(\.name).joined(separator: ", ")). Use a key with higher access to get them."
+            )
             .frame(maxWidth: .infinity, alignment: .leading)
             .uiTestID("uitest.keyValidationSuccess")
         case .failure(let message):
-            Label(message, systemImage: "xmark.octagon.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
+            BoardNotice(tone: .alert, message: message)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
                 .uiTestID("uitest.keyValidationFailure")
         }
     }
 
     private var apiUsageDisclosure: some View {
-        DisclosureGroup {
-            VStack(alignment: .leading, spacing: 8) {
-                disclosureLine(
-                    "key.fill",
-                    "Requires a Torn key with at least **\(TornEndpointRegistry.requiredAccessLevel.label)** for every feature. Lower access still works — unavailable modules are shown after Test Connection."
-                )
-                disclosureLine(
-                    "lock.fill",
-                    "Your key is stored in the macOS **Keychain**, never in plaintext preferences."
-                )
-                disclosureLine(
-                    "desktopcomputer",
-                    "All Torn data stays **on this Mac**. MacTorn is read-only — it never takes action on your account."
-                )
-                disclosureLine(
-                    "exclamationmark.shield",
-                    "Crash reporting is **opt-in** and off by default; no Torn data is sent."
-                )
+        BoardRow {
+            DisclosureGroup {
+                VStack(alignment: .leading, spacing: 8) {
+                    disclosureLine(
+                        "key.fill",
+                        "Requires a Torn key with at least **\(TornEndpointRegistry.requiredAccessLevel.label)** for every feature. Lower access still works, and unavailable modules are shown after Test Connection."
+                    )
+                    disclosureLine(
+                        "lock.fill",
+                        "Your key is stored in the macOS **Keychain**, never in plaintext preferences."
+                    )
+                    disclosureLine(
+                        "desktopcomputer",
+                        "All Torn data stays **on this Mac**. MacTorn is read-only and never takes action on your account."
+                    )
+                    disclosureLine(
+                        "exclamationmark.shield",
+                        "Crash reporting is **opt-in** and off by default; no Torn data is sent."
+                    )
 
-                Divider()
+                    Text("Selections requested")
+                        .font(.boardDetail)
+                        .foregroundStyle(Board.inkSecondary)
+                    Text(TornEndpointRegistry.allSelections.joined(separator: ", "))
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(Board.ink)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Text("Selections requested:")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text(TornEndpointRegistry.allSelections.joined(separator: ", "))
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(Color.accentColor)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Button("View Torn API Terms of Service") {
-                    BrowserManager.shared.open(TornLink.page("api.html"))
+                    Button("View Torn API terms of service") {
+                        BrowserManager.shared.open(TornLink.page("api.html"))
+                    }
+                    .buttonStyle(.boardInline)
                 }
-                .buttonStyle(.link)
-                .font(.caption)
+                .padding(.top, Board.Space.s)
+            } label: {
+                Text("API data usage")
+                    .font(.boardStrong)
+                    .foregroundStyle(Board.ink)
             }
-            .padding(.top, 4)
-        } label: {
-            Label("API Data Usage", systemImage: "doc.text")
-                .font(.caption.bold())
         }
     }
 
     private func disclosureLine(_ icon: String, _ markdown: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: icon)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
                 .frame(width: 16)
+                .accessibilityHidden(true)
             Text(.init(markdown))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private func openTornProfile() {
         BrowserManager.shared.open(TornLink.profile(developerID))
+    }
+}
+
+/// A setting that is a choice rather than a switch: its name, an optional explanation, and
+/// the control under them on its own line.
+private struct SettingChoiceRow<Control: View>: View {
+    let title: String
+    var detail: String? = nil
+    @ViewBuilder var control: () -> Control
+
+    var body: some View {
+        BoardRow {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(title)
+                    .font(.boardBody)
+                    .foregroundStyle(Board.ink)
+                control()
+                if let detail {
+                    Text(detail)
+                        .font(.boardDetail)
+                        .foregroundStyle(Board.inkSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 }

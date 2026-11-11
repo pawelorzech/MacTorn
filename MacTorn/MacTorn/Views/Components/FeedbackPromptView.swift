@@ -2,75 +2,48 @@ import SwiftUI
 
 struct FeedbackPromptView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
 
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "heart.fill")
-                .font(.title)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [.pink, .red],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+        VStack(alignment: .leading, spacing: Board.Space.m) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Enjoying MacTorn?")
+                    .font(.boardTitle)
+                    .foregroundStyle(Board.ink)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text("Enjoying MacTorn?")
-                .font(.headline)
+                Text("Your feedback helps make the app better for everyone.")
+                    .font(.boardCaption)
+                    .foregroundStyle(Board.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            Text("Your feedback helps make the app better for everyone.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-
-            VStack(spacing: 8) {
-                Button {
+            VStack(spacing: 6) {
+                Button("Yes, leave a review") {
                     appState.feedbackResponded()
                     BrowserManager.shared.open(TornLink.page("forums.php#/p=threads&f=67&t=16532308"))
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "hand.thumbsup.fill")
-                        Text("Yes! Leave a review")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.2))
-                    .cornerRadius(8)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BoardButtonStyle(kind: .primary, fillsWidth: true))
 
-                Button {
+                Button("Not really, send feedback") {
                     appState.feedbackResponded()
                     NSWorkspace.shared.open(URL(string: "mailto:pawel@orzech.me?subject=MacTorn%20Feedback")!)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "envelope.fill")
-                        Text("Not really — send feedback")
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.2))
-                    .cornerRadius(8)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.boardFill)
             }
 
-            Button {
+            Button("Not now") {
                 appState.feedbackDismissed()
-            } label: {
-                Text("Not now")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.boardInline)
+            .frame(maxWidth: .infinity)
         }
-        .padding(20)
-        .frame(width: 260)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(reduceTransparency ? Color(.windowBackgroundColor) : Color(.windowBackgroundColor).opacity(0.95))
-                .shadow(radius: 8)
-        )
+        .padding(Board.gutter)
+        .frame(width: 280)
+        // The one boxed surface in the app: a modal card over a dimmed panel. Opaque, no
+        // shadow, so it reads the same under Reduce Transparency.
+        .background(Board.surface, in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10).strokeBorder(Board.outline, lineWidth: 1)
+        }
     }
 }

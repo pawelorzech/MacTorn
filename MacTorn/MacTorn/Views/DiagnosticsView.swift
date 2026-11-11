@@ -11,96 +11,101 @@ struct DiagnosticsView: View {
     @State private var copied = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: Board.Space.s) {
                 Text("Diagnostics")
-                    .font(.headline)
-                Spacer()
+                    .font(.boardTitle)
+                    .foregroundStyle(Board.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Board.Space.s)
                 Button("Refresh") { Task { await load() } }
+                    .buttonStyle(.board)
                     .accessibilityIdentifier("diagnostics.refresh")
                 Button("Done") { dismiss() }
+                    .buttonStyle(.board)
                     .accessibilityIdentifier("diagnostics.done")
             }
+            .padding(.horizontal, Board.gutter)
+            .padding(.top, Board.Space.m)
+            .padding(.bottom, Board.Space.m)
 
             if let report {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        section("Environment") {
-                            row("App", "\(report.appVersion) (\(report.build))")
-                            row("macOS", report.osVersion)
-                            row("Architecture", report.architecture)
+                BoardPage {
+                    BoardSection("Environment") {
+                        ValueRow(label: "App", value: "\(report.appVersion) (\(report.build))", isFigure: false)
+                        ValueRow(label: "macOS", value: report.osVersion, isFigure: false)
+                        ValueRow(label: "Architecture", value: report.architecture, isFigure: false)
+                    }
+
+                    BoardSection("Runtime") {
+                        ValueRow(label: "Network", value: report.isOnline ? "Online" : "Offline",
+                                 tone: report.isOnline ? .ready : .alert, isFigure: false)
+                        ValueRow(label: "Notifications", value: report.notificationPermission, isFigure: false)
+                        ValueRow(label: "API key", value: report.keyPresent ? "Configured" : "Missing",
+                                 tone: report.keyPresent ? nil : .alert, isFigure: false)
+                        ValueRow(label: "Needs access", value: report.requiredAccessLevel, isFigure: false)
+                        ValueRow(label: "Last refresh", value: lastRefreshText(report.lastSuccessfulRefresh), isFigure: false)
+                        if let err = report.lastErrorSummary {
+                            ValueRow(label: "Last error", value: err, tone: .alert, isFigure: false)
                         }
-                        section("Runtime") {
-                            row("Network", report.isOnline ? "online" : "offline")
-                            row("Notifications", report.notificationPermission)
-                            row("API key", report.keyPresent ? "configured" : "missing")
-                            row("Needs access", report.requiredAccessLevel)
-                            row("Last refresh", lastRefreshText(report.lastSuccessfulRefresh))
-                            if let err = report.lastErrorSummary {
-                                row("Last error", err)
-                            }
-                        }
-                        section("API budget") {
-                            row("Requests / min", "\(report.requestsLastMinute)")
-                            row("Requests / day", "\(report.requestsLastDay)")
-                            if report.recordsPerDayByCategory.isEmpty {
-                                row("Records / day", "none")
-                            } else {
-                                ForEach(report.recordsPerDayByCategory.keys.sorted(), id: \.self) { key in
-                                    row("Rows/day · \(key)", "\(report.recordsPerDayByCategory[key]!)")
-                                }
-                            }
-                        }
-                        if !report.suppressedEndpoints.isEmpty {
-                            section("Not being requested") {
-                                Text("MacTorn is skipping these on purpose.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                                ForEach(report.suppressedEndpoints.keys.sorted(), id: \.self) { key in
-                                    // The registry already carries a human name. Showing
-                                    // the slug beside a plain-words reason read as half
-                                    // translated, and VoiceOver spelled it out.
-                                    row(TornEndpointRegistry.endpoint(id: key)?.name ?? key,
-                                        report.suppressionExplanations[key]
-                                        ?? report.suppressedEndpoints[key]
-                                        ?? "")
-                                }
-                            }
-                        }
-                        section("Endpoints") {
-                            if report.endpoints.isEmpty {
-                                Text("No endpoints called yet.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                ForEach(report.endpoints, id: \.endpointID) { e in
-                                    HStack {
-                                        Image(systemName: icon(for: e.outcome))
-                                            .foregroundStyle(color(for: e.outcome))
-                                            .accessibilityHidden(true)
-                                        Text(e.endpointID).font(.caption)
-                                        Spacer()
-                                        Text("\(e.latencyMs)ms · \(byteText(e.responseBytes))")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .accessibilityElement(children: .combine)
-                                    .accessibilityLabel("\(e.endpointID): \(e.outcome.rawValue), \(e.latencyMs) milliseconds")
-                                }
+                    }
+
+                    BoardSection("API budget") {
+                        ValueRow(label: "Requests per minute", value: "\(report.requestsLastMinute)")
+                        ValueRow(label: "Requests per day", value: "\(report.requestsLastDay)")
+                        if report.recordsPerDayByCategory.isEmpty {
+                            ValueRow(label: "Records per day", value: "None", isFigure: false)
+                        } else {
+                            ForEach(report.recordsPerDayByCategory.keys.sorted(), id: \.self) { key in
+                                ValueRow(label: "Rows per day, \(key)", value: "\(report.recordsPerDayByCategory[key]!)")
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if !report.suppressedEndpoints.isEmpty {
+                        BoardSection("Not being requested") {
+                            Text("MacTorn is skipping these on purpose.")
+                                .font(.boardDetail)
+                                .foregroundStyle(Board.inkSecondary)
+                                .padding(.top, Board.Space.s)
+                            ForEach(report.suppressedEndpoints.keys.sorted(), id: \.self) { key in
+                                // The registry already carries a human name. Showing the slug
+                                // beside a plain-words reason read as half translated, and
+                                // VoiceOver spelled it out.
+                                ValueRow(
+                                    label: TornEndpointRegistry.endpoint(id: key)?.name ?? key,
+                                    value: report.suppressionExplanations[key]
+                                        ?? report.suppressedEndpoints[key]
+                                        ?? "",
+                                    isFigure: false
+                                )
+                            }
+                        }
+                    }
+
+                    BoardSection("Endpoints") {
+                        if report.endpoints.isEmpty {
+                            BoardEmptyState(title: "No endpoints called yet")
+                        } else {
+                            ForEach(report.endpoints, id: \.endpointID) { e in
+                                endpointRow(e)
+                            }
+                        }
+                    }
                 }
+
+                Board.hairline.frame(height: 1)
 
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(report.sanitizedText(), forType: .string)
                     copied = true
                 } label: {
-                    Label(copied ? "Copied ✓" : "Copy sanitized report", systemImage: "doc.on.clipboard")
-                        .frame(maxWidth: .infinity)
+                    Label(copied ? "Copied" : "Copy sanitized report", systemImage: "doc.on.clipboard")
                 }
+                .buttonStyle(.boardFill)
+                .padding(.horizontal, Board.gutter)
+                .padding(.vertical, Board.Space.m)
                 .accessibilityIdentifier("diagnostics.copy")
             } else {
                 ProgressView()
@@ -108,8 +113,8 @@ struct DiagnosticsView: View {
                     .task { await load() }
             }
         }
-        .padding()
-        .frame(width: 320, height: 500)
+        .frame(width: Board.panelWidth, height: 560)
+        .background(Board.surface)
     }
 
     // MARK: - Data
@@ -119,51 +124,55 @@ struct DiagnosticsView: View {
         copied = false
     }
 
-    // MARK: - Layout helpers
+    // MARK: - Rows
 
-    @ViewBuilder
-    private func section(_ title: String, @ViewBuilder _ content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-            content()
-        }
-    }
-
-    private func row(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).font(.caption).multilineTextAlignment(.trailing)
+    /// One endpoint: a state dot, its id, and how the last call went, in words as well as tone.
+    private func endpointRow(_ e: EndpointHealth) -> some View {
+        let tone = tone(for: e.outcome)
+        return BoardRow {
+            HStack(alignment: .firstTextBaseline, spacing: Board.Space.s) {
+                StateDot(tone: tone)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(e.endpointID)
+                        .font(.boardBody)
+                        .foregroundStyle(Board.ink)
+                    Text("\(label(for: e.outcome)), \(e.latencyMs) ms, \(byteText(e.responseBytes))")
+                        .font(.boardDetail)
+                        .foregroundStyle(tone.ink)
+                }
+                Spacer(minLength: Board.Space.s)
+            }
         }
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(e.endpointID): \(e.outcome.rawValue), \(e.latencyMs) milliseconds")
     }
 
     private func lastRefreshText(_ date: Date?) -> String {
-        guard let date else { return "never" }
+        guard let date else { return "Never" }
         return TornFormatter.relativeDate(date)
     }
 
     private func byteText(_ bytes: Int) -> String {
-        bytes <= 0 ? "—" : ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .memory)
+        bytes <= 0 ? "no body" : ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .memory)
     }
 
-    private func icon(for outcome: EndpointOutcome) -> String {
+    private func label(for outcome: EndpointOutcome) -> String {
         switch outcome {
-        case .ok: return "checkmark.circle.fill"
-        case .error: return "xmark.octagon.fill"
-        case .offline: return "wifi.slash"
-        case .cancelled: return "slash.circle"
-        case .pending: return "clock"
+        case .ok: return "OK"
+        case .error: return "Error"
+        case .offline: return "Offline"
+        case .cancelled: return "Cancelled"
+        case .pending: return "Pending"
         }
     }
 
-    private func color(for outcome: EndpointOutcome) -> Color {
+    private func tone(for outcome: EndpointOutcome) -> Board.Tone {
         switch outcome {
-        case .ok: return .green
-        case .error: return .red
-        case .offline, .cancelled, .pending: return .orange
+        case .ok: return .ready
+        case .error: return .alert
+        case .offline, .pending: return .counting
+        case .cancelled: return .idle
         }
     }
 }

@@ -2,68 +2,54 @@ import SwiftUI
 
 /// One-time prompt asking the user to opt into anonymous crash reporting.
 /// Shown after upgrading to a version that ships Sentry. Default stays OFF
-/// regardless — the prompt just makes the toggle discoverable.
+/// regardless; the prompt just makes the toggle discoverable.
 struct SentryOptInPromptView: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     @AppStorage(SentryManager.enabledKey) private var sentryEnabled: Bool = false
     @Binding var isPresented: Bool
 
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "ladybug.fill")
-                .font(.title)
-                .foregroundColor(.purple)
+        VStack(alignment: .leading, spacing: Board.Space.m) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Help fix MacTorn bugs")
+                    .font(.boardTitle)
+                    .foregroundStyle(Board.ink)
+                    .accessibilityAddTraits(.isHeader)
 
-            Text("Help fix MacTorn bugs")
-                .font(.headline)
-
-            Text("Send anonymous crash reports? OFF by default — you can toggle it any time in Settings.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
+                Text("Send anonymous crash reports? Off by default, and you can change it any time in Settings.")
+                    .font(.boardCaption)
+                    .foregroundStyle(Board.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             Text("Never sent: API key, player name, in-game data.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
+                .font(.boardDetail)
+                .foregroundStyle(Board.inkSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
-            HStack(spacing: 8) {
-                Button {
+            HStack(spacing: 6) {
+                Button("Keep off") {
                     sentryEnabled = false
                     SentryManager.applyState()
                     dismiss()
-                } label: {
-                    Text("Keep off")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(Color.secondary.opacity(reduceTransparency ? 0.3 : 0.15))
-                        .cornerRadius(6)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.boardFill)
 
-                Button {
+                Button("Enable") {
                     sentryEnabled = true
                     SentryManager.applyState()
                     dismiss()
-                } label: {
-                    Text("Enable")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 6)
-                        .background(Color.purple.opacity(reduceTransparency ? 1.0 : 0.85))
-                        .foregroundColor(.white)
-                        .cornerRadius(6)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BoardButtonStyle(kind: .primary, fillsWidth: true))
             }
-            .font(.caption)
         }
-        .padding(16)
+        .padding(Board.gutter)
         .frame(width: 280)
-        .background(Color(.windowBackgroundColor))
-        .cornerRadius(12)
-        .shadow(radius: 8)
+        // The one boxed surface in the app: a modal card over a dimmed panel. Opaque, no
+        // shadow, so it reads the same under Reduce Transparency.
+        .background(Board.surface, in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10).strokeBorder(Board.outline, lineWidth: 1)
+        }
     }
 
     private func dismiss() {
