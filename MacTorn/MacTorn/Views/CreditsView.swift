@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct CreditsView: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     @Binding var showCredits: Bool
 
     // MARK: - Developer
@@ -20,90 +19,43 @@ struct CreditsView: View {
     private let factionID = 11559
 
     var body: some View {
-        VStack(spacing: 16) {
-            VStack(spacing: 8) {
-                Image(systemName: "heart.fill")
-                    .font(.largeTitle)
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.pink, .red],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: Board.Space.s) {
                 Text("Credits")
-                    .font(.title2.bold())
-            }
-
-            Divider()
-
-            ScrollView {
-                VStack(spacing: 14) {
-                    developerSection
-
-                    contributorSection(
-                        title: "Special Thanks",
-                        icon: "star.fill",
-                        iconColor: .yellow,
-                        contributors: specialThanks
-                    )
-
-                    factionSection
+                    .font(.boardTitle)
+                    .foregroundStyle(Board.ink)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: Board.Space.s)
+                Button("Back to Settings") {
+                    showCredits = false
                 }
-                .padding(.horizontal)
+                .buttonStyle(.board)
             }
+            .padding(.horizontal, Board.gutter)
+            .padding(.top, Board.Space.m)
+            .padding(.bottom, Board.Space.m)
 
-            Button {
-                showCredits = false
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
-                    Text("Back to Settings")
-                }
-                .font(.caption)
+            BoardPage {
+                developerSection
+                contributorSection(title: "Special thanks", contributors: specialThanks)
+                factionSection
             }
-            .buttonStyle(.plain)
-            .foregroundColor(.accentColor)
         }
-        .padding()
-        .frame(width: 320)
-        .frame(maxHeight: .infinity, alignment: .top)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Board.surface)
     }
 
     // MARK: - Developer Section
     private var developerSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "hammer.fill")
-                    .foregroundColor(.orange)
-                    .accessibilityHidden(true)
-                Text("Created by")
-                    .font(.subheadline.bold())
-            }
-
+        BoardSection("Created by") {
             Button {
                 if let tornID = developer.tornID {
                     openTornProfile(tornID)
                 }
             } label: {
-                HStack {
-                    Text(developer.name)
-                        .font(.caption.bold())
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
+                linkRow(developer.name, strong: true)
             }
             .buttonStyle(.plain)
-            .foregroundColor(.accentColor)
-            .padding(10)
-            .frame(maxWidth: .infinity)
-            .background(Color.orange.opacity(reduceTransparency ? 0.4 : 0.1))
-            .cornerRadius(8)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Created by \(developer.name)")
             .uiTestID("uitest.credits.developer")
@@ -112,35 +64,13 @@ struct CreditsView: View {
 
     // MARK: - Faction Section
     private var factionSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "shield.fill")
-                    .foregroundColor(.blue)
-                    .accessibilityHidden(true)
-                Text("Faction")
-                    .font(.subheadline.bold())
-            }
-
+        BoardSection("Faction") {
             Button {
                 openFaction(factionID)
             } label: {
-                HStack {
-                    Text(factionName)
-                        .font(.caption)
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
+                linkRow(factionName)
             }
             .buttonStyle(.plain)
-            .foregroundColor(.accentColor)
-            .padding(10)
-            .frame(maxWidth: .infinity)
-            .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
-            .cornerRadius(8)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Faction: \(factionName)")
             .uiTestID("uitest.credits.faction")
@@ -149,30 +79,11 @@ struct CreditsView: View {
 
     // MARK: - Contributors Section
     @ViewBuilder
-    private func contributorSection(
-        title: String,
-        icon: String,
-        iconColor: Color,
-        contributors: [TornContributor]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: icon)
-                    .foregroundColor(iconColor)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(.subheadline.bold())
+    private func contributorSection(title: String, contributors: [TornContributor]) -> some View {
+        BoardSection(title) {
+            ForEach(contributors) { contributor in
+                contributorRow(contributor)
             }
-
-            VStack(spacing: 4) {
-                ForEach(contributors) { contributor in
-                    contributorRow(contributor)
-                }
-            }
-            .padding(10)
-            .frame(maxWidth: .infinity)
-            .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
-            .cornerRadius(8)
         }
     }
 
@@ -183,32 +94,38 @@ struct CreditsView: View {
             Button {
                 openTornProfile(tornID)
             } label: {
-                HStack {
-                    Text(contributor.name)
-                        .font(.caption)
-                    Spacer()
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .accessibilityHidden(true)
-                }
-                .contentShape(Rectangle())
+                linkRow(contributor.name)
             }
             .buttonStyle(.plain)
-            .foregroundColor(.accentColor)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Contributor: \(contributor.name)")
             .uiTestID("uitest.credits.contributor.\(contributor.name)")
         } else {
-            HStack {
+            BoardRow {
                 Text(contributor.name)
-                    .font(.caption)
-                    .foregroundColor(.primary)
-                Spacer()
+                    .font(.boardBody)
+                    .foregroundStyle(Board.ink)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Contributor: \(contributor.name)")
             .uiTestID("uitest.credits.contributor.\(contributor.name)")
+        }
+    }
+
+    /// A name that opens a Torn page: the name, and the arrow that says so.
+    private func linkRow(_ name: String, strong: Bool = false) -> some View {
+        BoardRow {
+            HStack {
+                Text(name)
+                    .font(strong ? .boardStrong : .boardBody)
+                    .foregroundStyle(Board.ink)
+                Spacer()
+                Image(systemName: "arrow.up.right.square")
+                    .font(.boardDetail)
+                    .foregroundStyle(Board.inkSecondary)
+                    .accessibilityHidden(true)
+            }
+            .contentShape(Rectangle())
         }
     }
 

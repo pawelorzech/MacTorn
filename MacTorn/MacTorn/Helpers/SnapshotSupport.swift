@@ -13,7 +13,8 @@ import SwiftUI
 //                                       needs a build without the App Sandbox
 //                                       (CODE_SIGN_ENTITLEMENTS=""); a bare name lands in the
 //                                       sandbox container under tmp/MacTornSnapshots/<name>
-//   -uitest-snapshot-screens a,b,c      subset: tab names, "Settings", "Diagnostics", "Credits"
+//   -uitest-snapshot-screens a,b,c      subset: tab names, "Settings", "Settings-<section>", "Diagnostics", "Credits",
+//                                       "FeedbackPrompt", "SentryPrompt"
 //   -uitest-snapshot-appearance light   "light", "dark" or both when absent
 //   -uitest-window-height 1400          taller than the panel, to see below the fold
 //   -uitest-fixture / -uitest-apikey    as for UI tests; no key renders onboarding
@@ -58,11 +59,19 @@ enum SnapshotRunner {
     private enum Screen {
         case tab(AppTab)
         case settings(SettingsSection?)
+        case diagnostics
+        case credits
+        case feedbackPrompt
+        case sentryPrompt
 
         var name: String {
             switch self {
             case .tab(let tab): return tab.rawValue
             case .settings(let section): return section.map { "Settings-\($0.id)" } ?? "Settings"
+            case .diagnostics: return "Diagnostics"
+            case .credits: return "Credits"
+            case .feedbackPrompt: return "FeedbackPrompt"
+            case .sentryPrompt: return "SentryPrompt"
             }
         }
     }
@@ -78,6 +87,7 @@ enum SnapshotRunner {
 
         var screens: [Screen] = hasAccount ? AppTab.inNavigationOrder.map(Screen.tab) : []
         screens += hasAccount ? SettingsSection.allCases.map { .settings($0) } : [.settings(nil)]
+        screens += [.diagnostics, .credits, .feedbackPrompt, .sentryPrompt]
         if let wanted = UITestConfiguration.snapshotScreens {
             screens = screens.filter { wanted.contains($0.name.lowercased()) }
         }
@@ -89,15 +99,47 @@ enum SnapshotRunner {
                 navigation.select(tab)
             case .settings(let section):
                 navigation.showSettings(section)
+            case .diagnostics, .credits, .feedbackPrompt, .sentryPrompt:
+                break
             }
             for (appearanceName, appearance) in UITestConfiguration.snapshotAppearances {
                 if hasAccount { SnapshotFixtures.seed(appState) }
-                let root = ContentView()
-                    .macTornRoot(appState, navigation: navigation)
-                    .frame(height: UITestConfiguration.windowHeight)
+                let root = rootView(for: screen, appState: appState, navigation: navigation)
                 let file = directory.appendingPathComponent("\(screen.name)-\(appearanceName).png")
                 await render(root, appearance: appearance, to: file)
             }
+        }
+    }
+
+    /// The panel for tabs and Settings; the sheet, the credits page and the two modal prompts
+    /// are drawn directly, on the surface they sit on in the app.
+    private static func rootView(for screen: Screen, appState: AppState, navigation: AppNavigationState) -> AnyView {
+        switch screen {
+        case .tab, .settings:
+            return AnyView(ContentView()
+                .macTornRoot(appState, navigation: navigation)
+                .frame(height: UITestConfiguration.windowHeight))
+        case .diagnostics:
+            return AnyView(DiagnosticsView(appState: appState)
+                .macTornRoot(appState, navigation: navigation)
+                .background(Board.surface))
+        case .credits:
+            return AnyView(CreditsView(showCredits: .constant(true))
+                .frame(width: Board.panelWidth, height: Board.panelHeight)
+                .macTornRoot(appState, navigation: navigation)
+                .background(Board.surface))
+        case .feedbackPrompt:
+            return AnyView(FeedbackPromptView()
+                .padding(Board.Space.xl)
+                .frame(width: Board.panelWidth)
+                .macTornRoot(appState, navigation: navigation)
+                .background(Board.surface))
+        case .sentryPrompt:
+            return AnyView(SentryOptInPromptView(isPresented: .constant(true))
+                .padding(Board.Space.xl)
+                .frame(width: Board.panelWidth)
+                .macTornRoot(appState, navigation: navigation)
+                .background(Board.surface))
         }
     }
 
