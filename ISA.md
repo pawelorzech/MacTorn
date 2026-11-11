@@ -2,11 +2,11 @@
 project: MacTorn
 task: Reliability + product quality audit (Etap A–L), staged
 effort: E4
-phase: verify
+phase: complete
 progress: stage-1 of program
 mode: algorithm
 started: 2026-07-15
-updated: 2026-07-15
+updated: 2026-11-11
 ---
 
 # MacTorn — Reliability & Product Audit ISA
@@ -259,9 +259,10 @@ Torn's announcement: `user→bazaar` private; global cache 30 s → 1 h on `mark
   the built tab was not viewed.*
 - [x] ISC-32: README endpoint table, CHANGELOG and the registry's spec-review stamp match
   the code. *Evidence: `testREADMETableIsExactlyWhatTheRegistryGenerates` green in the 771-test run.*
-- [ ] ISC-33: `make test` and `make coverage-gate` pass; v1.16.5 is tagged, published with
-  its SHA-256 and installed. *Probe: command output, `gh release view`, installed
-  `CFBundleVersion`.*
+- [x] ISC-33: Tests and the coverage gate pass; v1.16.5 is tagged, published with its
+  SHA-256 and installed. *Evidence: `make test` 771/771 locally; `coverage-gate: PASSED` in CI
+  run 42993706114 on `a580ca2` (local `make coverage-gate` wrote no profile data, same at
+  `067937b`); release `v1.16.5` with DMG + `.sha256`; `/Applications/MacTorn.app` build 57.*
 - Anti-claim A-26: no request is added and no cadence is raised anywhere; nothing reads
   bazaar, market properties/rentals or companies; a price alert is never suppressed by the
   new schedule for longer than Torn's own cache window.
