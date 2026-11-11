@@ -2,8 +2,8 @@
 project: MacTorn
 task: Panel redesign ("Tablica dyspozytora"), on top of the reliability + product quality program
 effort: E4
-phase: verify
-progress: redesign 13 of 14 claims (ISC-45: one UI test red since before the redesign)
+phase: complete
+progress: redesign 14 of 14 claims, released as v2.0.0
 mode: algorithm
 started: 2026-07-15
 updated: 2026-11-11
@@ -318,12 +318,11 @@ configuration never sits above content.
 - [x] ISC-44: The unit suite is green and the Release Universal build verifies.
   *Evidence: `TEST EXECUTE SUCCEEDED`; `make verify-release` "universal and strict ad-hoc
   signed" at 2e89a40.*
-- [ ] ISC-45: UI tests are migrated to the rail and run green. *13 of 14 green on CI
-  (run 43003579591, 718b8bb, Xcode 16.4), including every navigation, rail-fit and Status
-  accessibility test. `testWatchListsExposeAccessibleControlsAndForumState` fails on "Forum
-  errors must be visible without hovering a tooltip" — the same assertion that failed on
-  a580ca2 before the redesign (run 42993706114): the forum poll replaces the fixture's
-  seeded error text. Open until that fixture or the poll is fixed.*
+- [x] ISC-45: UI tests are migrated to the rail and run green. *Evidence: CI run
+  43006187982 on 9509a90 (Xcode 16.4): Fixture UI Tests 14 of 14, Unit Tests and Coverage,
+  Analyze and Universal Release all green. The forum test that had been red since 1.16.5 was
+  a fixture fault (the first poll replaced the seeded thread states), fixed in
+  `FixtureNetworkSession.watchAccessibilityResponse`.*
 - [x] ISC-46: The theme is recorded in `CLAUDE.md` (`### Frontend Theme`; the file is
   gitignored, so it is local) and `docs/visual-identity.md` describes the rail and the board.
 
@@ -345,9 +344,9 @@ Anti-claims:
   window a widget opens shows the same panel at the same width. *Evidence:
   `rg NavigationSplitView` empty; `LSUIElement` true; `.windowResizability(.contentSize)`.*
 
-Not yet verified by a person: the real menu-bar panel was never opened with this build —
-only offscreen renders and the CI UI tests. Keyboard focus rings on the rail, live switch
-tint and the commands menu have not been looked at.
+Paweł opened the installed build on 2026-11-11 and asked for the release ("zdecydowanie
+lepiej … releasuj"). Released as v2.0.0 (build 58). Keyboard focus rings on the rail and
+the expanded Settings disclosures were not specifically reviewed.
 
 ## Test Strategy
 
