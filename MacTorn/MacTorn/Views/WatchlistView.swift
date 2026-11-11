@@ -1,139 +1,50 @@
 import SwiftUI
 
+/// "Is anything at or under my price?" The watched items lead, each with Torn's lowest
+/// price as its figure; adding and removing are kept quiet. Shop prices live in Travel.
 struct WatchlistView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showAddItem = false
     @State private var itemIdInput = ""
     @State private var addItemError: String?
     @State private var undo = UndoController<PendingWatchlistUndo>()
-    
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                // With nothing watched there is nothing to fetch; the list's own empty
-                // state explains that, so a "No data yet · Retry" strip would contradict it.
-                if !appState.watchlist.items.isEmpty {
-                    ModuleStateView(state: moduleState) {
-                        appState.refreshWatchlistPrices()
-                    }
+        BoardPage {
+            // With nothing watched there is nothing to fetch; the list's own empty
+            // state explains that, so a "No data yet, Retry" strip would contradict it.
+            if !appState.watchlist.items.isEmpty {
+                ModuleStateView(state: moduleState) {
+                    appState.refreshWatchlistPrices()
                 }
+            }
 
-                ShopPricesPanel()
-
-                HStack {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .foregroundColor(.green)
-                    Text("Price Watch")
-                        .font(.caption.bold())
-                    
-                    Spacer()
-                    
-                    Button {
+            BoardSection(title: "Watched items", trailing: {
+                HStack(spacing: 0) {
+                    IconButton(systemImage: "arrow.clockwise", label: "Refresh watched prices") {
                         appState.refreshWatchlistPrices()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.blue)
-                            .frame(minWidth: 28, minHeight: 28)
-                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Refresh watched prices")
-                    
-                    Button {
+                    IconButton(
+                        systemImage: showAddItem ? "minus" : "plus",
+                        label: showAddItem ? "Close add item panel" : "Add watched item"
+                    ) {
                         withAnimation(reduceMotion ? nil : .default) {
                             showAddItem.toggle()
                         }
-                    } label: {
-                        Image(systemName: showAddItem ? "minus.circle.fill" : "plus.circle.fill")
-                            .foregroundColor(showAddItem ? .red : .green)
-                            .frame(minWidth: 28, minHeight: 28)
-                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(showAddItem ? "Close add item panel" : "Add watched item")
                 }
-                
+            }) {
                 if showAddItem {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Add item:")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        
-                        if let addItemError {
-                            Text(addItemError)
-                                .font(.caption2)
-                                .foregroundColor(.orange)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .accessibilityLabel("Add item error: \(addItemError)")
-                        }
-
-                        HStack {
-                            TextField(searchFieldPrompt, text: $itemIdInput)
-                                .accessibilityLabel("Item name or ID")
-                                .textFieldStyle(.roundedBorder)
-                                .font(.caption)
-                                .onChange(of: itemIdInput) { _, _ in
-                                    addItemError = nil
-                                }
-                                .onSubmit {
-                                    commitTypedEntry()
-                                }
-
-                            Button("Add") {
-                                commitTypedEntry()
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                            .disabled(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-
-                        // Search results when there are any, a "no match" line when a typed
-                        // name finds nothing, and otherwise the shortlist. The shortlist is
-                        // the fallback for every remaining state, not just an unloaded
-                        // catalog, so opening the panel cold never shows a blank field.
-                        if !searchResults.isEmpty {
-                            VStack(spacing: 2) {
-                                ForEach(searchResults) { item in
-                                    suggestionRow(name: item.name, id: item.id)
-                                }
-                            }
-                        } else if isSearchingByName {
-                            Text("No item matches \u{201C}\(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 4)
-                        } else {
-                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
-                                ForEach(popularItems, id: \.1) { item in
-                                    Button {
-                                        add(name: item.0, id: item.1)
-                                    } label: {
-                                        Text(item.0)
-                                            .font(.caption2)
-                                            .lineLimit(1)
-                                            .frame(maxWidth: .infinity)
-                                            .padding(.vertical, 6)
-                                            .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.1))
-                                            .cornerRadius(4)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
-                    .cornerRadius(6)
+                    addPanel
                 }
 
                 if appState.watchlist.items.isEmpty && !showAddItem {
-                    EmptyStateView(icon: "tag",
-                                   title: "No items watched",
-                                   subtitle: "Track Item Market prices")
-                } else if !appState.watchlist.items.isEmpty {
+                    BoardEmptyState(
+                        title: "No items watched",
+                        detail: "Use the plus button to add an item and follow its lowest Item Market price."
+                    )
+                } else {
                     ForEach(appState.watchlist.items) { item in
                         WatchlistPriceRow(item: item) {
                             openTorn(TornLink.itemMarket(itemID: item.id))
@@ -144,40 +55,96 @@ struct WatchlistView: View {
                         }
                     }
                 }
-
-                // Torn's item-market data is globally cached and published late on
-                // purpose. Said once, so a price that is an hour old reads as Torn's
-                // schedule rather than as MacTorn falling behind.
-                if let lag = appState.watchlist.publishedPriceLag {
-                    Text("Torn's API publishes item-market prices at least \(TornFormatter.spelledDuration(Int(lag))) late. Alerts follow Torn's price, not the live market.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                PendingUndoBanner(controller: undo, message: \.message) {
-                    undoPending()
-                }
-                
-                Divider()
-                
-                HStack(spacing: 8) {
-                    TileButton(title: "Item Market", icon: "bag.fill", color: .blue) {
-                        openTorn(TornLink.itemMarket)
-                    }
-                    
-                    TileButton(title: "Points", icon: "star.fill", color: .orange) {
-                        openTorn(TornLink.page("pmarket.php"))
-                    }
-                }
             }
-            .padding()
+
+            // Torn's item-market data is globally cached and published late on
+            // purpose. Said once, so a price that is an hour old reads as Torn's
+            // schedule rather than as MacTorn falling behind.
+            if let lag = appState.watchlist.publishedPriceLag {
+                Text("Torn's API publishes item-market prices at least \(TornFormatter.spelledDuration(Int(lag))) late. Alerts follow Torn's price, not the live market.")
+                    .font(.boardDetail)
+                    .foregroundStyle(Board.inkSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            PendingUndoBanner(controller: undo, message: \.message) {
+                undoPending()
+            }
+
+            BoardSection("Open in Torn") {
+                TornLinks(links: [
+                    TornLinks.Link(title: "Item market", url: TornLink.itemMarket),
+                    TornLinks.Link(title: "Points market", url: TornLink.page("pmarket.php")),
+                ], columns: 2)
+                .padding(.top, Board.Space.s)
+            }
         }
         .task {
             appState.refreshWatchlistPrices()
         }
         .onDisappear {
             undo.reset()
+        }
+    }
+
+    // MARK: - Add item
+
+    private var addPanel: some View {
+        VStack(alignment: .leading, spacing: Board.Space.s) {
+            HStack(spacing: 6) {
+                TextField(searchFieldPrompt, text: $itemIdInput)
+                    .accessibilityLabel("Item name or ID")
+                    .textFieldStyle(.board)
+                    .onChange(of: itemIdInput) { _, _ in
+                        addItemError = nil
+                    }
+                    .onSubmit {
+                        commitTypedEntry()
+                    }
+
+                Button("Add") {
+                    commitTypedEntry()
+                }
+                .buttonStyle(.boardPrimary)
+                .disabled(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+
+            if let addItemError {
+                BoardNotice(tone: .alert, message: addItemError)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Add item error: \(addItemError)")
+            }
+
+            // Search results when there are any, a "no match" line when a typed
+            // name finds nothing, and otherwise the shortlist. The shortlist is
+            // the fallback for every remaining state, not just an unloaded
+            // catalog, so opening the panel cold never shows a blank field.
+            if !searchResults.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(searchResults) { item in
+                        suggestionRow(name: item.name, id: item.id)
+                    }
+                }
+            } else if isSearchingByName {
+                Text("No item matches \u{201C}\(itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D}.")
+                    .font(.boardCaption)
+                    .foregroundStyle(Board.inkSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                    ForEach(popularItems, id: \.1) { item in
+                        Button(item.0) {
+                            add(name: item.0, id: item.1)
+                        }
+                        .buttonStyle(.boardFill)
+                    }
+                }
+            }
+        }
+        .padding(.top, Board.Space.s)
+        .padding(.bottom, Board.Space.m)
+        .overlay(alignment: .bottom) {
+            Board.hairline.frame(height: 1)
         }
     }
 
@@ -209,8 +176,8 @@ struct WatchlistView: View {
     private var searchResults: [TornItemSummary] {
         let typed = itemIdInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !typed.isEmpty, Int(typed) == nil else { return [] }
-        // Six rows, not the search default of twelve: this list renders inside an add
-        // panel inside the 320pt popover, and twelve suggestions push the rest of the
+        // Six rows, not the search default of twelve: this list renders inside the add
+        // panel inside the fixed-size panel, and twelve suggestions push the rest of the
         // watchlist off the visible area entirely.
         return appState.searchItems(typed, limit: 6)
     }
@@ -224,20 +191,19 @@ struct WatchlistView: View {
         Button {
             add(name: name, id: id)
         } label: {
-            HStack {
-                Text(name)
-                    .font(.caption)
-                    .lineLimit(1)
-                Spacer()
-                Text("#\(id)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+            BoardRow(verticalPadding: 6) {
+                HStack {
+                    Text(name)
+                        .font(.boardBody)
+                        .foregroundStyle(Board.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: Board.Space.s)
+                    Text("#\(id)")
+                        .font(.boardDetail)
+                        .foregroundStyle(Board.inkSecondary)
+                }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .frame(maxWidth: .infinity)
-            .background(Color.green.opacity(reduceTransparency ? 0.4 : 0.1))
-            .cornerRadius(4)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add \(name) to the watchlist")
@@ -270,7 +236,6 @@ struct WatchlistView: View {
     private var moduleState: ModulePresentationState {
         appState.watchlistPresentationState
     }
-    
 
     private func addItemByID() {
         switch appState.addToWatchlist(input: itemIdInput) {
@@ -360,8 +325,11 @@ private enum PendingWatchlistUndo {
 }
 
 // MARK: - Watchlist Price Row
+
+/// One watched item: its name and lowest price up front, what sits behind that price and
+/// whether it is under the player's alert as detail, and the alert and remove controls
+/// last and quiet.
 struct WatchlistPriceRow: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
     let item: WatchlistItem
     let onOpen: () -> Void
     let onRemove: () -> Void
@@ -375,148 +343,168 @@ struct WatchlistPriceRow: View {
         PositiveIntegerInput.value(from: thresholdText)
     }
 
+    /// The lowest price is at or under the alert the player set.
+    private var thresholdMet: Bool {
+        guard let threshold = item.priceThreshold, item.lowestPrice > 0 else { return false }
+        return item.lowestPrice <= threshold
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Button(action: onOpen) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundColor(.blue)
-                            .font(.caption2)
-                        Text(item.name)
-                            .font(.caption.bold())
-                    }
+        BoardRow {
+            VStack(alignment: .leading, spacing: 2) {
+                headline
+                if item.lastUpdated != nil, !item.isLoading {
+                    stockDetail
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open \(item.name) in Item Market")
-
-                Spacer()
-
-                if item.isLoading && item.error == nil {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                } else if item.lastUpdated != nil {
-                    VStack(alignment: .trailing, spacing: 1) {
-                        HStack(spacing: 4) {
-                            Text(formatPrice(item.lowestPrice))
-                                .font(.caption.monospacedDigit().bold())
-                                .foregroundColor(.green)
-
-                            if item.lowestPriceQuantity > 1 {
-                                Text("x\(item.lowestPriceQuantity)")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        if item.priceDifference > 0 {
-                            HStack(spacing: 2) {
-                                Image(systemName: "arrow.up")
-                                    .font(.caption2)
-                                Text("+\(formatPrice(item.priceDifference))")
-                                    .font(.caption2.monospacedDigit())
-                            }
-                            .foregroundColor(.orange)
-                        }
-                    }
+                if let error = item.error {
+                    BoardNotice(tone: .alert, message: error)
+                        .padding(.vertical, 2)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("Price update error: \(error)")
                 }
-
-                Button {
-                    thresholdText = item.priceThreshold.map { String($0) } ?? ""
-                    thresholdError = nil
-                    showThresholdPopover = true
-                } label: {
-                    Image(systemName: item.priceThreshold != nil ? "bell.fill" : "bell")
-                        .foregroundColor(item.priceThreshold != nil ? .yellow : .secondary)
-                        .font(.caption)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.priceThreshold != nil
-                                    ? "Edit price alert for \(item.name)"
-                                    : "Set price alert for \(item.name)")
-                .popover(isPresented: $showThresholdPopover) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Alert when below:")
-                            .font(.caption.bold())
-
-                        TextField("Price", text: $thresholdText)
-                            .accessibilityLabel("Price alert threshold")
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 120)
-                            .onChange(of: thresholdText) { _, newValue in
-                                thresholdError = PositiveIntegerInput.errorMessage(for: newValue)
-                            }
-                            .onSubmit {
-                                submitThreshold()
-                            }
-
-                        if let thresholdError {
-                            Text(thresholdError)
-                                .font(.caption2)
-                                .foregroundStyle(.red)
-                                .accessibilityLabel("Price threshold error: \(thresholdError)")
-                        }
-
-                        HStack(spacing: 8) {
-                            Button("Clear") {
-                                onSetThreshold(nil)
-                                showThresholdPopover = false
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.secondary)
-
-                            Button("Set") {
-                                submitThreshold()
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.blue)
-                            .disabled(thresholdValue == nil)
-                        }
-                    }
-                    .padding(12)
-                }
-
-                Button(action: onRemove) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                        .font(.caption)
-                        .frame(width: 28, height: 28)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Remove \(item.name) from price watch")
+                controls
             }
+        }
+    }
 
-            if let error = item.error {
-                Label(error, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.red)
-                    .accessibilityLabel("Price update error: \(error)")
+    // MARK: Parts
+
+    private var headline: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Board.Space.s) {
+            Button(action: onOpen) {
+                Text(item.name)
+                    .font(.boardStrong)
+                    .foregroundStyle(Board.ink)
+                    .lineLimit(1)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open \(item.name) in Item Market")
+
+            Spacer(minLength: Board.Space.s)
+
+            if item.isLoading && item.error == nil {
+                ProgressView()
+                    .controlSize(.small)
+            } else if item.lastUpdated != nil {
+                Text(formatPrice(item.lowestPrice))
+                    .font(.figure(22))
+                    .foregroundStyle(thresholdMet ? Board.Tone.ready.ink : Board.ink)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+    }
+
+    private var stockParts: [String] {
+        var parts: [String] = []
+        if item.lowestPriceQuantity > 0 {
+            parts.append("\(item.lowestPriceQuantity.formatted()) at this price")
+        }
+        if item.priceDifference > 0 {
+            parts.append("next \(formatPrice(item.secondLowestPrice))")
+        }
+        return parts
+    }
+
+    /// Quantity at the lowest price, the next price up, and how old the data is.
+    private var stockDetail: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            if !stockParts.isEmpty {
+                Text(stockParts.joined(separator: ", "))
+                    .font(.boardDetail)
+                    .foregroundStyle(Board.inkSecondary)
             }
 
             if let dataTimestamp = item.dataTimestamp ?? item.lastUpdated {
-                let prefix = item.error == nil ? "Price data from " : "Last known price · Data from "
+                let prefix = item.error == nil ? "Price data from " : "Last known price, data from "
                 (Text(prefix) + Text(dataTimestamp, style: .relative) + Text(" ago"))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let threshold = item.priceThreshold {
-                HStack(spacing: 4) {
-                    Image(systemName: "bell.fill")
-                        .font(.caption2)
-                        .foregroundColor(.yellow)
-                    Text("Alert below \(formatPrice(threshold))")
-                        .font(.caption2)
-                        .foregroundColor(.yellow)
-                }
+                    .font(.boardDetail)
+                    .foregroundStyle(Board.inkSecondary)
             }
         }
-        .padding(8)
-        .background(Color.secondary.opacity(reduceTransparency ? 0.4 : 0.1))
-        .cornerRadius(6)
+    }
+
+    private var controls: some View {
+        HStack(spacing: 2) {
+            if let threshold = item.priceThreshold {
+                if thresholdMet {
+                    Label("At or under your alert of \(formatPrice(threshold))", systemImage: "checkmark.circle.fill")
+                        .font(.boardDetail.weight(.medium))
+                        .foregroundStyle(Board.Tone.ready.ink)
+                } else {
+                    Text("Alert at or under \(formatPrice(threshold))")
+                        .font(.boardDetail)
+                        .foregroundStyle(Board.inkSecondary)
+                }
+            }
+
+            Spacer(minLength: Board.Space.s)
+
+            IconButton(
+                systemImage: item.priceThreshold != nil ? "bell.fill" : "bell",
+                label: item.priceThreshold != nil
+                    ? "Edit price alert for \(item.name)"
+                    : "Set price alert for \(item.name)"
+            ) {
+                thresholdText = item.priceThreshold.map { String($0) } ?? ""
+                thresholdError = nil
+                showThresholdPopover = true
+            }
+            .popover(isPresented: $showThresholdPopover) {
+                thresholdPopover
+            }
+
+            IconButton(
+                systemImage: "xmark",
+                label: "Remove \(item.name) from price watch",
+                action: onRemove
+            )
+        }
+    }
+
+    private var thresholdPopover: some View {
+        VStack(alignment: .leading, spacing: Board.Space.s) {
+            Text("Alert when at or under")
+                .font(.boardStrong)
+                .foregroundStyle(Board.ink)
+
+            TextField("Price", text: $thresholdText)
+                .accessibilityLabel("Price alert threshold")
+                .textFieldStyle(.board)
+                .frame(width: 140)
+                .onChange(of: thresholdText) { _, newValue in
+                    thresholdError = PositiveIntegerInput.errorMessage(for: newValue)
+                }
+                .onSubmit {
+                    submitThreshold()
+                }
+
+            if let thresholdError {
+                Text(thresholdError)
+                    .font(.boardDetail)
+                    .foregroundStyle(Board.Tone.alert.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 140, alignment: .leading)
+                    .accessibilityLabel("Price threshold error: \(thresholdError)")
+            }
+
+            HStack(spacing: 6) {
+                Button("Clear") {
+                    onSetThreshold(nil)
+                    showThresholdPopover = false
+                }
+                .buttonStyle(.boardFill)
+
+                Button("Set") {
+                    submitThreshold()
+                }
+                .buttonStyle(.boardPrimary)
+                .disabled(thresholdValue == nil)
+            }
+            .frame(width: 140)
+        }
+        .padding(Board.Space.m)
     }
 
     private func formatPrice(_ price: Int) -> String {

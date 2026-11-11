@@ -1,157 +1,96 @@
 import SwiftUI
 
+/// Where you stand and what happened lately: battle stats led by their total, then the
+/// latest fights, each opening the opponent's profile.
 struct AttacksView: View {
     @Environment(AppState.self) private var appState
-    @Environment(\.reduceTransparency) private var reduceTransparency
-    
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                ModuleStateView(
-                    state: appState.presentationState(for: .attacks, hasContent: appState.player.battleStats != nil || appState.player.recentAttacks != nil),
-                    onRetry: appState.refreshNow
-                )
+        BoardPage {
+            ModuleStateView(
+                state: appState.presentationState(for: .attacks, hasContent: appState.player.battleStats != nil || appState.player.recentAttacks != nil),
+                onRetry: appState.refreshNow
+            )
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "figure.martial.arts")
-                            .foregroundColor(.red)
-                            .accessibilityHidden(true)
-                        Text("Battle Stats")
-                            .font(.caption.bold())
-                    }
+            battleStatsSection
+            recentAttacksSection
 
-                    if let stats = appState.player.battleStats {
-                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                            StatItem(label: "Strength", value: formatStat(stats.strength), color: .red)
-                            StatItem(label: "Defense", value: formatStat(stats.defense), color: .blue)
-                            StatItem(label: "Speed", value: formatStat(stats.speed), color: .green)
-                            StatItem(label: "Dexterity", value: formatStat(stats.dexterity), color: .orange)
-                        }
-
-                        Divider()
-
-                        HStack {
-                            Text("Total:")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Text(stats.total.map(formatStat) ?? "Unavailable")
-                                .font(.caption.bold())
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("Total: \(stats.total.map(formatStat) ?? "Unavailable")")
-                        .uiTestID("uitest.battleStats.total")
-                    } else if appState.isLoading {
-                        Text("Loading stats...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        // Battle stats need a key with the right access; a finished
-                        // refresh without them is a permission answer, not progress.
-                        Text("No battle stats. Your API key may not have access.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .padding()
-                .background(Color.red.opacity(reduceTransparency ? 0.25 : 0.05))
-                .cornerRadius(8)
-
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Image(systemName: "bolt.shield.fill")
-                            .foregroundColor(.orange)
-                            .accessibilityHidden(true)
-                        Text("Recent Attacks")
-                            .font(.caption.bold())
-                    }
-                    
-                    if let attacks = appState.player.recentAttacks, !attacks.isEmpty,
-                       let userId = appState.player.data?.playerId {
-                        ForEach(attacks.prefix(5)) { attack in
-                            let result = attack.result.flatMap { $0.isEmpty ? nil : $0 }
-                                ?? "Result unavailable"
-                            let userWasAttacker = attack.wasAttacker(userId: userId)
-                            let opponentName = attack.opponentName(forUserId: userId)
-                            let direction = userWasAttacker
-                                ? "outgoing attack against"
-                                : "incoming attack from"
-                            let timeAgo = attack.timeAgo(at: appState.serverNow)
-                            let timeDescription = timeAgo.isEmpty ? ""
-                                : timeAgo == "now" ? ", just now"
-                                : ", \(timeAgo) ago"
-
-                            Button {
-                                if let opponentId = attack.opponentId(forUserId: userId) {
-                                    BrowserManager.shared.open(TornLink.profile(opponentId))
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: attack.resultIcon(forUserId: userId))
-                                        .foregroundColor(attack.resultColor(forUserId: userId))
-                                        .frame(width: 14)
-                                        .accessibilityHidden(true)
-
-                                    Image(systemName: userWasAttacker ? "arrow.right" : "arrow.left")
-                                        .font(.caption2)
-                                        .foregroundColor(userWasAttacker ? .blue : .orange)
-                                        .frame(width: 12)
-                                        .accessibilityHidden(true)
-
-                                    VStack(alignment: .leading, spacing: 0) {
-                                        Text(opponentName)
-                                            .font(.caption)
-                                            .lineLimit(1)
-
-                                        Text(result)
-                                            .font(.caption2.weight(.medium))
-                                            .foregroundColor(.secondary)
-                                            .lineLimit(1)
-                                    }
-
-                                    Spacer()
-
-                                    Text(attack.timeAgo(at: appState.serverNow))
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("\(result), \(direction) \(opponentName)\(timeDescription)")
-                            .disabled(attack.opponentId(forUserId: userId) == nil)
-                            .uiTestID("uitest.attack.\(attack.id)")
-                        }
-                    } else {
-                        Text("No recent attacks")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding()
-                .background(Color.orange.opacity(reduceTransparency ? 0.25 : 0.05))
-                .cornerRadius(8)
-
-                HStack(spacing: 8) {
-                    TileButton(title: "Attack", icon: "bolt.fill", color: .red) {
-                        openTorn(TornLink.page("loader.php?sid=attack&user2ID="))
-                    }
-                    
-                    TileButton(title: "Hospital", icon: "cross.case.fill", color: .pink) {
-                        openTorn(TornLink.hospital)
-                    }
-                    
-                    TileButton(title: "Bounties", icon: "target", color: .purple) {
-                        openTorn(TornLink.bounties)
-                    }
-                }
+            BoardSection("Open in Torn") {
+                TornLinks(links: [
+                    TornLinks.Link(title: "Attack", url: TornLink.page("loader.php?sid=attack&user2ID=")),
+                    TornLinks.Link(title: "Hospital", url: TornLink.hospital),
+                    TornLinks.Link(title: "Bounties", url: TornLink.bounties),
+                ])
+                .padding(.top, Board.Space.s)
             }
-            .padding()
         }
     }
-    
+
+    // MARK: - Battle stats
+
+    @ViewBuilder
+    private var battleStatsSection: some View {
+        BoardSection("Battle stats") {
+            if let stats = appState.player.battleStats {
+                let total = stats.total.map(formatStat) ?? "Unavailable"
+                BoardRow(verticalPadding: Board.Space.m) {
+                    HStack(alignment: .firstTextBaseline, spacing: Board.Space.s) {
+                        Text("Total")
+                            .font(.boardStrong)
+                            .foregroundStyle(Board.inkSecondary)
+                        Spacer(minLength: Board.Space.s)
+                        Text(total)
+                            .font(stats.total == nil ? .boardBody : .figureHero)
+                            .foregroundStyle(Board.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Total: \(total)")
+                .uiTestID("uitest.battleStats.total")
+
+                statRow("Strength", stats.strength)
+                statRow("Defense", stats.defense)
+                statRow("Speed", stats.speed)
+                statRow("Dexterity", stats.dexterity)
+            } else if appState.isLoading {
+                BoardEmptyState(title: "Loading stats")
+            } else {
+                // Battle stats need a key with the right access; a finished
+                // refresh without them is a permission answer, not progress.
+                BoardEmptyState(
+                    title: "No battle stats",
+                    detail: "Your API key may not have access. Check its access level in Settings."
+                )
+            }
+        }
+    }
+
+    private func statRow(_ label: String, _ value: Int) -> some View {
+        ValueRow(label: label, value: formatStat(value))
+            .uiTestID("uitest.battleStats.\(label)")
+    }
+
+    // MARK: - Recent attacks
+
+    @ViewBuilder
+    private var recentAttacksSection: some View {
+        BoardSection("Recent attacks") {
+            if let attacks = appState.player.recentAttacks, !attacks.isEmpty,
+               let userId = appState.player.data?.playerId {
+                ForEach(attacks.prefix(5)) { attack in
+                    AttackRow(attack: attack, userId: userId, now: appState.serverNow)
+                }
+            } else {
+                BoardEmptyState(
+                    title: "No recent attacks",
+                    detail: "Fights you start or take part in show up here."
+                )
+            }
+        }
+    }
+
     private func formatStat(_ value: Int) -> String {
         if value >= 1_000_000_000 {
             return String(format: "%.1fB", Double(value) / 1_000_000_000)
@@ -162,32 +101,66 @@ struct AttacksView: View {
         }
         return "\(value)"
     }
-    
 }
 
-// MARK: - Stat Item
-struct StatItem: View {
-    @Environment(\.reduceTransparency) private var reduceTransparency
-    let label: String
-    let value: String
-    let color: Color
+/// One fight: what happened to whom, which way it went, and how long ago. A hit against
+/// the player reads in the alert tone, a win in the ready tone; the words and the symbol
+/// say the same thing, so colour is never the only carrier.
+private struct AttackRow: View {
+    let attack: AttackResult
+    let userId: Int
+    let now: Date
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.caption.bold().monospacedDigit())
-                .foregroundColor(color)
-            Text(label)
-                .font(.caption2)
-                .foregroundColor(.secondary)
+        let result = attack.result.flatMap { $0.isEmpty ? nil : $0 } ?? "Result unavailable"
+        let userWasAttacker = attack.wasAttacker(userId: userId)
+        let opponentName = attack.opponentName(forUserId: userId)
+        let tone = attack.resultTone(forUserId: userId)
+        let timeAgo = attack.timeAgo(at: now)
+        let direction = userWasAttacker ? "outgoing attack against" : "incoming attack from"
+        let timeDescription = timeAgo.isEmpty ? ""
+            : timeAgo == "now" ? ", just now"
+            : ", \(timeAgo) ago"
+
+        Button {
+            if let opponentId = attack.opponentId(forUserId: userId) {
+                BrowserManager.shared.open(TornLink.profile(opponentId))
+            }
+        } label: {
+            BoardRow {
+                HStack(alignment: .center, spacing: Board.Space.m) {
+                    Image(systemName: attack.resultIcon(forUserId: userId))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(tone.ink)
+                        .frame(width: 20)
+                        .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(opponentName)
+                            .font(.boardStrong)
+                            .foregroundStyle(Board.ink)
+                            .lineLimit(1)
+                        Text("\(result), \(userWasAttacker ? "you attacked" : "attacked you")")
+                            .font(.boardDetail)
+                            .foregroundStyle(tone.ink)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: Board.Space.s)
+
+                    Text(timeAgo)
+                        .font(.figure(14, weight: .medium))
+                        .foregroundStyle(Board.inkSecondary)
+                        .lineLimit(1)
+                }
+            }
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 4)
-        .background(color.opacity(reduceTransparency ? 0.4 : 0.1))
-        .cornerRadius(4)
+        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label): \(value)")
-        .uiTestID("uitest.battleStats.\(label)")
+        .accessibilityLabel("\(result), \(direction) \(opponentName)\(timeDescription)")
+        .disabled(attack.opponentId(forUserId: userId) == nil)
+        .uiTestID("uitest.attack.\(attack.id)")
     }
 }
 
@@ -206,21 +179,21 @@ extension AttackResult {
         }
     }
 
-    func resultColor(forUserId userId: Int) -> Color {
+    /// Ready for a win, alert for a hit against the player, counting for a draw or a
+    /// getaway on your side, idle for everything else.
+    func resultTone(forUserId userId: Int) -> Board.Tone {
         let userWasAttacker = wasAttacker(userId: userId)
         switch result {
         case "Attacked", "Mugged", "Hospitalized":
-            return userWasAttacker ? .green : .red
+            return userWasAttacker ? .ready : .alert
         case "Lost":
-            return userWasAttacker ? .red : .green
+            return userWasAttacker ? .alert : .ready
         case "Stalemate":
-            return .orange
+            return .counting
         case "Escape":
-            return userWasAttacker ? .orange : .green
-        case "Assist":
-            return .blue
+            return userWasAttacker ? .counting : .ready
         default:
-            return .gray
+            return .idle
         }
     }
 }
