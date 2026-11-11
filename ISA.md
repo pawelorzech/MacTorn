@@ -3,7 +3,7 @@ project: MacTorn
 task: Panel redesign ("Tablica dyspozytora"), on top of the reliability + product quality program
 effort: E4
 phase: verify
-progress: redesign 13 of 14 claims (ISC-45 awaits a UI-test run)
+progress: redesign 13 of 14 claims (ISC-45: one UI test red since before the redesign)
 mode: algorithm
 started: 2026-07-15
 updated: 2026-11-11
@@ -318,9 +318,12 @@ configuration never sits above content.
 - [x] ISC-44: The unit suite is green and the Release Universal build verifies.
   *Evidence: `TEST EXECUTE SUCCEEDED`; `make verify-release` "universal and strict ad-hoc
   signed" at 2e89a40.*
-- [ ] ISC-45: UI tests are migrated to the rail and run green. *Migrated and compiling
-  (`TEST BUILD SUCCEEDED`); not run — XCUITest takes over the screen and needs Paweł's
-  go-ahead.*
+- [ ] ISC-45: UI tests are migrated to the rail and run green. *13 of 14 green on CI
+  (run 43003579591, 718b8bb, Xcode 16.4), including every navigation, rail-fit and Status
+  accessibility test. `testWatchListsExposeAccessibleControlsAndForumState` fails on "Forum
+  errors must be visible without hovering a tooltip" — the same assertion that failed on
+  a580ca2 before the redesign (run 42993706114): the forum poll replaces the fixture's
+  seeded error text. Open until that fixture or the poll is fixed.*
 - [x] ISC-46: The theme is recorded in `CLAUDE.md` (`### Frontend Theme`; the file is
   gitignored, so it is local) and `docs/visual-identity.md` describes the rail and the board.
 
@@ -342,9 +345,9 @@ Anti-claims:
   window a widget opens shows the same panel at the same width. *Evidence:
   `rg NavigationSplitView` empty; `LSUIElement` true; `.windowResizability(.contentSize)`.*
 
-Not yet verified by anyone: the real menu-bar panel was never opened on this branch — only
-offscreen renders. Keyboard focus rings on the rail, live switch tint and the commands menu
-are unexercised until the UI tests or a person run it.
+Not yet verified by a person: the real menu-bar panel was never opened with this build —
+only offscreen renders and the CI UI tests. Keyboard focus rings on the rail, live switch
+tint and the commands menu have not been looked at.
 
 ## Test Strategy
 
