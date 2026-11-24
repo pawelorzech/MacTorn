@@ -184,27 +184,54 @@ final class MarketWatchService {
     /// The lowest item-market listings, or `.some(nil)` when nobody is selling. `nil` is a
     /// response MacTorn cannot read: one malformed listing rejects the whole answer.
     nonisolated static func decodePrice(_ data: Data, _ json: [String: Any]) -> MarketPriceSnapshot?? {
-        let listings: [(price: Int, amount: Int)]
         let market = json["itemmarket"] as? [String: Any]
-        if let rows = market?["listings"] as? [[String: Any]] {
-            listings = rows.compactMap { row in
-                (row["price"] as? Int).map { ($0, row["amount"] as? Int ?? 1) }
-            }
-            guard listings.count == rows.count else { return nil }
-        } else if let rows = json["itemmarket"] as? [[String: Any]] {
-            listings = rows.compactMap { row in
-                (row["cost"] as? Int).map { ($0, row["quantity"] as? Int ?? 1) }
-            }
-            guard listings.count == rows.count else { return nil }
+        let rows: [[String: Any]]
+        let priceKey: String
+        let amountKey: String
+        if let v2Rows = market?["listings"] as? [[String: Any]] {
+            rows = v2Rows
+            priceKey = "price"
+            amountKey = "amount"
+        } else if let v1Rows = json["itemmarket"] as? [[String: Any]] {
+            rows = v1Rows
+            priceKey = "cost"
+            amountKey = "quantity"
         } else {
             return nil
         }
-        let sorted = listings.sorted { $0.price < $1.price }
-        guard let best = sorted.first else { return .some(nil) }
+
+        // Single O(n) pass for the lowest and second-lowest prices, preserving stable
+        // first-seen tie-breaking without allocating or sorting the full listing array.
+        var bestPrice: Int?
+        var bestAmount = 1
+        var secondLowest: Int?
+
+        for row in rows {
+            guard let price = row[priceKey] as? Int else { return nil }
+            let amount = row[amountKey] as? Int ?? 1
+            if let currentBest = bestPrice {
+                if price < currentBest {
+                    secondLowest = currentBest
+                    bestPrice = price
+                    bestAmount = amount
+                } else if let currentSecond = secondLowest {
+                    if price < currentSecond {
+                        secondLowest = price
+                    }
+                } else {
+                    secondLowest = price
+                }
+            } else {
+                bestPrice = price
+                bestAmount = amount
+            }
+        }
+
+        guard let lowestPrice = bestPrice else { return .some(nil) }
         return MarketPriceSnapshot(
-            lowestPrice: best.price,
-            lowestPriceQuantity: best.amount,
-            secondLowestPrice: sorted.count > 1 ? sorted[1].price : 0,
+            lowestPrice: lowestPrice,
+            lowestPriceQuantity: bestAmount,
+            secondLowestPrice: secondLowest ?? 0,
             dataTimestamp: (market?["cache_timestamp"] as? Int).map { Date(timeIntervalSince1970: TimeInterval($0)) },
             cacheDelay: (market?["cache_delay"] as? Int).map(TimeInterval.init)
         )

@@ -73,9 +73,10 @@ final class PollingCoordinator {
     func recordsPerDayByCategory() -> [TornBudgetCategory: Int] {
         var result: [TornBudgetCategory: Int] = [:]
         let second = currentSecond
-        for (category, var counter) in recordsByCategory {
-            let rows = counter.count(nowSecond: second)
-            if rows > 0 { result[category] = rows }
+        for category in recordsByCategory.keys {
+            if let rows = recordsByCategory[category]?.count(nowSecond: second), rows > 0 {
+                result[category] = rows
+            }
         }
         return result
     }
@@ -97,6 +98,7 @@ final class PollingCoordinator {
 /// removed once, so a day's worth of activity never costs a full-array scan.
 private struct SlidingWindowCounter {
     private var buckets: [(second: Int, count: Int)] = []
+    private var head = 0
     private var total = 0
     private let windowSeconds: Int
 
@@ -106,19 +108,29 @@ private struct SlidingWindowCounter {
 
     mutating func add(_ count: Int, at second: Int) {
         total += count
-        if let last = buckets.last, second == last.second {
-            buckets[buckets.count - 1].count += count
-        } else if let last = buckets.last, second < last.second {
-            // The clock moved backwards. Rare, so keep the array sorted with an insert
-            // rather than complicating the common append path.
-            var index = buckets.count - 1
-            while index >= 0, buckets[index].second > second { index -= 1 }
-            if index >= 0, buckets[index].second == second {
-                buckets[index].count += count
+        if head < buckets.count {
+            let lastIndex = buckets.count - 1
+            let lastSecond = buckets[lastIndex].second
+            if second == lastSecond {
+                buckets[lastIndex].count += count
+            } else if second < lastSecond {
+                // The clock moved backwards. Rare, so keep the active slice sorted with an insert
+                // rather than complicating the common append path.
+                var index = lastIndex
+                while index >= head, buckets[index].second > second { index -= 1 }
+                if index >= head, buckets[index].second == second {
+                    buckets[index].count += count
+                } else {
+                    buckets.insert((second, count), at: index + 1)
+                }
             } else {
-                buckets.insert((second, count), at: index + 1)
+                buckets.append((second, count))
             }
         } else {
+            if !buckets.isEmpty {
+                buckets.removeAll(keepingCapacity: true)
+                head = 0
+            }
             buckets.append((second, count))
         }
     }
@@ -134,15 +146,21 @@ private struct SlidingWindowCounter {
     /// that is still inside it — which would let a request slip past the cap.
     private mutating func prune(nowSecond: Int) {
         let cutoff = nowSecond - windowSeconds
-        var index = 0
         var removed = 0
-        while index < buckets.count, buckets[index].second < cutoff {
-            removed += buckets[index].count
-            index += 1
+        while head < buckets.count, buckets[head].second < cutoff {
+            removed += buckets[head].count
+            head += 1
         }
-        if index > 0 {
-            buckets.removeFirst(index)
+        if removed > 0 {
             total -= removed
+            if head == buckets.count {
+                buckets.removeAll(keepingCapacity: true)
+                head = 0
+            } else if head >= 64, head * 2 >= buckets.count {
+                // Amortised O(1): only compact once at least half the storage is dead.
+                buckets.removeFirst(head)
+                head = 0
+            }
         }
     }
 }

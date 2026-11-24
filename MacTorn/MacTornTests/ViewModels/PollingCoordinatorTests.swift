@@ -139,4 +139,28 @@ final class PollingCoordinatorTests: XCTestCase {
         clock.advance(2)
         XCTAssertEqual(coord.recordsInLastDay(.activity), 0, "a day and a second later it is gone")
     }
+
+    func testSlidingWindowCompactsAndHandlesBackwardClockAfterCompaction() {
+        // Push >128 distinct seconds through the minute window to trigger head compaction.
+        for _ in 0..<200 {
+            coord.record(endpoint("user.fast"))
+            _ = coord.requestsInLastMinute
+            clock.advance(1)
+        }
+        // Inclusive 60s window at t=200 covers seconds 140...199 -> 60 requests.
+        XCTAssertEqual(coord.requestsInLastMinute, 60)
+        XCTAssertEqual(coord.requestsInLastDay, 200)
+
+        // Clock moves slightly backwards into an existing active bucket.
+        clock.advance(-5)
+        coord.record(endpoint("user.fast"))
+        XCTAssertEqual(coord.requestsInLastDay, 201)
+
+        // Advance past a full day and verify recordsPerDayByCategory prunes expired rows cleanly.
+        coord.record(endpoint("user.activity"))
+        XCTAssertEqual(coord.recordsPerDayByCategory()[.activity], 25)
+        clock.advance(24 * 60 * 60 + 10)
+        XCTAssertTrue(coord.recordsPerDayByCategory().isEmpty)
+        XCTAssertEqual(coord.requestsInLastDay, 0)
+    }
 }

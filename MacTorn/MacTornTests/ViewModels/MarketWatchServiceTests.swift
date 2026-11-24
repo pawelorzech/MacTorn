@@ -128,6 +128,44 @@ final class MarketWatchServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.cacheDelay, 3_600)
     }
 
+    func testDecodePriceHandlesDuplicatesSingleListingAndLegacyShape() throws {
+        // Duplicate lowest price preserves first-seen quantity and sets secondLowestPrice == lowestPrice.
+        let dupJSON: [String: Any] = [
+            "itemmarket": [
+                "listings": [
+                    ["price": 1_200, "amount": 5],
+                    ["price": 900, "amount": 3],
+                    ["price": 900, "amount": 9],
+                    ["price": 1_000, "amount": 2],
+                ]
+            ]
+        ]
+        let dup = try XCTUnwrap(MarketWatchService.decodePrice(Data(), dupJSON) ?? nil)
+        XCTAssertEqual(dup.lowestPrice, 900)
+        XCTAssertEqual(dup.lowestPriceQuantity, 3)
+        XCTAssertEqual(dup.secondLowestPrice, 900)
+
+        // Single listing yields secondLowestPrice == 0.
+        let singleJSON: [String: Any] = ["itemmarket": ["listings": [["price": 500, "amount": 4]]]]
+        let single = try XCTUnwrap(MarketWatchService.decodePrice(Data(), singleJSON) ?? nil)
+        XCTAssertEqual(single.lowestPrice, 500)
+        XCTAssertEqual(single.lowestPriceQuantity, 4)
+        XCTAssertEqual(single.secondLowestPrice, 0)
+
+        // Legacy v1 array shape (`cost` / `quantity`).
+        let legacyJSON: [String: Any] = [
+            "itemmarket": [
+                ["cost": 700, "quantity": 2],
+                ["cost": 550, "quantity": 6],
+                ["cost": 600, "quantity": 1],
+            ]
+        ]
+        let legacy = try XCTUnwrap(MarketWatchService.decodePrice(Data(), legacyJSON) ?? nil)
+        XCTAssertEqual(legacy.lowestPrice, 550)
+        XCTAssertEqual(legacy.lowestPriceQuantity, 6)
+        XCTAssertEqual(legacy.secondLowestPrice, 600)
+    }
+
     func testRepeatedOrOlderSnapshotPreservesDataAgeAndDoesNotAlertAgain() {
         let service = MarketWatchService(defaults: .createMockDefaults())
         service.items = [WatchlistItem(id: 7, name: "Target", lowestPrice: 0,
