@@ -148,9 +148,9 @@ class AppState {
             rebuildItemSearchIndex()
         }
     }
-    /// Lowercased mirror of `itemCatalog`, used by `searchItems`. Rebuilt only when the catalogue
-    /// changes, not on every keystroke.
-    @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String)] = []
+    /// Pre-sorted lowercased mirror of `itemCatalog`, used by `searchItems`. Rebuilt only when the
+    /// catalogue changes, not on every keystroke.
+    @ObservationIgnored var itemSearchIndex: [(id: Int, name: String, lowered: String, isASCII: Bool)] = []
 
     // MARK: - Update State
     var updateAvailable: GitHubRelease?
@@ -228,6 +228,9 @@ class AppState {
     /// True once an *expanded* (`[Int: CachedCatalogItem]`) cache was decoded. A legacy name-only cache
     /// leaves this false so the catalogue is refreshed into the expanded shape.
     @ObservationIgnored var itemCatalogCacheExpanded = false
+    /// In-memory shop list derived from the expanded item catalogue cache, avoiding repeated
+    /// full-catalogue JSON decodes from `UserDefaults` on the main actor.
+    @ObservationIgnored var cachedShopCatalog: [ShopItem]?
 
     /// Non-secret persistence store. Injected so tests get an isolated `UserDefaults` suite instead of
     /// the process-wide `.standard`, which under parallel testing races across test classes on shared

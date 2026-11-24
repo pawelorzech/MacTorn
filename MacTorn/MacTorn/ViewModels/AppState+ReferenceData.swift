@@ -131,15 +131,20 @@ extension AppState {
     // MARK: Cache
 
     func loadItemCatalogFromCache() {
-        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else { return }
+        guard let data = defaults.data(forKey: Self.itemCatalogCacheKey) else {
+            cachedShopCatalog = nil
+            return
+        }
         if let cached = try? JSONDecoder().decode([Int: CachedCatalogItem].self, from: data) {
             itemCatalog = cached.mapValues(\.name)
             itemCatalogCacheExpanded = true
+            cachedShopCatalog = Self.buildShopItems(from: cached)
         } else if let legacy = try? JSONDecoder().decode([Int: String].self, from: data) {
             // A cache written before the shop fields existed: keep its names immediately and refresh once to
             // add the public shop fields from the same `/torn/items` response.
             itemCatalog = legacy
             itemCatalogCacheExpanded = false
+            cachedShopCatalog = nil
         }
         let fetchedAt = defaults.double(forKey: Self.itemCatalogFetchedAtKey)
         itemCatalogFetchedAt = fetchedAt > 0 ? Date(timeIntervalSince1970: fetchedAt) : nil
@@ -169,6 +174,7 @@ extension AppState {
                                  parse: { Self.parseItemCatalog(json: $0, logger: $1) },
                                  onFailure: { itemCatalogBackoff.fail(at: time.now) }) { parsed in
             itemCatalog = parsed.mapValues(\.name)
+            cachedShopCatalog = Self.buildShopItems(from: parsed)
             let now = time.now
             itemCatalogFetchedAt = now
             itemCatalogCacheExpanded = true
@@ -181,7 +187,9 @@ extension AppState {
     /// Supplies the optional shop module from the same public catalogue/cache used by
     /// item-name search. A fresh catalogue never causes a second full download.
     func shopCatalogRefreshingIfNeeded() async -> ShopCatalogRefreshResult {
-        loadItemCatalogFromCache()
+        if cachedShopCatalog == nil || !itemCatalogCacheExpanded {
+            loadItemCatalogFromCache()
+        }
         let cached = cachedShopItems()
         guard itemCatalogIsStale else { return .success(cached) }
         guard !requester.isInFlight("torn.items") else { return .pending(cached) }
@@ -193,8 +201,15 @@ extension AppState {
     }
 
     func cachedShopItems() -> [ShopItem] {
-        guard let cached = cachedCatalogItems() else { return [] }
-        return cached.compactMap { id, item in
+        if let cached = cachedShopCatalog { return cached }
+        guard let decoded = cachedCatalogItems() else { return [] }
+        let built = Self.buildShopItems(from: decoded)
+        cachedShopCatalog = built
+        return built
+    }
+
+    private static func buildShopItems(from cached: [Int: CachedCatalogItem]) -> [ShopItem] {
+        cached.compactMap { id, item in
             guard !item.shops.isEmpty else { return nil }
             return ShopItem(
                 id: id,
@@ -290,27 +305,100 @@ extension AppState {
     /// substring search over the whole catalogue otherwise returns hundreds of rows for a
     /// two-letter query.
     func searchItems(_ query: String, limit: Int = 12) -> [TornItemSummary] {
+        guard limit > 0 else { return [] }
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !needle.isEmpty else { return [] }
 
         var prefixMatches: [TornItemSummary] = []
         var containsMatches: [TornItemSummary] = []
+        prefixMatches.reserveCapacity(limit)
+        containsMatches.reserveCapacity(limit)
+
+        let needleBytes = Array(needle.utf8)
+        let needleIsASCII = needleBytes.allSatisfy { $0 < 0x80 }
+
+        // `itemSearchIndex` is pre-sorted alphabetically by `localizedCaseInsensitiveCompare`,
+        // so scanning in order yields sorted prefix and substring matches without sorting per keystroke.
         for entry in itemSearchIndex {
-            if entry.lowered.hasPrefix(needle) {
+            let isPrefix: Bool
+            if needleIsASCII && entry.isASCII {
+                isPrefix = Self.utf8HasPrefix(entry.lowered, prefix: needleBytes)
+            } else {
+                isPrefix = entry.lowered.hasPrefix(needle)
+            }
+            if isPrefix {
                 prefixMatches.append(TornItemSummary(id: entry.id, name: entry.name))
-            } else if entry.lowered.contains(needle) {
-                containsMatches.append(TornItemSummary(id: entry.id, name: entry.name))
+                if prefixMatches.count == limit {
+                    return prefixMatches
+                }
+            } else if containsMatches.count < limit {
+                let hasMatch = (needleIsASCII && entry.isASCII)
+                    ? Self.utf8Contains(entry.lowered, needle: needleBytes)
+                    : entry.lowered.contains(needle)
+                if hasMatch {
+                    containsMatches.append(TornItemSummary(id: entry.id, name: entry.name))
+                }
             }
         }
-        let byName: (TornItemSummary, TornItemSummary) -> Bool = {
-            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        if prefixMatches.isEmpty {
+            return containsMatches
         }
-        return Array((prefixMatches.sorted(by: byName) + containsMatches.sorted(by: byName)).prefix(limit))
+        let remaining = limit - prefixMatches.count
+        if remaining > 0, !containsMatches.isEmpty {
+            prefixMatches.append(contentsOf: containsMatches.prefix(remaining))
+        }
+        return prefixMatches
     }
 
-    /// Rebuilds the lowercased search mirror. Called only when `itemCatalog` changes.
+    private static func utf8HasPrefix(_ haystack: String, prefix: [UInt8]) -> Bool {
+        var copy = haystack
+        return copy.withUTF8 { buf in
+            let m = prefix.count
+            guard buf.count >= m else { return false }
+            for i in 0..<m where buf[i] != prefix[i] { return false }
+            return true
+        }
+    }
+
+    private static func utf8Contains(_ haystack: String, needle: [UInt8]) -> Bool {
+        var copy = haystack
+        return copy.withUTF8 { buf in
+            let n = buf.count
+            let m = needle.count
+            guard m > 0, n >= m else { return false }
+            let first = needle[0]
+            let lastStart = n - m
+            var i = 0
+            while i <= lastStart {
+                if buf[i] == first {
+                    var matched = true
+                    var j = 1
+                    while j < m {
+                        if buf[i + j] != needle[j] {
+                            matched = false
+                            break
+                        }
+                        j += 1
+                    }
+                    if matched { return true }
+                }
+                i += 1
+            }
+            return false
+        }
+    }
+
+    /// Rebuilds the pre-sorted lowercased search mirror. Called only when `itemCatalog` changes.
     func rebuildItemSearchIndex() {
-        itemSearchIndex = itemCatalog.map { (id: $0.key, name: $0.value, lowered: $0.value.lowercased()) }
+        itemSearchIndex = itemCatalog
+            .map { id, name in
+                let lowered = name.lowercased()
+                return (id: id, name: name, lowered: lowered, isASCII: lowered.utf8.allSatisfy { $0 < 0x80 })
+            }
+            .sorted { lhs, rhs in
+                let order = lhs.name.localizedCaseInsensitiveCompare(rhs.name)
+                return order == .orderedAscending || (order == .orderedSame && lhs.id < rhs.id)
+            }
     }
 
     /// Replaces the `Item #id` placeholders on the watchlist once real names are known.

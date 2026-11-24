@@ -125,6 +125,44 @@ final class ItemCatalogTests: XCTestCase {
         XCTAssertTrue(makeState().searchItems("xanax").isEmpty)
     }
 
+    func testSearchHandlesZeroNegativeLimitAndRebuildsWhenCatalogUpdates() {
+        let state = makeState()
+        state.itemCatalog = [1: "Alpha", 2: "Beta", 3: "Gamma Alpha"]
+        XCTAssertTrue(state.searchItems("a", limit: 0).isEmpty)
+        XCTAssertTrue(state.searchItems("a", limit: -3).isEmpty)
+        XCTAssertEqual(state.searchItems("al", limit: 1).map(\.name), ["Alpha"])
+
+        state.itemCatalog = [4: "Aloe Vera", 1: "Alpha", 3: "Gamma Alpha", 5: "Café Crème"]
+        XCTAssertEqual(state.searchItems("al", limit: 2).map(\.name), ["Aloe Vera", "Alpha"])
+        XCTAssertEqual(state.searchItems("café", limit: 2).map(\.name), ["Café Crème"])
+        XCTAssertEqual(state.searchItems("crème", limit: 2).map(\.name), ["Café Crème"])
+    }
+
+    func testShopCatalogCacheInvalidatesOnReloadAndFetch() async throws {
+        let defaults = UserDefaults.createMockDefaults()
+        let session = MockNetworkSession(mockData: json([
+            "items": [[
+                "id": 10, "name": "Rose",
+                "value": ["market_price": 100, "shops": [["country": "Mexico", "shop": "Flower", "buy_price": 50]]]
+            ]]
+        ]))
+        let state = AppState(session: session, connectivity: ControllableConnectivity(), defaults: defaults)
+        state.apiKey = "test-key"
+
+        await state.fetchItemCatalog()
+        XCTAssertEqual(state.cachedShopItems().map(\.id), [10])
+
+        // Re-fetching updated catalog replaces the in-memory shop cache.
+        session.mockData = json([
+            "items": [[
+                "id": 20, "name": "Dahlia",
+                "value": ["market_price": 200, "shops": [["country": "Mexico", "shop": "Flower", "buy_price": 80]]]
+            ]]
+        ])
+        await state.fetchItemCatalog()
+        XCTAssertEqual(state.cachedShopItems().map(\.id), [20])
+    }
+
     // MARK: - Backfill
 
     func testBackfillReplacesPlaceholderNames() {
