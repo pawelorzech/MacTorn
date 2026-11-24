@@ -5,6 +5,21 @@ All notable changes to MacTorn will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-11-24
+
+Faster under the hood. Nothing you see, read from Torn or get notified about has changed.
+
+### Changed
+- **Decoding:** the user snapshot, faction and virus responses are decoded in one pass
+  instead of several.
+- **Shop prices and item search:** the item catalog is sorted once and searched with an
+  ASCII fast path; the shop catalog is cached in memory.
+- **Request budget:** the sliding-window request counter is O(1); the watchlist picks the
+  two lowest market prices in one pass instead of sorting every listing.
+- **Text and views:** Torn text is sanitised on a UTF-8 fast path, and the hot SwiftUI
+  views (Next up, events, optional modules) cache what they format instead of redoing it
+  on every tick.
+
 ## [2.0.0] - 2026-11-11 - The dispatch board
 
 The whole interface is redesigned. Nothing about what MacTorn reads from Torn, how often,
