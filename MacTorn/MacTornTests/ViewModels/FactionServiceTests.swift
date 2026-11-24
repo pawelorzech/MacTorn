@@ -131,6 +131,35 @@ final class FactionServiceTests: XCTestCase {
         }
     }
 
+    func testWarsRejectsMalformedOptionalFieldsAndBasicPreservesChainEnd() async throws {
+        // Malformed optional `winner` (string instead of Int/null) must be rejected.
+        let badWinner: [String: Any] = [
+            "rankedwars": [[
+                "id": 1, "start": 100, "end": 200, "target": 500, "winner": "bad",
+                "factions": [["id": 10, "name": "A", "score": 500]]
+            ]]
+        ]
+        XCTAssertNil(FactionStore.decodeWars(Data(), badWinner))
+
+        // Malformed optional `chain` inside faction must be rejected.
+        let badChain: [String: Any] = [
+            "rankedwars": [[
+                "id": 1, "start": 100, "end": 0, "target": 500, "winner": NSNull(),
+                "factions": [["id": 10, "name": "A", "score": 100, "chain": "bad"]]
+            ]]
+        ]
+        XCTAssertNil(FactionStore.decodeWars(Data(), badChain))
+
+        // `decodeBasic` preserves positive `end` and normalizes 0/missing to nil.
+        var withEnd = basicJSON
+        withEnd["chain"] = ["current": 5, "max": 10, "timeout": 100, "cooldown": 0, "end": 1_800_000_000]
+        XCTAssertEqual(FactionStore.decodeBasic(Data(), withEnd)?.chain.end, 1_800_000_000)
+
+        var withZeroEnd = basicJSON
+        withZeroEnd["chain"] = ["current": 5, "max": 10, "timeout": 100, "cooldown": 0, "end": 0]
+        XCTAssertNil(FactionStore.decodeBasic(Data(), withZeroEnd)?.chain.end)
+    }
+
     func testNewsRejectsMissingArrayAsMalformed() async throws {
         let (service, mock) = makeService()
         try mock.setSuccessResponse(json: ["news": "not-an-array"])

@@ -348,4 +348,82 @@ final class UserSnapshotServiceTests: XCTestCase {
         }
         XCTAssertEqual(payload.stocks.map(\.stockId), [3, 12, 25])
     }
+
+    func testSinglePassParseSnapshotHandlesErrorsStocksTransactionsAndVaultFallback() async throws {
+        let service = UserSnapshotService(session: MockNetworkSession())
+
+        // v1 error envelope
+        let v1Err = try TornAPIFixtures.toData(["error": ["code": 2, "error": "Incorrect key"]])
+        if case .apiError(let err, _) = await service.parseSnapshot(data: v1Err, requestedSelections: ["basic"], grantedSelections: nil) {
+            XCTAssertEqual(err.classification, .permanentKey)
+        } else {
+            XCTFail("Expected v1 API error")
+        }
+
+        // v2 error envelope
+        let v2Err = try TornAPIFixtures.toData(["code": 5, "error": "Too many requests"])
+        if case .apiError(let err, _) = await service.parseSnapshot(data: v2Err, requestedSelections: ["basic"], grantedSelections: nil) {
+            XCTAssertEqual(err.classification, .rateLimit)
+        } else {
+            XCTFail("Expected v2 API error")
+        }
+
+        // Full payload with transactions, vault fallback, rented property and attacks
+        let data = try TornAPIFixtures.toData([
+            "name": "SinglePass",
+            "player_id": 77,
+            "money_onhand": 500,
+            "money": ["vault": 900],
+            "points": 12,
+            "donator": 1,
+            "cayman_bank": 300,
+            "stocks": [
+                "10": [
+                    "stock_id": 10,
+                    "total_shares": 200,
+                    "transactions": [
+                        "1": ["shares": 100, "bought_price": 50, "time_bought": 1000],
+                        "2": ["shares": 100, "bought_price": 60, "time_bought": 2000]
+                    ]
+                ]
+            ],
+            "properties": [
+                "5": ["property_id": 5, "property": "PI", "cost": 100, "marketprice": 200, "happy": 4500, "rented": ["days_left": 7]]
+            ],
+            "attacks": [
+                "1": ["code": "old", "timestamp_ended": 100],
+                "2": ["code": "new", "timestamp_ended": 200]
+            ]
+        ])
+        let res = await service.parseSnapshot(
+            data: data,
+            requestedSelections: ["basic", "money", "stocks", "properties"],
+            grantedSelections: nil
+        )
+        guard case .success(let payload, _) = res else {
+            return XCTFail("Expected parsed snapshot")
+        }
+        XCTAssertEqual(payload.money.cash, 500)
+        XCTAssertEqual(payload.money.vault, 900)
+        XCTAssertEqual(payload.money.points, 12)
+        XCTAssertEqual(payload.money.tokens, 1)
+        XCTAssertEqual(payload.money.cayman, 300)
+        XCTAssertEqual(payload.stocks.first?.totalCostBasis, 11_000)
+        XCTAssertEqual(payload.properties?.first?.rented, true)
+        XCTAssertEqual(payload.properties?.first?.rentDaysLeft, 7)
+        XCTAssertEqual(payload.recentAttacks?.map(\.code), ["new", "old"])
+    }
+
+    func testDecodeVirusParsesValidPayloadAndRejectsWrongTypes() throws {
+        let validJSON: [String: Any] = ["virus": ["item": ["id": 106, "name": "Stealth"], "until": 1_800_000_000]]
+        let validData = try TornAPIFixtures.toData(validJSON)
+        let decoded = UserSnapshotService.decodeVirus(validData, validJSON)
+        XCTAssertEqual(decoded??.itemID, 106)
+        XCTAssertEqual(decoded??.name, "Stealth")
+        XCTAssertEqual(decoded??.until, 1_800_000_000)
+
+        let badJSON: [String: Any] = ["virus": ["item": ["id": "106", "name": "Stealth"], "until": 1_800_000_000]]
+        let badData = try TornAPIFixtures.toData(badJSON)
+        XCTAssertNil(UserSnapshotService.decodeVirus(badData, badJSON))
+    }
 }

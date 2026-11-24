@@ -84,23 +84,21 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         grantedSelections: [String]?
     ) async -> TornServiceResult<UserSnapshotPayload> {
         await Task.detached(priority: .userInitiated) {
-            guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return .malformed(responseBytes: data.count)
-            }
-            if let apiError = tornAPIError(in: json) {
-                return .apiError(apiError, responseBytes: data.count)
-            }
-            guard UserSnapshotContract.isSatisfied(
-                by: json,
-                requestedSelections: requestedSelections,
-                grantedSelections: grantedSelections
-            ) else {
-                return .malformed(responseBytes: data.count)
-            }
-
-            let snapshot: TornResponse
+            let decoder = JSONDecoder()
+            decoder.userInfo[snapshotContractSelectionsKey] = SnapshotContractRequest(
+                requested: requestedSelections,
+                granted: grantedSelections
+            )
             do {
-                snapshot = try JSONDecoder().decode(TornResponse.self, from: data)
+                let envelope = try decoder.decode(RawUserSnapshotEnvelope.self, from: data)
+                switch envelope.outcome {
+                case .apiError(let apiError):
+                    return .apiError(apiError, responseBytes: data.count)
+                case .contractUnsatisfied:
+                    return .malformed(responseBytes: data.count)
+                case .payload(let payload):
+                    return .success(payload, responseBytes: data.count)
+                }
             } catch let DecodingError.keyNotFound(key, context) {
                 userSnapshotLogger.error(
                     "TornResponse decode: missing key '\(key.stringValue)' at \(context.codingPath.map(\.stringValue).joined(separator: "."))"
@@ -117,24 +115,6 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
                 )
                 return .malformed(responseBytes: data.count)
             }
-
-            let money = Self.parseMoney(json)
-            let battleStats = Self.parseBattleStats(json)
-            let attacks = Self.parseAttacks(json)
-            let properties = Self.parseProperties(json)
-            let stocks = Self.parseStocks(json)
-
-            return .success(
-                UserSnapshotPayload(
-                    snapshot: snapshot,
-                    money: money,
-                    battleStats: battleStats,
-                    recentAttacks: attacks,
-                    properties: properties,
-                    stocks: stocks
-                ),
-                responseBytes: data.count
-            )
         }.value
     }
 
@@ -142,9 +122,24 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
         // `TornResponse.recentEvents` collapses a *missing* key to `[]`. The payload keeps absent apart from
         // empty, the way `parseAttacks(_:)` does, so a 200 body that omits `events` leaves the user's event
         // list alone instead of emptying it.
-        let decoded = try? JSONDecoder().decode(TornResponse.self, from: data)
+        let events: [TornEvent]?
+        if isPresent(json["events"]) {
+            struct EventsEnvelope: Decodable {
+                let events: [String: TornEvent]?
+            }
+            if let decoded = try? JSONDecoder().decode(EventsEnvelope.self, from: data) {
+                events = decoded.events.map {
+                    $0.map { apiID, event in event.identified(by: apiID) }
+                        .sorted { $0.timestamp > $1.timestamp }
+                } ?? []
+            } else {
+                events = nil
+            }
+        } else {
+            events = nil
+        }
         return UserActivityPayload(
-            events: isPresent(json["events"]) ? decoded?.recentEvents : nil,
+            events: events,
             recentAttacks: parseAttacks(json)
         )
     }
@@ -171,11 +166,12 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
     static func decodeVirus(_ data: Data, _ json: [String: Any]) -> VirusProgramming?? {
         guard json.keys.contains("virus") else { return nil }
         if json["virus"] is NSNull { return .some(nil) }
-        guard let dictionary = json["virus"] as? [String: Any],
-              let encoded = try? JSONSerialization.data(withJSONObject: dictionary),
-              let virus = try? JSONDecoder().decode(VirusProgramming.self, from: encoded)
-        else { return nil }
-        return .some(virus)
+        guard let dict = json["virus"] as? [String: Any],
+              let until = dict["until"] as? Int,
+              let item = dict["item"] as? [String: Any],
+              let itemID = item["id"] as? Int,
+              let name = item["name"] as? String else { return nil }
+        return .some(VirusProgramming(itemID: itemID, name: name, until: until))
     }
 
     static func parseMoney(_ json: [String: Any]) -> MoneyData {
@@ -244,15 +240,246 @@ final class UserSnapshotService: UserSnapshotServicing, @unchecked Sendable {
             )
         }.sorted { $0.id < $1.id }
     }
+}
 
-    private static func parseStocks(_ json: [String: Any]) -> [StockHolding] {
-        guard let stocks = json["stocks"] as? [String: [String: Any]] else { return [] }
-        return stocks.values.compactMap { stock in
-            guard let data = try? JSONSerialization.data(withJSONObject: stock) else {
+private let snapshotContractSelectionsKey = CodingUserInfoKey(rawValue: "snapshotContractSelections")!
+
+private struct SnapshotContractRequest {
+    let requested: [String]
+    let granted: [String]?
+}
+
+private struct AnyCodingKey: CodingKey {
+    let stringValue: String
+    let intValue: Int?
+    init?(stringValue: String) { self.stringValue = stringValue; self.intValue = Int(stringValue) }
+    init?(intValue: Int) { self.stringValue = String(intValue); self.intValue = intValue }
+    init(_ raw: String) { self.stringValue = raw; self.intValue = Int(raw) }
+}
+
+/// Single-pass decoder for the v1 fast-user payload. Checks the Torn error envelope and
+/// semantic contract before decoding `TornResponse`, `MoneyData`, `BattleStats`, attacks,
+/// properties and stocks from the same JSON parse tree — eliminating the double parse and
+/// per-stock `JSONSerialization.data` round-trip.
+private struct RawUserSnapshotEnvelope: Decodable {
+    enum Outcome {
+        case apiError(TornAPIError)
+        case contractUnsatisfied
+        case payload(UserSnapshotPayload)
+    }
+
+    let outcome: Outcome
+
+    private enum Keys: String, CodingKey {
+        case error, code
+        case name, playerId = "player_id"
+        case energy, nerve, life, happy
+        case cooldowns, travel, properties, stocks, attacks
+        case money, moneyOnhand = "money_onhand", vaultAmount = "vault_amount"
+        case propertyVault = "property_vault", points, donator, caymanBank = "cayman_bank", networth
+        case strength, defense, speed, dexterity
+    }
+
+    private enum ErrorKeys: String, CodingKey { case code, error }
+    private enum MoneyNestedKeys: String, CodingKey { case vault }
+    private enum AttackKeys: String, CodingKey {
+        case code, result, respect
+        case timestampStarted = "timestamp_started"
+        case timestampEnded = "timestamp_ended"
+        case attackerId = "attacker_id"
+        case attackerName = "attacker_name"
+        case defenderId = "defender_id"
+        case defenderName = "defender_name"
+    }
+    private enum PropertyKeys: String, CodingKey {
+        case propertyId = "property_id", property, status, cost, marketprice, happy, rented
+    }
+    private enum RentedKeys: String, CodingKey { case daysLeft = "days_left" }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: Keys.self)
+
+        // 1. Torn API error envelope (v1 nested or v2 top-level).
+        if let nested = try? container.nestedContainer(keyedBy: ErrorKeys.self, forKey: .error) {
+            let code = (try? nested.decode(Int.self, forKey: .code)) ?? 0
+            let message = (try? nested.decode(String.self, forKey: .error)) ?? ""
+            outcome = .apiError(TornAPIError.classify(code: code, message: message))
+            return
+        }
+        if let code = try? container.decode(Int.self, forKey: .code),
+           let message = try? container.decode(String.self, forKey: .error) {
+            outcome = .apiError(TornAPIError.classify(code: code, message: message))
+            return
+        }
+
+        // 2. Semantic contract evidence check on the already-parsed JSON tree.
+        if let req = decoder.userInfo[snapshotContractSelectionsKey] as? SnapshotContractRequest {
+            let requested = Set(req.requested)
+            let available = req.granted.map { requested.intersection(Set($0)) } ?? requested
+            guard !available.isEmpty, available.contains(where: { Self.hasEvidence(for: $0, in: container) }) else {
+                outcome = .contractUnsatisfied
+                return
+            }
+        }
+
+        // 3. Decode core `TornResponse` from the same decoder (no re-tokenization).
+        let snapshot = try TornResponse(from: decoder)
+
+        // 4. Decode companion sections from the same container with identical lenient rules.
+        let money = Self.decodeMoney(from: container)
+        let battleStats = Self.decodeBattleStats(from: container)
+        let attacks = Self.decodeAttacks(from: container)
+        let properties = Self.decodeProperties(from: container)
+        let stocks = Self.decodeStocks(from: container)
+
+        outcome = .payload(
+            UserSnapshotPayload(
+                snapshot: snapshot,
+                money: money,
+                battleStats: battleStats,
+                recentAttacks: attacks,
+                properties: properties,
+                stocks: stocks
+            )
+        )
+    }
+
+    private static func isJSONObject(_ container: KeyedDecodingContainer<Keys>, key: Keys) -> Bool {
+        (try? container.nestedContainer(keyedBy: AnyCodingKey.self, forKey: key)) != nil
+    }
+
+    private static func isJSONNumberOrBool(_ container: KeyedDecodingContainer<Keys>, key: Keys) -> Bool {
+        (try? container.decode(Int.self, forKey: key)) != nil
+            || (try? container.decode(Double.self, forKey: key)) != nil
+            || (try? container.decode(Bool.self, forKey: key)) != nil
+    }
+
+    private static func hasEvidence(for selection: String, in c: KeyedDecodingContainer<Keys>) -> Bool {
+        switch selection {
+        case "basic", "profile":
+            return (try? c.decode(String.self, forKey: .name)) != nil || isJSONNumberOrBool(c, key: .playerId)
+        case "bars":
+            return isJSONObject(c, key: .energy) && isJSONObject(c, key: .nerve)
+                && isJSONObject(c, key: .life) && isJSONObject(c, key: .happy)
+        case "cooldowns":
+            return isJSONObject(c, key: .cooldowns)
+        case "travel":
+            return isJSONObject(c, key: .travel)
+        case "properties":
+            return isJSONObject(c, key: .properties)
+        case "stocks":
+            return isJSONObject(c, key: .stocks)
+        case "money":
+            return c.contains(.moneyOnhand) || c.contains(.points) || c.contains(.caymanBank)
+                || c.contains(.vaultAmount) || c.contains(.propertyVault) || c.contains(.networth)
+        case "battlestats":
+            return isJSONNumberOrBool(c, key: .strength) || isJSONNumberOrBool(c, key: .defense)
+                || isJSONNumberOrBool(c, key: .speed) || isJSONNumberOrBool(c, key: .dexterity)
+        default:
+            return false
+        }
+    }
+
+    private static func decodeMoney(from c: KeyedDecodingContainer<Keys>) -> MoneyData {
+        let cash = (try? c.decode(Int.self, forKey: .moneyOnhand)) ?? 0
+        let vault: Int
+        if let value = try? c.decode(Int.self, forKey: .vaultAmount) {
+            vault = value
+        } else if let value = try? c.decode(Int.self, forKey: .propertyVault) {
+            vault = value
+        } else if let money = try? c.nestedContainer(keyedBy: MoneyNestedKeys.self, forKey: .money) {
+            vault = (try? money.decode(Int.self, forKey: .vault)) ?? 0
+        } else {
+            vault = 0
+        }
+        return MoneyData(
+            cash: cash,
+            vault: vault,
+            points: (try? c.decode(Int.self, forKey: .points)) ?? 0,
+            tokens: (try? c.decode(Int.self, forKey: .donator)) ?? 0,
+            cayman: (try? c.decode(Int.self, forKey: .caymanBank)) ?? 0
+        )
+    }
+
+    private static func decodeBattleStats(from c: KeyedDecodingContainer<Keys>) -> BattleStats {
+        BattleStats(
+            strength: (try? c.decode(Int.self, forKey: .strength)) ?? 0,
+            defense: (try? c.decode(Int.self, forKey: .defense)) ?? 0,
+            speed: (try? c.decode(Int.self, forKey: .speed)) ?? 0,
+            dexterity: (try? c.decode(Int.self, forKey: .dexterity)) ?? 0
+        )
+    }
+
+    private static func decodeAttacks(from c: KeyedDecodingContainer<Keys>) -> [AttackResult]? {
+        guard let map = try? c.nestedContainer(keyedBy: AnyCodingKey.self, forKey: .attacks) else {
+            return nil
+        }
+        var results: [AttackResult] = []
+        results.reserveCapacity(map.allKeys.count)
+        for key in map.allKeys {
+            guard let attack = try? map.nestedContainer(keyedBy: AttackKeys.self, forKey: key) else {
                 return nil
             }
-            return try? JSONDecoder().decode(StockHolding.self, from: data)
-        }.sorted { $0.stockId < $1.stockId }
+            guard let code = try? attack.decode(String.self, forKey: .code) else { continue }
+            results.append(
+                AttackResult(
+                    code: code,
+                    timestampStarted: try? attack.decode(Int.self, forKey: .timestampStarted),
+                    timestampEnded: try? attack.decode(Int.self, forKey: .timestampEnded),
+                    attackerId: try? attack.decode(Int.self, forKey: .attackerId),
+                    attackerName: try? attack.decode(String.self, forKey: .attackerName),
+                    defenderId: try? attack.decode(Int.self, forKey: .defenderId),
+                    defenderName: try? attack.decode(String.self, forKey: .defenderName),
+                    result: try? attack.decode(String.self, forKey: .result),
+                    respect: try? attack.decode(Double.self, forKey: .respect)
+                )
+            )
+        }
+        return results.sorted { ($0.timestampEnded ?? 0) > ($1.timestampEnded ?? 0) }
+    }
+
+    private static func decodeProperties(from c: KeyedDecodingContainer<Keys>) -> [PropertyInfo]? {
+        guard let map = try? c.nestedContainer(keyedBy: AnyCodingKey.self, forKey: .properties) else {
+            return nil
+        }
+        var results: [PropertyInfo] = []
+        results.reserveCapacity(map.allKeys.count)
+        for key in map.allKeys {
+            guard let prop = try? map.nestedContainer(keyedBy: PropertyKeys.self, forKey: key) else {
+                return nil
+            }
+            let rented = try? prop.nestedContainer(keyedBy: RentedKeys.self, forKey: .rented)
+            results.append(
+                PropertyInfo(
+                    id: (try? prop.decode(Int.self, forKey: .propertyId)) ?? 0,
+                    propertyType: (try? prop.decode(String.self, forKey: .property)) ?? "",
+                    status: (try? prop.decode(String.self, forKey: .status)) ?? "",
+                    cost: (try? prop.decode(Int.self, forKey: .cost)) ?? 0,
+                    marketprice: (try? prop.decode(Int.self, forKey: .marketprice)) ?? 0,
+                    happy: (try? prop.decode(Int.self, forKey: .happy)) ?? 0,
+                    rented: rented != nil,
+                    rentDaysLeft: rented.flatMap { try? $0.decode(Int.self, forKey: .daysLeft) }
+                )
+            )
+        }
+        return results.sorted { $0.id < $1.id }
+    }
+
+    private static func decodeStocks(from c: KeyedDecodingContainer<Keys>) -> [StockHolding] {
+        guard let map = try? c.nestedContainer(keyedBy: AnyCodingKey.self, forKey: .stocks) else {
+            return []
+        }
+        var results: [StockHolding] = []
+        results.reserveCapacity(map.allKeys.count)
+        for key in map.allKeys {
+            if let holding = try? map.decode(StockHolding.self, forKey: key) {
+                results.append(holding)
+            } else if (try? map.nestedContainer(keyedBy: AnyCodingKey.self, forKey: key)) == nil {
+                // Mirror `json["stocks"] as? [String: [String: Any]]`: a non-object entry rejects the map.
+                return []
+            }
+        }
+        return results.sorted { $0.stockId < $1.stockId }
     }
 }
 
