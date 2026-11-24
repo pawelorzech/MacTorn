@@ -205,14 +205,18 @@ struct CalendarEntry: Equatable {
     let start: Date
     let end: Date
 
+    private static let utcCalendar: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        return cal
+    }()
+
     /// `personalOffset` (seconds after 00:00 TCT) applies to activities that are not fixed-time.
     init(_ raw: CalendarActivity, isCompetition: Bool, personalOffset: TimeInterval?) {
-        var utc = Calendar(identifier: .gregorian)
-        utc.timeZone = TimeZone(identifier: "UTC")!
         var start = Date(timeIntervalSince1970: TimeInterval(raw.start))
         var end = Date(timeIntervalSince1970: TimeInterval(raw.end))
         if end < start {
-            let previous = utc.date(byAdding: .year, value: -1, to: start) ?? start
+            let previous = Self.utcCalendar.date(byAdding: .year, value: -1, to: start) ?? start
             end = start.addingTimeInterval(max(0, end.timeIntervalSince(previous)))
         }
         if raw.fixedStartTime == false, let personalOffset {

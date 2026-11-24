@@ -65,6 +65,7 @@ struct CompetitionPanel: View {
             ValueRow(label: "Eggs found", value: "\(TornFormatter.formatNumber(eggs)) / \(TornFormatter.formatNumber(total))")
         }
         if competition.isElimination {
+            let teamNames = Dictionary(app.companion.teams.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
             ForEach(app.companion.teams) { team in
                 BoardRow {
                     VStack(alignment: .leading, spacing: 2) {
@@ -81,7 +82,7 @@ struct CompetitionPanel: View {
                             .font(.boardDetail)
                             .foregroundStyle(Board.inkSecondary)
                         ForEach(Array(team.attackingSummary.enumerated()), id: \.offset) { _, attack in
-                            let opponent = app.companion.teams.first { $0.id == attack.teamId }?.name ?? "Team \(attack.teamId)"
+                            let opponent = teamNames[attack.teamId] ?? "Team \(attack.teamId)"
                             Text("Attacking \(opponent): \(attack.attacks)")
                                 .font(.boardDetail)
                                 .foregroundStyle(Board.inkSecondary)
@@ -116,21 +117,24 @@ struct ShopPricesPanel: View {
     private static let rowCap = 12
 
     private var countries: [String] {
-        [Self.anyCountry] + Set(app.companion.shops.flatMap { $0.value.shops.map(\.country) }).sorted()
+        [Self.anyCountry] + app.companion.shopCountries
     }
 
     private func shops(for item: ShopItem) -> [ShopItem.Shop] {
-        item.value.shops.filter { country == Self.anyCountry || $0.country == country }
+        country == Self.anyCountry ? item.value.shops : item.value.shops.filter { $0.country == country }
     }
 
     private var hasFilter: Bool {
         country != Self.anyCountry || !search.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    private var matches: [ShopItem] {
+    private func filteredMatches() -> [ShopItem] {
         let query = search.trimmingCharacters(in: .whitespaces)
-        return app.companion.shops.filter {
-            (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query)) && !shops(for: $0).isEmpty
+        let anyCountry = country == Self.anyCountry
+        return app.companion.shops.filter { item in
+            let matchesName = query.isEmpty || item.name.localizedCaseInsensitiveContains(query)
+            guard matchesName else { return false }
+            return anyCountry ? !item.value.shops.isEmpty : item.value.shops.contains { $0.country == country }
         }
     }
 
@@ -160,10 +164,13 @@ struct ShopPricesPanel: View {
                 } else if !hasFilter {
                     BoardEmptyState(title: "\(TornFormatter.formatNumber(app.companion.shops.count)) items in Torn's shops",
                                     detail: "Type a name or pick a country to see what is sold there and for how much.")
-                } else if matches.isEmpty {
-                    BoardEmptyState(title: "Nothing sold matches that")
                 } else {
-                    results
+                    let currentMatches = filteredMatches()
+                    if currentMatches.isEmpty {
+                        BoardEmptyState(title: "Nothing sold matches that")
+                    } else {
+                        results(currentMatches)
+                    }
                 }
             }
             .onAppear(perform: preselectDestination)
@@ -175,12 +182,16 @@ struct ShopPricesPanel: View {
     private func preselectDestination() {
         guard country == Self.anyCountry, let travel = app.player.data?.travel,
               travel.isTraveling || travel.isAbroad, let destination = travel.destination,
-              countries.contains(destination) else { return }
+              app.companion.shopCountries.contains(destination) else { return }
         country = destination
     }
 
-    private var results: some View {
-        VStack(alignment: .leading, spacing: 0) {
+    private func results(_ matches: [ShopItem]) -> some View {
+        let watchedPrices: [Int: Int] = Dictionary(
+            app.watchlist.items.compactMap { $0.lowestPrice > 0 ? ($0.id, $0.lowestPrice) : nil },
+            uniquingKeysWith: { first, _ in first }
+        )
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 10) {
                 Text("Item")
                 Spacer(minLength: 0)
@@ -195,10 +206,10 @@ struct ShopPricesPanel: View {
             Board.hairline.frame(height: 1)
 
             ForEach(matches.prefix(Self.rowCap)) { item in
-                row(item)
+                row(item, watchedPrice: watchedPrices[item.id])
             }
 
-            Text(footnote)
+            Text(footnote(totalCount: matches.count))
                 .font(.boardDetail)
                 .foregroundStyle(Board.inkSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -206,20 +217,27 @@ struct ShopPricesPanel: View {
         }
     }
 
-    private var footnote: String {
-        let shown = min(matches.count, Self.rowCap)
-        let count = matches.count > shown ? "Showing \(shown) of \(matches.count); narrow the search to see the rest. " : ""
+    private func footnote(totalCount: Int) -> String {
+        let shown = min(totalCount, Self.rowCap)
+        let count = totalCount > shown ? "Showing \(shown) of \(totalCount); narrow the search to see the rest. " : ""
         return count + "Catalog prices. Shop stock and live profit aren't guaranteed."
     }
 
-    private func row(_ item: ShopItem) -> some View {
+    private func row(_ item: ShopItem, watchedPrice: Int?) -> some View {
         let offers = shops(for: item)
         // The cheapest place to buy it among the shops in view; a shop with no buy price
         // only takes the item, it does not sell it.
-        let cheapest = offers.filter { $0.buyPrice != nil }.min { ($0.buyPrice ?? 0) < ($1.buyPrice ?? 0) }
+        var cheapest: ShopItem.Shop?
+        for offer in offers {
+            guard let price = offer.buyPrice else { continue }
+            if let current = cheapest?.buyPrice {
+                if price < current { cheapest = offer }
+            } else {
+                cheapest = offer
+            }
+        }
         let shown = cheapest ?? offers[0]
-        let watched = app.watchlist.items.first { $0.id == item.id && $0.lowestPrice > 0 }
-        let market = watched?.lowestPrice ?? item.value.marketPrice
+        let market = watchedPrice ?? item.value.marketPrice
         let buy = cheapest?.buyPrice
         let more = offers.count - 1
 
@@ -250,7 +268,7 @@ struct ShopPricesPanel: View {
         .accessibilityLabel(
             "\(item.name), \(shown.shop), \(shown.country). "
             + (buy.map { "Buy $\(TornFormatter.formatNumber($0))" } ?? "Not sold here")
-            + ", \(watched == nil ? "catalog market value" : "last known market price") $\(TornFormatter.formatNumber(market))"
+            + ", \(watchedPrice == nil ? "catalog market value" : "last known market price") $\(TornFormatter.formatNumber(market))"
         )
     }
 }
@@ -335,7 +353,7 @@ struct StockBonusPanel: View {
                     BoardEmptyState(title: "No share blocks loaded")
                 }
                 ForEach(app.companion.stocks) { stock in
-                    let reference = app.companion.stockReferences.first { $0.id == stock.id }
+                    let reference = app.companion.stockReferenceByID[stock.id]
                     BoardRow {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack(alignment: .firstTextBaseline) {

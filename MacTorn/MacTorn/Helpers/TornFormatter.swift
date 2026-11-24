@@ -144,13 +144,126 @@ extension View {
 extension String {
     /// Strips HTML tags and decodes common HTML entities returned by the Torn API.
     var strippedHTMLAndDecodedEntities: String {
-        self.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&#039;", with: "'")
-            .replacingOccurrences(of: "&apos;", with: "'")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasTag = utf8.contains(0x3C) // '<'
+        let hasEntity = utf8.contains(0x26) // '&'
+        if !hasTag && !hasEntity {
+            return trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        var result = hasTag ? Self.stripHTMLTags(self) : self
+        if result.utf8.contains(0x26) {
+            result = Self.decodeCommonHTMLEntities(result)
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Single-pass UTF-8 equivalent of `replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)`.
+    private static func stripHTMLTags(_ input: String) -> String {
+        var copy = input
+        return copy.withUTF8 { buf in
+            var out: [UInt8] = []
+            out.reserveCapacity(buf.count)
+            var i = 0
+            var chunkStart = 0
+            let n = buf.count
+            while i < n {
+                if buf[i] == 0x3C { // '<'
+                    var j = i + 1
+                    while j < n && buf[j] != 0x3E { j += 1 }
+                    if j < n {
+                        if j > i + 1 {
+                            if chunkStart < i {
+                                out.append(contentsOf: buf[chunkStart..<i])
+                            }
+                            i = j + 1
+                            chunkStart = i
+                            continue
+                        } else {
+                            // `<>` has zero interior bytes so `<[^>]+>` leaves it literal.
+                            i = j + 1
+                            continue
+                        }
+                    } else {
+                        break
+                    }
+                }
+                i += 1
+            }
+            if chunkStart == 0 {
+                return input
+            }
+            if chunkStart < n {
+                out.append(contentsOf: buf[chunkStart..<n])
+            }
+            return String(decoding: out, as: UTF8.self)
+        }
+    }
+
+    /// Decodes `&amp;`, `&#039;`, `&apos;`, `&quot;`, `&lt;`, `&gt;` in UTF-8 without NSString bridging,
+    /// preserving the original sequential order (`&amp;` decoded before secondary entities).
+    private static func decodeCommonHTMLEntities(_ input: String) -> String {
+        var copy = input
+        return copy.withUTF8 { buf in
+            let n = buf.count
+            var out: [UInt8] = []
+            out.reserveCapacity(n)
+            var i = 0
+            var chunkStart = 0
+
+            func match(_ index: Int, _ target: StaticString) -> Bool {
+                let len = target.utf8CodeUnitCount
+                guard index + len <= n else { return false }
+                let ptr = target.utf8Start
+                for k in 0..<len {
+                    if buf[index + k] != ptr[k] { return false }
+                }
+                return true
+            }
+
+            // First resolve `&amp;` -> `&`, and if followed by a known entity suffix (e.g. `&amp;lt;`),
+            // resolve that too to stay 100% identical to sequential `.replacingOccurrences`.
+            func secondaryReplacement(afterAmp index: Int) -> (byte: UInt8, advance: Int)? {
+                if match(index, "#039;") { return (0x27, 5) } // '
+                if match(index, "apos;") { return (0x27, 5) } // '
+                if match(index, "quot;") { return (0x22, 5) } // "
+                if match(index, "lt;")   { return (0x3C, 3) } // <
+                if match(index, "gt;")   { return (0x3E, 3) } // >
+                return nil
+            }
+
+            while i < n {
+                if buf[i] == 0x26 { // '&'
+                    let next = i + 1
+                    if match(next, "amp;") {
+                        if chunkStart < i { out.append(contentsOf: buf[chunkStart..<i]) }
+                        let afterAmp = i + 5
+                        if let chained = secondaryReplacement(afterAmp: afterAmp) {
+                            out.append(chained.byte)
+                            i = afterAmp + chained.advance
+                        } else {
+                            out.append(0x26)
+                            i = afterAmp
+                        }
+                        chunkStart = i
+                        continue
+                    } else if let rep = secondaryReplacement(afterAmp: next) {
+                        if chunkStart < i { out.append(contentsOf: buf[chunkStart..<i]) }
+                        out.append(rep.byte)
+                        i = next + rep.advance
+                        chunkStart = i
+                        continue
+                    }
+                }
+                i += 1
+            }
+
+            if chunkStart == 0 {
+                return input
+            }
+            if chunkStart < n {
+                out.append(contentsOf: buf[chunkStart..<n])
+            }
+            return String(decoding: out, as: UTF8.self)
+        }
     }
 }

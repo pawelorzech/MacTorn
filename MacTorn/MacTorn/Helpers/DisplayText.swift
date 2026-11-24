@@ -15,11 +15,46 @@ extension String {
     /// reaching the UI from a source we do not control: Torn's own error messages, and event text
     /// that another player can influence.
     func sanitizedForDisplay(limit: Int = 120) -> String {
-        let stripped = unicodeScalars
-            .filter { !CharacterSet.lineBreaking.contains($0) || $0 == .emojiJoiner }
-            .map(Character.init)
         // `prefix(_:)` traps on a negative length; clamp so a computed limit cannot crash.
-        return String(String(stripped).prefix(max(0, limit)))
+        let clampedLimit = max(0, limit)
+        guard clampedLimit > 0, !isEmpty else { return "" }
+
+        let scalars = unicodeScalars
+        var firstDisallowed: String.UnicodeScalarView.Index?
+        var idx = scalars.startIndex
+        while idx < scalars.endIndex {
+            let s = scalars[idx]
+            // Printable ASCII (0x20...0x7E) is never in `CharacterSet.lineBreaking`.
+            if s.value < 0x20 || s.value >= 0x7F {
+                if CharacterSet.lineBreaking.contains(s) && s != .emojiJoiner {
+                    firstDisallowed = idx
+                    break
+                }
+            }
+            idx = scalars.index(after: idx)
+        }
+
+        // Fast path: string contains no disallowed scalars. UTF-8 byte count >= Character count,
+        // so `utf8.count <= clampedLimit` guarantees the length cap without counting graphemes.
+        guard let badIndex = firstDisallowed else {
+            return utf8.count <= clampedLimit ? self : String(prefix(clampedLimit))
+        }
+
+        var kept = String.UnicodeScalarView()
+        kept.reserveCapacity(scalars.count)
+        kept.append(contentsOf: scalars[..<badIndex])
+        var cur = scalars.index(after: badIndex)
+        while cur < scalars.endIndex {
+            let s = scalars[cur]
+            if (s.value >= 0x20 && s.value < 0x7F)
+                || !CharacterSet.lineBreaking.contains(s)
+                || s == .emojiJoiner {
+                kept.append(s)
+            }
+            cur = scalars.index(after: cur)
+        }
+        let cleaned = String(kept)
+        return cleaned.utf8.count <= clampedLimit ? cleaned : String(cleaned.prefix(clampedLimit))
     }
 }
 

@@ -13,21 +13,23 @@ struct EventsView: View {
                 BoardEmptyState(title: "No recent events")
             } else {
                 ForEach(events.prefix(5)) { event in
+                    let clean = event.cleanEvent
+                    let ago = timeAgo(event.timestamp)
                     BoardRow(verticalPadding: 7) {
                         HStack(alignment: .firstTextBaseline, spacing: Board.Space.m) {
-                            Text(event.cleanEvent)
+                            Text(clean)
                                 .font(.boardCaption)
                                 .foregroundStyle(Board.ink)
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)
                             Spacer(minLength: Board.Space.s)
-                            Text(timeAgo(event.timestamp))
+                            Text(ago)
                                 .font(.figure(13, weight: .regular))
                                 .foregroundStyle(Board.inkSecondary)
                         }
                     }
                     .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(event.cleanEvent), \(timeAgo(event.timestamp)) ago")
+                    .accessibilityLabel("\(clean), \(ago) ago")
                     .uiTestID("uitest.event.\(event.id)")
                 }
             }

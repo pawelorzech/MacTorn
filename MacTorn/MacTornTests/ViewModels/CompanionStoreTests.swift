@@ -160,6 +160,38 @@ final class CompanionStoreTests: XCTestCase {
         store.reset()
         XCTAssertTrue(store.newlyAvailable(["1", "2"], feature: .stocks).isEmpty)
     }
+
+    func testDerivedCachesUpdateAndClearOnReset() {
+        let store = CompanionStore(defaults: .createMockDefaults(), notifier: SilentNotifier())
+        store.shops = [
+            ShopItem(id: 1, name: "A", value: .init(marketPrice: 100, shops: [
+                .init(country: "Japan", shop: "S1", buyPrice: 50, sellPrice: nil),
+                .init(country: "Canada", shop: "S2", buyPrice: 60, sellPrice: nil)
+            ])),
+            ShopItem(id: 2, name: "B", value: .init(marketPrice: 200, shops: [
+                .init(country: "Japan", shop: "S3", buyPrice: 70, sellPrice: nil)
+            ]))
+        ]
+        XCTAssertEqual(store.shopCountries, ["Canada", "Japan"])
+
+        store.stockReferences = [
+            StockReferenceV2(id: 7, name: "Symbiotic", acronym: "SYM",
+                             market: .init(price: 500), bonus: .init(passive: false, frequency: 7, requirement: 500_000, description: "Drug pack"))
+        ]
+        XCTAssertEqual(store.stockReferenceByID[7]?.acronym, "SYM")
+
+        store.calendarStartTime = "04:00 TCT"
+        store.calendarActivities = [
+            (activity: CalendarActivity(title: "Test Event", description: "D", start: 1_780_000_000, end: 1_780_086_400, fixedStartTime: false), isCompetition: false)
+        ]
+        XCTAssertEqual(store.calendarEntries.count, 1)
+        XCTAssertEqual(store.calendarEntries[0].start, Date(timeIntervalSince1970: 1_780_000_000 + 4 * 3600))
+
+        store.reset()
+        XCTAssertTrue(store.shopCountries.isEmpty)
+        XCTAssertTrue(store.stockReferenceByID.isEmpty)
+        XCTAssertTrue(store.calendarEntries.isEmpty)
+    }
     func testNoRequestsUntilOptedInAndNoDuplicatePollWithinCadence() async throws {
         let session = MockNetworkSession(mockData: Data(#"{"trades":[]}"#.utf8))
         let app = makeApp(session)

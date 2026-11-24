@@ -119,9 +119,10 @@ struct WatchlistView: View {
             // name finds nothing, and otherwise the shortlist. The shortlist is
             // the fallback for every remaining state, not just an unloaded
             // catalog, so opening the panel cold never shows a blank field.
-            if !searchResults.isEmpty {
+            let results = searchResults
+            if !results.isEmpty {
                 VStack(spacing: 0) {
-                    ForEach(searchResults) { item in
+                    ForEach(results) { item in
                         suggestionRow(name: item.name, id: item.id)
                     }
                 }

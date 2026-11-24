@@ -148,11 +148,53 @@ struct NextUpSection: View {
         }
     }
 
+    private static let shortTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter
+    }()
+
+    private struct DayWindow {
+        let todayStart: Date
+        let tomorrowStart: Date
+        let dayAfterStart: Date
+        let timeZoneID: String
+    }
+
+    @MainActor private static var cachedDayWindow: DayWindow?
+
+    @MainActor
+    private static func dayWindow(for now: Date) -> DayWindow {
+        let tzID = TimeZone.current.identifier
+        if let window = cachedDayWindow,
+           window.timeZoneID == tzID,
+           now >= window.todayStart,
+           now < window.tomorrowStart {
+            return window
+        }
+        let calendar = Calendar.current
+        let todayStart = calendar.startOfDay(for: now)
+        let tomorrowStart = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? todayStart.addingTimeInterval(86_400)
+        let dayAfterStart = calendar.date(byAdding: .day, value: 2, to: todayStart) ?? tomorrowStart.addingTimeInterval(86_400)
+        let window = DayWindow(todayStart: todayStart, tomorrowStart: tomorrowStart, dayAfterStart: dayAfterStart, timeZoneID: tzID)
+        cachedDayWindow = window
+        return window
+    }
+
     /// "at 13:44" today, "Friday at 14:10" otherwise — the wall-clock moment on this Mac.
+    @MainActor
     static func when(_ date: Date, from now: Date) -> String {
-        let time = date.formatted(date: .omitted, time: .shortened)
-        if Calendar.current.isDate(date, inSameDayAs: now) { return "at \(time)" }
-        if Calendar.current.isDate(date, inSameDayAs: now.addingTimeInterval(86_400)) { return "tomorrow at \(time)" }
-        return "\(date.formatted(.dateTime.weekday(.wide))) at \(time)"
+        let time = shortTimeFormatter.string(from: date)
+        let window = dayWindow(for: now)
+        if date >= window.todayStart && date < window.tomorrowStart { return "at \(time)" }
+        if date >= window.tomorrowStart && date < window.dayAfterStart { return "tomorrow at \(time)" }
+        return "\(weekdayFormatter.string(from: date)) at \(time)"
     }
 }

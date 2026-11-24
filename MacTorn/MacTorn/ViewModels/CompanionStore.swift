@@ -41,15 +41,39 @@ final class CompanionStore {
     var minimumCPR: Int { didSet { defaults.set(minimumCPR, forKey: "companion.minimumCPR") } }
     var recruiting: [RecruitingCrime] = []
     var stocks: [StockV2] = []
-    var stockReferences: [StockReferenceV2] = []
+    var stockReferences: [StockReferenceV2] = [] {
+        didSet {
+            stockReferenceByID = Dictionary(stockReferences.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
+        }
+    }
+    private(set) var stockReferenceByID: [Int: StockReferenceV2] = [:]
     var competition: CompetitionV2?
     var teams: [EliminationTeam] = []
-    var calendarActivities: [(activity: CalendarActivity, isCompetition: Bool)] = []
-    var calendarStartTime: String?
+    var calendarActivities: [(activity: CalendarActivity, isCompetition: Bool)] = [] {
+        didSet { rebuildCalendarEntries() }
+    }
+    var calendarStartTime: String? {
+        didSet { rebuildCalendarEntries() }
+    }
+    /// Calendar activities with trustworthy dates and the user's personal start applied.
+    /// Cached and rebuilt only when activities or start time change, not on every view render.
+    private(set) var calendarEntries: [CalendarEntry] = []
     /// Torn code 32/33 per endpoint: healthy but nothing to serve right now. Not an error.
     var notAvailable: [String: Int] = [:]
     var trades: [TradeV2] = []
-    var shops: [ShopItem] = []
+    var shops: [ShopItem] = [] {
+        didSet {
+            var unique = Set<String>()
+            for item in shops {
+                for shop in item.value.shops {
+                    unique.insert(shop.country)
+                }
+            }
+            shopCountries = unique.sorted()
+        }
+    }
+    /// Sorted unique countries present in `shops`, cached to avoid scanning all items per keystroke.
+    private(set) var shopCountries: [String] = []
     var tradeDetails: [Int: [TradeDetailItem]] = [:]
     var warfare: [WarfareCategory: [WarfareEntry]] = [:]
     var nextWarPage: [WarfareCategory: Int] = [:]
@@ -247,10 +271,15 @@ final class CompanionStore {
         }
     }
 
-    /// Calendar activities with trustworthy dates and the user's personal start applied.
-    var calendarEntries: [CalendarEntry] {
+    private func rebuildCalendarEntries() {
+        guard !calendarActivities.isEmpty else {
+            if !calendarEntries.isEmpty { calendarEntries = [] }
+            return
+        }
         let offset = CalendarEntry.offset(from: calendarStartTime)
-        return calendarActivities.map { CalendarEntry($0.activity, isCompetition: $0.isCompetition, personalOffset: offset) }
+        calendarEntries = calendarActivities.map {
+            CalendarEntry($0.activity, isCompetition: $0.isCompetition, personalOffset: offset)
+        }
     }
 
     func request<Value: Decodable>(_ id: String, app: AppState) async -> Value? {
